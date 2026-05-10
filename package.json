@@ -1,0 +1,23 @@
+{
+  "name": "jable-favourites-exporter",
+  "version": "0.2.0",
+  "description": "Tampermonkey exporter and Electron desktop app for Jable favourites and watch-later lists.",
+  "main": "app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test"
+  },
+  "keywords": [
+    "electron",
+    "jable",
+    "sqlite",
+    "tampermonkey"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^40.4.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
