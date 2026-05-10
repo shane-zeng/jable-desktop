@@ -18,16 +18,21 @@
    * ------------------------------------- */
   // 可選：'json' 或 'csv'
   var EXPORT_FORMAT = 'json';
+  var PAGE_SIZE = 24;
+  var STORAGE_PREFIX = 'jable-favourites-exporter:';
 
   /* ---------------------------------------
    * Selectors
    * ------------------------------------- */
-  var SEL_SETTINGS = 'nav.profile-nav a.right';             // 設定按鈕
   var SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos'; // 清單容器
   var SEL_TITLES = 'div.detail h6.title a';                 // 標題 <a>
   var SEL_PAGER = 'ul.pagination';                          // 分頁容器
   var SEL_PAGER_LINKS = 'ul.pagination a.page-link';        // 可點擊的分頁
   var BTN_ID = 'fav-export-all-btn';                        // 匯出按鈕 ID
+
+  function isExportPage() {
+    return /\/my\/favourites\/videos(?:-watch-later)?\/?$/.test(location.pathname);
+  }
 
   /* ---------------------------------------
    * File naming by current path
@@ -79,6 +84,112 @@
       );
     }
     return lines.join('\n');
+  }
+
+  function flattenPages(resource) {
+    var rows = [];
+    if (!resource || !resource.data) return rows;
+
+    for (var i = 0; i < resource.data.length; i++) {
+      var page = resource.data[i];
+      if (page && page.data) rows = rows.concat(page.data);
+    }
+
+    return rows;
+  }
+
+  function rowsByPage(rows) {
+    var pages = [];
+    var exportedAt = new Date().toISOString();
+
+    for (var i = 0; i < rows.length; i += PAGE_SIZE) {
+      var chunk = rows.slice(i, i + PAGE_SIZE);
+      var pageNumber = Math.floor(i / PAGE_SIZE) + 1;
+
+      pages.push({
+        data: chunk,
+        meta: {
+          current_page: pageNumber,
+          per_page: PAGE_SIZE,
+          count: chunk.length,
+          first_url: chunk.length ? chunk[0].url : null,
+          last_url: chunk.length ? chunk[chunk.length - 1].url : null,
+          exported_at: exportedAt
+        }
+      });
+    }
+
+    return pages;
+  }
+
+  function buildExportResource(rows, completed, lastScrapedPage) {
+    var pages = rowsByPage(rows);
+    var exportedAt = new Date().toISOString();
+
+    return {
+      data: pages,
+      meta: {
+        format_version: 2,
+        source_path: location.pathname,
+        source_url: location.href,
+        exported_at: exportedAt,
+        completed: !!completed,
+        per_page: PAGE_SIZE,
+        page_count: pages.length,
+        total: rows.length,
+        last_page: pages.length ? pages[pages.length - 1].meta.current_page : null,
+        last_scraped_page: lastScrapedPage || null
+      }
+    };
+  }
+
+  function storageKey() {
+    return STORAGE_PREFIX + fileBaseByPath();
+  }
+
+  function loadCachedResource() {
+    try {
+      var raw = localStorage.getItem(storageKey());
+      if (!raw) return null;
+
+      var resource = JSON.parse(raw);
+      if (!resource || !resource.data || !resource.meta) return null;
+
+      return resource;
+    } catch (e) {
+      log('failed to load cache', e);
+      return null;
+    }
+  }
+
+  function saveCachedResource(resource) {
+    try {
+      localStorage.setItem(storageKey(), JSON.stringify(resource));
+    } catch (e) {
+      log('failed to save cache', e);
+    }
+  }
+
+  function urlMap(rows) {
+    var out = {};
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].url) out[rows[i].url] = true;
+    }
+    return out;
+  }
+
+  function allRowsKnown(rows, known) {
+    if (!rows.length) return false;
+
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i].url || !known[rows[i].url]) return false;
+    }
+
+    return true;
+  }
+
+  function mergeRows(newRows, cachedRows) {
+    return uniqByUrl(newRows.concat(cachedRows));
   }
 
   function downloadBlob(name, blob) {
@@ -158,6 +269,16 @@
   /* ---------------------------------------
    * Pagination helpers
    * ------------------------------------- */
+  function normalizePageNumber(value) {
+    var n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
+    return isFinite(n) && n > 0 ? n : 1;
+  }
+
+  function currentPageNumber() {
+    var active = document.querySelector('ul.pagination span.page-link.active');
+    return active ? normalizePageNumber(active.textContent) : 1;
+  }
+
   function signature() {
     var list = document.querySelectorAll(SEL_TITLES);
     var count = list.length;
@@ -227,15 +348,47 @@
   function exportAllByClick() {
     setBtnBusy(true, '準備中…');
 
-    var all = uniqByUrl(scrapeCurrentPage());
+    var cache = loadCachedResource();
+    var cacheComplete = !!(cache && cache.meta && cache.meta.completed);
+    var cachedRows = flattenPages(cache);
+    var knownUrls = urlMap(cachedRows);
+    var newRows = [];
     var visited = {};
     var safety = 100;
+    var lastScrapedPage = null;
 
     var active = document.querySelector('ul.pagination span.page-link.active');
     if (active) {
       var t = (active.textContent || '').trim();
       if (t) visited[t] = true;
     }
+
+    function rowsForProgress() {
+      return cacheComplete ? mergeRows(newRows, cachedRows) : mergeRows(cachedRows, newRows);
+    }
+
+    function recordCurrentPage() {
+      var rows = uniqByUrl(scrapeCurrentPage());
+      lastScrapedPage = currentPageNumber();
+
+      if (cacheComplete && allRowsKnown(rows, knownUrls)) {
+        log('known page reached, stop at page', lastScrapedPage);
+        return true;
+      }
+
+      for (var i = 0; i < rows.length; i++) {
+        var url = rows[i].url;
+        if (!url || knownUrls[url]) continue;
+
+        knownUrls[url] = true;
+        newRows.push(rows[i]);
+      }
+
+      saveCachedResource(buildExportResource(rowsForProgress(), false, lastScrapedPage));
+      return false;
+    }
+
+    if (recordCurrentPage()) return finish();
 
     function step() {
       if (safety-- <= 0) return finish();
@@ -266,12 +419,12 @@
         try { next.el.click(); } catch (e) {}
 
         waitForContainerChange(oldSig, 15000).then(function () {
-          var rows = scrapeCurrentPage();
-          all = uniqByUrl(all.concat(rows));
           visited[next.id] = true;
 
-          log('page', next.id, 'rows', rows.length, 'total', all.length);
-          setBtnBusy(true, '已擷取 ' + all.length + ' 筆，前往下一頁…');
+          if (recordCurrentPage()) return finish();
+
+          log('page', next.id, 'new rows', newRows.length, 'total', rowsForProgress().length);
+          setBtnBusy(true, '已擷取 ' + rowsForProgress().length + ' 筆，前往下一頁…');
           setTimeout(step, 500 + Math.random() * 500);
         });
       }, 200);
@@ -280,14 +433,16 @@
     function finish() {
       setBtnBusy(false, '完成，匯出中…');
       var base = fileBaseByPath();
+      var resource = buildExportResource(rowsForProgress(), true, lastScrapedPage);
+      saveCachedResource(resource);
 
       if (EXPORT_FORMAT === 'csv') {
-        downloadCsv(base + '.csv', toCSV(all));
+        downloadCsv(base + '.csv', toCSV(flattenPages(resource)));
       } else {
-        downloadJson(base + '.json', all);
+        downloadJson(base + '.json', resource);
       }
 
-      log('done, total:', all.length);
+      log('done, total:', resource.meta.total);
     }
 
     step();
@@ -311,41 +466,34 @@
 
   function addNavButton() {
     if (document.getElementById(BTN_ID)) return true;
+    if (!isExportPage() || !document.body) return false;
 
-    var settings = document.querySelector(SEL_SETTINGS);
-    if (settings) {
-      var btn = document.createElement('a');
-      btn.id = BTN_ID;
-      btn.href = 'javascript:void(0)';
-      btn.textContent = '匯出全部';
-      btn.className = (settings.className || '').replace(/\bright\b/, '').trim();
-      btn.style.marginRight = '12px';
-      btn.addEventListener('click', exportAllByClick);
+    var btn = document.createElement('button');
+    btn.id = BTN_ID;
+    btn.type = 'button';
+    btn.textContent = '📦 匯出所有分頁影片';
 
-      settings.parentNode.insertBefore(btn, settings);
-      log('inserted before settings');
-      return true;
-    }
+    btn.style.setProperty('position', 'fixed', 'important');
+    btn.style.setProperty('right', '16px', 'important');
+    btn.style.setProperty('bottom', '16px', 'important');
+    btn.style.setProperty('z-index', '2147483647', 'important');
+    btn.style.setProperty('display', 'inline-flex', 'important');
+    btn.style.setProperty('align-items', 'center', 'important');
+    btn.style.setProperty('justify-content', 'center', 'important');
+    btn.style.setProperty('background', '#f36', 'important');
+    btn.style.setProperty('color', '#fff', 'important');
+    btn.style.setProperty('border', 'none', 'important');
+    btn.style.setProperty('border-radius', '8px', 'important');
+    btn.style.setProperty('padding', '8px 12px', 'important');
+    btn.style.setProperty('cursor', 'pointer', 'important');
+    btn.style.setProperty('font-size', '14px', 'important');
+    btn.style.setProperty('font-weight', '600', 'important');
+    btn.style.setProperty('line-height', '1.4', 'important');
+    btn.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.35)', 'important');
+    btn.addEventListener('click', exportAllByClick);
 
-    // 後備浮動按鈕
-    var f = document.createElement('button');
-    f.id = BTN_ID;
-    f.textContent = '📦 匯出所有分頁影片';
-    f.style.position = 'fixed';
-    f.style.right = '16px';
-    f.style.bottom = '16px';
-    f.style.zIndex = '99999';
-    f.style.background = '#f36';
-    f.style.color = '#fff';
-    f.style.border = 'none';
-    f.style.borderRadius = '8px';
-    f.style.padding = '8px 12px';
-    f.style.cursor = 'pointer';
-    f.style.fontSize = '14px';
-    f.addEventListener('click', exportAllByClick);
-
-    document.body.appendChild(f);
-    log('fallback floating button inserted');
+    document.body.appendChild(btn);
+    log('floating button inserted');
     return true;
   }
 
