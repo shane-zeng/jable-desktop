@@ -73,14 +73,16 @@
   }
 
   function toCSV(rows) {
-    var lines = ['title,url,views,likes'];
+    var lines = ['title,url,views,likes,img,preview'];
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       lines.push(
         escCsv(r.title) + ',' +
         escCsv(r.url) + ',' +
         (r.views || '') + ',' +
-        (r.likes || '')
+        (r.likes || '') + ',' +
+        escCsv(r.img) + ',' +
+        escCsv(r.preview)
       );
     }
     return lines.join('\n');
@@ -188,6 +190,16 @@
     return true;
   }
 
+  function rowsHaveMediaFields(rows) {
+    for (var i = 0; i < rows.length; i++) {
+      if (typeof rows[i].img === 'undefined' || typeof rows[i].preview === 'undefined') {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   function mergeRows(newRows, cachedRows) {
     return uniqByUrl(newRows.concat(cachedRows));
   }
@@ -220,7 +232,7 @@
   /* ---------------------------------------
    * Scraping helpers
    * ------------------------------------- */
-  // 擷取當前頁面 { title, url, views, likes }
+  // 擷取當前頁面 { title, url, views, likes, img, preview }
   function scrapeCurrentPage() {
     var out = [];
     var boxes = document.querySelectorAll('div.video-img-box');
@@ -232,6 +244,9 @@
 
       var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
       var href = a.getAttribute('href') || '';
+      var img = box.querySelector('div.img-box img');
+      var imgSrc = img ? (img.getAttribute('data-src') || img.getAttribute('src') || '') : '';
+      var previewSrc = img ? (img.getAttribute('data-preview') || '') : '';
 
       var views = null;
       var likes = null;
@@ -259,7 +274,9 @@
         title: title,
         url: absUrl(href),
         views: views,
-        likes: likes
+        likes: likes,
+        img: imgSrc ? absUrl(imgSrc) : null,
+        preview: previewSrc ? absUrl(previewSrc) : null
       });
     }
 
@@ -349,8 +366,11 @@
     setBtnBusy(true, '準備中…');
 
     var cache = loadCachedResource();
-    var cacheComplete = !!(cache && cache.meta && cache.meta.completed);
     var cachedRows = flattenPages(cache);
+    var cacheHasMedia = rowsHaveMediaFields(cachedRows);
+    var cacheComplete = !!(cache && cache.meta && cache.meta.completed && cacheHasMedia);
+    if (!cacheHasMedia) cachedRows = [];
+
     var knownUrls = urlMap(cachedRows);
     var newRows = [];
     var visited = {};
