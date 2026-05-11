@@ -1,166 +1,126 @@
 # Jable Desktop
 
-> A Tampermonkey user script and Electron desktop app to export, sync, and browse favourite or watch-later videos from [Jable.tv](https://jable.tv/) — even when pagination is loaded dynamically.
+Unofficial desktop app for syncing, browsing, importing, and exporting your Jable favourites and watch-later lists.
 
-Jable Desktop is an unofficial desktop companion for Jable.
-
-The original userscript remains available as `jable-favourites-exporter.user.js`. The desktop app adds a persistent embedded browser session and SQLite storage.
-
----
-
-## 📦 Features
-
-✅ Export all items across multiple pages (auto-click pagination).
-✅ Supports both **「影片收藏」** and **「稍後觀看」** pages.
-✅ Works even when Jable uses AJAX to load content (no API access needed).
-✅ Output format: **JSON** (default) or **CSV** (toggleable).
-✅ Compatible with modern browsers (Chrome / Edge / Firefox).
-✅ No external dependencies for the userscript.
-✅ Desktop MVP stores synced data in SQLite and supports JSON import/export.
+- [繁體中文](#繁體中文)
+- [English](#english)
 
 ---
 
-## 🚀 Installation
+## 繁體中文
 
-1. Install [Tampermonkey](https://www.tampermonkey.net/) browser extension.
-2. Visit the script file: jable-favourites-exporter.user.js
-3. Tampermonkey will prompt to install the script — click **Install**.
+Jable Desktop 會在桌面 App 內開啟 Jable，保留登入狀態，並把「影片收藏」與「稍後觀看」同步到本機資料庫。你可以在 App 裡瀏覽、排序、匯入既有 JSON，也可以再匯出備份。
+
+### 主要功能
+
+- 同步 **影片收藏** 與 **稍後觀看**。
+- 保留 Jable 登入狀態，下次開啟不用重新登入。
+- 將資料儲存在你的電腦本機。
+- 支援 JSON 匯入與匯出。
+- 記錄播放進度，方便之後接續觀看。
+
+### 安裝
+
+1. 到 [GitHub Releases](https://github.com/shane-zeng/jable-desktop/releases) 下載最新版本。
+2. macOS 使用者下載 `.dmg` 或 `.zip`。
+3. Windows 使用者下載 `.exe` 安裝檔或 `.zip`。
+4. 開啟 **Jable Desktop**。
+
+### 第一次使用
+
+1. 在 App 左側的內嵌瀏覽器登入 Jable。
+2. 打開 **影片收藏** 或 **稍後觀看** 頁面。
+3. 點擊 **同步**。
+4. 同步完成後，右側清單會顯示已儲存的影片。
+
+### 匯入與匯出
+
+- 點擊 **匯出** 可將目前清單備份成 JSON。
+- 點擊 **匯入** 可載入先前匯出的 JSON。
+- 舊版 Tampermonkey userscript 匯出的 JSON 也可以匯入。
+
+### 資料與隱私
+
+Jable Desktop 只會把同步資料儲存在你的電腦本機。App 不會把你的清單、登入資訊或觀看紀錄上傳到其他服務。
+
+### 常見問題
+
+**同步後沒有資料**
+
+先確認內嵌瀏覽器已登入 Jable，並且目前頁面是 **影片收藏** 或 **稍後觀看**。
+
+**重新開啟後需要登入**
+
+請確認你使用的是桌面 App，不是瀏覽器 userscript。桌面 App 使用自己的持久化 Jable session。
+
+**Windows 仍出現 SmartScreen 提示**
+
+目前的 Windows 版本是 unsigned build，SmartScreen 可能會提示。請確認檔案來源是本專案的 [GitHub Release](https://github.com/shane-zeng/jable-desktop/releases)。
+
+### 瀏覽器 Userscript
+
+如果你只想在瀏覽器內匯出清單，也可以使用 `jable-favourites-exporter.user.js` 搭配 Tampermonkey。桌面 App 則適合需要長期同步、瀏覽與備份的人。
+
+### 開發文件
+
+開發、測試、打包與 release 流程請看 [docs/development.md](docs/development.md)。
 
 ---
 
-## 🧭 Usage
+## English
 
-1. Go to your Jable account:
-- **影片收藏** → `https://jable.tv/my/favourites/videos/`
-- **稍後觀看** → `https://jable.tv/my/favourites/videos-watch-later/`
-2. Wait until all thumbnails are loaded.
-3. Click the **「匯出全部」** button (next to ⚙️ 設定).
-4. The script will:
-- Simulate clicking each pagination button.
-- Collect video titles and URLs.
-- Export a JSON or CSV file automatically.
+Jable Desktop opens Jable inside a desktop app, keeps your login session, and syncs your favourites and watch-later lists into a local database. You can browse, sort, import existing JSON files, and export backups from the app.
 
----
+### Features
 
-## 💾 Output Files
+- Sync **Favourites** and **Watch Later**.
+- Keep your Jable login session between app launches.
+- Store synced data locally on your computer.
+- Import and export JSON backups.
+- Save playback progress so you can resume later.
 
-| Page | URL | Output filename |
-|------|-----|-----------------|
-| 影片收藏 | `https://jable.tv/my/favourites/videos/` | `favourites_list.json` (or `.csv`) |
-| 稍後觀看 | `https://jable.tv/my/favourites/videos-watch-later/` | `watch_later_list.json` (or `.csv`) |
+### Installation
 
-You can change export format by editing this line in the script:
-```js
-var EXPORT_FORMAT = 'json'; // or 'csv'
-```
+1. Download the latest build from [GitHub Releases](https://github.com/shane-zeng/jable-desktop/releases).
+2. On macOS, download the `.dmg` or `.zip`.
+3. On Windows, download the `.exe` installer or `.zip`.
+4. Open **Jable Desktop**.
 
----
+### First Use
 
-## 🖥️ Desktop App MVP
+1. Sign in to Jable in the embedded browser on the left.
+2. Open the **Favourites** or **Watch Later** page.
+3. Click **Sync**.
+4. After syncing finishes, saved videos appear in the list on the right.
 
-The desktop app keeps a persistent Jable browser session and stores synced data in SQLite.
+### Import And Export
 
-```sh
-npm install
-npm start
-```
+- Click **Export** to back up the current list as JSON.
+- Click **Import** to load a previously exported JSON file.
+- JSON files exported by the older Tampermonkey userscript can also be imported.
 
-Log in inside the embedded browser, open **影片收藏** or **稍後觀看**, then click **同步**. The SQLite database path is shown in the right panel.
+### Data And Privacy
 
-Desktop app files:
+Jable Desktop stores synced data locally on your computer. The app does not upload your lists, login data, or playback history to any external service.
 
-- `app/main.js`: Electron main process and IPC handlers.
-- `app/webview-preload.js`: scraper injected into the embedded Jable `BrowserView`.
-- `app/database.js`: SQLite schema, upsert logic, JSON import/export.
-- `app/renderer/`: desktop UI.
+### Troubleshooting
 
-### Desktop Validation
+**No videos appear after syncing**
 
-```sh
-npm test
-```
+Make sure the embedded browser is signed in to Jable and currently opened on the **Favourites** or **Watch Later** page.
 
-Manual checks:
+**The app asks me to sign in again**
 
-- Restart the app and confirm the embedded browser stays logged in.
-- Sync both favourites and watch-later lists.
-- Import an existing userscript JSON export and verify rows appear in the matching tab.
-- Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
+Make sure you are using the desktop app, not the browser userscript. The desktop app uses its own persistent Jable session.
 
-### Desktop Packaging
+**Windows still shows a SmartScreen warning**
 
-Install the packaging tool once:
+The current Windows build is unsigned, so SmartScreen may show a warning. Make sure the file came from this project's [GitHub Release](https://github.com/shane-zeng/jable-desktop/releases).
 
-```sh
-npm install --save-dev electron-builder
-```
+### Browser Userscript
 
-Build unpacked apps for local smoke testing:
+If you only want to export from the browser, you can still use `jable-favourites-exporter.user.js` with Tampermonkey. The desktop app is better for ongoing sync, browsing, and backups.
 
-```sh
-npm run pack:mac
-npm run pack:win
-```
+### Development Docs
 
-Build unsigned distribution artifacts:
-
-```sh
-npm run dist:mac:unsigned
-npm run dist:win:unsigned
-```
-
-Artifacts are written to `release/`. The packaged app still stores its SQLite database under the OS app data directory, so user data is not bundled inside the app.
-
-Unsigned artifacts are only for local validation. The desktop app uses `io.github.shane-zeng.jable-desktop` as its stable app ID. For public distribution, add real icons and configure platform signing before sharing installers.
-
-#### macOS Developer ID signing and notarization
-
-Prerequisites:
-
-- Apple Developer Program membership.
-- A `Developer ID Application` certificate installed in the local keychain.
-- Notarization credentials, preferably an App Store Connect API key.
-
-Local release build:
-
-```sh
-export CSC_NAME="Developer ID Application: Your Name (TEAMID)"
-export APPLE_API_KEY="/absolute/path/AuthKey_KEYID.p8"
-export APPLE_API_KEY_ID="KEYID"
-export APPLE_API_ISSUER="issuer-uuid"
-npm run dist:mac
-```
-
-Useful verification commands:
-
-```sh
-codesign --verify --deep --strict --verbose=2 "release/mac/Jable Desktop.app"
-codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Jable Desktop.app"
-xcrun stapler validate "release/mac/Jable Desktop.app"
-xcrun stapler validate "release/mac-arm64/Jable Desktop.app"
-spctl --assess --type execute --verbose "release/mac/Jable Desktop.app"
-spctl --assess --type execute --verbose "release/mac-arm64/Jable Desktop.app"
-```
-
-#### Windows code signing
-
-Prerequisites:
-
-- An OV/EV code signing certificate exported as `.pfx`, or a compatible signing service.
-- The certificate password stored outside the repository.
-
-Local release build with a `.pfx` certificate:
-
-```sh
-export WIN_CSC_LINK="/absolute/path/windows-code-signing-cert.pfx"
-export WIN_CSC_KEY_PASSWORD="certificate-password"
-npm run dist:win
-```
-
-On Windows, verify the installer signature with PowerShell:
-
-```powershell
-Get-AuthenticodeSignature .\release\Jable-Desktop-0.2.0-win-x64.exe
-```
-
-Windows SmartScreen can still warn on early downloads until the signed file gains reputation.
+For development, testing, packaging, and release details, see [docs/development.md](docs/development.md).
