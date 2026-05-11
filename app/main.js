@@ -10,6 +10,8 @@ var BrowserView = electron.BrowserView;
 var ipcMain = electron.ipcMain;
 var session = electron.session;
 
+var JABLE_SESSION_PARTITION = 'persist:jable-session';
+
 var mainWindow = null;
 var jableView = null;
 var database = null;
@@ -62,7 +64,7 @@ function createBrowserView() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      partition: 'persist:jable-session'
+      partition: JABLE_SESSION_PARTITION
     }
   });
 
@@ -338,7 +340,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('session:clear-jable', async function () {
-    var jableSession = session.fromPartition('persist:jable-session');
+    var jableSession = session.fromPartition(JABLE_SESSION_PARTITION);
     await jableSession.clearStorageData();
     await jableSession.clearCache();
     return { cleared: true };

@@ -9,13 +9,13 @@ Unofficial desktop app for syncing, browsing, importing, and exporting your Jabl
 
 ## 繁體中文
 
-Jable Desktop 會在桌面 App 內開啟 Jable，保留登入狀態，並把「影片收藏」與「稍後觀看」同步到本機資料庫。你可以在 App 裡瀏覽、排序、匯入既有 JSON，也可以再匯出備份。
+Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會在 App 內開啟 Jable，將「影片收藏」與「稍後觀看」同步到你的電腦本機，方便瀏覽、排序、匯入與匯出備份。
 
 ### 主要功能
 
 - 同步 **影片收藏** 與 **稍後觀看**。
-- 保留 Jable 登入狀態，下次開啟不用重新登入。
-- 將資料儲存在你的電腦本機。
+- 使用內嵌瀏覽器登入 Jable，並在本機保存登入所需資料。
+- 將同步資料儲存在你的電腦本機。
 - 支援 JSON 匯入與匯出。
 - 記錄播放進度，方便之後接續觀看。
 
@@ -26,40 +26,41 @@ Jable Desktop 會在桌面 App 內開啟 Jable，保留登入狀態，並把「�
 3. Windows 使用者下載 `.exe` 安裝檔或 `.zip`。
 4. 開啟 **Jable Desktop**。
 
+目前發佈檔尚未做正式簽章。macOS 可能出現 Gatekeeper 提示，Windows 可能出現 SmartScreen 提示；請確認檔案來源是本專案的 GitHub Release。
+
 ### 第一次使用
 
-1. 在 App 左側的內嵌瀏覽器登入 Jable。
-2. 打開 **影片收藏** 或 **稍後觀看** 頁面。
-3. 點擊 **同步**。
-4. 同步完成後，右側清單會顯示已儲存的影片。
+1. 在 **瀏覽器** 頁籤登入 Jable。
+2. 開啟 Jable 的 **影片收藏** 或 **稍後觀看** 頁面。
+3. 切到 **本機資料** 頁籤。
+4. 點擊 **同步目前 Jable 頁面**。
+5. 同步完成後，影片會出現在本機清單中。
 
 ### 匯入與匯出
 
-- 點擊 **匯出** 可將目前清單備份成 JSON。
-- 點擊 **匯入** 可載入先前匯出的 JSON。
+- 點擊 **匯出 JSON** 可將目前清單備份成 JSON。
+- 點擊 **匯入 JSON** 可載入先前匯出的 JSON。
 - 舊版 Tampermonkey userscript 匯出的 JSON 也可以匯入。
 
-### 資料與隱私
+### 資料與登入狀態
 
-Jable Desktop 只會把同步資料儲存在你的電腦本機。App 不會把你的清單、登入資訊或觀看紀錄上傳到其他服務。
+同步資料會儲存在你的電腦本機。App 不會把你的清單或播放進度上傳到其他服務；你在內嵌瀏覽器中的登入與瀏覽仍會直接與 Jable 官方網站互動。
+
+App 會保存 Jable 的本機登入資料，所以一般重開 App 後仍可維持登入。若你在其他瀏覽器或裝置登入，或 Jable 讓伺服器端 session 過期，仍可能需要重新登入。
 
 ### 常見問題
 
 **同步後沒有資料**
 
-先確認內嵌瀏覽器已登入 Jable，並且目前頁面是 **影片收藏** 或 **稍後觀看**。
+確認內嵌瀏覽器已登入 Jable，且目前頁面是 **影片收藏** 或 **稍後觀看**，再點擊 **同步目前 Jable 頁面**。
 
-**重新開啟後需要登入**
+**重新開啟後需要重新登入**
 
-請確認你使用的是桌面 App，不是瀏覽器 userscript。桌面 App 使用自己的持久化 Jable session。
+這通常代表 Jable 官方 session 已失效。請重新登入後再同步；桌面 App 不會繞過 Jable 的官方 session 檢查。
 
-**Windows 仍出現 SmartScreen 提示**
+**我只想用瀏覽器匯出**
 
-目前的 Windows 版本是 unsigned build，SmartScreen 可能會提示。請確認檔案來源是本專案的 [GitHub Release](https://github.com/shane-zeng/jable-desktop/releases)。
-
-### 瀏覽器 Userscript
-
-如果你只想在瀏覽器內匯出清單，也可以使用 `jable-favourites-exporter.user.js` 搭配 Tampermonkey。桌面 App 則適合需要長期同步、瀏覽與備份的人。
+可以使用 `jable-favourites-exporter.user.js` 搭配 Tampermonkey。桌面 App 則適合需要長期同步、瀏覽與備份的人。
 
 ### 開發文件
 
@@ -69,12 +70,12 @@ Jable Desktop 只會把同步資料儲存在你的電腦本機。App 不會把�
 
 ## English
 
-Jable Desktop opens Jable inside a desktop app, keeps your login session, and syncs your favourites and watch-later lists into a local database. You can browse, sort, import existing JSON files, and export backups from the app.
+Jable Desktop is an unofficial desktop tool and is not affiliated with Jable. It opens Jable inside the app and syncs your favourites and watch-later lists to your computer, so you can browse, sort, import, and export backups.
 
 ### Features
 
 - Sync **Favourites** and **Watch Later**.
-- Keep your Jable login session between app launches.
+- Sign in through the embedded browser and keep local login data.
 - Store synced data locally on your computer.
 - Import and export JSON backups.
 - Save playback progress so you can resume later.
@@ -86,40 +87,41 @@ Jable Desktop opens Jable inside a desktop app, keeps your login session, and sy
 3. On Windows, download the `.exe` installer or `.zip`.
 4. Open **Jable Desktop**.
 
+Current release artifacts are not formally signed. macOS may show a Gatekeeper warning, and Windows may show a SmartScreen warning; make sure the file came from this project's GitHub Release.
+
 ### First Use
 
-1. Sign in to Jable in the embedded browser on the left.
-2. Open the **Favourites** or **Watch Later** page.
-3. Click **Sync**.
-4. After syncing finishes, saved videos appear in the list on the right.
+1. Sign in to Jable in the **瀏覽器** (Browser) tab.
+2. Open Jable's **Favourites** or **Watch Later** page.
+3. Switch to the **本機資料** (Local Data) tab.
+4. Click **同步目前 Jable 頁面** (Sync Current Jable Page).
+5. After syncing finishes, videos appear in the local list.
 
 ### Import And Export
 
-- Click **Export** to back up the current list as JSON.
-- Click **Import** to load a previously exported JSON file.
+- Click **匯出 JSON** (Export JSON) to back up the current list as JSON.
+- Click **匯入 JSON** (Import JSON) to load a previously exported JSON file.
 - JSON files exported by the older Tampermonkey userscript can also be imported.
 
-### Data And Privacy
+### Data And Login State
 
-Jable Desktop stores synced data locally on your computer. The app does not upload your lists, login data, or playback history to any external service.
+Synced data is stored locally on your computer. The app does not upload your lists or playback progress to another service; sign-in and browsing inside the embedded browser still communicate directly with Jable's website.
+
+The app keeps Jable's local login data, so reopening the app should normally keep you signed in. If you sign in from another browser or device, or if Jable expires the server-side session, you may still need to sign in again.
 
 ### Troubleshooting
 
 **No videos appear after syncing**
 
-Make sure the embedded browser is signed in to Jable and currently opened on the **Favourites** or **Watch Later** page.
+Make sure the embedded browser is signed in to Jable and currently opened on the **Favourites** or **Watch Later** page, then click **同步目前 Jable 頁面** (Sync Current Jable Page).
 
-**The app asks me to sign in again**
+**The app asks me to sign in again after reopening**
 
-Make sure you are using the desktop app, not the browser userscript. The desktop app uses its own persistent Jable session.
+This usually means Jable's official session has expired. Sign in again before syncing; the desktop app does not bypass Jable's official session checks.
 
-**Windows still shows a SmartScreen warning**
+**I only want to export from the browser**
 
-The current Windows build is unsigned, so SmartScreen may show a warning. Make sure the file came from this project's [GitHub Release](https://github.com/shane-zeng/jable-desktop/releases).
-
-### Browser Userscript
-
-If you only want to export from the browser, you can still use `jable-favourites-exporter.user.js` with Tampermonkey. The desktop app is better for ongoing sync, browsing, and backups.
+You can still use `jable-favourites-exporter.user.js` with Tampermonkey. The desktop app is better for ongoing sync, browsing, and backups.
 
 ### Development Docs
 

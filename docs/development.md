@@ -12,7 +12,7 @@ The user-facing guide lives in [README.md](../README.md).
 
 Jable Desktop is an unofficial desktop companion for Jable.
 
-The original userscript remains available as `jable-favourites-exporter.user.js`. The desktop app adds a persistent embedded browser session and SQLite storage.
+The original userscript remains available as `jable-favourites-exporter.user.js`. The desktop app adds an embedded browser with isolated persistent Jable cookies and SQLite storage.
 
 ---
 
@@ -67,14 +67,14 @@ var EXPORT_FORMAT = 'json'; // or 'csv'
 
 ## Desktop App MVP
 
-The desktop app keeps a persistent Jable browser session and stores synced data in SQLite.
+The desktop app opens Jable in an embedded browser and stores synced data in SQLite.
 
 ```sh
 npm install
 npm start
 ```
 
-Log in inside the embedded browser, open **影片收藏** or **稍後觀看**, then click **同步**. The SQLite database path is shown in the right panel.
+Log in inside the embedded browser, open **影片收藏** or **稍後觀看**, then click **同步**. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the right panel.
 
 Desktop app files:
 
@@ -91,7 +91,7 @@ npm test
 
 Manual checks:
 
-- Restart the app and confirm the embedded browser stays logged in.
+- Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
 - Sync both favourites and watch-later lists.
 - Import an existing userscript JSON export and verify rows appear in the matching tab.
 - Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
