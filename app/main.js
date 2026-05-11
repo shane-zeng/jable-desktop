@@ -30,7 +30,7 @@ function createWindow() {
     height: 860,
     minWidth: 1100,
     minHeight: 680,
-    title: 'Jable Desktop Exporter',
+    title: 'Jable Desktop',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -397,7 +397,7 @@ function registerIpcHandlers() {
 registerIpcHandlers();
 
 app.whenReady().then(function () {
-  app.setName('Jable Desktop Exporter');
+  app.setName('Jable Desktop');
 
   getDatabase();
   createWindow();

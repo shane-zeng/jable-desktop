@@ -1,11 +1,17 @@
 {
-  "name": "jable-favourites-exporter",
+  "name": "jable-desktop",
   "version": "0.2.0",
   "description": "Tampermonkey exporter and Electron desktop app for Jable favourites and watch-later lists.",
   "main": "app/main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test"
+    "test": "node --test",
+    "pack:mac": "electron-builder --mac --dir",
+    "pack:win": "electron-builder --win --dir --x64",
+    "dist:mac": "electron-builder --mac dmg zip --x64 --arm64",
+    "dist:mac:unsigned": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --x64 --arm64",
+    "dist:win": "electron-builder --win nsis zip --x64",
+    "dist:win:unsigned": "electron-builder --win nsis zip --x64"
   },
   "keywords": [
     "electron",
@@ -15,7 +21,42 @@
   ],
   "license": "MIT",
   "devDependencies": {
-    "electron": "^40.4.0"
+    "electron": "^40.4.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "io.github.shane-zeng.jable-desktop",
+    "productName": "Jable Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "app/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "dmg": {
+      "artifactName": "Jable-Desktop-${version}-${arch}.${ext}"
+    },
+    "artifactName": "Jable-Desktop-${version}-${os}-${arch}.${ext}"
   },
   "engines": {
     "node": ">=24.0.0"

@@ -2,7 +2,7 @@
 
 var PAGE_SIZE = 25;
 var DEFAULT_BROWSER_URL = 'https://jable.tv/';
-var THEME_STORAGE_KEY = 'jable-desktop-exporter:theme';
+var THEME_STORAGE_KEY = 'jable-desktop:theme';
 
 var COLLECTIONS = {
   favourites: {

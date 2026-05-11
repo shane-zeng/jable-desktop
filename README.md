@@ -1,6 +1,8 @@
-# Jable Favourites Exporter
+# Jable Desktop
 
-> 🔧 A Tampermonkey user script and Electron desktop MVP to export all favourite or watch-later videos from [Jable.tv](https://jable.tv/) — even when pagination is loaded dynamically.
+> A Tampermonkey user script and Electron desktop app to export, sync, and browse favourite or watch-later videos from [Jable.tv](https://jable.tv/) — even when pagination is loaded dynamically.
+
+Jable Desktop is an unofficial desktop companion for Jable.
 
 The original userscript remains available as `jable-favourites-exporter.user.js`. The desktop app adds a persistent embedded browser session and SQLite storage.
 
@@ -84,3 +86,81 @@ Manual checks:
 - Sync both favourites and watch-later lists.
 - Import an existing userscript JSON export and verify rows appear in the matching tab.
 - Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
+
+### Desktop Packaging
+
+Install the packaging tool once:
+
+```sh
+npm install --save-dev electron-builder
+```
+
+Build unpacked apps for local smoke testing:
+
+```sh
+npm run pack:mac
+npm run pack:win
+```
+
+Build unsigned distribution artifacts:
+
+```sh
+npm run dist:mac:unsigned
+npm run dist:win:unsigned
+```
+
+Artifacts are written to `release/`. The packaged app still stores its SQLite database under the OS app data directory, so user data is not bundled inside the app.
+
+Unsigned artifacts are only for local validation. The desktop app uses `io.github.shane-zeng.jable-desktop` as its stable app ID. For public distribution, add real icons and configure platform signing before sharing installers.
+
+#### macOS Developer ID signing and notarization
+
+Prerequisites:
+
+- Apple Developer Program membership.
+- A `Developer ID Application` certificate installed in the local keychain.
+- Notarization credentials, preferably an App Store Connect API key.
+
+Local release build:
+
+```sh
+export CSC_NAME="Developer ID Application: Your Name (TEAMID)"
+export APPLE_API_KEY="/absolute/path/AuthKey_KEYID.p8"
+export APPLE_API_KEY_ID="KEYID"
+export APPLE_API_ISSUER="issuer-uuid"
+npm run dist:mac
+```
+
+Useful verification commands:
+
+```sh
+codesign --verify --deep --strict --verbose=2 "release/mac/Jable Desktop.app"
+codesign --verify --deep --strict --verbose=2 "release/mac-arm64/Jable Desktop.app"
+xcrun stapler validate "release/mac/Jable Desktop.app"
+xcrun stapler validate "release/mac-arm64/Jable Desktop.app"
+spctl --assess --type execute --verbose "release/mac/Jable Desktop.app"
+spctl --assess --type execute --verbose "release/mac-arm64/Jable Desktop.app"
+```
+
+#### Windows code signing
+
+Prerequisites:
+
+- An OV/EV code signing certificate exported as `.pfx`, or a compatible signing service.
+- The certificate password stored outside the repository.
+
+Local release build with a `.pfx` certificate:
+
+```sh
+export WIN_CSC_LINK="/absolute/path/windows-code-signing-cert.pfx"
+export WIN_CSC_KEY_PASSWORD="certificate-password"
+npm run dist:win
+```
+
+On Windows, verify the installer signature with PowerShell:
+
+```powershell
+Get-AuthenticodeSignature .\release\Jable-Desktop-0.2.0-win-x64.exe
+```
+
+Windows SmartScreen can still warn on early downloads until the signed file gains reputation.
