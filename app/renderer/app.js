@@ -26,7 +26,11 @@ var state = {
   busy: false,
   appInfo: null,
   pendingSaves: [],
-  saveFailure: null
+  saveFailure: null,
+  browserNavigation: {
+    canGoBack: false,
+    canGoForward: false
+  }
 };
 
 var elements = {};
@@ -56,9 +60,31 @@ function setBusy(busy) {
   elements.syncButton.disabled = busy;
   elements.importButton.disabled = busy;
   elements.exportButton.disabled = busy;
-  elements.clearSyncButton.disabled = busy;
   elements.prevPageButton.disabled = busy || state.currentPage <= 1;
   elements.nextPageButton.disabled = busy || state.currentPage >= state.totalPages;
+  updateBrowserControls();
+}
+
+function updateBrowserControls() {
+  if (!elements.backButton) return;
+
+  var browserActive = state.activeView === 'browser';
+  elements.backButton.disabled = state.busy || !browserActive || !state.browserNavigation.canGoBack;
+  elements.forwardButton.disabled = state.busy || !browserActive || !state.browserNavigation.canGoForward;
+  elements.reloadButton.disabled = state.busy || !browserActive;
+}
+
+function setBrowserNavigationState(navigation) {
+  navigation = navigation || {};
+  state.browserNavigation = {
+    canGoBack: !!navigation.canGoBack,
+    canGoForward: !!navigation.canGoForward
+  };
+  updateBrowserControls();
+}
+
+async function refreshBrowserNavigationState() {
+  setBrowserNavigationState(await window.jableApp.getBrowserNavigationState());
 }
 
 function escapeHtml(value) {
@@ -182,6 +208,7 @@ async function diagnoseLayout() {
 async function loadBrowser(url, forceReload) {
   scheduleBrowserResize();
   await window.jableApp.navigateBrowser({ url: url, forceReload: forceReload });
+  await refreshBrowserNavigationState();
   scheduleBrowserResize();
 }
 
@@ -274,8 +301,7 @@ function setActiveView(view) {
   elements.libraryPanel.classList.toggle('active', view === 'library');
   elements.showBrowserButton.classList.toggle('active', view === 'browser');
   elements.showLibraryButton.classList.toggle('active', view === 'library');
-  elements.backButton.disabled = view !== 'browser';
-  elements.reloadButton.disabled = view !== 'browser';
+  updateBrowserControls();
 
   scheduleBrowserResize();
   if (view === 'library') refreshVideos();
@@ -304,6 +330,10 @@ function handleBrowserMessage(message) {
   if (message.channel === 'sync-progress') {
     var progress = message.args[0];
     setStatus('已載入第 ' + progress.page + ' 頁');
+  }
+
+  if (message.channel === 'browser-navigation-state') {
+    setBrowserNavigationState(message.args[0]);
   }
 }
 
@@ -413,10 +443,13 @@ function wireEvents() {
     applyTheme(elements.themeSelect.value);
   });
   elements.backButton.addEventListener('click', function () {
-    window.jableApp.goBackBrowser();
+    window.jableApp.goBackBrowser().then(setBrowserNavigationState);
+  });
+  elements.forwardButton.addEventListener('click', function () {
+    window.jableApp.goForwardBrowser().then(setBrowserNavigationState);
   });
   elements.reloadButton.addEventListener('click', function () {
-    window.jableApp.reloadBrowser();
+    window.jableApp.reloadBrowser().then(setBrowserNavigationState);
   });
   elements.diagnoseButton.addEventListener('click', diagnoseLayout);
   elements.clearSessionButton.addEventListener('click', async function () {
@@ -436,10 +469,6 @@ function wireEvents() {
     importJsonFile(elements.importFile.files[0]);
   });
   elements.exportButton.addEventListener('click', exportActiveCollection);
-  elements.clearSyncButton.addEventListener('click', async function () {
-    await window.jableApp.clearSyncState(state.activeCollection);
-    setStatus('已重置 ' + currentCollection().name + ' 同步狀態');
-  });
   elements.prevPageButton.addEventListener('click', function () {
     goToPage(state.currentPage - 1);
   });
@@ -487,7 +516,6 @@ async function init() {
     syncButton: $('sync-button'),
     importButton: $('import-button'),
     exportButton: $('export-button'),
-    clearSyncButton: $('clear-sync-button'),
     importFile: $('import-file'),
     searchInput: $('search-input'),
     sortSelect: $('sort-select'),
@@ -495,6 +523,7 @@ async function init() {
     countLabel: $('count-label'),
     videoList: $('video-list'),
     backButton: $('back-button'),
+    forwardButton: $('forward-button'),
     reloadButton: $('reload-button'),
     diagnoseButton: $('diagnose-button'),
     clearSessionButton: $('clear-session-button'),

@@ -44,6 +44,12 @@ contextBridge.exposeInMainWorld('jableApp', {
   goBackBrowser: function () {
     return ipcRenderer.invoke('browser:go-back');
   },
+  goForwardBrowser: function () {
+    return ipcRenderer.invoke('browser:go-forward');
+  },
+  getBrowserNavigationState: function () {
+    return ipcRenderer.invoke('browser:navigation-state');
+  },
   getBrowserUrl: function () {
     return ipcRenderer.invoke('browser:get-url');
   },

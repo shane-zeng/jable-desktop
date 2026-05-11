@@ -81,7 +81,11 @@ function createBrowserView() {
 
   jableView.webContents.on('did-finish-load', function () {
     restoreCurrentPlaybackState();
+    notifyBrowserNavigationState();
   });
+
+  jableView.webContents.on('did-navigate', notifyBrowserNavigationState);
+  jableView.webContents.on('did-navigate-in-page', notifyBrowserNavigationState);
 
   mainWindow.addBrowserView(jableView);
   jableView.setBounds({ x: 0, y: 52, width: 900, height: 600 });
@@ -291,7 +295,23 @@ async function navigateBrowser(payload) {
 
   var loadedUrl = await wait;
   await restorePlaybackState(loadedUrl);
+  notifyBrowserNavigationState();
   return loadedUrl;
+}
+
+function browserNavigationState() {
+  if (!jableView || jableView.webContents.isDestroyed()) {
+    return { canGoBack: false, canGoForward: false };
+  }
+
+  return {
+    canGoBack: jableView.webContents.canGoBack(),
+    canGoForward: jableView.webContents.canGoForward()
+  };
+}
+
+function notifyBrowserNavigationState() {
+  forwardBrowserMessage('browser-navigation-state', browserNavigationState());
 }
 
 function forwardBrowserMessage(channel, payload) {
@@ -357,13 +377,35 @@ function registerIpcHandlers() {
   ipcMain.handle('browser:reload', async function () {
     await capturePlaybackState();
     jableView.webContents.reload();
-    return { reloaded: true };
+    return Object.assign({ reloaded: true }, browserNavigationState());
   });
 
   ipcMain.handle('browser:go-back', async function () {
     await capturePlaybackState();
-    if (jableView.webContents.canGoBack()) jableView.webContents.goBack();
-    return { canGoBack: jableView.webContents.canGoBack() };
+    if (jableView.webContents.canGoBack()) {
+      var wait = waitForBrowserStop();
+      jableView.webContents.goBack();
+      var url = await wait;
+      await restorePlaybackState(url);
+    }
+    notifyBrowserNavigationState();
+    return browserNavigationState();
+  });
+
+  ipcMain.handle('browser:go-forward', async function () {
+    await capturePlaybackState();
+    if (jableView.webContents.canGoForward()) {
+      var wait = waitForBrowserStop();
+      jableView.webContents.goForward();
+      var url = await wait;
+      await restorePlaybackState(url);
+    }
+    notifyBrowserNavigationState();
+    return browserNavigationState();
+  });
+
+  ipcMain.handle('browser:navigation-state', function () {
+    return browserNavigationState();
   });
 
   ipcMain.handle('browser:get-url', function () {

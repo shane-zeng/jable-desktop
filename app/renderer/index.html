@@ -13,22 +13,22 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <div class="brand">
-          <span class="brand-title">Jable Desktop</span>
+        <div class="browser-nav">
+          <button id="back-button" type="button" title="上一頁" aria-label="上一頁">‹</button>
+          <button id="forward-button" type="button" title="下一頁" aria-label="下一頁">›</button>
+          <button id="reload-button" type="button" title="重新整理" aria-label="重新整理">↻</button>
           <span id="status" class="status">準備中</span>
         </div>
         <div class="view-switcher" role="tablist" aria-label="Main views">
           <button id="show-browser-button" class="view-tab active" type="button">瀏覽器</button>
           <button id="show-library-button" class="view-tab" type="button">本機資料</button>
         </div>
-        <div class="browser-actions">
+        <div class="app-actions">
           <select id="theme-select" class="theme-select" aria-label="主題">
             <option value="system">系統</option>
             <option value="dark">深色</option>
             <option value="light">淺色</option>
           </select>
-          <button id="back-button" type="button" title="上一頁">‹</button>
-          <button id="reload-button" type="button" title="重新整理">↻</button>
           <button id="diagnose-button" type="button" hidden>診斷</button>
           <button id="clear-session-button" type="button" hidden>清除登入狀態</button>
         </div>
@@ -50,7 +50,6 @@
               <button id="sync-button" class="primary" type="button">同步目前 Jable 頁面</button>
               <button id="import-button" type="button">匯入 JSON</button>
               <button id="export-button" type="button">匯出 JSON</button>
-              <button id="clear-sync-button" type="button">重置同步狀態</button>
               <input id="import-file" type="file" accept="application/json,.json" hidden>
             </div>
           </div>

@@ -148,19 +148,23 @@ button:focus {
   background: var(--panel);
 }
 
-.brand {
+.browser-nav {
   min-width: 0;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
 }
 
-.brand-title {
-  font-weight: 700;
-  white-space: nowrap;
+.browser-nav button {
+  width: 34px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 
 .status {
+  min-width: 0;
   color: var(--muted);
   font-size: 13px;
   overflow: hidden;
@@ -193,20 +197,12 @@ button:focus {
   font-weight: 700;
 }
 
-.browser-actions {
+.app-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.browser-actions button:first-child,
-.browser-actions button:nth-child(2) {
-  width: 34px;
-  padding: 0;
-  font-size: 20px;
-  line-height: 1;
 }
 
 .workspace {
@@ -418,7 +414,7 @@ button:focus {
     justify-self: start;
   }
 
-  .browser-actions {
+  .app-actions {
     grid-column: 1 / -1;
     justify-content: flex-start;
   }
