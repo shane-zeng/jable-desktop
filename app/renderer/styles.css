@@ -313,15 +313,6 @@ button:focus {
   font-size: 12px;
 }
 
-#db-path {
-  min-width: 0;
-  max-width: min(720px, 60vw);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: right;
-}
-
 .video-list {
   min-height: 0;
   overflow: auto;

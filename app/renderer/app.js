@@ -493,7 +493,6 @@ async function init() {
     sortSelect: $('sort-select'),
     directionSelect: $('direction-select'),
     countLabel: $('count-label'),
-    dbPath: $('db-path'),
     videoList: $('video-list'),
     backButton: $('back-button'),
     reloadButton: $('reload-button'),
@@ -506,8 +505,6 @@ async function init() {
 
   applyTheme(loadTheme());
   state.appInfo = await window.jableApp.getAppInfo();
-  elements.dbPath.textContent = state.appInfo.databasePath;
-  elements.dbPath.title = state.appInfo.databasePath;
   wireEvents();
   setActiveView('browser');
   scheduleBrowserResize();
