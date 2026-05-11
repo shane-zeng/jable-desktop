@@ -66,6 +66,10 @@ App 會保存 Jable 的本機登入資料，所以一般重開 App 後仍可維�
 
 開發、測試、打包與 release 流程請看 [docs/development.md](docs/development.md)。
 
+### 授權
+
+MIT。詳見 [LICENSE](LICENSE)。
+
 ---
 
 ## English
@@ -126,3 +130,7 @@ You can still use `jable-favourites-exporter.user.js` with Tampermonkey. The des
 ### Development Docs
 
 For development, testing, packaging, and release details, see [docs/development.md](docs/development.md).
+
+### License
+
+MIT. See [LICENSE](LICENSE).
