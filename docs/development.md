@@ -103,12 +103,37 @@ Desktop app files:
 - `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 
-### Desktop Validation
+### Quality Checks
+
+The project uses ESLint and Prettier as conservative guardrails. The config preserves the existing code style: `var` declarations, CommonJS in Electron main/preload/database modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
+
+Use Node.js 24, matching the repository `engines` field and GitHub Actions.
 
 ```sh
-npm run build:renderer
-npm test
+npm run lint
+npm run format:check
+npm run check
 ```
+
+Useful commands:
+
+- `npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
+- `npm run lint:fix`: apply safe ESLint fixes.
+- `npm run format`: format the repository with Prettier.
+- `npm run format:check`: verify formatting without changing files.
+- `npm run check`: run lint, Node tests, renderer tests, and renderer build.
+
+GitHub Actions run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs formatting, linting, and tests before building unsigned macOS and Windows artifacts.
+
+### Desktop Validation
+
+Run the full local quality gate before opening a pull request:
+
+```sh
+npm run check
+```
+
+For targeted checks, use `npm test` for SQLite/import/export behavior, `npm run test:renderer` for renderer unit tests, and `npm run build:renderer` for renderer build validation.
 
 Manual checks:
 
@@ -158,7 +183,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow runs tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. Review and smoke test the draft assets before publishing the release.
+The workflow checks formatting, runs linting and tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. Review and smoke test the draft assets before publishing the release.
 
 No GitHub Actions repository secrets or variables are required for the unsigned release workflow. GitHub provides `GITHUB_TOKEN` automatically, and the workflow sets `permissions: contents: write` so it can create the draft release.
 

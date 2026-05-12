@@ -24,6 +24,11 @@ The userscript has no build step. Edit it directly and validate it in Tampermonk
 - `cat jable-favourites-exporter.user.js`: review the userscript.
 - `grep "EXPORT_FORMAT" jable-favourites-exporter.user.js`: find configuration or implementation details.
 - `npm install`: install Electron and renderer development dependencies.
+- `npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
+- `npm run lint:fix`: apply safe ESLint fixes.
+- `npm run format`: format the repository with Prettier.
+- `npm run format:check`: verify Prettier formatting without changing files.
+- `npm run check`: run lint, Node tests, renderer tests, and renderer build.
 - `npm run build:renderer`: build the Vue renderer into `app/renderer-dist/`.
 - `npm run dev:renderer`: run the Vite renderer dev server.
 - `npm start`: build the renderer, then run the desktop app.
@@ -45,6 +50,8 @@ Use plain JavaScript compatible with modern browsers and Tampermonkey:
 - Small, direct functions with descriptive names such as `scrapeCurrentPage`, `readPagerLinks`, and `downloadJson`.
 - Uppercase constants for selectors and IDs, for example `SEL_PAGER_LINKS` and `BTN_ID`.
 
+ESLint and Prettier are configured as guardrails, not as a rewrite mandate. Keep the existing style unless there is a clear reason to change it: CommonJS in desktop main/preload/database code, Vue SFCs in the renderer, and a self-contained browser userscript. Do not introduce broad style-only refactors outside a deliberate formatting baseline.
+
 Avoid dependencies, bundlers, or broad abstractions unless the script grows enough to justify them. Comment only non-obvious browser, pagination, or DOM behavior.
 
 For desktop main/preload/database code, use CommonJS modules, two-space indentation, and direct IPC handlers. Keep scraper selectors centralized in `app/webview-preload.js` and database behavior centralized in `app/database.js`.
@@ -53,7 +60,9 @@ For renderer code, use Vue single-file components under `app/renderer-src/`, Tai
 
 ## Testing Guidelines
 
-Run `npm test` for SQLite/import/export changes. Run `npm run build:renderer` for renderer changes. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `npm run check` before opening a pull request. Run `npm test` for SQLite/import/export changes. Run `npm run test:renderer` and `npm run build:renderer` for renderer changes. Run `npm run format:check` when touching Markdown, YAML, CSS, Vue, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
+
+GitHub Actions run formatting checks, linting, tests, and renderer builds on pushes and pull requests. Release workflows also run formatting, linting, and tests before packaging unsigned artifacts.
 
 Verify that:
 
