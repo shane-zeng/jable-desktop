@@ -691,6 +691,62 @@ function showBrowserTabMenu(payload) {
   return { shown: true };
 }
 
+function showLibraryVideoMenu(payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return { shown: false };
+
+  payload = payload || {};
+  var url = payload.url || '';
+
+  if (!url) return { shown: false };
+
+  var activeTab = null;
+
+  try {
+    activeTab = getBrowserTab(activeBrowserTabId);
+  } catch (error) {
+    activeTab = null;
+  }
+
+  var items = [
+    {
+      label: '在目前分頁開啟',
+      enabled: !!(activeTab && !activeTab.locked),
+      click: function () {
+        forwardBrowserMessage('library-video-menu-action', {
+          action: 'open-current',
+          url: url
+        });
+      }
+    },
+    {
+      label: '在新分頁開啟',
+      enabled: browserTabs.length < MAX_BROWSER_TABS,
+      click: function () {
+        forwardBrowserMessage('library-video-menu-action', {
+          action: 'open-new',
+          url: url
+        });
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '複製網址',
+      click: function () {
+        copyText(url);
+      }
+    }
+  ];
+  var popupOptions = { window: mainWindow };
+
+  if (typeof payload.x === 'number' && typeof payload.y === 'number') {
+    popupOptions.x = Math.round(payload.x);
+    popupOptions.y = Math.round(payload.y);
+  }
+
+  Menu.buildFromTemplate(items).popup(popupOptions);
+  return { shown: true };
+}
+
 function showEditableContextMenu(tab, params) {
   params = params || {};
   var editFlags = params.editFlags || {};
@@ -794,6 +850,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('db:export-json', function (_event, collectionKey) {
     return getDatabase().exportResource(collectionKey);
+  });
+
+  ipcMain.handle('library:show-video-menu', function (_event, payload) {
+    return showLibraryVideoMenu(payload);
   });
 
   ipcMain.handle('browser:list-tabs', function () {

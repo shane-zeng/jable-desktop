@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('jableApp', {
   showBrowserTabMenu: function (payload) {
     return ipcRenderer.invoke('browser:show-tab-menu', payload);
   },
+  showLibraryVideoMenu: function (payload) {
+    return ipcRenderer.invoke('library:show-video-menu', payload);
+  },
   createBrowserTab: function (payload) {
     return ipcRenderer.invoke('browser:create-tab', payload);
   },

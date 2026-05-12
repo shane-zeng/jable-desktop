@@ -1,6 +1,8 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import VideoCard from './VideoCard.vue';
+
+var originalPlatform = window.navigator.platform;
 
 function makeVideo(overrides) {
   return Object.assign(
@@ -17,7 +19,18 @@ function makeVideo(overrides) {
   );
 }
 
+function setNavigatorPlatform(value) {
+  Object.defineProperty(window.navigator, 'platform', {
+    configurable: true,
+    value: value
+  });
+}
+
 describe('VideoCard', function () {
+  afterEach(function () {
+    setNavigatorPlatform(originalPlatform);
+  });
+
   it('renders the video title, URL, views, and likes', function () {
     var video = makeVideo();
     var wrapper = mount(VideoCard, {
@@ -26,8 +39,8 @@ describe('VideoCard', function () {
       }
     });
 
-    expect(wrapper.find('a').text()).toBe(video.title);
-    expect(wrapper.find('a').attributes('href')).toBe(video.url);
+    expect(wrapper.find('[data-test="video-title-link"]').text()).toBe(video.title);
+    expect(wrapper.find('[data-test="video-title-link"]').attributes('href')).toBe(video.url);
     expect(wrapper.text()).toContain(Number(video.views).toLocaleString());
     expect(wrapper.text()).toContain(Number(video.likes).toLocaleString());
   });
@@ -40,8 +53,91 @@ describe('VideoCard', function () {
       }
     });
 
-    await wrapper.find('a').trigger('click');
+    await wrapper.find('[data-test="video-title-link"]').trigger('click');
 
     expect(wrapper.emitted('open')).toEqual([[video.url]]);
+  });
+
+  it('emits open with the video URL when the cover is clicked', async function () {
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.find('[data-test="video-thumb-link"]').trigger('click');
+
+    expect(wrapper.emitted('open')).toEqual([[video.url]]);
+  });
+
+  it('emits open-new with the video URL when a link is command clicked', async function () {
+    setNavigatorPlatform('MacIntel');
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.find('[data-test="video-thumb-link"]').trigger('click', { metaKey: true });
+
+    expect(wrapper.emitted('open')).toBeUndefined();
+    expect(wrapper.emitted('open-new')).toEqual([[video.url]]);
+  });
+
+  it('does not treat control click as a new tab gesture on macOS', async function () {
+    setNavigatorPlatform('MacIntel');
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.find('[data-test="video-thumb-link"]').trigger('click', { ctrlKey: true });
+
+    expect(wrapper.emitted('open')).toBeUndefined();
+    expect(wrapper.emitted('open-new')).toBeUndefined();
+  });
+
+  it('emits open-new with the video URL when a link is control clicked off macOS', async function () {
+    setNavigatorPlatform('Win32');
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.find('[data-test="video-thumb-link"]').trigger('click', { ctrlKey: true });
+
+    expect(wrapper.emitted('open')).toBeUndefined();
+    expect(wrapper.emitted('open-new')).toEqual([[video.url]]);
+  });
+
+  it('emits context-menu with video details and pointer coordinates', async function () {
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.find('article').trigger('contextmenu', {
+      clientX: 12,
+      clientY: 34
+    });
+
+    expect(wrapper.emitted('context-menu')).toEqual([
+      [
+        {
+          url: video.url,
+          title: video.title,
+          x: 12,
+          y: 34
+        }
+      ]
+    ]);
   });
 });

@@ -159,6 +159,28 @@ async function openInBrowser(url) {
   }
 }
 
+async function openInNewBrowserTab(url) {
+  if (!url || busy.value || syncing.value) return;
+
+  try {
+    setActiveView('browser');
+    await browser.createTab(url, { active: true });
+  } catch (error) {
+    console.error(error);
+    setStatus('開啟新分頁失敗：' + error.message);
+  }
+}
+
+function handleLibraryVideoMenuAction(payload) {
+  payload = payload || {};
+
+  if (payload.action === 'open-current') {
+    openInBrowser(payload.url);
+  } else if (payload.action === 'open-new') {
+    openInNewBrowserTab(payload.url);
+  }
+}
+
 function handleBrowserMessage(message) {
   if (message.channel === 'browser-tabs-changed') {
     browser.applyTabsState(message.args[0]);
@@ -167,6 +189,10 @@ function handleBrowserMessage(message) {
   if (message.channel === 'browser-error') {
     var errorPayload = message.args[0] || {};
     setStatus('瀏覽器分頁錯誤：' + (errorPayload.message || '未知錯誤'));
+  }
+
+  if (message.channel === 'library-video-menu-action') {
+    handleLibraryVideoMenuAction(message.args[0]);
   }
 
   if (message.channel === 'sync-page') {
@@ -471,6 +497,15 @@ async function showBrowserTabMenu(payload) {
   }
 }
 
+async function showLibraryVideoMenu(payload) {
+  try {
+    await api.showLibraryVideoMenu(payload);
+  } catch (error) {
+    console.error(error);
+    setStatus('開啟影片選單失敗：' + error.message);
+  }
+}
+
 onMounted(async function () {
   applyTheme(loadTheme());
   browserTabsCompact.value = loadBrowserTabsCompact();
@@ -554,6 +589,8 @@ onMounted(async function () {
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @open-video="openInBrowser"
+        @open-video-new-tab="openInNewBrowserTab"
+        @video-context-menu="showLibraryVideoMenu"
       />
     </main>
   </div>

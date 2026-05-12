@@ -67,7 +67,9 @@ var emit = defineEmits([
   'update:direction',
   'prev-page',
   'next-page',
-  'open-video'
+  'open-video',
+  'open-video-new-tab',
+  'video-context-menu'
 ]);
 
 var importFile = ref(null);
@@ -137,7 +139,14 @@ function handleImportFile(event) {
     >
       <div v-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">目前沒有本機資料</div>
       <template v-else>
-        <VideoCard v-for="video in rows" :key="video.url" :video="video" @open="emit('open-video', $event)" />
+        <VideoCard
+          v-for="video in rows"
+          :key="video.url"
+          :video="video"
+          @open="emit('open-video', $event)"
+          @open-new="emit('open-video-new-tab', $event)"
+          @context-menu="emit('video-context-menu', $event)"
+        />
       </template>
     </div>
 
