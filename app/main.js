@@ -52,6 +52,11 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  mainWindow.on('swipe', function (_event, direction) {
+    if (direction === 'right') goBrowserBack();
+    else if (direction === 'left') goBrowserForward();
+  });
+
   loadRenderer();
   createJableView();
 }
@@ -174,6 +179,42 @@ function notifyBrowserNavigationState() {
   forwardBrowserMessage('browser-navigation-state', browserNavigationState());
 }
 
+async function goBrowserBack() {
+  if (!jableView || jableView.webContents.isDestroyed()) {
+    notifyBrowserNavigationState();
+    return browserNavigationState();
+  }
+
+  var history = jableView.webContents.navigationHistory;
+
+  if (history.canGoBack()) {
+    var wait = waitForBrowserStop();
+    history.goBack();
+    await wait;
+  }
+
+  notifyBrowserNavigationState();
+  return browserNavigationState();
+}
+
+async function goBrowserForward() {
+  if (!jableView || jableView.webContents.isDestroyed()) {
+    notifyBrowserNavigationState();
+    return browserNavigationState();
+  }
+
+  var history = jableView.webContents.navigationHistory;
+
+  if (history.canGoForward()) {
+    var wait = waitForBrowserStop();
+    history.goForward();
+    await wait;
+  }
+
+  notifyBrowserNavigationState();
+  return browserNavigationState();
+}
+
 function forwardBrowserMessage(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('browser-message', {
@@ -240,27 +281,11 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('browser:go-back', async function () {
-    var history = jableView.webContents.navigationHistory;
-
-    if (history.canGoBack()) {
-      var wait = waitForBrowserStop();
-      history.goBack();
-      await wait;
-    }
-    notifyBrowserNavigationState();
-    return browserNavigationState();
+    return goBrowserBack();
   });
 
   ipcMain.handle('browser:go-forward', async function () {
-    var history = jableView.webContents.navigationHistory;
-
-    if (history.canGoForward()) {
-      var wait = waitForBrowserStop();
-      history.goForward();
-      await wait;
-    }
-    notifyBrowserNavigationState();
-    return browserNavigationState();
+    return goBrowserForward();
   });
 
   ipcMain.handle('browser:navigation-state', function () {
@@ -294,6 +319,13 @@ function registerIpcHandlers() {
 
   ipcMain.on('browser:sync-progress', function (_event, payload) {
     forwardBrowserMessage('sync-progress', payload);
+  });
+
+  ipcMain.on('browser:trackpad-history', function (event, direction) {
+    if (!jableView || event.sender !== jableView.webContents) return;
+
+    if (direction === 'back') goBrowserBack();
+    else if (direction === 'forward') goBrowserForward();
   });
 }
 

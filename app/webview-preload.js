@@ -5,11 +5,18 @@ var contextBridge = electron.contextBridge;
 var ipcRenderer = electron.ipcRenderer;
 var chooseNextPagerLink = require('./sync-utils').chooseNextPagerLink;
 
+var IS_MACOS = process.platform === 'darwin';
 var SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';
 var SEL_TITLES = 'div.detail h6.title a';
 var SEL_PAGER = 'ul.pagination';
 var SEL_PAGER_LINKS = 'ul.pagination a.page-link';
 var SITE_PAGE_SIZE = 24;
+var TRACKPAD_HISTORY_THRESHOLD = 180;
+var TRACKPAD_HISTORY_COOLDOWN_MS = 700;
+var TRACKPAD_HISTORY_RESET_MS = 180;
+var trackpadHistoryDeltaX = 0;
+var trackpadHistoryLastSentAt = 0;
+var trackpadHistoryResetTimer = null;
 
 function absUrl(href, base) {
   try {
@@ -181,6 +188,73 @@ function sendProgress(channel, payload) {
   } catch (error) {}
 
   ipcRenderer.send('browser:' + channel, payload);
+}
+
+function canElementScrollHorizontally(el) {
+  if (!el || el === document || el === window) return false;
+
+  var style = window.getComputedStyle(el);
+  var overflowX = style ? style.overflowX : '';
+  var scrollableOverflow = overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay';
+
+  return scrollableOverflow && el.scrollWidth > el.clientWidth + 1;
+}
+
+function canTargetContinueHorizontalScroll(target, direction) {
+  var el = null;
+
+  if (target && target.nodeType === Node.ELEMENT_NODE) el = target;
+  else if (target && target.parentElement) el = target.parentElement;
+
+  while (el && el !== document.body && el !== document.documentElement) {
+    if (canElementScrollHorizontally(el)) {
+      if (direction === 'back' && el.scrollLeft > 0) return true;
+      if (direction === 'forward' && el.scrollLeft + el.clientWidth < el.scrollWidth - 1) return true;
+    }
+
+    el = el.parentElement;
+  }
+
+  return false;
+}
+
+function resetTrackpadHistoryDelta() {
+  trackpadHistoryDeltaX = 0;
+  trackpadHistoryResetTimer = null;
+}
+
+function handleTrackpadHistoryWheel(event) {
+  var deltaX = Number(event.deltaX) || 0;
+  var deltaY = Number(event.deltaY) || 0;
+  var absX = Math.abs(deltaX);
+  var absY = Math.abs(deltaY);
+
+  if (event.defaultPrevented || absX < 1 || absX < absY * 1.5) return;
+  if (Date.now() - trackpadHistoryLastSentAt < TRACKPAD_HISTORY_COOLDOWN_MS) return;
+
+  trackpadHistoryDeltaX += deltaX;
+
+  if (trackpadHistoryResetTimer) clearTimeout(trackpadHistoryResetTimer);
+  trackpadHistoryResetTimer = setTimeout(resetTrackpadHistoryDelta, TRACKPAD_HISTORY_RESET_MS);
+
+  if (Math.abs(trackpadHistoryDeltaX) < TRACKPAD_HISTORY_THRESHOLD) return;
+
+  // macOS natural horizontal scrolling reports negative deltaX for the back gesture.
+  var direction = trackpadHistoryDeltaX < 0 ? 'back' : 'forward';
+
+  if (canTargetContinueHorizontalScroll(event.target, direction)) {
+    resetTrackpadHistoryDelta();
+    return;
+  }
+
+  event.preventDefault();
+  resetTrackpadHistoryDelta();
+  trackpadHistoryLastSentAt = Date.now();
+  ipcRenderer.send('browser:trackpad-history', direction);
+}
+
+if (IS_MACOS) {
+  window.addEventListener('wheel', handleTrackpadHistoryWheel, { capture: true, passive: false });
 }
 
 async function syncCollection(options) {
