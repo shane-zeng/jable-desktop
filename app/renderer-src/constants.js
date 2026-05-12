@@ -2,6 +2,11 @@ export const PAGE_SIZE = 24;
 export const FULL_SYNC_BATCH_LIMIT = 100;
 export const DEFAULT_BROWSER_URL = 'https://jable.tv/';
 export const THEME_STORAGE_KEY = 'jable-desktop:theme';
+export const BROWSER_TABS_COMPACT_STORAGE_KEY = 'jable-desktop:browser-tabs-compact';
+export const BROWSER_TABS_WIDTH_STORAGE_KEY = 'jable-desktop:browser-tabs-width';
+export const BROWSER_TABS_DEFAULT_WIDTH = 280;
+export const BROWSER_TABS_MIN_WIDTH = 180;
+export const BROWSER_TABS_MAX_WIDTH = 420;
 
 export const COLLECTIONS = {
   favourites: {

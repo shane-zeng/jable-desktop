@@ -75,7 +75,7 @@ npm install
 npm start
 ```
 
-Log in inside the embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the right panel.
+Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has a compact floating mode, a draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the right panel.
 
 `npm start` builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
 
@@ -88,13 +88,14 @@ Desktop sync behavior:
 
 - **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known.
 - **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run.
+- Sync runs in a dedicated browser tab. The sync tab is locked while running, and batch-limited full syncs keep that tab locked so continuation can resume from the same page.
 - Full sync runs in batches of 100 pages. Batch-limited or failed runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
 Desktop app files:
 
 - `app/main.js`: Electron main process and IPC handlers.
-- `app/webview-preload.js`: scraper injected into the embedded Jable `BrowserView`.
+- `app/webview-preload.js`: scraper injected into each embedded Jable `WebContentsView`.
 - `app/database.js`: SQLite schema, upsert logic, JSON import/export.
 - `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
@@ -109,9 +110,11 @@ npm test
 Manual checks:
 
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
+- Open, switch, close, right-click, toggle compact mode, hover to reveal close buttons, and drag-resize browser tabs. Confirm Jable `target=_blank` links open a new app tab.
+- Right-click Jable page content and verify link, media, selection, navigation, and page URL menu actions appear in the expected contexts.
 - Quick sync both favourites and watch-later lists.
 - Full sync a list and confirm local ordering matches the Jable page order.
-- For large lists, continue a paused full sync and confirm incomplete batches do not hide old rows.
+- For large lists, continue a paused full sync and confirm incomplete batches do not hide old rows or unlock the sync tab too early.
 - Import an existing userscript JSON export and verify rows appear in the matching tab.
 - Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
 

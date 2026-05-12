@@ -28,8 +28,7 @@ var emit = defineEmits([
   'back',
   'forward',
   'reload',
-  'diagnose',
-  'clear-session'
+  'diagnose'
 ]);
 
 function updateTheme(event) {
@@ -47,7 +46,7 @@ function updateTheme(event) {
         type="button"
         title="上一頁"
         aria-label="上一頁"
-        :disabled="busy || activeView !== 'browser' || !navigation.canGoBack"
+        :disabled="activeView !== 'browser' || navigation.locked || !navigation.canGoBack"
         @click="emit('back')"
       >
         ‹
@@ -57,7 +56,7 @@ function updateTheme(event) {
         type="button"
         title="下一頁"
         aria-label="下一頁"
-        :disabled="busy || activeView !== 'browser' || !navigation.canGoForward"
+        :disabled="activeView !== 'browser' || navigation.locked || !navigation.canGoForward"
         @click="emit('forward')"
       >
         ›
@@ -67,7 +66,7 @@ function updateTheme(event) {
         type="button"
         title="重新整理"
         aria-label="重新整理"
-        :disabled="busy || activeView !== 'browser'"
+        :disabled="activeView !== 'browser' || navigation.locked"
         @click="emit('reload')"
       >
         ↻
@@ -117,9 +116,6 @@ function updateTheme(event) {
       </select>
       <button type="button" hidden @click="emit('diagnose')">
         診斷
-      </button>
-      <button type="button" hidden @click="emit('clear-session')">
-        清除登入狀態
       </button>
     </div>
   </header>

@@ -29,8 +29,23 @@ contextBridge.exposeInMainWorld('jableApp', {
   exportJson: function (collectionKey) {
     return ipcRenderer.invoke('db:export-json', collectionKey);
   },
-  clearJableSession: function () {
-    return ipcRenderer.invoke('session:clear-jable');
+  listBrowserTabs: function () {
+    return ipcRenderer.invoke('browser:list-tabs');
+  },
+  showBrowserTabMenu: function (payload) {
+    return ipcRenderer.invoke('browser:show-tab-menu', payload);
+  },
+  createBrowserTab: function (payload) {
+    return ipcRenderer.invoke('browser:create-tab', payload);
+  },
+  activateBrowserTab: function (tabId) {
+    return ipcRenderer.invoke('browser:activate-tab', tabId);
+  },
+  closeBrowserTab: function (tabId) {
+    return ipcRenderer.invoke('browser:close-tab', tabId);
+  },
+  setBrowserTabLocked: function (payload) {
+    return ipcRenderer.invoke('browser:set-tab-locked', payload);
   },
   setBrowserBounds: function (bounds) {
     return ipcRenderer.invoke('browser:set-bounds', bounds);
@@ -38,26 +53,26 @@ contextBridge.exposeInMainWorld('jableApp', {
   navigateBrowser: function (payload) {
     return ipcRenderer.invoke('browser:navigate', payload);
   },
-  reloadBrowser: function () {
-    return ipcRenderer.invoke('browser:reload');
+  reloadBrowser: function (payload) {
+    return ipcRenderer.invoke('browser:reload', payload);
   },
-  goBackBrowser: function () {
-    return ipcRenderer.invoke('browser:go-back');
+  goBackBrowser: function (payload) {
+    return ipcRenderer.invoke('browser:go-back', payload);
   },
-  goForwardBrowser: function () {
-    return ipcRenderer.invoke('browser:go-forward');
+  goForwardBrowser: function (payload) {
+    return ipcRenderer.invoke('browser:go-forward', payload);
   },
-  getBrowserNavigationState: function () {
-    return ipcRenderer.invoke('browser:navigation-state');
+  getBrowserNavigationState: function (payload) {
+    return ipcRenderer.invoke('browser:navigation-state', payload);
   },
-  getBrowserUrl: function () {
-    return ipcRenderer.invoke('browser:get-url');
+  getBrowserUrl: function (payload) {
+    return ipcRenderer.invoke('browser:get-url', payload);
   },
-  syncBrowserCollection: function (options) {
-    return ipcRenderer.invoke('browser:sync-collection', options);
+  syncBrowserCollection: function (payload) {
+    return ipcRenderer.invoke('browser:sync-collection', payload);
   },
-  diagnoseBrowser: function () {
-    return ipcRenderer.invoke('browser:diagnose');
+  diagnoseBrowser: function (payload) {
+    return ipcRenderer.invoke('browser:diagnose', payload);
   },
   onBrowserMessage: function (callback) {
     ipcRenderer.on('browser-message', function (_event, message) {

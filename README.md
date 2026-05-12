@@ -14,7 +14,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 ### 主要功能
 
 - 同步 **影片收藏** 與 **稍後觀看**。
-- 使用內嵌瀏覽器登入 Jable，並在本機保存登入所需資料。
+- 使用支援分頁、緊湊浮動模式、可拖曳調整的分頁列與右鍵選單的內嵌瀏覽器登入 Jable，並在本機保存登入所需資料。
 - 將同步資料儲存在你的電腦本機。
 - 依 Jable 網頁順序顯示本機清單。
 - 提供快速同步與完整同步。
@@ -41,6 +41,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 
 - **快速同步**：從 Jable 清單第 1 頁開始，遇到整頁都是已知影片後停止。它只會更新本次掃到影片的觀看數、喜歡數與網站排序。
 - **完整同步**：從第 1 頁跑到最後一頁，更新所有仍在網站上的影片，重建完整網站排序，並把網站上已不存在的本機項目標記為隱藏。
+- 同步會在瀏覽器內自動開啟同步分頁。同步分頁執行期間不能關閉，但你可以切換到其他分頁繼續瀏覽。
 - 完整同步每批最多處理 100 頁。若資料很多，App 會暫停並顯示 **繼續完整同步**；已掃到的資料會先寫入，但未完整完成前不會隱藏舊資料。
 
 ### 匯入與匯出
@@ -87,7 +88,7 @@ Jable Desktop is an unofficial desktop tool and is not affiliated with Jable. It
 ### Features
 
 - Sync **Favourites** and **Watch Later**.
-- Sign in through the embedded browser and keep local login data.
+- Sign in through the tabbed embedded browser with compact floating mode, a resizable tab rail, and context menus, and keep local login data.
 - Store synced data locally on your computer.
 - Display local lists in the same order as Jable.
 - Choose between quick sync and full sync.
@@ -114,6 +115,7 @@ Current release artifacts are not formally signed. macOS may show a Gatekeeper w
 
 - **Quick Sync** starts from page 1 and stops once it reaches a page where every video is already known. It only updates views, likes, and site order for videos scanned in that run.
 - **Full Sync** runs from page 1 to the final page, updates every video still present on Jable, rebuilds the full site order, and hides local items that no longer appear on the site.
+- Syncs run in an automatically opened browser tab. The sync tab cannot be closed while it is running, but you can switch to other tabs and keep browsing.
 - Full sync processes up to 100 pages per batch. For large lists, the app pauses and shows **繼續完整同步** (Continue Full Sync); scanned data is saved immediately, but old items are not hidden until full sync completes.
 
 ### Import And Export

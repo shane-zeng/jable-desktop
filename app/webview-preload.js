@@ -368,6 +368,7 @@ async function syncCollection(options) {
     sendProgress('sync-progress', {
       collectionKey: collectionKey,
       mode: mode,
+      syncRunId: syncRunId,
       page: logicalPage,
       message: 'page-loaded'
     });
