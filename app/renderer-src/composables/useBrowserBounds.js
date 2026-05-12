@@ -29,11 +29,15 @@ export function useBrowserBounds(api, activeView) {
     if (!host.value) return;
 
     if (activeView.value !== 'browser') {
-      api.setBrowserBounds({ visible: false });
+      hide();
       return;
     }
 
     api.setBrowserBounds(currentBounds());
+  }
+
+  function hide() {
+    api.setBrowserBounds({ visible: false });
   }
 
   function scheduleResize() {
@@ -120,6 +124,7 @@ export function useBrowserBounds(api, activeView) {
     host: host,
     navigation: navigation,
     setHost: setHost,
+    hide: hide,
     setNavigationState: setNavigationState,
     refreshNavigationState: refreshNavigationState,
     loadBrowser: loadBrowser,

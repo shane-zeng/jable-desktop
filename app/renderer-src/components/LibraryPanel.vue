@@ -85,7 +85,7 @@ function handleImportFile(event) {
 
 <template>
   <section
-    class="min-h-0 min-w-0 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] bg-[var(--panel)]"
+    class="h-full min-h-0 w-full min-w-0 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-[var(--panel)]"
     :class="active ? 'grid' : 'hidden'"
     aria-label="Local library"
   >

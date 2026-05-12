@@ -45,6 +45,7 @@ function applyTheme(nextTheme) {
 
 function setActiveView(view) {
   activeView.value = view;
+  if (view !== 'browser') browser.hide();
   browser.scheduleResize();
   if (view === 'library') library.refreshVideos();
 }
