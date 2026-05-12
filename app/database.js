@@ -169,12 +169,7 @@ JableDatabase.prototype.migrate = function () {
     '  updated_at TEXT NOT NULL,',
     '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
     ');',
-    'CREATE TABLE IF NOT EXISTS playback_states (',
-    '  video_url TEXT PRIMARY KEY,',
-    '  current_time REAL NOT NULL DEFAULT 0,',
-    '  duration REAL,',
-    '  updated_at TEXT NOT NULL',
-    ');'
+    'DROP TABLE IF EXISTS playback_states;'
   ].join('\n'));
 };
 
@@ -232,13 +227,9 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
 
   var sql = [
     'SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,',
-    '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,',
-    '       ps.current_time AS playback_current_time,',
-    '       ps.duration AS playback_duration,',
-    '       ps.updated_at AS playback_updated_at',
+    '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at',
     'FROM collection_items ci',
     'JOIN videos v ON v.url = ci.video_url',
-    'LEFT JOIN playback_states ps ON ps.video_url = v.url',
     where,
     'ORDER BY ' + sort + ' ' + direction + ', v.url ASC'
   ].join(' ');
@@ -356,48 +347,6 @@ JableDatabase.prototype.clearSyncState = function (collectionKey) {
   this.db.prepare('DELETE FROM sync_states WHERE collection_key = ?').run(collectionKey);
 
   return { collectionKey: collectionKey, cleared: true };
-};
-
-JableDatabase.prototype.savePlaybackState = function (payload) {
-  payload = payload || {};
-
-  var videoUrl = normalizeVideoUrl(payload.url);
-  var currentTime = normalizeNumber(payload.currentTime);
-  var duration = normalizeNumber(payload.duration);
-
-  if (!videoUrl || currentTime === null || currentTime <= 0) {
-    return { saved: false };
-  }
-
-  var timestamp = nowIso();
-
-  this.db.prepare([
-    'INSERT INTO playback_states (video_url, current_time, duration, updated_at)',
-    'VALUES (?, ?, ?, ?)',
-    'ON CONFLICT(video_url) DO UPDATE SET',
-    '  current_time = excluded.current_time,',
-    '  duration = excluded.duration,',
-    '  updated_at = excluded.updated_at'
-  ].join(' ')).run(videoUrl, currentTime, duration, timestamp);
-
-  return {
-    saved: true,
-    video_url: videoUrl,
-    current_time: currentTime,
-    duration: duration,
-    updated_at: timestamp
-  };
-};
-
-JableDatabase.prototype.getPlaybackState = function (url) {
-  var videoUrl = normalizeVideoUrl(url);
-  if (!videoUrl) return null;
-
-  return this.db.prepare([
-    'SELECT video_url, playback_states.current_time AS current_time, duration, updated_at',
-    'FROM playback_states',
-    'WHERE video_url = ?'
-  ].join(' ')).get(videoUrl) || null;
 };
 
 JableDatabase.prototype.importResource = function (collectionKey, resource) {

@@ -45,9 +45,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(function (details) {
     if (jableView && details.url) {
       if (!browserViewAttached()) mainWindow.addBrowserView(jableView);
-      capturePlaybackState().finally(function () {
-        jableView.webContents.loadURL(details.url);
-      });
+      jableView.webContents.loadURL(details.url);
     }
 
     return { action: 'deny' };
@@ -69,18 +67,11 @@ function createBrowserView() {
   });
 
   jableView.webContents.setWindowOpenHandler(function (details) {
-    capturePlaybackState().finally(function () {
-      jableView.webContents.loadURL(details.url);
-    });
+    jableView.webContents.loadURL(details.url);
     return { action: 'deny' };
   });
 
-  jableView.webContents.on('dom-ready', function () {
-    restoreCurrentPlaybackState();
-  });
-
   jableView.webContents.on('did-finish-load', function () {
-    restoreCurrentPlaybackState();
     notifyBrowserNavigationState();
   });
 
@@ -135,166 +126,15 @@ function waitForBrowserStop(timeoutMs) {
   });
 }
 
-function playbackTargetForUrl(url) {
-  var state = getDatabase().getPlaybackState(url);
-  if (!state || !state.current_time || state.current_time <= 0) return null;
-
-  var currentTime = state.current_time;
-  if (state.duration && state.duration > 10) {
-    currentTime = Math.min(currentTime, state.duration - 5);
-  }
-
-  return {
-    currentTime: Math.max(0, currentTime),
-    duration: state.duration,
-    updatedAt: state.updated_at
-  };
-}
-
-function restoreCurrentPlaybackState() {
-  if (!jableView || jableView.webContents.isDestroyed()) return;
-
-  restorePlaybackState(jableView.webContents.getURL()).catch(function () {});
-}
-
-async function capturePlaybackState() {
-  if (!jableView || jableView.webContents.isDestroyed()) return { saved: false };
-
-  try {
-    var state = await jableView.webContents.executeJavaScript([
-      '(function () {',
-      '  function numeric(value) {',
-      '    if (value === null || typeof value === "undefined") return null;',
-      '    var number = parseFloat(String(value).replace(/,/g, ""));',
-      '    return Number.isFinite(number) ? number : null;',
-      '  }',
-      '  function clockToSeconds(value) {',
-      '    var text = String(value || "").trim();',
-      '    if (!text) return null;',
-      '    var parts = text.split(":").map(function (part) { return parseInt(part, 10); });',
-      '    if (parts.some(function (part) { return !Number.isFinite(part); })) return null;',
-      '    if (parts.length === 2) return parts[0] * 60 + parts[1];',
-      '    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];',
-      '    return null;',
-      '  }',
-      '  var video = document.querySelector("video");',
-      '  if (video && Number.isFinite(video.currentTime) && video.currentTime > 0) {',
-      '    return {',
-      '      url: location.href,',
-      '      currentTime: video.currentTime,',
-      '      duration: Number.isFinite(video.duration) ? video.duration : null',
-      '    };',
-      '  }',
-      '  var seek = document.querySelector("input[data-plyr=\\"seek\\"], .plyr__progress input[type=\\"range\\"]");',
-      '  var currentTime = seek ? numeric(seek.getAttribute("aria-valuenow") || seek.value) : null;',
-      '  var duration = seek ? numeric(seek.getAttribute("aria-valuemax") || seek.max) : null;',
-      '  var currentLabel = document.querySelector(".plyr__time--current");',
-      '  if (!currentTime && currentLabel) currentTime = clockToSeconds(currentLabel.textContent);',
-      '  if (!duration) {',
-      '    var durationLabel = document.querySelector(".plyr__time--duration");',
-      '    if (durationLabel) duration = clockToSeconds(durationLabel.textContent);',
-      '  }',
-      '  if (!currentTime || currentTime <= 0) return null;',
-      '  return {',
-      '    url: location.href,',
-      '    currentTime: currentTime,',
-      '    duration: duration',
-      '  };',
-      '})()'
-    ].join('\n'), true);
-
-    if (!state) return { saved: false };
-    return getDatabase().savePlaybackState(state);
-  } catch (error) {
-    return { saved: false, error: error.message };
-  }
-}
-
-async function restorePlaybackState(url) {
-  if (!jableView || jableView.webContents.isDestroyed()) return { restored: false };
-
-  var target = playbackTargetForUrl(url);
-  if (!target) return { restored: false };
-
-  try {
-    return await jableView.webContents.executeJavaScript([
-      '(function (target) {',
-      '  function closeEnough(value) {',
-      '    return Number.isFinite(value) && Math.abs(value - target.currentTime) < 1;',
-      '  }',
-      '  function applyToPlayerObject(player) {',
-      '    if (!player) return false;',
-      '    try {',
-      '      if (typeof player.currentTime === "number") {',
-      '        player.currentTime = target.currentTime;',
-      '        return closeEnough(player.currentTime);',
-      '      }',
-      '      if (typeof player.seek === "function") {',
-      '        player.seek(target.currentTime);',
-      '        return true;',
-      '      }',
-      '    } catch (error) {}',
-      '    return false;',
-      '  }',
-      '  function applyToPlyrInstance() {',
-      '    var nodes = document.querySelectorAll("video, #player, .plyr");',
-      '    for (var i = 0; i < nodes.length; i++) {',
-      '      if (applyToPlayerObject(nodes[i].plyr)) return true;',
-      '    }',
-      '    if (applyToPlayerObject(window.player)) return true;',
-      '    if (applyToPlayerObject(window.plyr)) return true;',
-      '    return false;',
-      '  }',
-      '  function applyToVideo() {',
-      '    var video = document.querySelector("video");',
-      '    if (!video) return false;',
-      '    if (video.readyState < 1) {',
-      '      video.addEventListener("loadedmetadata", function () {',
-      '        try { video.currentTime = target.currentTime; } catch (error) {}',
-      '      }, { once: true });',
-      '      return false;',
-      '    }',
-      '    try {',
-      '      video.currentTime = target.currentTime;',
-      '      return closeEnough(video.currentTime);',
-      '    } catch (error) { return false; }',
-      '  }',
-      '  function applyToPlyrControl() {',
-      '    var seek = document.querySelector("input[data-plyr=\\"seek\\"], .plyr__progress input[type=\\"range\\"]");',
-      '    if (!seek) return false;',
-      '    seek.value = String(target.currentTime);',
-      '    seek.setAttribute("aria-valuenow", String(target.currentTime));',
-      '    seek.dispatchEvent(new Event("input", { bubbles: true }));',
-      '    seek.dispatchEvent(new Event("change", { bubbles: true }));',
-      '    return true;',
-      '  }',
-      '  function attempt(resolve, count) {',
-      '    var restored = applyToPlyrInstance() || applyToVideo();',
-      '    var controlUpdated = !restored && applyToPlyrControl();',
-      '    if (restored) return resolve({ restored: true, currentTime: target.currentTime });',
-      '    if (count >= 60) return resolve({ restored: controlUpdated, currentTime: controlUpdated ? target.currentTime : null });',
-      '    setTimeout(function () { attempt(resolve, count + 1); }, 80);',
-      '  }',
-      '  return new Promise(function (resolve) { attempt(resolve, 0); });',
-      '})(' + JSON.stringify(target) + ')'
-    ].join('\n'), true);
-  } catch (error) {
-    return { restored: false, error: error.message };
-  }
-}
-
 async function navigateBrowser(payload) {
   var targetUrl = payload.url;
   var currentUrl = jableView.webContents.getURL();
-
-  if (currentUrl && currentUrl !== targetUrl) await capturePlaybackState();
 
   var wait = waitForBrowserStop();
   if (payload.forceReload && currentUrl === targetUrl) jableView.webContents.reload();
   else jableView.webContents.loadURL(targetUrl);
 
   var loadedUrl = await wait;
-  await restorePlaybackState(loadedUrl);
   notifyBrowserNavigationState();
   return loadedUrl;
 }
@@ -375,30 +215,25 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('browser:reload', async function () {
-    await capturePlaybackState();
     jableView.webContents.reload();
     return Object.assign({ reloaded: true }, browserNavigationState());
   });
 
   ipcMain.handle('browser:go-back', async function () {
-    await capturePlaybackState();
     if (jableView.webContents.canGoBack()) {
       var wait = waitForBrowserStop();
       jableView.webContents.goBack();
-      var url = await wait;
-      await restorePlaybackState(url);
+      await wait;
     }
     notifyBrowserNavigationState();
     return browserNavigationState();
   });
 
   ipcMain.handle('browser:go-forward', async function () {
-    await capturePlaybackState();
     if (jableView.webContents.canGoForward()) {
       var wait = waitForBrowserStop();
       jableView.webContents.goForward();
-      var url = await wait;
-      await restorePlaybackState(url);
+      await wait;
     }
     notifyBrowserNavigationState();
     return browserNavigationState();

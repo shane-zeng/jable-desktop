@@ -115,19 +115,6 @@ function formatDate(value) {
   }
 }
 
-function formatDuration(value) {
-  var seconds = Math.floor(Number(value) || 0);
-  var hours = Math.floor(seconds / 3600);
-  var minutes = Math.floor((seconds % 3600) / 60);
-  var rest = seconds % 60;
-
-  if (hours > 0) {
-    return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(rest).padStart(2, '0');
-  }
-
-  return minutes + ':' + String(rest).padStart(2, '0');
-}
-
 function currentCollection() {
   return COLLECTIONS[state.activeCollection];
 }
@@ -257,9 +244,6 @@ async function refreshVideos() {
       ? '<a href="' + attr(video.preview) + '" target="_blank" rel="noreferrer">Preview</a>'
       : '<span>Preview -</span>';
     var videoUrl = attr(video.url);
-    var playback = video.playback_current_time
-      ? '<div class="video-time">播放 ' + escapeHtml(formatDuration(video.playback_current_time)) + (video.playback_duration ? ' / ' + escapeHtml(formatDuration(video.playback_duration)) : '') + '</div>'
-      : '';
 
     return [
       '<article class="video-card">',
@@ -274,7 +258,6 @@ async function refreshVideos() {
       preview,
       '<a href="' + videoUrl + '" data-browser-url="' + videoUrl + '">Open</a>',
       '</div>',
-      playback,
       '<div class="video-time">同步 ' + escapeHtml(formatDate(video.last_seen_at)) + '</div>',
       '</div>',
       '</article>'

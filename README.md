@@ -17,7 +17,6 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 - 使用內嵌瀏覽器登入 Jable，並在本機保存登入所需資料。
 - 將同步資料儲存在你的電腦本機。
 - 支援 JSON 匯入與匯出。
-- 記錄播放進度，方便之後接續觀看。
 
 ### 安裝
 
@@ -44,7 +43,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 
 ### 資料與登入狀態
 
-同步資料會儲存在你的電腦本機。App 不會把你的清單或播放進度上傳到其他服務；你在內嵌瀏覽器中的登入與瀏覽仍會直接與 Jable 官方網站互動。
+同步資料會儲存在你的電腦本機。App 不會把你的清單上傳到其他服務；你在內嵌瀏覽器中的登入與瀏覽仍會直接與 Jable 官方網站互動。
 
 App 會保存 Jable 的本機登入資料，所以一般重開 App 後仍可維持登入。若你在其他瀏覽器或裝置登入，或 Jable 讓伺服器端 session 過期，仍可能需要重新登入。
 
@@ -82,7 +81,6 @@ Jable Desktop is an unofficial desktop tool and is not affiliated with Jable. It
 - Sign in through the embedded browser and keep local login data.
 - Store synced data locally on your computer.
 - Import and export JSON backups.
-- Save playback progress so you can resume later.
 
 ### Installation
 
@@ -109,7 +107,7 @@ Current release artifacts are not formally signed. macOS may show a Gatekeeper w
 
 ### Data And Login State
 
-Synced data is stored locally on your computer. The app does not upload your lists or playback progress to another service; sign-in and browsing inside the embedded browser still communicate directly with Jable's website.
+Synced data is stored locally on your computer. The app does not upload your lists to another service; sign-in and browsing inside the embedded browser still communicate directly with Jable's website.
 
 The app keeps Jable's local login data, so reopening the app should normally keep you signed in. If you sign in from another browser or device, or if Jable expires the server-side session, you may still need to sign in again.
 

@@ -70,40 +70,29 @@ test('saveSyncPage upserts videos and keeps one collection item per URL', functi
   assert.deepEqual(db.getCollectionUrls('favourites'), ['https://jable.tv/videos/first/']);
 });
 
-test('savePlaybackState stores progress and listVideos exposes it', function (t) {
-  var db = createTestDatabase(t);
+test('migration removes legacy playback state table', function (t) {
+  var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
+  var dbPath = path.join(dir, 'test.sqlite');
+  var db = new JableDatabase(dbPath);
 
-  db.saveSyncPage({
-    collectionKey: 'favourites',
-    page: 1,
-    rows: [
-      {
-        title: 'Playback video',
-        url: 'https://jable.tv/videos/playback/',
-        views: 300,
-        likes: 30
-      }
-    ]
+  db.db.exec([
+    'CREATE TABLE playback_states (',
+    '  video_url TEXT PRIMARY KEY,',
+    '  current_time REAL NOT NULL DEFAULT 0,',
+    '  duration REAL,',
+    '  updated_at TEXT NOT NULL',
+    ');'
+  ].join('\n'));
+  assert.ok(db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'));
+  db.close();
+
+  db = new JableDatabase(dbPath);
+  t.after(function () {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  var result = db.savePlaybackState({
-    url: 'https://jable.tv/videos/playback/?from=test',
-    currentTime: 125.5,
-    duration: 3600
-  });
-
-  assert.equal(result.saved, true);
-  assert.equal(result.video_url, 'https://jable.tv/videos/playback/');
-
-  var rows = db.listVideos('favourites');
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].playback_current_time, 125.5);
-  assert.equal(rows[0].playback_duration, 3600);
-  assert.ok(rows[0].playback_updated_at);
-
-  var state = db.getPlaybackState('https://jable.tv/videos/playback/?foo=bar');
-  assert.equal(state.video_url, 'https://jable.tv/videos/playback/');
-  assert.equal(state.current_time, 125.5);
+  assert.equal(db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'), undefined);
 });
 
 test('importResource accepts userscript paged JSON and exportResource keeps the resource shape', function (t) {
