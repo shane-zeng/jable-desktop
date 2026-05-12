@@ -18,7 +18,6 @@ export const COLLECTIONS = {
 
 export const SORT_OPTIONS = [
   { value: 'site_order', label: '網站排序' },
-  { value: 'last_seen_at', label: '最近同步' },
   { value: 'title', label: '標題' },
   { value: 'views', label: '觀看數' },
   { value: 'likes', label: '喜歡數' }

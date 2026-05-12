@@ -10,7 +10,6 @@ This repository contains a Tampermonkey userscript and an Electron desktop MVP f
 - `app/database.js`: SQLite schema, upsert logic, sync state, and JSON import/export.
 - `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
-- `app/renderer/`: legacy plain renderer kept for reference during the migration.
 - `test/`: Node test files for storage and import/export behavior.
 - `README.md`: installation and usage documentation for end users.
 - `AGENTS.md`: contributor guidance for future maintenance.

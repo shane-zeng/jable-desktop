@@ -47,7 +47,6 @@
     "files": [
       "app/**/*",
       "!app/renderer-src/**/*",
-      "!app/renderer/**/*",
       "package.json"
     ],
     "asar": true,

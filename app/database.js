@@ -66,10 +66,15 @@ function normalizeVideo(row) {
     likes: normalizeNumber(row.likes),
     img: normalizeText(row.img),
     preview: normalizeText(row.preview),
-    siteOrder: normalizeNumber(
-      typeof row.siteOrder === 'undefined' ? row.site_order : row.siteOrder
-    )
+    siteOrder: normalizeNumber(readSiteOrder(row))
   };
+}
+
+function readSiteOrder(row) {
+  if (!row) return null;
+  if (typeof row.siteOrder !== 'undefined') return row.siteOrder;
+  if (typeof row.site_order !== 'undefined') return row.site_order;
+  return row.sort_order;
 }
 
 function exportVideo(row) {
@@ -79,7 +84,8 @@ function exportVideo(row) {
     views: row.views,
     likes: row.likes,
     img: row.img,
-    preview: row.preview
+    preview: row.preview,
+    site_order: row.site_order
   };
 }
 
@@ -407,7 +413,8 @@ JableDatabase.prototype.importResource = function (collectionKey, resource) {
 
   var rows = flattenResource(resource);
   for (var i = 0; i < rows.length; i++) {
-    rows[i].siteOrder = i + 1;
+    var siteOrder = normalizeNumber(readSiteOrder(rows[i]));
+    rows[i].siteOrder = siteOrder === null ? i + 1 : siteOrder;
   }
   var saved = this.saveSyncPage({
     collectionKey: collectionKey,

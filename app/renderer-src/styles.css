@@ -154,6 +154,39 @@ button:focus {
   opacity: 1;
 }
 
+.video-title-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.video-title-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.video-title-wrap:hover .video-title-tooltip,
+.video-title-wrap:focus-within .video-title-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     grid-template-rows: 88px minmax(0, 1fr);

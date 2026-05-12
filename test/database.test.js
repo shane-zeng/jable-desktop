@@ -323,7 +323,7 @@ test('migration removes legacy playback state table', function (t) {
   assert.equal(db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'), undefined);
 });
 
-test('importResource accepts userscript paged JSON and exportResource keeps the resource shape', function (t) {
+test('importResource accepts userscript paged JSON and exportResource includes site order', function (t) {
   var db = createTestDatabase(t);
   var resource = {
     data: [
@@ -369,5 +369,80 @@ test('importResource accepts userscript paged JSON and exportResource keeps the 
   assert.equal(exported.meta.total, 2);
   assert.equal(exported.data[0].data[0].url, 'https://jable.tv/videos/imported/');
   assert.equal(exported.data[0].data[1].url, 'https://jable.tv/videos/imported-2/');
-  assert.equal(Object.prototype.hasOwnProperty.call(exported.data[0].data[0], 'site_order'), false);
+  assert.deepEqual(exported.data[0].data.map(function (row) { return row.site_order; }), [1, 2]);
+});
+
+test('importResource preserves explicit site_order from desktop JSON', function (t) {
+  var db = createTestDatabase(t);
+  var resource = {
+    data: [
+      {
+        data: [
+          {
+            title: 'Second',
+            url: 'https://jable.tv/videos/second/',
+            views: 20,
+            likes: 2,
+            site_order: 2
+          },
+          {
+            title: 'First',
+            url: 'https://jable.tv/videos/first/',
+            views: 10,
+            likes: 1,
+            site_order: 1
+          }
+        ]
+      }
+    ],
+    meta: {
+      format_version: 2,
+      completed: true,
+      last_scraped_page: 1
+    }
+  };
+
+  db.importResource('favourites', resource);
+
+  var exported = db.exportResource('favourites');
+  assert.deepEqual(exported.data[0].data.map(function (row) { return row.url; }), [
+    'https://jable.tv/videos/first/',
+    'https://jable.tv/videos/second/'
+  ]);
+  assert.deepEqual(exported.data[0].data.map(function (row) { return row.site_order; }), [1, 2]);
+});
+
+test('importResource accepts sort_order as an import alias and exports site_order', function (t) {
+  var db = createTestDatabase(t);
+  var resource = {
+    data: [
+      {
+        title: 'Alias second',
+        url: 'https://jable.tv/videos/alias-second/',
+        views: 20,
+        likes: 2,
+        sort_order: 2
+      },
+      {
+        title: 'Alias first',
+        url: 'https://jable.tv/videos/alias-first/',
+        views: 10,
+        likes: 1,
+        sort_order: 1
+      }
+    ],
+    meta: {
+      format_version: 2
+    }
+  };
+
+  db.importResource('watch_later', resource);
+
+  var exported = db.exportResource('watch_later');
+  assert.deepEqual(exported.data[0].data.map(function (row) { return row.url; }), [
+    'https://jable.tv/videos/alias-first/',
+    'https://jable.tv/videos/alias-second/'
+  ]);
+  assert.equal(Object.prototype.hasOwnProperty.call(exported.data[0].data[0], 'sort_order'), false);
+  assert.deepEqual(exported.data[0].data.map(function (row) { return row.site_order; }), [1, 2]);
 });

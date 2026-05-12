@@ -47,6 +47,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 
 - 點擊 **匯出 JSON** 可將目前清單備份成 JSON。
 - 點擊 **匯入 JSON** 可載入先前匯出的 JSON。
+- 桌面 App 匯出的 JSON 會包含 `site_order`，用來保留 Jable 網頁排序。
 - 舊版 Tampermonkey userscript 匯出的 JSON 也可以匯入。
 
 ### 資料與登入狀態
@@ -119,6 +120,7 @@ Current release artifacts are not formally signed. macOS may show a Gatekeeper w
 
 - Click **匯出 JSON** (Export JSON) to back up the current list as JSON.
 - Click **匯入 JSON** (Import JSON) to load a previously exported JSON file.
+- JSON exported by the desktop app includes `site_order` to preserve the Jable site order.
 - JSON files exported by the older Tampermonkey userscript can also be imported.
 
 ### Data And Login State

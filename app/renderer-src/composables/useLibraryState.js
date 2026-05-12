@@ -1,5 +1,14 @@
 import { computed, ref, watch } from 'vue';
-import { COLLECTIONS, PAGE_SIZE } from '../constants';
+import { COLLECTIONS, PAGE_SIZE, SORT_OPTIONS } from '../constants';
+
+var DEFAULT_SORT = 'site_order';
+var SORT_VALUES = SORT_OPTIONS.map(function (option) {
+  return option.value;
+});
+
+function normalizeSort(value) {
+  return SORT_VALUES.indexOf(value) === -1 ? DEFAULT_SORT : value;
+}
 
 export function useLibraryState(api) {
   var activeCollection = ref('favourites');
@@ -40,10 +49,13 @@ export function useLibraryState(api) {
 
   async function refreshVideos() {
     var token = ++refreshToken;
+    var safeSort = normalizeSort(sort.value);
+    if (safeSort !== sort.value) sort.value = safeSort;
+
     var videos = await api.listVideos({
       collectionKey: activeCollection.value,
       search: search.value,
-      sort: sort.value,
+      sort: safeSort,
       direction: direction.value
     });
 

@@ -89,7 +89,7 @@ Desktop sync behavior:
 - **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known.
 - **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run.
 - Full sync runs in batches of 100 pages. Batch-limited or failed runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
-- JSON export keeps the public userscript-compatible row shape and uses `site_order` only for output ordering.
+- JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
 Desktop app files:
 
@@ -98,7 +98,6 @@ Desktop app files:
 - `app/database.js`: SQLite schema, upsert logic, JSON import/export.
 - `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
-- `app/renderer/`: legacy plain renderer kept for reference during the migration.
 
 ### Desktop Validation
 

@@ -59,7 +59,7 @@ function openVideo(event) {
 </script>
 
 <template>
-  <article class="grid grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]">
+  <article class="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]">
     <div
       class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)]"
       @pointerenter="startPreview"
@@ -87,20 +87,33 @@ function openVideo(event) {
       ></video>
     </div>
 
-    <div class="grid min-w-0 content-start gap-1.5">
-      <a
-        class="font-bold leading-[1.35] text-[var(--text)] no-underline hover:text-[var(--accent)]"
-        :href="video.url"
-        @click="openVideo"
-      >
-        {{ video.title || video.url }}
-      </a>
-      <div class="flex flex-wrap gap-2 text-xs leading-[1.4] text-[var(--muted)]">
-        <span>Views {{ formatNumber(video.views) }}</span>
-        <span>Likes {{ formatNumber(video.likes) }}</span>
+    <div class="flex min-h-[124px] min-w-0 flex-col gap-2">
+      <div class="video-title-wrap">
+        <a
+          class="min-h-[4.05em] overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] font-bold leading-[1.35] text-[var(--text)] no-underline hover:text-[var(--accent)]"
+          :href="video.url"
+          @click="openVideo"
+        >
+          {{ video.title || video.url }}
+        </a>
+        <span
+          class="video-title-tooltip"
+          aria-hidden="true"
+        >
+          {{ video.title || video.url }}
+        </span>
       </div>
-      <div class="flex flex-wrap gap-2 text-xs leading-[1.4] text-[var(--muted)]">
-        同步 {{ formatDate(video.last_seen_at) }}
+      <div class="mt-auto space-y-1 border-t border-[var(--panel-border)] pt-2 text-xs leading-[1.4] text-[var(--muted)]">
+        <div class="truncate">
+          <span class="font-medium text-[var(--text)]">{{ formatNumber(video.views) }}</span>
+          <span> views</span>
+          <span class="px-1.5">·</span>
+          <span class="font-medium text-[var(--text)]">{{ formatNumber(video.likes) }}</span>
+          <span> likes</span>
+        </div>
+        <div class="truncate">
+          同步 {{ formatDate(video.last_seen_at) }}
+        </div>
       </div>
     </div>
   </article>
