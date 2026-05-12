@@ -6,7 +6,7 @@ var JableDatabase = require('./database').JableDatabase;
 
 var app = electron.app;
 var BrowserWindow = electron.BrowserWindow;
-var BrowserView = electron.BrowserView;
+var WebContentsView = electron.WebContentsView;
 var ipcMain = electron.ipcMain;
 var session = electron.session;
 
@@ -14,6 +14,7 @@ var JABLE_SESSION_PARTITION = 'persist:jable-session';
 
 var mainWindow = null;
 var jableView = null;
+var jableViewAttached = false;
 var database = null;
 var databasePath = null;
 
@@ -44,7 +45,7 @@ function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(function (details) {
     if (jableView && details.url) {
-      if (!browserViewAttached()) mainWindow.addBrowserView(jableView);
+      attachJableView();
       jableView.webContents.loadURL(details.url);
     }
 
@@ -52,7 +53,7 @@ function createWindow() {
   });
 
   loadRenderer();
-  createBrowserView();
+  createJableView();
 }
 
 function loadRenderer() {
@@ -64,8 +65,9 @@ function loadRenderer() {
   mainWindow.loadFile(path.join(__dirname, 'renderer-dist', 'index.html'));
 }
 
-function createBrowserView() {
-  jableView = new BrowserView({
+function createJableView() {
+  jableViewAttached = false;
+  jableView = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, 'webview-preload.js'),
       contextIsolation: true,
@@ -87,24 +89,31 @@ function createBrowserView() {
   jableView.webContents.on('did-navigate', notifyBrowserNavigationState);
   jableView.webContents.on('did-navigate-in-page', notifyBrowserNavigationState);
 
-  mainWindow.addBrowserView(jableView);
+  attachJableView();
   jableView.setBounds({ x: 0, y: 52, width: 900, height: 600 });
-  jableView.setAutoResize({ width: false, height: false });
 }
 
-function browserViewAttached() {
-  return mainWindow && mainWindow.getBrowserViews().indexOf(jableView) !== -1;
+function attachJableView() {
+  if (!mainWindow || mainWindow.isDestroyed() || !jableView || jableViewAttached) return;
+  mainWindow.contentView.addChildView(jableView);
+  jableViewAttached = true;
+}
+
+function detachJableView() {
+  if (!mainWindow || mainWindow.isDestroyed() || !jableView || !jableViewAttached) return;
+  mainWindow.contentView.removeChildView(jableView);
+  jableViewAttached = false;
 }
 
 function setBrowserBounds(bounds) {
   if (!jableView || !bounds) return null;
 
   if (bounds.visible === false) {
-    if (browserViewAttached()) mainWindow.removeBrowserView(jableView);
+    detachJableView();
     return { visible: false };
   }
 
-  if (!browserViewAttached()) mainWindow.addBrowserView(jableView);
+  attachJableView();
 
   var nextBounds = {
     x: Math.max(0, Math.floor(bounds.x || 0)),
