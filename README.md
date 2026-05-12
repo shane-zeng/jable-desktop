@@ -37,6 +37,38 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 4. 點擊 **快速同步**。
 5. 同步完成後，影片會出現在本機清單中。
 
+### 快捷鍵與滑鼠操作
+
+目前沒有全域鍵盤快捷鍵；下列是已支援的滑鼠、觸控板操作與右鍵選單。
+
+#### 瀏覽器
+
+| 操作 | 效果 |
+| --- | --- |
+| 點擊分頁 | 切換到該分頁 |
+| 點擊 **+ 新增分頁** | 開啟新的 Jable 分頁 |
+| 點擊分頁上的 **×** | 關閉該分頁；同步中的分頁不能關閉 |
+| 右鍵點擊分頁或分頁列 | 開啟分頁選單，可新增分頁、切換分頁、重新整理、複製網址、切換緊湊模式或關閉分頁 |
+| 右鍵點擊網頁連結 | 可在新分頁開啟連結或複製連結網址 |
+| 右鍵點擊圖片、影片或音訊 | 可在新分頁開啟媒體或複製媒體網址 |
+| 右鍵點擊選取文字 | 可複製選取文字 |
+| 右鍵點擊一般網頁區域 | 可上一頁、下一頁、重新整理、新增分頁或複製目前頁面網址 |
+| 右鍵點擊輸入框 | 可復原、重做、剪下、複製、貼上或全選 |
+| 觸控板左右滑動 | 返回上一頁或前往下一頁 |
+| 拖曳分頁列邊界 | 調整分頁列寬度 |
+| 雙擊分頁列邊界 | 重設分頁列寬度 |
+| 緊湊模式下移到左側邊緣 | 顯示浮動分頁列 |
+
+#### 本機資料
+
+| 操作 | 效果 |
+| --- | --- |
+| 點擊封面或標題 | 在目前瀏覽器分頁開啟影片 |
+| macOS：`Cmd` + 點擊封面或標題 | 在新分頁開啟影片 |
+| Windows / Linux：`Ctrl` + 點擊封面或標題 | 在新分頁開啟影片 |
+| macOS：`Ctrl` + 點擊影片卡片 | 視為右鍵點擊，開啟影片選單 |
+| 右鍵點擊影片卡片 | 開啟影片選單，可在目前分頁開啟、在新分頁開啟或複製網址 |
+
 ### 同步模式
 
 - **快速同步**：從 Jable 清單第 1 頁開始，遇到整頁都是已知影片後停止。它只會更新本次掃到影片的觀看數、喜歡數與網站排序。
@@ -110,6 +142,38 @@ Current release artifacts are not formally signed. macOS may show a Gatekeeper w
 3. Choose **Favourites** or **Watch Later**.
 4. Click **快速同步** (Quick Sync).
 5. After syncing finishes, videos appear in the local list.
+
+### Shortcuts And Mouse Actions
+
+There are currently no global keyboard shortcuts; the actions below are the supported mouse, trackpad, and context-menu operations.
+
+#### Browser
+
+| Action | Result |
+| --- | --- |
+| Click a tab | Switch to that tab |
+| Click **+ 新增分頁** (New Tab) | Open a new Jable tab |
+| Click **×** on a tab | Close that tab; sync tabs cannot be closed |
+| Right-click a tab or the tab rail | Open the tab menu to create, switch, reload, copy the URL, toggle compact mode, or close the tab |
+| Right-click a page link | Open the link in a new tab or copy the link URL |
+| Right-click an image, video, or audio item | Open the media in a new tab or copy the media URL |
+| Right-click selected text | Copy the selected text |
+| Right-click a regular page area | Go back, go forward, reload, create a new tab, or copy the current page URL |
+| Right-click an input field | Undo, redo, cut, copy, paste, or select all |
+| Swipe left or right on a trackpad | Go back or forward |
+| Drag the tab rail edge | Resize the tab rail |
+| Double-click the tab rail edge | Reset the tab rail width |
+| In compact mode, move to the left screen edge | Show the floating tab rail |
+
+#### Local Data
+
+| Action | Result |
+| --- | --- |
+| Click a cover or title | Open the video in the current browser tab |
+| macOS: `Cmd` + click a cover or title | Open the video in a new tab |
+| Windows / Linux: `Ctrl` + click a cover or title | Open the video in a new tab |
+| macOS: `Ctrl` + click a video card | Treat as right-click and open the video menu |
+| Right-click a video card | Open the video menu to open in the current tab, open in a new tab, or copy the URL |
 
 ### Sync Modes
 
