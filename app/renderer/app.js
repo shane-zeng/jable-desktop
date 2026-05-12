@@ -139,6 +139,18 @@ function formatDate(value) {
   }
 }
 
+function renderThumb(video) {
+  var previewAttr = video.preview ? ' data-preview-src="' + attr(video.preview) + '"' : '';
+  var image = video.img
+    ? '<img class="thumb-image" src="' + attr(video.img) + '" alt="">'
+    : '<div class="thumb-image thumb-placeholder"></div>';
+  var preview = video.preview
+    ? '<video class="thumb-preview" muted loop playsinline preload="none" aria-hidden="true"></video>'
+    : '';
+
+  return '<div class="thumb-frame"' + previewAttr + '>' + image + preview + '</div>';
+}
+
 function currentCollection() {
   return COLLECTIONS[state.activeCollection];
 }
@@ -252,7 +264,7 @@ async function refreshVideos() {
   var start = (state.currentPage - 1) * PAGE_SIZE;
   var pageRows = videos.slice(start, start + PAGE_SIZE);
 
-  elements.countLabel.textContent = videos.length + ' 筆 · 每頁 25 筆';
+  elements.countLabel.textContent = videos.length + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆';
   elements.pageLabel.textContent = '第 ' + state.currentPage + ' / ' + state.totalPages + ' 頁';
   elements.prevPageButton.disabled = state.busy || state.currentPage <= 1;
   elements.nextPageButton.disabled = state.busy || state.currentPage >= state.totalPages;
@@ -263,7 +275,6 @@ async function refreshVideos() {
   }
 
   elements.videoList.innerHTML = pageRows.map(function (video) {
-    var img = video.img ? '<img class="thumb" src="' + attr(video.img) + '" alt="">' : '<div class="thumb"></div>';
     var preview = video.preview
       ? '<a href="' + attr(video.preview) + '" target="_blank" rel="noreferrer">Preview</a>'
       : '<span>Preview -</span>';
@@ -271,7 +282,7 @@ async function refreshVideos() {
 
     return [
       '<article class="video-card">',
-      img,
+      renderThumb(video),
       '<div class="video-body">',
       '<a class="video-title" href="' + videoUrl + '" data-browser-url="' + videoUrl + '">' + escapeHtml(video.title || video.url) + '</a>',
       '<div class="video-stats">',
@@ -287,6 +298,31 @@ async function refreshVideos() {
       '</article>'
     ].join('');
   }).join('');
+}
+
+function startThumbPreview(frame) {
+  var src = frame.getAttribute('data-preview-src');
+  var video = frame.querySelector('.thumb-preview');
+  if (!src || !video) return;
+
+  if (!video.getAttribute('src')) video.setAttribute('src', src);
+  video.classList.add('active');
+
+  var play = video.play();
+  if (play && typeof play.catch === 'function') {
+    play.catch(function () {});
+  }
+}
+
+function stopThumbPreview(frame) {
+  var video = frame.querySelector('.thumb-preview');
+  if (!video) return;
+
+  video.classList.remove('active');
+  video.pause();
+  try {
+    video.currentTime = 0;
+  } catch (error) {}
 }
 
 function selectCollection(collectionKey) {
@@ -560,6 +596,20 @@ function wireEvents() {
 
     event.preventDefault();
     openInBrowser(link.getAttribute('data-browser-url'));
+  });
+  elements.videoList.addEventListener('pointerover', function (event) {
+    var frame = event.target.closest('.thumb-frame[data-preview-src]');
+    if (!frame || !elements.videoList.contains(frame)) return;
+    if (event.relatedTarget && frame.contains(event.relatedTarget)) return;
+
+    startThumbPreview(frame);
+  });
+  elements.videoList.addEventListener('pointerout', function (event) {
+    var frame = event.target.closest('.thumb-frame[data-preview-src]');
+    if (!frame || !elements.videoList.contains(frame)) return;
+    if (event.relatedTarget && frame.contains(event.relatedTarget)) return;
+
+    stopThumbPreview(frame);
   });
 
   var tabs = document.querySelectorAll('.tab');
