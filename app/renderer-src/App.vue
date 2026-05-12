@@ -536,13 +536,7 @@ onMounted(async function () {
     />
 
     <Transition name="status-toast">
-      <div
-        v-if="toast"
-        class="app-toast"
-        :class="'app-toast-' + toast.tone"
-        role="status"
-        aria-live="polite"
-      >
+      <div v-if="toast" class="app-toast" :class="'app-toast-' + toast.tone" role="status" aria-live="polite">
         <span class="min-w-0 flex-1">{{ toast.text }}</span>
         <button class="app-toast-close" type="button" aria-label="關閉通知" @click="hideToast">×</button>
       </div>
