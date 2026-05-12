@@ -65,7 +65,10 @@ function normalizeVideo(row) {
     views: normalizeNumber(row.views),
     likes: normalizeNumber(row.likes),
     img: normalizeText(row.img),
-    preview: normalizeText(row.preview)
+    preview: normalizeText(row.preview),
+    siteOrder: normalizeNumber(
+      typeof row.siteOrder === 'undefined' ? row.site_order : row.siteOrder
+    )
   };
 }
 
@@ -171,6 +174,20 @@ JableDatabase.prototype.migrate = function () {
     ');',
     'DROP TABLE IF EXISTS playback_states;'
   ].join('\n'));
+  this.ensureColumn('collection_items', 'site_order', 'INTEGER');
+  this.ensureColumn('collection_items', 'is_visible', 'INTEGER NOT NULL DEFAULT 1');
+  this.ensureColumn('collection_items', 'missing_at', 'TEXT');
+  this.ensureColumn('collection_items', 'last_sync_run_id', 'TEXT');
+};
+
+JableDatabase.prototype.ensureColumn = function (tableName, columnName, definition) {
+  var columns = this.db.prepare('PRAGMA table_info(' + tableName + ')').all();
+
+  for (var i = 0; i < columns.length; i++) {
+    if (columns[i].name === columnName) return;
+  }
+
+  this.db.exec('ALTER TABLE ' + tableName + ' ADD COLUMN ' + columnName + ' ' + definition);
 };
 
 JableDatabase.prototype.seedCollections = function () {
@@ -208,16 +225,24 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
   options = options || {};
 
   var sortMap = {
+    site_order: 'site_order',
     title: 'v.title',
     views: 'v.views',
     likes: 'v.likes',
     updated_at: 'v.updated_at',
     last_seen_at: 'ci.last_seen_at'
   };
-  var sort = sortMap[options.sort] || 'ci.last_seen_at';
-  var direction = options.direction === 'asc' ? 'ASC' : 'DESC';
+  var sortKey = sortMap[options.sort] ? options.sort : 'site_order';
+  var sort = sortMap[sortKey];
+  var direction = options.direction
+    ? (options.direction === 'asc' ? 'ASC' : 'DESC')
+    : (sortKey === 'site_order' ? 'ASC' : 'DESC');
   var params = [collectionKey];
   var where = 'WHERE ci.collection_key = ?';
+
+  if (!options.includeHidden) {
+    where += ' AND ci.is_visible = 1';
+  }
 
   if (options.search && String(options.search).trim()) {
     where += ' AND (LOWER(v.title) LIKE LOWER(?) OR v.url LIKE ?)';
@@ -225,13 +250,17 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
     params.push(like, like);
   }
 
+  var orderBy = sort === 'site_order'
+    ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
+    : sort + ' ' + direction + ', v.url ASC';
   var sql = [
     'SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,',
-    '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at',
+    '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,',
+    '       ci.site_order, ci.is_visible, ci.missing_at, ci.last_sync_run_id',
     'FROM collection_items ci',
     'JOIN videos v ON v.url = ci.video_url',
     where,
-    'ORDER BY ' + sort + ' ' + direction + ', v.url ASC'
+    'ORDER BY ' + orderBy
   ].join(' ');
   var stmt = this.db.prepare(sql);
 
@@ -256,6 +285,7 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   this.ensureCollection(collectionKey);
 
   var page = normalizeNumber(payload.page) || null;
+  var syncRunId = normalizeText(payload.syncRunId);
   var rows = Array.isArray(payload.rows) ? payload.rows : [];
   var normalizedRows = [];
 
@@ -277,10 +307,16 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
     '  updated_at = excluded.updated_at'
   ].join(' '));
   var upsertItem = this.db.prepare([
-    'INSERT INTO collection_items (collection_key, video_url, first_seen_at, last_seen_at)',
-    'VALUES (?, ?, ?, ?)',
+    'INSERT INTO collection_items (',
+    '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+    ')',
+    'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
     'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
-    '  last_seen_at = excluded.last_seen_at'
+    '  last_seen_at = excluded.last_seen_at,',
+    '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+    '  is_visible = 1,',
+    '  missing_at = NULL,',
+    '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'
   ].join(' '));
   var upsertState = this.db.prepare([
     'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
@@ -298,7 +334,7 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
     for (var n = 0; n < normalizedRows.length; n++) {
       var video = normalizedRows[n];
       upsertVideo.run(video.url, video.title, video.views, video.likes, video.img, video.preview, timestamp, timestamp);
-      upsertItem.run(collectionKey, video.url, timestamp, timestamp);
+      upsertItem.run(collectionKey, video.url, timestamp, timestamp, video.siteOrder, syncRunId);
     }
 
     upsertState.run(
@@ -328,18 +364,35 @@ JableDatabase.prototype.finishSync = function (payload) {
   var timestamp = nowIso();
   var lastScrapedPage = normalizeNumber(result.lastScrapedPage);
   var lastKnownUrl = normalizeText(result.lastKnownUrl);
+  var completed = result.completed === false ? 0 : 1;
+  var mode = normalizeText(payload.mode || result.mode);
+  var syncRunId = normalizeText(payload.syncRunId || result.syncRunId);
+  var hidden = 0;
 
   this.db.prepare([
     'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
-    'VALUES (?, 1, ?, ?, ?)',
+    'VALUES (?, ?, ?, ?, ?)',
     'ON CONFLICT(collection_key) DO UPDATE SET',
-    '  completed = 1,',
+    '  completed = excluded.completed,',
     '  last_scraped_page = COALESCE(excluded.last_scraped_page, sync_states.last_scraped_page),',
     '  last_known_url = COALESCE(excluded.last_known_url, sync_states.last_known_url),',
     '  updated_at = excluded.updated_at'
-  ].join(' ')).run(collectionKey, lastScrapedPage, lastKnownUrl, timestamp);
+  ].join(' ')).run(collectionKey, completed, lastScrapedPage, lastKnownUrl, timestamp);
 
-  return this.getSyncState(collectionKey);
+  if (mode === 'full' && completed && syncRunId) {
+    var update = this.db.prepare([
+      'UPDATE collection_items',
+      'SET is_visible = 0, missing_at = ?',
+      'WHERE collection_key = ?',
+      '  AND is_visible = 1',
+      '  AND (last_sync_run_id IS NULL OR last_sync_run_id <> ?)'
+    ].join(' ')).run(timestamp, collectionKey, syncRunId);
+    hidden = update.changes || 0;
+  }
+
+  var state = this.getSyncState(collectionKey);
+  state.hidden = hidden;
+  return state;
 };
 
 JableDatabase.prototype.clearSyncState = function (collectionKey) {
@@ -353,6 +406,9 @@ JableDatabase.prototype.importResource = function (collectionKey, resource) {
   this.ensureCollection(collectionKey);
 
   var rows = flattenResource(resource);
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].siteOrder = i + 1;
+  }
   var saved = this.saveSyncPage({
     collectionKey: collectionKey,
     page: resource && resource.meta ? resource.meta.last_scraped_page : null,
@@ -379,7 +435,7 @@ JableDatabase.prototype.exportResource = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
   var collection = collectionByKey(collectionKey);
-  var rows = this.listVideos(collectionKey, { sort: 'last_seen_at', direction: 'desc' });
+  var rows = this.listVideos(collectionKey, { sort: 'site_order', direction: 'asc' });
   var state = this.getSyncState(collectionKey);
   var pages = rowsByPage(rows);
 

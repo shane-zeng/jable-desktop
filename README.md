@@ -16,6 +16,8 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 - 同步 **影片收藏** 與 **稍後觀看**。
 - 使用內嵌瀏覽器登入 Jable，並在本機保存登入所需資料。
 - 將同步資料儲存在你的電腦本機。
+- 依 Jable 網頁順序顯示本機清單。
+- 提供快速同步與完整同步。
 - 支援 JSON 匯入與匯出。
 
 ### 安裝
@@ -30,10 +32,16 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 ### 第一次使用
 
 1. 在 **瀏覽器** 頁籤登入 Jable。
-2. 開啟 Jable 的 **影片收藏** 或 **稍後觀看** 頁面。
-3. 切到 **本機資料** 頁籤。
-4. 點擊 **同步目前 Jable 頁面**。
+2. 切到 **本機資料** 頁籤。
+3. 選擇 **影片收藏** 或 **稍後觀看**。
+4. 點擊 **快速同步**。
 5. 同步完成後，影片會出現在本機清單中。
+
+### 同步模式
+
+- **快速同步**：從 Jable 清單第 1 頁開始，遇到整頁都是已知影片後停止。它只會更新本次掃到影片的觀看數、喜歡數與網站排序。
+- **完整同步**：從第 1 頁跑到最後一頁，更新所有仍在網站上的影片，重建完整網站排序，並把網站上已不存在的本機項目標記為隱藏。
+- 完整同步每批最多處理 100 頁。若資料很多，App 會暫停並顯示 **繼續完整同步**；已掃到的資料會先寫入，但未完整完成前不會隱藏舊資料。
 
 ### 匯入與匯出
 
@@ -51,7 +59,7 @@ App 會保存 Jable 的本機登入資料，所以一般重開 App 後仍可維�
 
 **同步後沒有資料**
 
-確認內嵌瀏覽器已登入 Jable，且目前頁面是 **影片收藏** 或 **稍後觀看**，再點擊 **同步目前 Jable 頁面**。
+確認內嵌瀏覽器已登入 Jable，再到 **本機資料** 選擇 **影片收藏** 或 **稍後觀看** 後同步。
 
 **重新開啟後需要重新登入**
 
@@ -80,6 +88,8 @@ Jable Desktop is an unofficial desktop tool and is not affiliated with Jable. It
 - Sync **Favourites** and **Watch Later**.
 - Sign in through the embedded browser and keep local login data.
 - Store synced data locally on your computer.
+- Display local lists in the same order as Jable.
+- Choose between quick sync and full sync.
 - Import and export JSON backups.
 
 ### Installation
@@ -94,10 +104,16 @@ Current release artifacts are not formally signed. macOS may show a Gatekeeper w
 ### First Use
 
 1. Sign in to Jable in the **瀏覽器** (Browser) tab.
-2. Open Jable's **Favourites** or **Watch Later** page.
-3. Switch to the **本機資料** (Local Data) tab.
-4. Click **同步目前 Jable 頁面** (Sync Current Jable Page).
+2. Switch to the **本機資料** (Local Data) tab.
+3. Choose **Favourites** or **Watch Later**.
+4. Click **快速同步** (Quick Sync).
 5. After syncing finishes, videos appear in the local list.
+
+### Sync Modes
+
+- **Quick Sync** starts from page 1 and stops once it reaches a page where every video is already known. It only updates views, likes, and site order for videos scanned in that run.
+- **Full Sync** runs from page 1 to the final page, updates every video still present on Jable, rebuilds the full site order, and hides local items that no longer appear on the site.
+- Full sync processes up to 100 pages per batch. For large lists, the app pauses and shows **繼續完整同步** (Continue Full Sync); scanned data is saved immediately, but old items are not hidden until full sync completes.
 
 ### Import And Export
 
@@ -115,7 +131,7 @@ The app keeps Jable's local login data, so reopening the app should normally kee
 
 **No videos appear after syncing**
 
-Make sure the embedded browser is signed in to Jable and currently opened on the **Favourites** or **Watch Later** page, then click **同步目前 Jable 頁面** (Sync Current Jable Page).
+Make sure the embedded browser is signed in to Jable, then choose **Favourites** or **Watch Later** in **本機資料** (Local Data) and sync again.
 
 **The app asks me to sign in again after reopening**
 

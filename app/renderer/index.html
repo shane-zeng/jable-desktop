@@ -47,7 +47,8 @@
             </div>
 
             <div class="toolbar">
-              <button id="sync-button" class="primary" type="button">同步目前 Jable 頁面</button>
+              <button id="sync-button" class="primary" type="button">快速同步</button>
+              <button id="full-sync-button" type="button">完整同步</button>
               <button id="import-button" type="button">匯入 JSON</button>
               <button id="export-button" type="button">匯出 JSON</button>
               <input id="import-file" type="file" accept="application/json,.json" hidden>
@@ -57,14 +58,15 @@
           <div class="filters">
             <input id="search-input" type="search" placeholder="搜尋標題或 URL">
             <select id="sort-select" aria-label="排序">
+              <option value="site_order">網站排序</option>
               <option value="last_seen_at">最近同步</option>
               <option value="title">標題</option>
               <option value="views">觀看數</option>
               <option value="likes">喜歡數</option>
             </select>
             <select id="direction-select" aria-label="排序方向">
-              <option value="desc">遞減</option>
               <option value="asc">遞增</option>
+              <option value="desc">遞減</option>
             </select>
           </div>
 

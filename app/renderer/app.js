@@ -1,6 +1,7 @@
 'use strict';
 
-var PAGE_SIZE = 25;
+var PAGE_SIZE = 24;
+var FULL_SYNC_BATCH_LIMIT = 100;
 var DEFAULT_BROWSER_URL = 'https://jable.tv/';
 var THEME_STORAGE_KEY = 'jable-desktop:theme';
 
@@ -27,6 +28,7 @@ var state = {
   appInfo: null,
   pendingSaves: [],
   saveFailure: null,
+  fullSyncContinuation: null,
   browserNavigation: {
     canGoBack: false,
     canGoForward: false
@@ -58,11 +60,33 @@ function loadTheme() {
 function setBusy(busy) {
   state.busy = busy;
   elements.syncButton.disabled = busy;
+  elements.fullSyncButton.disabled = busy;
   elements.importButton.disabled = busy;
   elements.exportButton.disabled = busy;
   elements.prevPageButton.disabled = busy || state.currentPage <= 1;
   elements.nextPageButton.disabled = busy || state.currentPage >= state.totalPages;
   updateBrowserControls();
+}
+
+function syncModeName(mode) {
+  return mode === 'full' ? '完整同步' : '快速同步';
+}
+
+function createSyncRunId(mode, collectionKey) {
+  return [
+    mode,
+    collectionKey,
+    Date.now(),
+    Math.random().toString(36).slice(2)
+  ].join(':');
+}
+
+function updateFullSyncButton() {
+  if (!elements.fullSyncButton) return;
+
+  var pending = state.fullSyncContinuation &&
+    state.fullSyncContinuation.collectionKey === state.activeCollection;
+  elements.fullSyncButton.textContent = pending ? '繼續完整同步' : '完整同步';
 }
 
 function updateBrowserControls() {
@@ -274,6 +298,7 @@ function selectCollection(collectionKey) {
     tabs[i].classList.toggle('active', tabs[i].getAttribute('data-collection') === collectionKey);
   }
 
+  updateFullSyncButton();
   refreshVideos();
 }
 
@@ -321,6 +346,49 @@ function handleBrowserMessage(message) {
 }
 
 async function syncActiveCollection() {
+  return syncCollection('quick');
+}
+
+async function fullSyncActiveCollection() {
+  return syncCollection('full');
+}
+
+function resultStatus(collection, mode, result, finishState) {
+  var name = syncModeName(mode);
+
+  if (result.completed === false) {
+    if (result.incompleteReason === 'batch-limit') {
+      return collection.name + ' ' + name + '已暫停：本批 ' + result.totalPages +
+        ' 頁、' + result.totalRows + ' 筆，可繼續完整同步';
+    }
+
+    return collection.name + ' ' + name + '未完整完成：' + (result.incompleteReason || '未知原因');
+  }
+
+  if (mode === 'full') {
+    return collection.name + ' 完整同步完成：' + result.totalRows + ' 筆，隱藏 ' +
+      ((finishState && finishState.hidden) || 0) + ' 筆缺漏資料';
+  }
+
+  var reason = result.stoppedByKnownPage ? '遇到已知頁面後停止' : '已跑完可見分頁';
+  return collection.name + ' 快速同步完成：' + result.totalRows + ' 筆，' + reason;
+}
+
+async function ensureCollectionStartPage(collectionKey, collection, mode, continuation) {
+  if (mode === 'full' && continuation) {
+    var currentUrl = await currentBrowserUrl();
+    if (collectionUrlPattern(collectionKey).test(pathFromUrl(currentUrl))) {
+      setActiveView('browser');
+      return true;
+    }
+  }
+
+  setActiveView('browser');
+  await loadBrowser(collection.url, true);
+  return false;
+}
+
+async function syncCollection(mode) {
   if (state.busy) return;
 
   setBusy(true);
@@ -330,42 +398,69 @@ async function syncActiveCollection() {
   try {
     var collectionKey = state.activeCollection;
     var collection = currentCollection();
+    var continuation = mode === 'full' &&
+      state.fullSyncContinuation &&
+      state.fullSyncContinuation.collectionKey === collectionKey
+      ? state.fullSyncContinuation
+      : null;
+    var usedContinuation = await ensureCollectionStartPage(collectionKey, collection, mode, continuation);
+    var syncRunId = usedContinuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
+    var siteOrderOffset = usedContinuation ? continuation.siteOrderOffset : 0;
+    var startPage = usedContinuation ? continuation.lastScrapedPage : null;
     var browserUrl = await currentBrowserUrl();
 
     if (!collectionUrlPattern(collectionKey).test(pathFromUrl(browserUrl))) {
-      setStatus('請先在瀏覽器開啟 Jable 的「' + collection.name + '」頁面，再同步');
-      setActiveView('browser');
+      setStatus('請先在瀏覽器登入 Jable，並確認可開啟「' + collection.name + '」頁面');
       return;
     }
 
     var knownUrls = await window.jableApp.getCollectionUrls(collectionKey);
     var options = {
       collectionKey: collectionKey,
+      mode: mode,
+      syncRunId: syncRunId,
+      siteOrderOffset: siteOrderOffset,
+      startPage: startPage,
       knownUrls: knownUrls,
-      stopOnKnownPage: true
+      stopOnKnownPage: mode === 'quick',
+      batchLimit: mode === 'full' ? FULL_SYNC_BATCH_LIMIT : null
     };
 
-    setStatus('開始同步 ' + collection.name);
+    setStatus('開始' + syncModeName(mode) + ' ' + collection.name);
     setActiveView('browser');
     var result = await window.jableApp.syncBrowserCollection(options);
     await Promise.all(state.pendingSaves);
 
     if (state.saveFailure) throw state.saveFailure;
 
-    await window.jableApp.finishSync({
+    var finishState = await window.jableApp.finishSync({
       collectionKey: collectionKey,
+      mode: mode,
+      syncRunId: syncRunId,
       result: result
     });
+
+    if (mode === 'full' && result.completed === false && result.incompleteReason === 'batch-limit') {
+      state.fullSyncContinuation = {
+        collectionKey: collectionKey,
+        syncRunId: syncRunId,
+        siteOrderOffset: siteOrderOffset + result.totalRows,
+        lastScrapedPage: result.lastScrapedPage
+      };
+    } else if (mode === 'full') {
+      state.fullSyncContinuation = null;
+    }
+
     state.currentPage = 1;
     setActiveView('library');
     await refreshVideos();
 
-    var reason = result.stoppedByKnownPage ? '遇到已知頁面後停止' : '已跑完可見分頁';
-    setStatus(collection.name + ' 同步完成：' + result.totalRows + ' 筆，' + reason);
+    setStatus(resultStatus(collection, mode, result, finishState));
   } catch (error) {
     console.error(error);
-    setStatus('同步失敗：' + error.message);
+    setStatus(syncModeName(mode) + '失敗：' + error.message);
   } finally {
+    updateFullSyncButton();
     setBusy(false);
   }
 }
@@ -445,6 +540,7 @@ function wireEvents() {
   });
 
   elements.syncButton.addEventListener('click', syncActiveCollection);
+  elements.fullSyncButton.addEventListener('click', fullSyncActiveCollection);
   elements.importButton.addEventListener('click', function () {
     elements.importFile.click();
   });
@@ -497,6 +593,7 @@ async function init() {
     showLibraryButton: $('show-library-button'),
     themeSelect: $('theme-select'),
     syncButton: $('sync-button'),
+    fullSyncButton: $('full-sync-button'),
     importButton: $('import-button'),
     exportButton: $('export-button'),
     importFile: $('import-file'),
@@ -518,6 +615,7 @@ async function init() {
   applyTheme(loadTheme());
   state.appInfo = await window.jableApp.getAppInfo();
   wireEvents();
+  updateFullSyncButton();
   setActiveView('browser');
   scheduleBrowserResize();
   await refreshVideos();

@@ -25,6 +25,7 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 - Compatible with modern browsers (Chrome / Edge / Firefox).
 - No external dependencies for the userscript.
 - Desktop MVP stores synced data in SQLite and supports JSON import/export.
+- Desktop sync preserves Jable site order and supports quick/full sync modes.
 
 ---
 
@@ -74,7 +75,14 @@ npm install
 npm start
 ```
 
-Log in inside the embedded browser, open **影片收藏** or **稍後觀看**, then click **同步**. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the right panel.
+Log in inside the embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the right panel.
+
+Desktop sync behavior:
+
+- **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known.
+- **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run.
+- Full sync runs in batches of 100 pages. Batch-limited or failed runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
+- JSON export keeps the public userscript-compatible row shape and uses `site_order` only for output ordering.
 
 Desktop app files:
 
@@ -92,7 +100,9 @@ npm test
 Manual checks:
 
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
-- Sync both favourites and watch-later lists.
+- Quick sync both favourites and watch-later lists.
+- Full sync a list and confirm local ordering matches the Jable page order.
+- For large lists, continue a paused full sync and confirm incomplete batches do not hide old rows.
 - Import an existing userscript JSON export and verify rows appear in the matching tab.
 - Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
 

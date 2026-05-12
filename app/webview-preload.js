@@ -3,11 +3,13 @@
 var electron = require('electron');
 var contextBridge = electron.contextBridge;
 var ipcRenderer = electron.ipcRenderer;
+var chooseNextPagerLink = require('./sync-utils').chooseNextPagerLink;
 
 var SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';
 var SEL_TITLES = 'div.detail h6.title a';
 var SEL_PAGER = 'ul.pagination';
 var SEL_PAGER_LINKS = 'ul.pagination a.page-link';
+var SITE_PAGE_SIZE = 24;
 
 function absUrl(href, base) {
   try {
@@ -92,7 +94,12 @@ function normalizePageNumber(value) {
 }
 
 function currentPageNumber() {
-  var active = document.querySelector('ul.pagination span.page-link.active');
+  var active = document.querySelector([
+    'ul.pagination span.page-link.active',
+    'ul.pagination a.page-link.active',
+    'ul.pagination .page-item.active .page-link',
+    'ul.pagination [aria-current="page"]'
+  ].join(', '));
   return active ? normalizePageNumber(active.textContent) : 1;
 }
 
@@ -147,6 +154,7 @@ function readPagerLinks() {
   for (var i = 0; i < anchors.length; i++) {
     var anchor = anchors[i];
     var text = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+    var pageNumber = /^\d+$/.test(text) ? normalizePageNumber(text) : null;
     var params = anchor.getAttribute('data-parameters') || '';
     var match = params.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
     var id = null;
@@ -155,7 +163,11 @@ function readPagerLinks() {
     else if (/^\d+$/.test(text)) id = text;
     else id = text || ('a_' + i);
 
-    out.push({ el: anchor, id: id, label: text });
+    if (!pageNumber && match) {
+      pageNumber = Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1;
+    }
+
+    out.push({ el: anchor, id: id, label: text, pageNumber: pageNumber });
   }
 
   return out;
@@ -175,6 +187,11 @@ async function syncCollection(options) {
   options = options || {};
 
   var collectionKey = options.collectionKey;
+  var mode = options.mode || 'quick';
+  var syncRunId = options.syncRunId || null;
+  var siteOrderOffset = Number(options.siteOrderOffset) || 0;
+  var startPage = Number(options.startPage) || null;
+  var batchLimit = Number(options.batchLimit) || null;
   var knownUrls = {};
   var knownList = Array.isArray(options.knownUrls) ? options.knownUrls : [];
 
@@ -182,23 +199,37 @@ async function syncCollection(options) {
     knownUrls[knownList[i]] = true;
   }
 
-  var visited = {};
-  var active = document.querySelector('ul.pagination span.page-link.active');
-  if (active) {
-    var activeText = (active.textContent || '').trim();
-    if (activeText) visited[activeText] = true;
-  }
-
-  var safety = 100;
   var totalRows = 0;
   var totalPages = 0;
+  var logicalPage = startPage || currentPageNumber();
   var lastScrapedPage = null;
   var lastKnownUrl = null;
   var stoppedByKnownPage = false;
+  var incompleteReason = null;
 
-  function recordCurrentPage() {
+  function result(completed) {
+    return {
+      completed: completed,
+      mode: mode,
+      syncRunId: syncRunId,
+      incompleteReason: completed ? null : incompleteReason,
+      stoppedByKnownPage: stoppedByKnownPage,
+      totalPages: totalPages,
+      totalRows: totalRows,
+      lastScrapedPage: lastScrapedPage,
+      lastKnownUrl: lastKnownUrl
+    };
+  }
+
+  function recordCurrentPage(pageNumber) {
     var rows = uniqByUrl(scrapeCurrentPage());
-    lastScrapedPage = currentPageNumber();
+    lastScrapedPage = pageNumber || logicalPage || currentPageNumber();
+    logicalPage = lastScrapedPage;
+
+    for (var r = 0; r < rows.length; r++) {
+      rows[r].siteOrder = siteOrderOffset + totalRows + r + 1;
+    }
+
     totalRows += rows.length;
     totalPages++;
 
@@ -206,6 +237,8 @@ async function syncCollection(options) {
 
     sendProgress('sync-page', {
       collectionKey: collectionKey,
+      mode: mode,
+      syncRunId: syncRunId,
       page: lastScrapedPage,
       rows: rows,
       url: location.href
@@ -224,34 +257,23 @@ async function syncCollection(options) {
   }
 
   if (recordCurrentPage()) {
-    return {
-      completed: true,
-      stoppedByKnownPage: stoppedByKnownPage,
-      totalPages: totalPages,
-      totalRows: totalRows,
-      lastScrapedPage: lastScrapedPage,
-      lastKnownUrl: lastKnownUrl
-    };
+    return result(true);
   }
 
-  while (safety-- > 0) {
-    var links = readPagerLinks();
-    var candidates = [];
-
-    for (var c = 0; c < links.length; c++) {
-      if (!visited[links[c].id]) candidates.push(links[c]);
+  if (batchLimit && totalPages >= batchLimit) {
+    if (chooseNextPagerLink(readPagerLinks(), logicalPage)) {
+      incompleteReason = 'batch-limit';
+      return result(false);
     }
 
-    if (!candidates.length) break;
+    return result(true);
+  }
 
-    candidates.sort(function (a, b) {
-      var na = parseInt(a.id, 10);
-      var nb = parseInt(b.id, 10);
-      if (isFinite(na) && isFinite(nb)) return na - nb;
-      return String(a.id).localeCompare(String(b.id));
-    });
+  while (true) {
+    var links = readPagerLinks();
+    var next = chooseNextPagerLink(links, logicalPage);
+    if (!next) break;
 
-    var next = candidates[0];
     var oldSig = signature();
 
     try {
@@ -260,27 +282,36 @@ async function syncCollection(options) {
 
     await new Promise(function (resolve) { setTimeout(resolve, 200); });
     next.el.click();
-    await waitForContainerChange(oldSig, 15000);
+    var changed = await waitForContainerChange(oldSig, 15000);
 
-    visited[next.id] = true;
+    if (!changed || signature() === oldSig) {
+      incompleteReason = 'page-unchanged';
+      return result(false);
+    }
+
+    logicalPage = next.pageNumber || currentPageNumber();
+
     sendProgress('sync-progress', {
       collectionKey: collectionKey,
-      page: currentPageNumber(),
+      mode: mode,
+      page: logicalPage,
       message: 'page-loaded'
     });
 
-    if (recordCurrentPage()) break;
+    if (recordCurrentPage(logicalPage)) return result(true);
+    if (batchLimit && totalPages >= batchLimit) {
+      if (chooseNextPagerLink(readPagerLinks(), logicalPage)) {
+        incompleteReason = 'batch-limit';
+        return result(false);
+      }
+
+      break;
+    }
+
     await new Promise(function (resolve) { setTimeout(resolve, 500 + Math.random() * 500); });
   }
 
-  return {
-    completed: true,
-    stoppedByKnownPage: stoppedByKnownPage,
-    totalPages: totalPages,
-    totalRows: totalRows,
-    lastScrapedPage: lastScrapedPage,
-    lastKnownUrl: lastKnownUrl
-  };
+  return result(true);
 }
 
 contextBridge.exposeInMainWorld('jableDesktopScraper', {

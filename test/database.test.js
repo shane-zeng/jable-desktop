@@ -70,6 +70,234 @@ test('saveSyncPage upserts videos and keeps one collection item per URL', functi
   assert.deepEqual(db.getCollectionUrls('favourites'), ['https://jable.tv/videos/first/']);
 });
 
+test('saveSyncPage stores and lists videos by site order', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: 'run-ordered',
+    rows: [
+      {
+        title: 'Second on site',
+        url: 'https://jable.tv/videos/second/',
+        views: 2,
+        likes: 2,
+        siteOrder: 2
+      },
+      {
+        title: 'First on site',
+        url: 'https://jable.tv/videos/first/',
+        views: 1,
+        likes: 1,
+        siteOrder: 1
+      }
+    ]
+  });
+
+  var rows = db.listVideos('favourites');
+  assert.deepEqual(rows.map(function (row) { return row.url; }), [
+    'https://jable.tv/videos/first/',
+    'https://jable.tv/videos/second/'
+  ]);
+  assert.deepEqual(rows.map(function (row) { return row.site_order; }), [1, 2]);
+});
+
+test('listVideos puts legacy rows without site order after ordered rows', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Legacy row',
+        url: 'https://jable.tv/videos/legacy/',
+        views: 1,
+        likes: 1
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: 'run-ordered',
+    rows: [
+      {
+        title: 'Ordered row',
+        url: 'https://jable.tv/videos/ordered/',
+        views: 2,
+        likes: 2,
+        siteOrder: 1
+      }
+    ]
+  });
+
+  var rows = db.listVideos('favourites');
+  assert.deepEqual(rows.map(function (row) { return row.url; }), [
+    'https://jable.tv/videos/ordered/',
+    'https://jable.tv/videos/legacy/'
+  ]);
+});
+
+test('quick sync updates scanned rows without hiding unscanned rows', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: 'old-run',
+    rows: [
+      {
+        title: 'Scanned row',
+        url: 'https://jable.tv/videos/scanned/',
+        views: 10,
+        likes: 1,
+        siteOrder: 1
+      },
+      {
+        title: 'Unscanned row',
+        url: 'https://jable.tv/videos/unscanned/',
+        views: 20,
+        likes: 2,
+        siteOrder: 2
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: 'quick-run',
+    rows: [
+      {
+        title: 'Scanned row',
+        url: 'https://jable.tv/videos/scanned/',
+        views: 99,
+        likes: 9,
+        siteOrder: 1
+      }
+    ]
+  });
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'quick',
+    syncRunId: 'quick-run',
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  var rows = db.listVideos('favourites');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].views, 99);
+  assert.equal(rows[1].url, 'https://jable.tv/videos/unscanned/');
+  assert.equal(rows[1].is_visible, 1);
+});
+
+test('completed full sync hides rows missing from the sync run', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'watch_later',
+    page: 1,
+    syncRunId: 'old-run',
+    rows: [
+      {
+        title: 'Still present',
+        url: 'https://jable.tv/videos/present/',
+        views: 10,
+        likes: 1,
+        siteOrder: 1
+      },
+      {
+        title: 'Missing now',
+        url: 'https://jable.tv/videos/missing/',
+        views: 20,
+        likes: 2,
+        siteOrder: 2
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'watch_later',
+    page: 1,
+    syncRunId: 'full-run',
+    rows: [
+      {
+        title: 'Still present',
+        url: 'https://jable.tv/videos/present/',
+        views: 30,
+        likes: 3,
+        siteOrder: 1
+      }
+    ]
+  });
+  var state = db.finishSync({
+    collectionKey: 'watch_later',
+    mode: 'full',
+    syncRunId: 'full-run',
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  assert.equal(state.hidden, 1);
+  assert.deepEqual(db.listVideos('watch_later').map(function (row) { return row.url; }), [
+    'https://jable.tv/videos/present/'
+  ]);
+
+  var allRows = db.listVideos('watch_later', { includeHidden: true });
+  assert.equal(allRows.length, 2);
+  assert.equal(allRows[1].is_visible, 0);
+  assert.ok(allRows[1].missing_at);
+});
+
+test('incomplete full sync does not hide rows missing from the sync run', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'watch_later',
+    page: 1,
+    syncRunId: 'old-run',
+    rows: [
+      {
+        title: 'Still present',
+        url: 'https://jable.tv/videos/present/',
+        views: 10,
+        likes: 1,
+        siteOrder: 1
+      },
+      {
+        title: 'Maybe later page',
+        url: 'https://jable.tv/videos/later-page/',
+        views: 20,
+        likes: 2,
+        siteOrder: 2
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'watch_later',
+    page: 1,
+    syncRunId: 'full-run',
+    rows: [
+      {
+        title: 'Still present',
+        url: 'https://jable.tv/videos/present/',
+        views: 30,
+        likes: 3,
+        siteOrder: 1
+      }
+    ]
+  });
+  var state = db.finishSync({
+    collectionKey: 'watch_later',
+    mode: 'full',
+    syncRunId: 'full-run',
+    result: { completed: false, incompleteReason: 'batch-limit', lastScrapedPage: 1 }
+  });
+
+  assert.equal(state.hidden, 0);
+  assert.equal(state.completed, false);
+  assert.equal(db.listVideos('watch_later').length, 2);
+});
+
 test('migration removes legacy playback state table', function (t) {
   var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   var dbPath = path.join(dir, 'test.sqlite');
@@ -108,12 +336,20 @@ test('importResource accepts userscript paged JSON and exportResource keeps the 
             likes: 20,
             img: null,
             preview: null
+          },
+          {
+            title: 'Imported video 2',
+            url: 'https://jable.tv/videos/imported-2/',
+            views: 300,
+            likes: 30,
+            img: null,
+            preview: null
           }
         ],
         meta: {
           current_page: 1,
           per_page: 24,
-          count: 1
+          count: 2
         }
       }
     ],
@@ -125,11 +361,13 @@ test('importResource accepts userscript paged JSON and exportResource keeps the 
   };
 
   var result = db.importResource('watch_later', resource);
-  assert.equal(result.imported, 1);
+  assert.equal(result.imported, 2);
 
   var exported = db.exportResource('watch_later');
   assert.equal(exported.meta.format_version, 2);
   assert.equal(exported.meta.completed, true);
-  assert.equal(exported.meta.total, 1);
+  assert.equal(exported.meta.total, 2);
   assert.equal(exported.data[0].data[0].url, 'https://jable.tv/videos/imported/');
+  assert.equal(exported.data[0].data[1].url, 'https://jable.tv/videos/imported-2/');
+  assert.equal(Object.prototype.hasOwnProperty.call(exported.data[0].data[0], 'site_order'), false);
 });
