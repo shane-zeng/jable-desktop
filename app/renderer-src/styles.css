@@ -157,6 +157,75 @@ button:focus {
   grid-template-rows: 52px minmax(0, 1fr);
 }
 
+.app-toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 12px 12px 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--floating-panel);
+  color: var(--text);
+  box-shadow: var(--floating-shadow);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  backdrop-filter: blur(16px);
+}
+
+.app-toast-info {
+  border-left-color: var(--focus);
+}
+
+.app-toast-success {
+  border-left-color: #2d9a57;
+}
+
+.app-toast-warning {
+  border-left-color: #c98222;
+}
+
+.app-toast-error {
+  border-left-color: var(--accent);
+}
+
+.app-toast-close {
+  min-height: 22px;
+  width: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 20px;
+}
+
+.app-toast-close:hover,
+.app-toast-close:focus {
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.status-toast-enter-active,
+.status-toast-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.status-toast-enter-from,
+.status-toast-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
 .browser-tab-row {
   --tab-row-bg: transparent;
   transition:

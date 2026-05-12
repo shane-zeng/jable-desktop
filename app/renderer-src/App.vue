@@ -20,7 +20,7 @@ import { useLibraryState } from './composables/useLibraryState';
 
 var api = useJableApi();
 var activeView = ref('browser');
-var status = ref('準備中');
+var toast = ref(null);
 var busy = ref(false);
 var syncing = ref(false);
 var theme = ref('system');
@@ -32,6 +32,7 @@ var library = useLibraryState(api);
 var pendingSaves = [];
 var saveFailure = null;
 var activeSyncRunId = null;
+var toastTimer = null;
 
 var pageRows = computed(function () {
   return library.pageRows.value;
@@ -41,8 +42,38 @@ var libraryBusy = computed(function () {
   return busy.value || syncing.value;
 });
 
+function shouldSkipStatus(text) {
+  return !text || text === '準備中' || text === '就緒' || text === '已新增分頁' || text === '開啟影片中…';
+}
+
+function statusTone(text) {
+  if (/失敗|錯誤|未知/.test(text)) return 'error';
+  if (/暫停|未完整|請先/.test(text)) return 'warning';
+  if (/完成|已匯出|已匯入/.test(text)) return 'success';
+  return 'info';
+}
+
+function hideToast() {
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+
+  toast.value = null;
+}
+
 function setStatus(text) {
-  status.value = text;
+  if (shouldSkipStatus(text)) return;
+
+  if (toastTimer) clearTimeout(toastTimer);
+  toast.value = {
+    text: text,
+    tone: statusTone(text)
+  };
+  toastTimer = setTimeout(function () {
+    toast.value = null;
+    toastTimer = null;
+  }, 4200);
 }
 
 function loadTheme() {
@@ -121,9 +152,7 @@ async function openInBrowser(url) {
 
   try {
     setActiveView('browser');
-    setStatus('開啟影片中…');
     await browser.loadBrowser(url, false);
-    setStatus('就緒');
   } catch (error) {
     console.error(error);
     setStatus('開啟影片失敗：' + error.message);
@@ -404,7 +433,6 @@ async function newBrowserTab() {
   try {
     setActiveView('browser');
     await browser.createTab(DEFAULT_BROWSER_URL, { active: true });
-    setStatus('已新增分頁');
   } catch (error) {
     console.error(error);
     setStatus('新增分頁失敗：' + error.message);
@@ -454,7 +482,6 @@ onMounted(async function () {
   await browser.refreshTabs();
   await library.refreshVideos();
   browser.scheduleResize();
-  setStatus('就緒');
 });
 </script>
 
@@ -464,7 +491,6 @@ onMounted(async function () {
       :active-view="activeView"
       :busy="busy"
       :navigation="browser.navigation.value"
-      :status="status"
       :theme="theme"
       @set-view="setActiveView"
       @update:theme="applyTheme"
@@ -473,6 +499,19 @@ onMounted(async function () {
       @reload="browser.reload"
       @diagnose="diagnoseLayout"
     />
+
+    <Transition name="status-toast">
+      <div
+        v-if="toast"
+        class="app-toast"
+        :class="'app-toast-' + toast.tone"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="min-w-0 flex-1">{{ toast.text }}</span>
+        <button class="app-toast-close" type="button" aria-label="關閉通知" @click="hideToast">×</button>
+      </div>
+    </Transition>
 
     <main class="relative block h-full min-h-0 overflow-hidden">
       <BrowserPanel

@@ -12,10 +12,6 @@ defineProps({
     type: Object,
     required: true
   },
-  status: {
-    type: String,
-    required: true
-  },
   theme: {
     type: String,
     required: true
@@ -64,9 +60,6 @@ function updateTheme(event) {
       >
         ↻
       </button>
-      <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-[var(--muted)]">
-        {{ status }}
-      </span>
     </div>
 
     <div
