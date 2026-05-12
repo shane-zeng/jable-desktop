@@ -146,40 +146,42 @@ JableDatabase.prototype.close = function () {
 };
 
 JableDatabase.prototype.migrate = function () {
-  this.db.exec([
-    'CREATE TABLE IF NOT EXISTS videos (',
-    '  url TEXT PRIMARY KEY,',
-    '  title TEXT,',
-    '  views INTEGER,',
-    '  likes INTEGER,',
-    '  img TEXT,',
-    '  preview TEXT,',
-    '  created_at TEXT NOT NULL,',
-    '  updated_at TEXT NOT NULL',
-    ');',
-    'CREATE TABLE IF NOT EXISTS collections (',
-    '  key TEXT PRIMARY KEY,',
-    '  name TEXT NOT NULL',
-    ');',
-    'CREATE TABLE IF NOT EXISTS collection_items (',
-    '  collection_key TEXT NOT NULL,',
-    '  video_url TEXT NOT NULL,',
-    '  first_seen_at TEXT NOT NULL,',
-    '  last_seen_at TEXT NOT NULL,',
-    '  PRIMARY KEY (collection_key, video_url),',
-    '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE,',
-    '  FOREIGN KEY (video_url) REFERENCES videos(url) ON DELETE CASCADE',
-    ');',
-    'CREATE TABLE IF NOT EXISTS sync_states (',
-    '  collection_key TEXT PRIMARY KEY,',
-    '  completed INTEGER NOT NULL DEFAULT 0,',
-    '  last_scraped_page INTEGER,',
-    '  last_known_url TEXT,',
-    '  updated_at TEXT NOT NULL,',
-    '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
-    ');',
-    'DROP TABLE IF EXISTS playback_states;'
-  ].join('\n'));
+  this.db.exec(
+    [
+      'CREATE TABLE IF NOT EXISTS videos (',
+      '  url TEXT PRIMARY KEY,',
+      '  title TEXT,',
+      '  views INTEGER,',
+      '  likes INTEGER,',
+      '  img TEXT,',
+      '  preview TEXT,',
+      '  created_at TEXT NOT NULL,',
+      '  updated_at TEXT NOT NULL',
+      ');',
+      'CREATE TABLE IF NOT EXISTS collections (',
+      '  key TEXT PRIMARY KEY,',
+      '  name TEXT NOT NULL',
+      ');',
+      'CREATE TABLE IF NOT EXISTS collection_items (',
+      '  collection_key TEXT NOT NULL,',
+      '  video_url TEXT NOT NULL,',
+      '  first_seen_at TEXT NOT NULL,',
+      '  last_seen_at TEXT NOT NULL,',
+      '  PRIMARY KEY (collection_key, video_url),',
+      '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE,',
+      '  FOREIGN KEY (video_url) REFERENCES videos(url) ON DELETE CASCADE',
+      ');',
+      'CREATE TABLE IF NOT EXISTS sync_states (',
+      '  collection_key TEXT PRIMARY KEY,',
+      '  completed INTEGER NOT NULL DEFAULT 0,',
+      '  last_scraped_page INTEGER,',
+      '  last_known_url TEXT,',
+      '  updated_at TEXT NOT NULL,',
+      '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
+      ');',
+      'DROP TABLE IF EXISTS playback_states;'
+    ].join('\n')
+  );
   this.ensureColumn('collection_items', 'site_order', 'INTEGER');
   this.ensureColumn('collection_items', 'is_visible', 'INTEGER NOT NULL DEFAULT 1');
   this.ensureColumn('collection_items', 'missing_at', 'TEXT');
@@ -215,11 +217,15 @@ JableDatabase.prototype.listCollections = function () {
 JableDatabase.prototype.getSyncState = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
-  var row = this.db.prepare([
-    'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
-    'FROM sync_states',
-    'WHERE collection_key = ?'
-  ].join(' ')).get(collectionKey);
+  var row = this.db
+    .prepare(
+      [
+        'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
+        'FROM sync_states',
+        'WHERE collection_key = ?'
+      ].join(' ')
+    )
+    .get(collectionKey);
 
   if (!row) return null;
   row.completed = !!row.completed;
@@ -241,8 +247,12 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
   var sortKey = sortMap[options.sort] ? options.sort : 'site_order';
   var sort = sortMap[sortKey];
   var direction = options.direction
-    ? (options.direction === 'asc' ? 'ASC' : 'DESC')
-    : (sortKey === 'site_order' ? 'ASC' : 'DESC');
+    ? options.direction === 'asc'
+      ? 'ASC'
+      : 'DESC'
+    : sortKey === 'site_order'
+      ? 'ASC'
+      : 'DESC';
   var params = [collectionKey];
   var where = 'WHERE ci.collection_key = ?';
 
@@ -256,9 +266,10 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
     params.push(like, like);
   }
 
-  var orderBy = sort === 'site_order'
-    ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
-    : sort + ' ' + direction + ', v.url ASC';
+  var orderBy =
+    sort === 'site_order'
+      ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
+      : sort + ' ' + direction + ', v.url ASC';
   var sql = [
     'SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,',
     '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,',
@@ -276,14 +287,15 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
 JableDatabase.prototype.getCollectionUrls = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
-  var rows = this.db.prepare([
-    'SELECT video_url',
-    'FROM collection_items',
-    'WHERE collection_key = ?',
-    'ORDER BY last_seen_at DESC'
-  ].join(' ')).all(collectionKey);
+  var rows = this.db
+    .prepare(
+      ['SELECT video_url', 'FROM collection_items', 'WHERE collection_key = ?', 'ORDER BY last_seen_at DESC'].join(' ')
+    )
+    .all(collectionKey);
 
-  return rows.map(function (row) { return row.video_url; });
+  return rows.map(function (row) {
+    return row.video_url;
+  });
 };
 
 JableDatabase.prototype.saveSyncPage = function (payload) {
@@ -301,38 +313,44 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   }
 
   var timestamp = nowIso();
-  var upsertVideo = this.db.prepare([
-    'INSERT INTO videos (url, title, views, likes, img, preview, created_at, updated_at)',
-    'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    'ON CONFLICT(url) DO UPDATE SET',
-    '  title = COALESCE(excluded.title, videos.title),',
-    '  views = COALESCE(excluded.views, videos.views),',
-    '  likes = COALESCE(excluded.likes, videos.likes),',
-    '  img = COALESCE(excluded.img, videos.img),',
-    '  preview = COALESCE(excluded.preview, videos.preview),',
-    '  updated_at = excluded.updated_at'
-  ].join(' '));
-  var upsertItem = this.db.prepare([
-    'INSERT INTO collection_items (',
-    '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
-    ')',
-    'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
-    'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
-    '  last_seen_at = excluded.last_seen_at,',
-    '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
-    '  is_visible = 1,',
-    '  missing_at = NULL,',
-    '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'
-  ].join(' '));
-  var upsertState = this.db.prepare([
-    'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
-    'VALUES (?, 0, ?, ?, ?)',
-    'ON CONFLICT(collection_key) DO UPDATE SET',
-    '  completed = 0,',
-    '  last_scraped_page = excluded.last_scraped_page,',
-    '  last_known_url = excluded.last_known_url,',
-    '  updated_at = excluded.updated_at'
-  ].join(' '));
+  var upsertVideo = this.db.prepare(
+    [
+      'INSERT INTO videos (url, title, views, likes, img, preview, created_at, updated_at)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'ON CONFLICT(url) DO UPDATE SET',
+      '  title = COALESCE(excluded.title, videos.title),',
+      '  views = COALESCE(excluded.views, videos.views),',
+      '  likes = COALESCE(excluded.likes, videos.likes),',
+      '  img = COALESCE(excluded.img, videos.img),',
+      '  preview = COALESCE(excluded.preview, videos.preview),',
+      '  updated_at = excluded.updated_at'
+    ].join(' ')
+  );
+  var upsertItem = this.db.prepare(
+    [
+      'INSERT INTO collection_items (',
+      '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+      ')',
+      'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
+      'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+      '  last_seen_at = excluded.last_seen_at,',
+      '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+      '  is_visible = 1,',
+      '  missing_at = NULL,',
+      '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'
+    ].join(' ')
+  );
+  var upsertState = this.db.prepare(
+    [
+      'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
+      'VALUES (?, 0, ?, ?, ?)',
+      'ON CONFLICT(collection_key) DO UPDATE SET',
+      '  completed = 0,',
+      '  last_scraped_page = excluded.last_scraped_page,',
+      '  last_known_url = excluded.last_known_url,',
+      '  updated_at = excluded.updated_at'
+    ].join(' ')
+  );
 
   this.db.exec('BEGIN IMMEDIATE');
 
@@ -375,24 +393,32 @@ JableDatabase.prototype.finishSync = function (payload) {
   var syncRunId = normalizeText(payload.syncRunId || result.syncRunId);
   var hidden = 0;
 
-  this.db.prepare([
-    'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
-    'VALUES (?, ?, ?, ?, ?)',
-    'ON CONFLICT(collection_key) DO UPDATE SET',
-    '  completed = excluded.completed,',
-    '  last_scraped_page = COALESCE(excluded.last_scraped_page, sync_states.last_scraped_page),',
-    '  last_known_url = COALESCE(excluded.last_known_url, sync_states.last_known_url),',
-    '  updated_at = excluded.updated_at'
-  ].join(' ')).run(collectionKey, completed, lastScrapedPage, lastKnownUrl, timestamp);
+  this.db
+    .prepare(
+      [
+        'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
+        'VALUES (?, ?, ?, ?, ?)',
+        'ON CONFLICT(collection_key) DO UPDATE SET',
+        '  completed = excluded.completed,',
+        '  last_scraped_page = COALESCE(excluded.last_scraped_page, sync_states.last_scraped_page),',
+        '  last_known_url = COALESCE(excluded.last_known_url, sync_states.last_known_url),',
+        '  updated_at = excluded.updated_at'
+      ].join(' ')
+    )
+    .run(collectionKey, completed, lastScrapedPage, lastKnownUrl, timestamp);
 
   if (mode === 'full' && completed && syncRunId) {
-    var update = this.db.prepare([
-      'UPDATE collection_items',
-      'SET is_visible = 0, missing_at = ?',
-      'WHERE collection_key = ?',
-      '  AND is_visible = 1',
-      '  AND (last_sync_run_id IS NULL OR last_sync_run_id <> ?)'
-    ].join(' ')).run(timestamp, collectionKey, syncRunId);
+    var update = this.db
+      .prepare(
+        [
+          'UPDATE collection_items',
+          'SET is_visible = 0, missing_at = ?',
+          'WHERE collection_key = ?',
+          '  AND is_visible = 1',
+          '  AND (last_sync_run_id IS NULL OR last_sync_run_id <> ?)'
+        ].join(' ')
+      )
+      .run(timestamp, collectionKey, syncRunId);
     hidden = update.changes || 0;
   }
 

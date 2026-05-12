@@ -19,32 +19,35 @@ function createState(api) {
 }
 
 function makeTabsState(overrides) {
-  return Object.assign({
-    activeTabId: 'tab-1',
-    maxTabs: 8,
-    tabs: [
-      {
-        id: 'tab-1',
-        kind: 'normal',
-        title: 'Jable',
-        url: 'https://jable.tv/',
-        loading: false,
-        locked: false,
-        canGoBack: false,
-        canGoForward: true
-      },
-      {
-        id: 'tab-2',
-        kind: 'sync',
-        title: '同步：影片收藏',
-        url: 'https://jable.tv/my/favourites/videos/',
-        loading: true,
-        locked: true,
-        canGoBack: false,
-        canGoForward: false
-      }
-    ]
-  }, overrides || {});
+  return Object.assign(
+    {
+      activeTabId: 'tab-1',
+      maxTabs: 8,
+      tabs: [
+        {
+          id: 'tab-1',
+          kind: 'normal',
+          title: 'Jable',
+          url: 'https://jable.tv/',
+          loading: false,
+          locked: false,
+          canGoBack: false,
+          canGoForward: true
+        },
+        {
+          id: 'tab-2',
+          kind: 'sync',
+          title: '同步：影片收藏',
+          url: 'https://jable.tv/my/favourites/videos/',
+          loading: true,
+          locked: true,
+          canGoBack: false,
+          canGoForward: false
+        }
+      ]
+    },
+    overrides || {}
+  );
 }
 
 describe('useBrowserBounds', function () {
@@ -54,9 +57,11 @@ describe('useBrowserBounds', function () {
     });
 
     try {
-      setup.state.applyTabsState(makeTabsState({
-        maxTabs: 2
-      }));
+      setup.state.applyTabsState(
+        makeTabsState({
+          maxTabs: 2
+        })
+      );
 
       expect(setup.state.tabs.value).toHaveLength(2);
       expect(setup.state.activeTab.value.id).toBe('tab-1');
@@ -100,24 +105,25 @@ describe('useBrowserBounds', function () {
   it('delegates tab operations to the browser API and stores returned state', async function () {
     var api = {
       setBrowserBounds: vi.fn(),
-      createBrowserTab: vi.fn().mockResolvedValue(makeTabsState({
-        activeTabId: 'tab-3',
-        tabs: [
-          { id: 'tab-3', kind: 'normal', title: 'New', url: 'https://jable.tv/', loading: false, locked: false }
-        ]
-      })),
+      createBrowserTab: vi.fn().mockResolvedValue(
+        makeTabsState({
+          activeTabId: 'tab-3',
+          tabs: [{ id: 'tab-3', kind: 'normal', title: 'New', url: 'https://jable.tv/', loading: false, locked: false }]
+        })
+      ),
       activateBrowserTab: vi.fn().mockResolvedValue(makeTabsState({ activeTabId: 'tab-2' })),
-      closeBrowserTab: vi.fn().mockResolvedValue(makeTabsState({
-        activeTabId: 'tab-1',
-        tabs: [makeTabsState().tabs[0]]
-      })),
-      setBrowserTabLocked: vi.fn().mockResolvedValue(makeTabsState({
-        activeTabId: 'tab-2',
-        tabs: [
-          makeTabsState().tabs[0],
-          Object.assign({}, makeTabsState().tabs[1], { locked: false })
-        ]
-      }))
+      closeBrowserTab: vi.fn().mockResolvedValue(
+        makeTabsState({
+          activeTabId: 'tab-1',
+          tabs: [makeTabsState().tabs[0]]
+        })
+      ),
+      setBrowserTabLocked: vi.fn().mockResolvedValue(
+        makeTabsState({
+          activeTabId: 'tab-2',
+          tabs: [makeTabsState().tabs[0], Object.assign({}, makeTabsState().tabs[1], { locked: false })]
+        })
+      )
     };
     var setup = createState(api);
 

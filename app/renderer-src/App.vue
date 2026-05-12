@@ -96,12 +96,7 @@ function syncModeName(mode) {
 }
 
 function createSyncRunId(mode, collectionKey) {
-  return [
-    mode,
-    collectionKey,
-    Date.now(),
-    Math.random().toString(36).slice(2)
-  ].join(':');
+  return [mode, collectionKey, Date.now(), Math.random().toString(36).slice(2)].join(':');
 }
 
 function currentCollection() {
@@ -178,16 +173,30 @@ function resultStatus(collection, mode, result, finishState) {
 
   if (result.completed === false) {
     if (result.incompleteReason === 'batch-limit') {
-      return collection.name + ' ' + name + '已暫停：本批 ' + result.totalPages +
-        ' 頁、' + result.totalRows + ' 筆，可繼續完整同步';
+      return (
+        collection.name +
+        ' ' +
+        name +
+        '已暫停：本批 ' +
+        result.totalPages +
+        ' 頁、' +
+        result.totalRows +
+        ' 筆，可繼續完整同步'
+      );
     }
 
     return collection.name + ' ' + name + '未完整完成：' + (result.incompleteReason || '未知原因');
   }
 
   if (mode === 'full') {
-    return collection.name + ' 完整同步完成：' + result.totalRows + ' 筆，隱藏 ' +
-      ((finishState && finishState.hidden) || 0) + ' 筆缺漏資料';
+    return (
+      collection.name +
+      ' 完整同步完成：' +
+      result.totalRows +
+      ' 筆，隱藏 ' +
+      ((finishState && finishState.hidden) || 0) +
+      ' 筆缺漏資料'
+    );
   }
 
   var reason = result.stoppedByKnownPage ? '遇到已知頁面後停止' : '已跑完可見分頁';
@@ -206,11 +215,12 @@ async function syncCollection(mode) {
   try {
     var collectionKey = library.activeCollection.value;
     var collection = currentCollection();
-    var continuation = mode === 'full' &&
+    var continuation =
+      mode === 'full' &&
       library.fullSyncContinuation.value &&
       library.fullSyncContinuation.value.collectionKey === collectionKey
-      ? library.fullSyncContinuation.value
-      : null;
+        ? library.fullSyncContinuation.value
+        : null;
     var syncTab = await prepareSyncTab(collectionKey, collection, mode, continuation);
     syncTabId = syncTab.tabId;
     var usedContinuation = syncTab.usedContinuation;
@@ -422,9 +432,11 @@ async function closeBrowserTab(tabId) {
 
 async function showBrowserTabMenu(payload) {
   try {
-    await api.showBrowserTabMenu(Object.assign({}, payload, {
-      compactMode: browserTabsCompact.value
-    }));
+    await api.showBrowserTabMenu(
+      Object.assign({}, payload, {
+        compactMode: browserTabsCompact.value
+      })
+    );
   } catch (error) {
     console.error(error);
     setStatus('開啟分頁選單失敗：' + error.message);

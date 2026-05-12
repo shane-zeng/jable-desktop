@@ -114,13 +114,15 @@ describe('BrowserPanel', function () {
       clientY: 30
     });
 
-    expect(wrapper.emitted('tab-context-menu')).toEqual([[
-      {
-        tabId: 'tab-1',
-        x: 25,
-        y: 30
-      }
-    ]]);
+    expect(wrapper.emitted('tab-context-menu')).toEqual([
+      [
+        {
+          tabId: 'tab-1',
+          x: 25,
+          y: 30
+        }
+      ]
+    ]);
   });
 
   it('emits the active tab context menu from the rail background', async function () {
@@ -140,13 +142,15 @@ describe('BrowserPanel', function () {
       clientY: 160
     });
 
-    expect(wrapper.emitted('tab-context-menu')).toEqual([[
-      {
-        tabId: 'tab-2',
-        x: 80,
-        y: 160
-      }
-    ]]);
+    expect(wrapper.emitted('tab-context-menu')).toEqual([
+      [
+        {
+          tabId: 'tab-2',
+          x: 80,
+          y: 160
+        }
+      ]
+    ]);
   });
 
   it('emits resized tab width while dragging the rail handle', async function () {

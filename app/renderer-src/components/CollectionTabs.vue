@@ -31,7 +31,10 @@ var collectionEntries = computed(function () {
       v-for="collection in collectionEntries"
       :key="collection.key"
       class="min-h-8 border-0 bg-transparent text-[var(--muted)]"
-      :class="{ '!bg-[var(--control)] !font-bold !text-[var(--text)] shadow-[var(--shadow)]': props.activeCollection === collection.key }"
+      :class="{
+        '!bg-[var(--control)] !font-bold !text-[var(--text)] shadow-[var(--shadow)]':
+          props.activeCollection === collection.key
+      }"
       type="button"
       role="tab"
       :aria-selected="props.activeCollection === collection.key"

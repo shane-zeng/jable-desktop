@@ -40,11 +40,14 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 ## Userscript Usage
 
 1. Go to your Jable account:
+
 - **影片收藏**: `https://jable.tv/my/favourites/videos/`
 - **稍後觀看**: `https://jable.tv/my/favourites/videos-watch-later/`
+
 2. Wait until all thumbnails are loaded.
 3. Click the **「匯出全部」** button next to **設定**.
 4. The script will:
+
 - Simulate clicking each pagination button.
 - Collect video titles and URLs.
 - Export a JSON or CSV file automatically.
@@ -53,9 +56,9 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 
 ## Output Files
 
-| Page | URL | Output filename |
-|------|-----|-----------------|
-| 影片收藏 | `https://jable.tv/my/favourites/videos/` | `favourites_list.json` (or `.csv`) |
+| Page     | URL                                                  | Output filename                     |
+| -------- | ---------------------------------------------------- | ----------------------------------- |
+| 影片收藏 | `https://jable.tv/my/favourites/videos/`             | `favourites_list.json` (or `.csv`)  |
 | 稍後觀看 | `https://jable.tv/my/favourites/videos-watch-later/` | `watch_later_list.json` (or `.csv`) |
 
 You can change export format by editing this line in the script:

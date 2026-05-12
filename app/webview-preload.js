@@ -61,8 +61,8 @@ function scrapeCurrentPage() {
     var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
     var href = a.getAttribute('href') || '';
     var img = box.querySelector('div.img-box img');
-    var imgSrc = img ? (img.getAttribute('data-src') || img.getAttribute('src') || '') : '';
-    var previewSrc = img ? (img.getAttribute('data-preview') || '') : '';
+    var imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
+    var previewSrc = img ? img.getAttribute('data-preview') || '' : '';
     var views = null;
     var likes = null;
     var sub = box.querySelector('div.detail p.sub-title');
@@ -101,19 +101,21 @@ function normalizePageNumber(value) {
 }
 
 function currentPageNumber() {
-  var active = document.querySelector([
-    'ul.pagination span.page-link.active',
-    'ul.pagination a.page-link.active',
-    'ul.pagination .page-item.active .page-link',
-    'ul.pagination [aria-current="page"]'
-  ].join(', '));
+  var active = document.querySelector(
+    [
+      'ul.pagination span.page-link.active',
+      'ul.pagination a.page-link.active',
+      'ul.pagination .page-item.active .page-link',
+      'ul.pagination [aria-current="page"]'
+    ].join(', ')
+  );
   return active ? normalizePageNumber(active.textContent) : 1;
 }
 
 function signature() {
   var list = document.querySelectorAll(SEL_TITLES);
   var count = list.length;
-  var first = count ? (list[0].getAttribute('href') || '') : '';
+  var first = count ? list[0].getAttribute('href') || '' : '';
   return count + '|' + first;
 }
 
@@ -168,7 +170,7 @@ function readPagerLinks() {
 
     if (match) id = match[1];
     else if (/^\d+$/.test(text)) id = text;
-    else id = text || ('a_' + i);
+    else id = text || 'a_' + i;
 
     if (!pageNumber && match) {
       pageNumber = Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1;
@@ -354,7 +356,9 @@ async function syncCollection(options) {
       next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } catch (error) {}
 
-    await new Promise(function (resolve) { setTimeout(resolve, 200); });
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 200);
+    });
     next.el.click();
     var changed = await waitForContainerChange(oldSig, 15000);
 
@@ -383,7 +387,9 @@ async function syncCollection(options) {
       break;
     }
 
-    await new Promise(function (resolve) { setTimeout(resolve, 500 + Math.random() * 500); });
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 500 + Math.random() * 500);
+    });
   }
 
   return result(true);

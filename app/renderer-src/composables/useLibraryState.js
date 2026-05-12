@@ -42,8 +42,7 @@ export function useLibraryState(api) {
   });
 
   var fullSyncButtonLabel = computed(function () {
-    var pending = fullSyncContinuation.value &&
-      fullSyncContinuation.value.collectionKey === activeCollection.value;
+    var pending = fullSyncContinuation.value && fullSyncContinuation.value.collectionKey === activeCollection.value;
     return pending ? '繼續完整同步' : '完整同步';
   });
 

@@ -1,10 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import {
-  BROWSER_TABS_DEFAULT_WIDTH,
-  BROWSER_TABS_MAX_WIDTH,
-  BROWSER_TABS_MIN_WIDTH
-} from '../constants';
+import { BROWSER_TABS_DEFAULT_WIDTH, BROWSER_TABS_MAX_WIDTH, BROWSER_TABS_MIN_WIDTH } from '../constants';
 
 var COMPACT_TRIGGER_WIDTH = 18;
 var COMPACT_DISMISS_WIDTH = 26;
@@ -67,9 +63,7 @@ var floatingTabsStyle = computed(function () {
 
 var compactHostStyle = computed(function () {
   return {
-    left: compactTabsVisible.value
-      ? props.tabWidth + COMPACT_DISMISS_WIDTH + 'px'
-      : COMPACT_TRIGGER_WIDTH + 'px'
+    left: compactTabsVisible.value ? props.tabWidth + COMPACT_DISMISS_WIDTH + 'px' : COMPACT_TRIGGER_WIDTH + 'px'
   };
 });
 
@@ -165,9 +159,15 @@ onBeforeUnmount(function () {
 <template>
   <section
     class="relative min-h-0 min-w-0 overflow-hidden bg-[var(--browser-bg)]"
-    :class="active ? [
-      compact ? 'block h-[calc(100vh-52px)] max-[1180px]:h-[calc(100vh-88px)]' : 'grid h-[calc(100vh-52px)] max-[1180px]:h-[calc(100vh-88px)]',
-    ] : 'hidden'"
+    :class="
+      active
+        ? [
+            compact
+              ? 'block h-[calc(100vh-52px)] max-[1180px]:h-[calc(100vh-88px)]'
+              : 'grid h-[calc(100vh-52px)] max-[1180px]:h-[calc(100vh-88px)]'
+          ]
+        : 'hidden'
+    "
     :style="active && !compact ? panelStyle : null"
     aria-label="Jable browser"
   >
@@ -181,9 +181,11 @@ onBeforeUnmount(function () {
     <aside
       v-show="!compact || compactTabsVisible"
       class="grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-visible"
-      :class="compact
-        ? 'absolute inset-y-0 left-0 z-40 border-r border-[var(--panel-border)] bg-[var(--floating-panel)] shadow-[var(--floating-shadow)] backdrop-blur-md'
-        : 'relative border-r border-[var(--panel-border)] bg-[var(--panel)]'"
+      :class="
+        compact
+          ? 'absolute inset-y-0 left-0 z-40 border-r border-[var(--panel-border)] bg-[var(--floating-panel)] shadow-[var(--floating-shadow)] backdrop-blur-md'
+          : 'relative border-r border-[var(--panel-border)] bg-[var(--panel)]'
+      "
       :style="compact ? floatingTabsStyle : null"
       aria-label="Browser tabs"
       @pointerenter="showCompactTabs"
@@ -211,13 +213,7 @@ onBeforeUnmount(function () {
             :aria-selected="tab.id === activeTabId"
             @click="emit('activate-tab', tab.id)"
           >
-            <img
-              v-if="tab.favicon"
-              class="h-6 w-6 rounded-md"
-              :src="tab.favicon"
-              alt=""
-              draggable="false"
-            >
+            <img v-if="tab.favicon" class="h-6 w-6 rounded-md" :src="tab.favicon" alt="" draggable="false" />
             <span
               v-else
               class="grid h-6 w-6 place-items-center rounded-md text-xs font-bold text-[var(--text)]"
@@ -287,9 +283,11 @@ onBeforeUnmount(function () {
     <div
       ref="browserHost"
       class="block"
-      :class="compact
-        ? 'absolute inset-y-0 right-0 min-h-0'
-        : 'h-[calc(100vh-52px)] min-h-[calc(100vh-52px)] w-full max-[1180px]:h-[calc(100vh-88px)] max-[1180px]:min-h-[calc(100vh-88px)]'"
+      :class="
+        compact
+          ? 'absolute inset-y-0 right-0 min-h-0'
+          : 'h-[calc(100vh-52px)] min-h-[calc(100vh-52px)] w-full max-[1180px]:h-[calc(100vh-88px)] max-[1180px]:min-h-[calc(100vh-88px)]'
+      "
       :style="compact ? compactHostStyle : null"
     ></div>
   </section>

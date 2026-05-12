@@ -96,11 +96,18 @@ test('saveSyncPage stores and lists videos by site order', function (t) {
   });
 
   var rows = db.listVideos('favourites');
-  assert.deepEqual(rows.map(function (row) { return row.url; }), [
-    'https://jable.tv/videos/first/',
-    'https://jable.tv/videos/second/'
-  ]);
-  assert.deepEqual(rows.map(function (row) { return row.site_order; }), [1, 2]);
+  assert.deepEqual(
+    rows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/first/', 'https://jable.tv/videos/second/']
+  );
+  assert.deepEqual(
+    rows.map(function (row) {
+      return row.site_order;
+    }),
+    [1, 2]
+  );
 });
 
 test('listVideos puts legacy rows without site order after ordered rows', function (t) {
@@ -134,10 +141,12 @@ test('listVideos puts legacy rows without site order after ordered rows', functi
   });
 
   var rows = db.listVideos('favourites');
-  assert.deepEqual(rows.map(function (row) { return row.url; }), [
-    'https://jable.tv/videos/ordered/',
-    'https://jable.tv/videos/legacy/'
-  ]);
+  assert.deepEqual(
+    rows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/ordered/', 'https://jable.tv/videos/legacy/']
+  );
 });
 
 test('quick sync updates scanned rows without hiding unscanned rows', function (t) {
@@ -238,9 +247,12 @@ test('completed full sync hides rows missing from the sync run', function (t) {
   });
 
   assert.equal(state.hidden, 1);
-  assert.deepEqual(db.listVideos('watch_later').map(function (row) { return row.url; }), [
-    'https://jable.tv/videos/present/'
-  ]);
+  assert.deepEqual(
+    db.listVideos('watch_later').map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/present/']
+  );
 
   var allRows = db.listVideos('watch_later', { includeHidden: true });
   assert.equal(allRows.length, 2);
@@ -303,15 +315,19 @@ test('migration removes legacy playback state table', function (t) {
   var dbPath = path.join(dir, 'test.sqlite');
   var db = new JableDatabase(dbPath);
 
-  db.db.exec([
-    'CREATE TABLE playback_states (',
-    '  video_url TEXT PRIMARY KEY,',
-    '  current_time REAL NOT NULL DEFAULT 0,',
-    '  duration REAL,',
-    '  updated_at TEXT NOT NULL',
-    ');'
-  ].join('\n'));
-  assert.ok(db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'));
+  db.db.exec(
+    [
+      'CREATE TABLE playback_states (',
+      '  video_url TEXT PRIMARY KEY,',
+      '  current_time REAL NOT NULL DEFAULT 0,',
+      '  duration REAL,',
+      '  updated_at TEXT NOT NULL',
+      ');'
+    ].join('\n')
+  );
+  assert.ok(
+    db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states')
+  );
   db.close();
 
   db = new JableDatabase(dbPath);
@@ -320,7 +336,10 @@ test('migration removes legacy playback state table', function (t) {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  assert.equal(db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'), undefined);
+  assert.equal(
+    db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'),
+    undefined
+  );
 });
 
 test('importResource accepts userscript paged JSON and exportResource includes site order', function (t) {
@@ -369,7 +388,12 @@ test('importResource accepts userscript paged JSON and exportResource includes s
   assert.equal(exported.meta.total, 2);
   assert.equal(exported.data[0].data[0].url, 'https://jable.tv/videos/imported/');
   assert.equal(exported.data[0].data[1].url, 'https://jable.tv/videos/imported-2/');
-  assert.deepEqual(exported.data[0].data.map(function (row) { return row.site_order; }), [1, 2]);
+  assert.deepEqual(
+    exported.data[0].data.map(function (row) {
+      return row.site_order;
+    }),
+    [1, 2]
+  );
 });
 
 test('importResource preserves explicit site_order from desktop JSON', function (t) {
@@ -405,11 +429,18 @@ test('importResource preserves explicit site_order from desktop JSON', function 
   db.importResource('favourites', resource);
 
   var exported = db.exportResource('favourites');
-  assert.deepEqual(exported.data[0].data.map(function (row) { return row.url; }), [
-    'https://jable.tv/videos/first/',
-    'https://jable.tv/videos/second/'
-  ]);
-  assert.deepEqual(exported.data[0].data.map(function (row) { return row.site_order; }), [1, 2]);
+  assert.deepEqual(
+    exported.data[0].data.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/first/', 'https://jable.tv/videos/second/']
+  );
+  assert.deepEqual(
+    exported.data[0].data.map(function (row) {
+      return row.site_order;
+    }),
+    [1, 2]
+  );
 });
 
 test('importResource accepts sort_order as an import alias and exports site_order', function (t) {
@@ -439,10 +470,17 @@ test('importResource accepts sort_order as an import alias and exports site_orde
   db.importResource('watch_later', resource);
 
   var exported = db.exportResource('watch_later');
-  assert.deepEqual(exported.data[0].data.map(function (row) { return row.url; }), [
-    'https://jable.tv/videos/alias-first/',
-    'https://jable.tv/videos/alias-second/'
-  ]);
+  assert.deepEqual(
+    exported.data[0].data.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/alias-first/', 'https://jable.tv/videos/alias-second/']
+  );
   assert.equal(Object.prototype.hasOwnProperty.call(exported.data[0].data[0], 'sort_order'), false);
-  assert.deepEqual(exported.data[0].data.map(function (row) { return row.site_order; }), [1, 2]);
+  assert.deepEqual(
+    exported.data[0].data.map(function (row) {
+      return row.site_order;
+    }),
+    [1, 2]
+  );
 });

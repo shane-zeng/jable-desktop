@@ -142,10 +142,12 @@ export function useBrowserBounds(api, activeView) {
   }
 
   async function setTabLocked(tabId, locked) {
-    applyTabsState(await api.setBrowserTabLocked({
-      tabId: tabId,
-      locked: locked
-    }));
+    applyTabsState(
+      await api.setBrowserTabLocked({
+        tabId: tabId,
+        locked: locked
+      })
+    );
   }
 
   async function loadBrowser(url, forceReload, tabId) {
@@ -188,9 +190,7 @@ export function useBrowserBounds(api, activeView) {
   async function diagnose() {
     resize();
 
-    var hostRect = host.value
-      ? host.value.getBoundingClientRect()
-      : { width: 0, height: 0 };
+    var hostRect = host.value ? host.value.getBoundingClientRect() : { width: 0, height: 0 };
     var guest = null;
 
     try {
@@ -202,8 +202,9 @@ export function useBrowserBounds(api, activeView) {
     var message = [
       'app=' + window.innerWidth + 'x' + window.innerHeight,
       'host=' + Math.round(hostRect.width) + 'x' + Math.round(hostRect.height),
-      'guest=' + (guest.error ? guest.error : guest.innerWidth + 'x' + guest.innerHeight + '/scroll' + guest.scrollHeight),
-      'url=' + (guest.url || await currentBrowserUrl())
+      'guest=' +
+        (guest.error ? guest.error : guest.innerWidth + 'x' + guest.innerHeight + '/scroll' + guest.scrollHeight),
+      'url=' + (guest.url || (await currentBrowserUrl()))
     ].join(' | ');
 
     console.log('[JableDesktopDiagnostics]', message, guest);

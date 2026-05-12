@@ -59,22 +59,16 @@ function openVideo(event) {
 </script>
 
 <template>
-  <article class="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]">
+  <article
+    class="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
+  >
     <div
       class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)]"
       @pointerenter="startPreview"
       @pointerleave="stopPreview"
     >
-      <img
-        v-if="video.img"
-        class="absolute inset-0 h-full w-full object-cover"
-        :src="video.img"
-        alt=""
-      >
-      <div
-        v-else
-        class="absolute inset-0 bg-[var(--thumb-bg)]"
-      ></div>
+      <img v-if="video.img" class="absolute inset-0 h-full w-full object-cover" :src="video.img" alt="" />
+      <div v-else class="absolute inset-0 bg-[var(--thumb-bg)]"></div>
       <video
         v-if="video.preview"
         ref="previewVideo"
@@ -96,14 +90,13 @@ function openVideo(event) {
         >
           {{ video.title || video.url }}
         </a>
-        <span
-          class="video-title-tooltip"
-          aria-hidden="true"
-        >
+        <span class="video-title-tooltip" aria-hidden="true">
           {{ video.title || video.url }}
         </span>
       </div>
-      <div class="mt-auto space-y-1 border-t border-[var(--panel-border)] pt-2 text-xs leading-[1.4] text-[var(--muted)]">
+      <div
+        class="mt-auto space-y-1 border-t border-[var(--panel-border)] pt-2 text-xs leading-[1.4] text-[var(--muted)]"
+      >
         <div class="truncate">
           <span class="font-medium text-[var(--text)]">{{ formatNumber(video.views) }}</span>
           <span> views</span>
@@ -111,9 +104,7 @@ function openVideo(event) {
           <span class="font-medium text-[var(--text)]">{{ formatNumber(video.likes) }}</span>
           <span> likes</span>
         </div>
-        <div class="truncate">
-          同步 {{ formatDate(video.last_seen_at) }}
-        </div>
+        <div class="truncate">同步 {{ formatDate(video.last_seen_at) }}</div>
       </div>
     </div>
   </article>

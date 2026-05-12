@@ -1,0 +1,4 @@
+app/renderer-dist/
+coverage/
+node_modules/
+release/

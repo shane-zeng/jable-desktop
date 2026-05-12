@@ -200,7 +200,9 @@ function wireBrowserTab(tab) {
 }
 
 function cleanTitle(title) {
-  return String(title || '').replace(/\s+/g, ' ').trim();
+  return String(title || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function getBrowserTab(tabId) {
@@ -696,34 +698,46 @@ function showEditableContextMenu(tab, params) {
     {
       label: '復原',
       enabled: !!editFlags.canUndo,
-      click: function () { tab.view.webContents.undo(); }
+      click: function () {
+        tab.view.webContents.undo();
+      }
     },
     {
       label: '重做',
       enabled: !!editFlags.canRedo,
-      click: function () { tab.view.webContents.redo(); }
+      click: function () {
+        tab.view.webContents.redo();
+      }
     },
     { type: 'separator' },
     {
       label: '剪下',
       enabled: !!editFlags.canCut,
-      click: function () { tab.view.webContents.cut(); }
+      click: function () {
+        tab.view.webContents.cut();
+      }
     },
     {
       label: '複製',
       enabled: !!editFlags.canCopy,
-      click: function () { tab.view.webContents.copy(); }
+      click: function () {
+        tab.view.webContents.copy();
+      }
     },
     {
       label: '貼上',
       enabled: !!editFlags.canPaste,
-      click: function () { tab.view.webContents.paste(); }
+      click: function () {
+        tab.view.webContents.paste();
+      }
     },
     { type: 'separator' },
     {
       label: '全選',
       enabled: !!editFlags.canSelectAll,
-      click: function () { tab.view.webContents.selectAll(); }
+      click: function () {
+        tab.view.webContents.selectAll();
+      }
     }
   ];
 
@@ -852,15 +866,18 @@ function registerIpcHandlers() {
   ipcMain.handle('browser:diagnose', function (_event, payload) {
     payload = payload || {};
     var tab = getBrowserTab(payload.tabId);
-    return tab.view.webContents.executeJavaScript([
-      '({',
-      'url: location.href,',
-      'innerWidth: window.innerWidth,',
-      'innerHeight: window.innerHeight,',
-      'clientHeight: document.documentElement.clientHeight,',
-      'scrollHeight: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)',
-      '})'
-    ].join(''), true);
+    return tab.view.webContents.executeJavaScript(
+      [
+        '({',
+        'url: location.href,',
+        'innerWidth: window.innerWidth,',
+        'innerHeight: window.innerHeight,',
+        'clientHeight: document.documentElement.clientHeight,',
+        'scrollHeight: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)',
+        '})'
+      ].join(''),
+      true
+    );
   });
 
   ipcMain.on('browser:sync-page', function (event, payload) {

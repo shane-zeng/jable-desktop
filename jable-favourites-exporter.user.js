@@ -25,10 +25,10 @@
    * Selectors
    * ------------------------------------- */
   var SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos'; // 清單容器
-  var SEL_TITLES = 'div.detail h6.title a';                 // 標題 <a>
-  var SEL_PAGER = 'ul.pagination';                          // 分頁容器
-  var SEL_PAGER_LINKS = 'ul.pagination a.page-link';        // 可點擊的分頁
-  var BTN_ID = 'fav-export-all-btn';                        // 匯出按鈕 ID
+  var SEL_TITLES = 'div.detail h6.title a'; // 標題 <a>
+  var SEL_PAGER = 'ul.pagination'; // 分頁容器
+  var SEL_PAGER_LINKS = 'ul.pagination a.page-link'; // 可點擊的分頁
+  var BTN_ID = 'fav-export-all-btn'; // 匯出按鈕 ID
 
   function isExportPage() {
     return /\/my\/favourites\/videos(?:-watch-later)?\/?$/.test(location.pathname);
@@ -54,7 +54,7 @@
   }
 
   function escCsv(s) {
-    s = (s == null ? '' : String(s));
+    s = s == null ? '' : String(s);
     return '"' + s.replace(/"/g, '""') + '"';
   }
 
@@ -77,12 +77,17 @@
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       lines.push(
-        escCsv(r.title) + ',' +
-        escCsv(r.url) + ',' +
-        (r.views || '') + ',' +
-        (r.likes || '') + ',' +
-        escCsv(r.img) + ',' +
-        escCsv(r.preview)
+        escCsv(r.title) +
+          ',' +
+          escCsv(r.url) +
+          ',' +
+          (r.views || '') +
+          ',' +
+          (r.likes || '') +
+          ',' +
+          escCsv(r.img) +
+          ',' +
+          escCsv(r.preview)
       );
     }
     return lines.join('\n');
@@ -245,8 +250,8 @@
       var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
       var href = a.getAttribute('href') || '';
       var img = box.querySelector('div.img-box img');
-      var imgSrc = img ? (img.getAttribute('data-src') || img.getAttribute('src') || '') : '';
-      var previewSrc = img ? (img.getAttribute('data-preview') || '') : '';
+      var imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
+      var previewSrc = img ? img.getAttribute('data-preview') || '' : '';
 
       var views = null;
       var likes = null;
@@ -299,7 +304,7 @@
   function signature() {
     var list = document.querySelectorAll(SEL_TITLES);
     var count = list.length;
-    var first = count ? (list[0].getAttribute('href') || '') : '';
+    var first = count ? list[0].getAttribute('href') || '' : '';
     return count + '|' + first;
   }
 
@@ -322,11 +327,16 @@
         }
       }
 
-      var mo = new MutationObserver(function () { check(); });
+      var mo = new MutationObserver(function () {
+        check();
+      });
       mo.observe(target, { childList: true, subtree: true });
 
       (function poll() {
-        if (done) { mo.disconnect(); return; }
+        if (done) {
+          mo.disconnect();
+          return;
+        }
         check();
         if (!done) setTimeout(poll, 300);
         else mo.disconnect();
@@ -351,7 +361,7 @@
       var pid = null;
       if (m) pid = m[1];
       else if (/^\d+$/.test(txt)) pid = txt;
-      else pid = txt || ('a_' + i);
+      else pid = txt || 'a_' + i;
 
       out.push({ el: a, id: pid, label: txt });
     }
@@ -432,11 +442,15 @@
       var next = candidates[0];
       var oldSig = signature();
 
-      try { next.el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      try {
+        next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (e) {}
 
       setTimeout(function () {
         log('click page', next.id, '(' + next.label + ')');
-        try { next.el.click(); } catch (e) {}
+        try {
+          next.el.click();
+        } catch (e) {}
 
         waitForContainerChange(oldSig, 15000).then(function () {
           visited[next.id] = true;
@@ -480,7 +494,7 @@
     }
 
     btn.disabled = !!busy;
-    btn.textContent = busy ? (text || '處理中…') : btn.getAttribute('data-label');
+    btn.textContent = busy ? text || '處理中…' : btn.getAttribute('data-label');
     btn.style.opacity = busy ? '0.7' : '1';
   }
 

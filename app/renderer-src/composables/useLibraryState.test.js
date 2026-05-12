@@ -55,7 +55,7 @@ describe('useLibraryState', function () {
       });
       expect(setup.state.totalPages.value).toBe(2);
       expect(setup.state.pageRows.value).toHaveLength(PAGE_SIZE);
-      expect(setup.state.countLabel.value).toBe((PAGE_SIZE + 1) + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆');
+      expect(setup.state.countLabel.value).toBe(PAGE_SIZE + 1 + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆');
       expect(setup.state.pageLabel.value).toBe('第 1 / 2 頁');
 
       setup.state.goToPage(2);

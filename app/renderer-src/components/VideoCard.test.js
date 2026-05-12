@@ -3,15 +3,18 @@ import { describe, expect, it } from 'vitest';
 import VideoCard from './VideoCard.vue';
 
 function makeVideo(overrides) {
-  return Object.assign({
-    title: 'Sample Video',
-    url: 'https://example.test/videos/sample/',
-    img: 'https://example.test/sample.jpg',
-    preview: 'https://example.test/sample.mp4',
-    views: 1234,
-    likes: 56,
-    last_seen_at: '2026-05-12T08:00:00.000Z'
-  }, overrides || {});
+  return Object.assign(
+    {
+      title: 'Sample Video',
+      url: 'https://example.test/videos/sample/',
+      img: 'https://example.test/sample.jpg',
+      preview: 'https://example.test/sample.mp4',
+      views: 1234,
+      likes: 56,
+      last_seen_at: '2026-05-12T08:00:00.000Z'
+    },
+    overrides || {}
+  );
 }
 
 describe('VideoCard', function () {

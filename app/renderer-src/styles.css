@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   color-scheme: light;
@@ -25,7 +25,7 @@
   --tab-hover: #eef2f7;
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   color-scheme: dark;
   --bg: #111318;
   --panel: #181b22;
@@ -51,7 +51,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root[data-theme="system"] {
+  :root[data-theme='system'] {
     color-scheme: dark;
     --bg: #111318;
     --panel: #181b22;
@@ -91,7 +91,7 @@ body,
 
 body {
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
 }
@@ -159,7 +159,9 @@ button:focus {
 
 .browser-tab-row {
   --tab-row-bg: transparent;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 
 .browser-tab-row.is-active {
@@ -197,7 +199,9 @@ button:focus {
   box-shadow: none;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 100ms ease, background-color 120ms ease;
+  transition:
+    opacity 100ms ease,
+    background-color 120ms ease;
 }
 
 .browser-tab-main:hover,
@@ -266,7 +270,9 @@ button:focus {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
 }
 
 .video-title-wrap:hover .video-title-tooltip,

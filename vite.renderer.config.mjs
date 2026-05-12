@@ -6,10 +6,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   root: 'app/renderer-src',
   base: './',
-  plugins: [
-    vue(),
-    tailwindcss()
-  ],
+  plugins: [vue(), tailwindcss()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./app/renderer-src', import.meta.url))
