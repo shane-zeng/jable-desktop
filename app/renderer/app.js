@@ -275,9 +275,6 @@ async function refreshVideos() {
   }
 
   elements.videoList.innerHTML = pageRows.map(function (video) {
-    var preview = video.preview
-      ? '<a href="' + attr(video.preview) + '" target="_blank" rel="noreferrer">Preview</a>'
-      : '<span>Preview -</span>';
     var videoUrl = attr(video.url);
 
     return [
@@ -288,10 +285,6 @@ async function refreshVideos() {
       '<div class="video-stats">',
       '<span>Views ' + formatNumber(video.views) + '</span>',
       '<span>Likes ' + formatNumber(video.likes) + '</span>',
-      '</div>',
-      '<div class="video-links">',
-      preview,
-      '<a href="' + videoUrl + '" data-browser-url="' + videoUrl + '">Open</a>',
       '</div>',
       '<div class="video-time">同步 ' + escapeHtml(formatDate(video.last_seen_at)) + '</div>',
       '</div>',
