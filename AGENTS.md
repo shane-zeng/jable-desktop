@@ -8,7 +8,9 @@ This repository contains a Tampermonkey userscript and an Electron desktop MVP f
 - `app/main.js`: Electron main process, window creation, persistent session management, and IPC handlers.
 - `app/webview-preload.js`: scraper injected into the embedded Jable `BrowserView`.
 - `app/database.js`: SQLite schema, upsert logic, sync state, and JSON import/export.
-- `app/renderer/`: desktop GUI files.
+- `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
+- `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
+- `app/renderer/`: legacy plain renderer kept for reference during the migration.
 - `test/`: Node test files for storage and import/export behavior.
 - `README.md`: installation and usage documentation for end users.
 - `AGENTS.md`: contributor guidance for future maintenance.
@@ -22,8 +24,11 @@ The userscript has no build step. Edit it directly and validate it in Tampermonk
 - `ll`: inspect repository files.
 - `cat jable-favourites-exporter.user.js`: review the userscript.
 - `grep "EXPORT_FORMAT" jable-favourites-exporter.user.js`: find configuration or implementation details.
-- `npm install`: install the Electron development dependency.
-- `npm start`: run the desktop app.
+- `npm install`: install Electron and renderer development dependencies.
+- `npm run build:renderer`: build the Vue renderer into `app/renderer-dist/`.
+- `npm run dev:renderer`: run the Vite renderer dev server.
+- `npm start`: build the renderer, then run the desktop app.
+- `npm run start:dev`: run Electron against the Vite dev server.
 - `npm test`: run Node tests.
 - `git diff`: review local changes before committing.
 
@@ -43,11 +48,13 @@ Use plain JavaScript compatible with modern browsers and Tampermonkey:
 
 Avoid dependencies, bundlers, or broad abstractions unless the script grows enough to justify them. Comment only non-obvious browser, pagination, or DOM behavior.
 
-For desktop code, use CommonJS modules, two-space indentation, and direct IPC handlers. Keep scraper selectors centralized in `app/webview-preload.js`, BrowserView bounds/control in `app/main.js`, and database behavior centralized in `app/database.js`.
+For desktop main/preload/database code, use CommonJS modules, two-space indentation, and direct IPC handlers. Keep scraper selectors centralized in `app/webview-preload.js` and database behavior centralized in `app/database.js`.
+
+For renderer code, use Vue single-file components under `app/renderer-src/`, Tailwind utilities for layout and state styling, and `window.jableApp` as the only renderer-to-main boundary. Keep BrowserView sizing logic in `app/renderer-src/composables/useBrowserBounds.js`.
 
 ## Testing Guidelines
 
-Run `npm test` for SQLite/import/export changes. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `npm test` for SQLite/import/export changes. Run `npm run build:renderer` for renderer changes. Test userscript changes manually in Tampermonkey before opening a pull request.
 
 Verify that:
 

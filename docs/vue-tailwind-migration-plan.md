@@ -1,20 +1,22 @@
 # Vue + TailwindCSS Renderer Migration Plan
 
+Status: implemented. Electron now loads the Vite-built renderer from `app/renderer-dist/`, while `app/renderer/` remains as legacy reference and is excluded from packaged builds.
+
 ## Goal
 
 Migrate the Electron renderer from plain HTML/CSS/JavaScript to Vue 3 + Vite + TailwindCSS while keeping the existing Electron main process, preload API, SQLite database, and scraper behavior stable.
 
 The first migration target is the **本機資料** UI: collection tabs, search/sort controls, quick/full sync controls, pagination, video cards, and hover preview behavior.
 
-## Current State
+## Pre-Migration State
 
-- `app/main.js` loads `app/renderer/index.html` directly with `BrowserWindow.loadFile`.
-- `app/renderer/app.js` owns all renderer state and DOM updates.
-- `app/renderer/styles.css` owns all UI styling.
-- `app/preload.js` exposes `window.jableApp`; this API should remain the Vue renderer boundary.
-- There is no renderer build pipeline today.
+- `app/main.js` loaded `app/renderer/index.html` directly with `BrowserWindow.loadFile`.
+- `app/renderer/app.js` owned all renderer state and DOM updates.
+- `app/renderer/styles.css` owned all UI styling.
+- `app/preload.js` exposed `window.jableApp`; this API remains the Vue renderer boundary.
+- There was no renderer build pipeline.
 
-## Target Architecture
+## Implemented Architecture
 
 - Add a Vite-powered Vue renderer source tree under `app/renderer-src/`.
 - Build renderer output to `app/renderer-dist/`.
@@ -22,7 +24,7 @@ The first migration target is the **本機資料** UI: collection tabs, search/s
 - Keep `app/preload.js` as the only renderer-to-main API surface.
 - Keep scraper/database/main-process code outside the Vue migration unless an API adjustment is required.
 
-Proposed source layout:
+Source layout:
 
 ```text
 app/
@@ -52,13 +54,13 @@ app/
   - `build:renderer`: build Vue renderer into `app/renderer-dist`.
   - `start`: build renderer first, then start Electron.
   - `start:dev`: run Electron against Vite dev URL.
-  - Packaging scripts should run `build:renderer` before `electron-builder`.
-- Update `build.files` in `package.json` to include `app/renderer-dist/**/*` and exclude `app/renderer-src/**/*`.
+  - Packaging scripts run `build:renderer` before `electron-builder`.
+- Update `build.files` in `package.json` to include `app/renderer-dist/**/*` through `app/**/*`, and exclude `app/renderer-src/**/*` and legacy `app/renderer/**/*`.
 
 ## Electron Loading Strategy
 
 - Development:
-  - If an env var such as `JABLE_RENDERER_DEV_URL` is present, `mainWindow.loadURL` points to the Vite dev server.
+  - If `JABLE_RENDERER_DEV_URL` is present, `mainWindow.loadURL` points to the Vite dev server.
   - Otherwise, fallback to `loadFile(app/renderer-dist/index.html)`.
 - Production:
   - Always load `app/renderer-dist/index.html`.
@@ -79,7 +81,7 @@ app/
    - title link opens video through BrowserView
    - hover over cover lazily loads and plays preview video
    - no separate `Preview` or `Open` text links
-6. Replace legacy `app/renderer/index.html`, `app/renderer/app.js`, and `app/renderer/styles.css` after feature parity is confirmed.
+6. Keep legacy `app/renderer/index.html`, `app/renderer/app.js`, and `app/renderer/styles.css` as migration reference until feature parity is manually confirmed.
 
 ## Tailwind Design Rules
 

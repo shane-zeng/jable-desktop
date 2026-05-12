@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --control: #ffffff;
+  --control-hover: #f9fafb;
+  --control-border-hover: #b7c0cd;
+  --segmented: #f3f5f8;
+  --panel-border: #d9dee6;
+  --text: #1d2430;
+  --muted: #657083;
+  --accent: #c93647;
+  --accent-strong: #a52d3b;
+  --focus: #2878d4;
+  --browser-bg: #e9edf3;
+  --thumb-bg: #dfe4eb;
+  --link: #2769b3;
+  --shadow: 0 1px 3px rgba(29, 36, 48, 0.12);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111318;
+  --panel: #181b22;
+  --card: #20242d;
+  --control: #20242d;
+  --control-hover: #262b35;
+  --control-border-hover: #465060;
+  --segmented: #111318;
+  --panel-border: #303642;
+  --text: #edf1f7;
+  --muted: #9aa5b5;
+  --accent: #d64055;
+  --accent-strong: #f05a6d;
+  --focus: #70a7ff;
+  --browser-bg: #0f1116;
+  --thumb-bg: #2b313d;
+  --link: #8ab7ff;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.36);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    color-scheme: dark;
+    --bg: #111318;
+    --panel: #181b22;
+    --card: #20242d;
+    --control: #20242d;
+    --control-hover: #262b35;
+    --control-border-hover: #465060;
+    --segmented: #111318;
+    --panel-border: #303642;
+    --text: #edf1f7;
+    --muted: #9aa5b5;
+    --accent: #d64055;
+    --accent-strong: #f05a6d;
+    --focus: #70a7ff;
+    --browser-bg: #0f1116;
+    --thumb-bg: #2b313d;
+    --link: #8ab7ff;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.36);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+}
+
+input,
+select {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+}
+
+input:focus,
+select:focus,
+button:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.app-shell {
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+}
+
+.thumb-preview {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.thumb-preview.active {
+  opacity: 1;
+}
+
+@media (max-width: 1180px) {
+  .app-shell {
+    grid-template-rows: 88px minmax(0, 1fr);
+  }
+}

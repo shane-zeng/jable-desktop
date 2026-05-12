@@ -51,8 +51,17 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  loadRenderer();
   createBrowserView();
+}
+
+function loadRenderer() {
+  if (process.env.JABLE_RENDERER_DEV_URL) {
+    mainWindow.loadURL(process.env.JABLE_RENDERER_DEV_URL);
+    return;
+  }
+
+  mainWindow.loadFile(path.join(__dirname, 'renderer-dist', 'index.html'));
 }
 
 function createBrowserView() {
@@ -144,9 +153,11 @@ function browserNavigationState() {
     return { canGoBack: false, canGoForward: false };
   }
 
+  var history = jableView.webContents.navigationHistory;
+
   return {
-    canGoBack: jableView.webContents.canGoBack(),
-    canGoForward: jableView.webContents.canGoForward()
+    canGoBack: history.canGoBack(),
+    canGoForward: history.canGoForward()
   };
 }
 
@@ -220,9 +231,11 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('browser:go-back', async function () {
-    if (jableView.webContents.canGoBack()) {
+    var history = jableView.webContents.navigationHistory;
+
+    if (history.canGoBack()) {
       var wait = waitForBrowserStop();
-      jableView.webContents.goBack();
+      history.goBack();
       await wait;
     }
     notifyBrowserNavigationState();
@@ -230,9 +243,11 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('browser:go-forward', async function () {
-    if (jableView.webContents.canGoForward()) {
+    var history = jableView.webContents.navigationHistory;
+
+    if (history.canGoForward()) {
       var wait = waitForBrowserStop();
-      jableView.webContents.goForward();
+      history.goForward();
       await wait;
     }
     notifyBrowserNavigationState();

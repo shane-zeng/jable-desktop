@@ -77,6 +77,13 @@ npm start
 
 Log in inside the embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the right panel.
 
+`npm start` builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
+
+```sh
+npm run dev:renderer
+npm run start:dev
+```
+
 Desktop sync behavior:
 
 - **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known.
@@ -89,11 +96,14 @@ Desktop app files:
 - `app/main.js`: Electron main process and IPC handlers.
 - `app/webview-preload.js`: scraper injected into the embedded Jable `BrowserView`.
 - `app/database.js`: SQLite schema, upsert logic, JSON import/export.
-- `app/renderer/`: desktop UI.
+- `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
+- `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
+- `app/renderer/`: legacy plain renderer kept for reference during the migration.
 
 ### Desktop Validation
 
 ```sh
+npm run build:renderer
 npm test
 ```
 
@@ -108,11 +118,13 @@ Manual checks:
 
 ### Desktop Packaging
 
-Install the packaging tool once:
+Install dependencies once:
 
 ```sh
-npm install --save-dev electron-builder
+npm install
 ```
+
+Packaging scripts build the Vue renderer before running `electron-builder`.
 
 Build unpacked apps for local smoke testing:
 
