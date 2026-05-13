@@ -20,6 +20,12 @@
   var EXPORT_FORMAT = 'json';
   var PAGE_SIZE = 24;
   var STORAGE_PREFIX = 'jable-favourites-exporter:';
+  var IDB_DB_NAME = 'jable-favourites-exporter';
+  var IDB_DB_VERSION = 1;
+  var IDB_META_STORE = 'meta';
+  var IDB_VIDEOS_STORE = 'videos';
+  var IDB_COLLECTION_INDEX = 'collectionKey';
+  var IDB_KEY_SEPARATOR = '\u001f';
 
   /* ---------------------------------------
    * Selectors
@@ -175,6 +181,291 @@
     } catch (e) {
       log('failed to save cache', e);
     }
+  }
+
+  function idbCacheKey(collectionKey, url) {
+    return collectionKey + IDB_KEY_SEPARATOR + url;
+  }
+
+  function idbRequest(request) {
+    return new Promise(function (resolve, reject) {
+      request.onsuccess = function () {
+        resolve(request.result);
+      };
+      request.onerror = function () {
+        reject(request.error || new Error('IndexedDB request failed'));
+      };
+    });
+  }
+
+  function openIndexedDb() {
+    if (!window.indexedDB) {
+      return Promise.reject(new Error('IndexedDB is not available'));
+    }
+
+    return new Promise(function (resolve, reject) {
+      var request = window.indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
+
+      request.onupgradeneeded = function (event) {
+        var db = event.target.result;
+        var videos = null;
+
+        if (!db.objectStoreNames.contains(IDB_META_STORE)) {
+          db.createObjectStore(IDB_META_STORE, { keyPath: 'collectionKey' });
+        }
+
+        if (!db.objectStoreNames.contains(IDB_VIDEOS_STORE)) {
+          videos = db.createObjectStore(IDB_VIDEOS_STORE, { keyPath: 'cacheKey' });
+          videos.createIndex(IDB_COLLECTION_INDEX, 'collectionKey', { unique: false });
+        } else {
+          videos = event.target.transaction.objectStore(IDB_VIDEOS_STORE);
+          if (!videos.indexNames.contains(IDB_COLLECTION_INDEX)) {
+            videos.createIndex(IDB_COLLECTION_INDEX, 'collectionKey', { unique: false });
+          }
+        }
+      };
+
+      request.onsuccess = function () {
+        resolve(request.result);
+      };
+      request.onerror = function () {
+        reject(request.error || new Error('IndexedDB open failed'));
+      };
+      request.onblocked = function () {
+        reject(new Error('IndexedDB upgrade is blocked by another tab'));
+      };
+    });
+  }
+
+  function exportMetaFromResource(resource, collectionKey, rowCount) {
+    var meta = (resource && resource.meta) || {};
+
+    return {
+      collectionKey: collectionKey,
+      completed: !!meta.completed,
+      lastScrapedPage: meta.last_scraped_page || null,
+      rowCount: rowCount || 0,
+      sourcePath: meta.source_path || location.pathname,
+      sourceUrl: meta.source_url || location.href,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  function rowRecord(collectionKey, row, order, orderGroup) {
+    return {
+      cacheKey: idbCacheKey(collectionKey, row.url),
+      collectionKey: collectionKey,
+      orderGroup: orderGroup || 0,
+      order: order,
+      title: row.title,
+      url: row.url,
+      views: row.views,
+      likes: row.likes,
+      img: typeof row.img === 'undefined' ? null : row.img,
+      preview: typeof row.preview === 'undefined' ? null : row.preview
+    };
+  }
+
+  function rowFromRecord(record) {
+    return {
+      title: record.title,
+      url: record.url,
+      views: record.views,
+      likes: record.likes,
+      img: typeof record.img === 'undefined' ? null : record.img,
+      preview: typeof record.preview === 'undefined' ? null : record.preview
+    };
+  }
+
+  function IndexedDbCacheAdapter(db) {
+    this.db = db;
+  }
+
+  IndexedDbCacheAdapter.prototype.getMeta = function (collectionKey) {
+    var tx = this.db.transaction(IDB_META_STORE, 'readonly');
+    return idbRequest(tx.objectStore(IDB_META_STORE).get(collectionKey));
+  };
+
+  IndexedDbCacheAdapter.prototype.loadRows = function (collectionKey) {
+    var tx = this.db.transaction(IDB_VIDEOS_STORE, 'readonly');
+    var store = tx.objectStore(IDB_VIDEOS_STORE);
+    var request = store.index(IDB_COLLECTION_INDEX).getAll(collectionKey);
+
+    return idbRequest(request).then(function (records) {
+      records.sort(function (a, b) {
+        var groupDiff = (a.orderGroup || 0) - (b.orderGroup || 0);
+        if (groupDiff) return groupDiff;
+
+        return (a.order || 0) - (b.order || 0);
+      });
+
+      return records.map(rowFromRecord);
+    });
+  };
+
+  IndexedDbCacheAdapter.prototype.knownUrlMap = function (collectionKey, urls) {
+    var tx = this.db.transaction(IDB_VIDEOS_STORE, 'readonly');
+    var store = tx.objectStore(IDB_VIDEOS_STORE);
+    var known = {};
+    var checks = [];
+
+    for (var i = 0; i < urls.length; i++) {
+      (function (url) {
+        checks.push(
+          idbRequest(store.get(idbCacheKey(collectionKey, url))).then(function (record) {
+            known[url] = !!record;
+          })
+        );
+      })(urls[i]);
+    }
+
+    return Promise.all(checks).then(function () {
+      return known;
+    });
+  };
+
+  IndexedDbCacheAdapter.prototype.saveProgress = function (
+    collectionKey,
+    rows,
+    lastScrapedPage,
+    currentCount,
+    orderStart,
+    orderGroup
+  ) {
+    var tx = this.db.transaction([IDB_META_STORE, IDB_VIDEOS_STORE], 'readwrite');
+    var metaStore = tx.objectStore(IDB_META_STORE);
+    var videosStore = tx.objectStore(IDB_VIDEOS_STORE);
+    var nextCount = currentCount + rows.length;
+    var completed = false;
+    var firstOrder = typeof orderStart === 'number' ? orderStart : currentCount;
+    var group = orderGroup || 0;
+
+    for (var i = 0; i < rows.length; i++) {
+      videosStore.put(rowRecord(collectionKey, rows[i], firstOrder + i + 1, group));
+    }
+
+    metaStore.put({
+      collectionKey: collectionKey,
+      completed: completed,
+      lastScrapedPage: lastScrapedPage || null,
+      rowCount: nextCount,
+      sourcePath: location.pathname,
+      sourceUrl: location.href,
+      updatedAt: new Date().toISOString()
+    });
+
+    return new Promise(function (resolve, reject) {
+      tx.oncomplete = function () {
+        resolve({ rowCount: nextCount });
+      };
+      tx.onerror = function () {
+        reject(tx.error || new Error('IndexedDB progress save failed'));
+      };
+      tx.onabort = function () {
+        reject(tx.error || new Error('IndexedDB progress save aborted'));
+      };
+    });
+  };
+
+  IndexedDbCacheAdapter.prototype.markRowsAsBase = function (collectionKey) {
+    var tx = this.db.transaction(IDB_VIDEOS_STORE, 'readwrite');
+    var videosStore = tx.objectStore(IDB_VIDEOS_STORE);
+    var index = videosStore.index(IDB_COLLECTION_INDEX);
+
+    index.openCursor(IDBKeyRange.only(collectionKey)).onsuccess = function (event) {
+      var cursor = event.target.result;
+      var record = null;
+
+      if (!cursor) return;
+
+      record = cursor.value;
+      record.orderGroup = 1;
+      cursor.update(record);
+      cursor.continue();
+    };
+
+    return new Promise(function (resolve, reject) {
+      tx.oncomplete = function () {
+        resolve();
+      };
+      tx.onerror = function () {
+        reject(tx.error || new Error('IndexedDB base row update failed'));
+      };
+      tx.onabort = function () {
+        reject(tx.error || new Error('IndexedDB base row update aborted'));
+      };
+    });
+  };
+
+  IndexedDbCacheAdapter.prototype.replaceRows = function (collectionKey, rows, completed, lastScrapedPage) {
+    var tx = this.db.transaction([IDB_META_STORE, IDB_VIDEOS_STORE], 'readwrite');
+    var metaStore = tx.objectStore(IDB_META_STORE);
+    var videosStore = tx.objectStore(IDB_VIDEOS_STORE);
+    var index = videosStore.index(IDB_COLLECTION_INDEX);
+
+    index.openCursor(IDBKeyRange.only(collectionKey)).onsuccess = function (event) {
+      var cursor = event.target.result;
+
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+        return;
+      }
+
+      for (var i = 0; i < rows.length; i++) {
+        videosStore.put(rowRecord(collectionKey, rows[i], i + 1, 0));
+      }
+
+      metaStore.put({
+        collectionKey: collectionKey,
+        completed: !!completed,
+        lastScrapedPage: lastScrapedPage || null,
+        rowCount: rows.length,
+        sourcePath: location.pathname,
+        sourceUrl: location.href,
+        updatedAt: new Date().toISOString()
+      });
+    };
+
+    return new Promise(function (resolve, reject) {
+      tx.oncomplete = function () {
+        resolve({ rowCount: rows.length });
+      };
+      tx.onerror = function () {
+        reject(tx.error || new Error('IndexedDB cache replace failed'));
+      };
+      tx.onabort = function () {
+        reject(tx.error || new Error('IndexedDB cache replace aborted'));
+      };
+    });
+  };
+
+  IndexedDbCacheAdapter.prototype.ensureMigrated = function (collectionKey) {
+    var adapter = this;
+
+    return adapter.getMeta(collectionKey).then(function (meta) {
+      var cache = null;
+      var cachedRows = null;
+
+      if (meta) return meta;
+
+      cache = loadCachedResource();
+      cachedRows = flattenPages(cache);
+
+      if (!cache || !cache.meta || !rowsHaveMediaFields(cachedRows)) return null;
+
+      return adapter
+        .replaceRows(collectionKey, cachedRows, !!cache.meta.completed, cache.meta.last_scraped_page)
+        .then(function () {
+          return exportMetaFromResource(cache, collectionKey, cachedRows.length);
+        });
+    });
+  };
+
+  function createIndexedDbCacheAdapter() {
+    return openIndexedDb().then(function (db) {
+      return new IndexedDbCacheAdapter(db);
+    });
   }
 
   function urlMap(rows) {
@@ -372,7 +663,200 @@
   /* ---------------------------------------
    * Main flow
    * ------------------------------------- */
-  function exportAllByClick() {
+  function delay(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  function urlsFromRows(rows) {
+    var out = [];
+
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].url) out.push(rows[i].url);
+    }
+
+    return out;
+  }
+
+  function showExportError(message) {
+    var btn = document.getElementById(BTN_ID);
+
+    setBtnBusy(false);
+
+    if (!btn) return;
+
+    btn.textContent = message;
+    setTimeout(function () {
+      if (btn && btn.getAttribute('data-label')) btn.textContent = btn.getAttribute('data-label');
+    }, 4500);
+  }
+
+  function mergeFinalRows(cacheComplete, newRows, cachedRows) {
+    var newUrls = urlMap(newRows);
+    var oldRows = [];
+
+    for (var i = 0; i < cachedRows.length; i++) {
+      if (!newUrls[cachedRows[i].url]) oldRows.push(cachedRows[i]);
+    }
+
+    return cacheComplete ? mergeRows(newRows, oldRows) : mergeRows(oldRows, newRows);
+  }
+
+  async function exportAllByClickWithIndexedDb(adapter) {
+    setBtnBusy(true, '準備中…');
+
+    var collectionKey = fileBaseByPath();
+    var meta = await adapter.ensureMigrated(collectionKey);
+    var cacheComplete = !!(meta && meta.completed);
+    var cachedCount = meta && meta.rowCount ? Number(meta.rowCount) : 0;
+    var newRows = [];
+    var visited = {};
+    var safety = 100;
+    var lastScrapedPage = null;
+    var baseRowsMarked = false;
+
+    var active = document.querySelector('ul.pagination span.page-link.active');
+    if (active) {
+      var t = (active.textContent || '').trim();
+      if (t) visited[t] = true;
+    }
+
+    async function recordCurrentPage() {
+      var rows = uniqByUrl(scrapeCurrentPage());
+      var knownUrls = await adapter.knownUrlMap(collectionKey, urlsFromRows(rows));
+      var rowsToSave = [];
+      var orderStart = cacheComplete ? newRows.length : cachedCount;
+      var orderGroup = 0;
+      var saved = null;
+
+      lastScrapedPage = currentPageNumber();
+
+      if (cacheComplete && allRowsKnown(rows, knownUrls)) {
+        log('known page reached, stop at page', lastScrapedPage);
+        return true;
+      }
+
+      for (var i = 0; i < rows.length; i++) {
+        var url = rows[i].url;
+        if (!url || knownUrls[url]) continue;
+
+        knownUrls[url] = true;
+        newRows.push(rows[i]);
+        rowsToSave.push(rows[i]);
+      }
+
+      if (cacheComplete && rowsToSave.length && !baseRowsMarked && cachedCount) {
+        await adapter.markRowsAsBase(collectionKey);
+        baseRowsMarked = true;
+      }
+
+      saved = await adapter.saveProgress(
+        collectionKey,
+        rowsToSave,
+        lastScrapedPage,
+        cachedCount,
+        orderStart,
+        orderGroup
+      );
+      cachedCount = saved.rowCount;
+      return false;
+    }
+
+    async function finish() {
+      var base = fileBaseByPath();
+      var cachedRows = await adapter.loadRows(collectionKey);
+      var finalRows = mergeFinalRows(cacheComplete, newRows, cachedRows);
+      var resource = buildExportResource(finalRows, true, lastScrapedPage);
+
+      await adapter.replaceRows(collectionKey, finalRows, true, lastScrapedPage);
+
+      setBtnBusy(false, '完成，匯出中…');
+
+      if (EXPORT_FORMAT === 'csv') {
+        downloadCsv(base + '.csv', toCSV(flattenPages(resource)));
+      } else {
+        downloadJson(base + '.json', resource);
+      }
+
+      log('done, total:', resource.meta.total);
+    }
+
+    if (await recordCurrentPage()) return finish();
+
+    while (true) {
+      var links = null;
+      var candidates = [];
+      var next = null;
+      var oldSig = null;
+      var changed = false;
+
+      if (safety-- <= 0) return finish();
+
+      links = readPagerLinks();
+
+      for (var i = 0; i < links.length; i++) {
+        if (!visited[links[i].id]) candidates.push(links[i]);
+      }
+
+      if (!candidates.length) return finish();
+
+      candidates.sort(function (a, b) {
+        var na = parseInt(a.id, 10);
+        var nb = parseInt(b.id, 10);
+        if (isFinite(na) && isFinite(nb)) return na - nb;
+        return String(a.id).localeCompare(String(b.id));
+      });
+
+      next = candidates[0];
+      oldSig = signature();
+
+      try {
+        next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (e) {}
+
+      await delay(200);
+
+      log('click page', next.id, '(' + next.label + ')');
+      try {
+        next.el.click();
+      } catch (e) {}
+
+      changed = await waitForContainerChange(oldSig, 15000);
+      visited[next.id] = true;
+
+      if (!changed) {
+        log('page did not change before timeout', next.id);
+      }
+
+      if (await recordCurrentPage()) return finish();
+
+      log('page', next.id, 'new rows', newRows.length, 'total', cachedCount);
+      setBtnBusy(true, '已擷取 ' + cachedCount + ' 筆，前往下一頁…');
+      await delay(500 + Math.random() * 500);
+    }
+  }
+
+  async function exportAllByClick() {
+    var adapter = null;
+
+    try {
+      adapter = await createIndexedDbCacheAdapter();
+    } catch (e) {
+      log('IndexedDB cache unavailable, fallback to localStorage', e);
+      exportAllByClickWithLocalStorage();
+      return;
+    }
+
+    try {
+      await exportAllByClickWithIndexedDb(adapter);
+    } catch (e) {
+      log('export failed', e);
+      showExportError('暫存失敗，請查看 console');
+    }
+  }
+
+  function exportAllByClickWithLocalStorage() {
     setBtnBusy(true, '準備中…');
 
     var cache = loadCachedResource();

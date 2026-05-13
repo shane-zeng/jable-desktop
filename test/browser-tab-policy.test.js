@@ -36,3 +36,27 @@ test('serializedMediaState exposes stable tab media flags', function () {
     }
   );
 });
+
+test('nextActiveTabIdAfterClose prefers the next tab when closing the active tab', function () {
+  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2', 'tab-2'), 'tab-3');
+});
+
+test('nextActiveTabIdAfterClose falls back to the previous tab when closing the last active tab', function () {
+  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-3', 'tab-3'), 'tab-2');
+});
+
+test('nextActiveTabIdAfterClose keeps the current active tab when closing an inactive tab', function () {
+  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2', 'tab-1'), 'tab-2');
+});
+
+test('nextActiveTabIdAfterClose returns null when closing the only active tab', function () {
+  var tabs = [{ id: 'tab-1' }];
+
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-1', 'tab-1'), null);
+});

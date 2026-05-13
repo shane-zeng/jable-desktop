@@ -15,6 +15,7 @@ var Menu = electron.Menu;
 var clipboard = electron.clipboard;
 var dialog = electron.dialog;
 var browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
+var nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
 var serializedMediaState = browserTabPolicy.serializedMediaState;
 
 var JABLE_HOME_URL = 'https://jable.tv/';
@@ -579,19 +580,18 @@ function closeBrowserTab(tabId) {
   var tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error('同步中的分頁不能關閉');
 
-  var index = browserTabs.indexOf(tab);
+  var nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
   detachBrowserTab(tab);
   delete browserTabsById[tab.id];
   delete webContentsTabIds[String(tab.view.webContents.id)];
-  browserTabs.splice(index, 1);
+  browserTabs.splice(browserTabs.indexOf(tab), 1);
 
   try {
     tab.view.webContents.close({ waitForBeforeUnload: false });
   } catch (error) {}
 
   if (activeBrowserTabId === tab.id) {
-    var next = browserTabs[Math.max(0, index - 1)] || browserTabs[0] || null;
-    activeBrowserTabId = next ? next.id : null;
+    activeBrowserTabId = nextActiveTabId;
   }
 
   if (!browserTabs.length) {
