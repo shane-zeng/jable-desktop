@@ -5,6 +5,7 @@ var assert = require('node:assert/strict');
 var fs = require('node:fs');
 var os = require('node:os');
 var path = require('node:path');
+var DatabaseSync = require('node:sqlite').DatabaseSync;
 var JableDatabase = require('../app/database').JableDatabase;
 
 function createTestDatabase(t) {
@@ -207,6 +208,149 @@ test('listVideos supports limit and offset', function (t) {
   );
 });
 
+test('listVideos searches title and URL with the local full text index', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'ABP-123 日本語測試 keyword',
+        url: 'https://jable.tv/videos/abp-123/',
+        siteOrder: 1
+      },
+      {
+        title: '精確 肉便 老師 sample',
+        url: 'https://jable.tv/videos/teacher-phrase/',
+        siteOrder: 2
+      },
+      {
+        title: '肉便 かわいい 老師',
+        url: 'https://jable.tv/videos/teacher-target/',
+        siteOrder: 3
+      },
+      {
+        title: '肉便 only',
+        url: 'https://jable.tv/videos/meat-only/',
+        siteOrder: 4
+      },
+      {
+        title: '老師 only',
+        url: 'https://jable.tv/videos/teacher-only/',
+        siteOrder: 5
+      },
+      {
+        title: 'Different row',
+        url: 'https://jable.tv/videos/url-target/',
+        siteOrder: 6
+      }
+    ]
+  });
+
+  assert.deepEqual(
+    db.listVideos('favourites', { search: 'bp-123' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/abp-123/']
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '本語測' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/abp-123/']
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '測試' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/abp-123/']
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: 'url-target' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/url-target/']
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '肉便 老師' }).map(function (row) {
+      return row.url;
+    }),
+    [
+      'https://jable.tv/videos/teacher-phrase/',
+      'https://jable.tv/videos/teacher-target/',
+      'https://jable.tv/videos/meat-only/',
+      'https://jable.tv/videos/teacher-only/'
+    ]
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '老師 肉便' }).map(function (row) {
+      return row.url;
+    }),
+    [
+      'https://jable.tv/videos/teacher-phrase/',
+      'https://jable.tv/videos/teacher-target/',
+      'https://jable.tv/videos/meat-only/',
+      'https://jable.tv/videos/teacher-only/'
+    ]
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '肉便 老師', searchMode: 'all' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/teacher-phrase/', 'https://jable.tv/videos/teacher-target/']
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '肉便 老師', searchMode: 'phrase' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/teacher-phrase/']
+  );
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '肉便 missing' }).map(function (row) {
+      return row.url;
+    }),
+    [
+      'https://jable.tv/videos/teacher-phrase/',
+      'https://jable.tv/videos/teacher-target/',
+      'https://jable.tv/videos/meat-only/'
+    ]
+  );
+  assert.equal(db.countVideos('favourites', { search: 'missing' }), 0);
+});
+
+test('video search index follows title updates', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Original searchable title',
+        url: 'https://jable.tv/videos/title-update/',
+        siteOrder: 1
+      }
+    ]
+  });
+  assert.equal(db.countVideos('favourites', { search: 'Original' }), 1);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Replacement searchable title',
+        url: 'https://jable.tv/videos/title-update/',
+        siteOrder: 1
+      }
+    ]
+  });
+
+  assert.equal(db.countVideos('favourites', { search: 'Original' }), 0);
+  assert.equal(db.countVideos('favourites', { search: 'Replacement' }), 1);
+});
+
 test('countVideos uses the same search and visibility filters as listVideos', function (t) {
   var db = createTestDatabase(t);
 
@@ -250,6 +394,79 @@ test('countVideos uses the same search and visibility filters as listVideos', fu
   assert.equal(db.countVideos('watch_later', { includeHidden: true }), 2);
   assert.equal(db.countVideos('watch_later', { search: 'target' }), 1);
   assert.equal(db.countVideos('watch_later', { search: 'hidden', includeHidden: true }), 1);
+  assert.deepEqual(db.listVideos('watch_later', { search: 'hidden' }), []);
+  assert.deepEqual(
+    db.listVideos('watch_later', { search: 'hidden', includeHidden: true }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/hidden-target/']
+  );
+});
+
+test('migration rebuilds the local full text index for existing videos', function (t) {
+  var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
+  var dbPath = path.join(dir, 'test.sqlite');
+  var rawDb = new DatabaseSync(dbPath);
+  var timestamp = '2026-05-14T00:00:00.000Z';
+
+  rawDb.exec(
+    [
+      'CREATE TABLE videos (',
+      '  url TEXT PRIMARY KEY,',
+      '  title TEXT,',
+      '  views INTEGER,',
+      '  likes INTEGER,',
+      '  img TEXT,',
+      '  preview TEXT,',
+      '  created_at TEXT NOT NULL,',
+      '  updated_at TEXT NOT NULL',
+      ');',
+      'CREATE TABLE collections (',
+      '  key TEXT PRIMARY KEY,',
+      '  name TEXT NOT NULL',
+      ');',
+      'CREATE TABLE collection_items (',
+      '  collection_key TEXT NOT NULL,',
+      '  video_url TEXT NOT NULL,',
+      '  first_seen_at TEXT NOT NULL,',
+      '  last_seen_at TEXT NOT NULL,',
+      '  PRIMARY KEY (collection_key, video_url)',
+      ');',
+      'CREATE TABLE sync_states (',
+      '  collection_key TEXT PRIMARY KEY,',
+      '  completed INTEGER NOT NULL DEFAULT 0,',
+      '  last_scraped_page INTEGER,',
+      '  last_known_url TEXT,',
+      '  updated_at TEXT NOT NULL',
+      ');'
+    ].join('\n')
+  );
+  rawDb.prepare('INSERT INTO collections (key, name) VALUES (?, ?)').run('favourites', '影片收藏');
+  rawDb
+    .prepare(
+      'INSERT INTO videos (url, title, views, likes, img, preview, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )
+    .run('https://jable.tv/videos/migrated/', 'Migrated 日本語 index row', 1, 1, null, null, timestamp, timestamp);
+  rawDb
+    .prepare(
+      'INSERT INTO collection_items (collection_key, video_url, first_seen_at, last_seen_at) VALUES (?, ?, ?, ?)'
+    )
+    .run('favourites', 'https://jable.tv/videos/migrated/', timestamp, timestamp);
+  rawDb.close();
+
+  var db = new JableDatabase(dbPath);
+
+  t.after(function () {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  assert.deepEqual(
+    db.listVideos('favourites', { search: '日本語' }).map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/migrated/']
+  );
 });
 
 test('allCollectionUrlsKnown checks normalized urls and includes hidden rows', function (t) {

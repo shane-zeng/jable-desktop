@@ -12,6 +12,7 @@ try {
 
 var PAGE_SIZE = 24;
 var EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
+var SEARCH_NGRAM_MAX = 3;
 
 var COLLECTIONS = [
   { key: 'favourites', name: '影片收藏', sourcePath: '/my/favourites/videos/' },
@@ -60,7 +61,7 @@ function normalizeVideoUrl(value) {
 function normalizeVideo(row) {
   if (!row || !row.url) return null;
 
-  return {
+  var video = {
     url: normalizeVideoUrl(row.url),
     title: normalizeText(row.title),
     views: normalizeNumber(row.views),
@@ -69,6 +70,10 @@ function normalizeVideo(row) {
     preview: normalizeText(row.preview),
     siteOrder: normalizeNumber(readSiteOrder(row))
   };
+
+  video.searchText = buildVideoSearchText(video.title, video.url);
+
+  return video;
 }
 
 function readSiteOrder(row) {
@@ -147,6 +152,165 @@ function rowsByPage(rows) {
   return pages;
 }
 
+function isCjkSearchChar(char) {
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(char);
+}
+
+function isSearchWordChar(char) {
+  return /[\p{Letter}\p{Number}]/u.test(char);
+}
+
+function searchRuns(value) {
+  var text = value ? String(value).normalize('NFKC').toLowerCase() : '';
+  var runs = [];
+  var current = '';
+  var currentType = null;
+
+  for (var char of text) {
+    var charType = null;
+    if (isCjkSearchChar(char)) charType = 'cjk';
+    else if (isSearchWordChar(char)) charType = 'word';
+
+    if (!charType) {
+      if (current) runs.push(current);
+      current = '';
+      currentType = null;
+      continue;
+    }
+
+    if (currentType && currentType !== charType) {
+      runs.push(current);
+      current = '';
+    }
+
+    current += char;
+    currentType = charType;
+  }
+
+  if (current) runs.push(current);
+  return runs;
+}
+
+function addSearchToken(tokens, token) {
+  if (token) tokens[token] = true;
+}
+
+function addSearchNgrams(tokens, run) {
+  var chars = Array.from(run);
+  var maxSize = Math.min(SEARCH_NGRAM_MAX, chars.length);
+
+  for (var size = 1; size <= maxSize; size++) {
+    for (var i = 0; i <= chars.length - size; i++) {
+      addSearchToken(tokens, chars.slice(i, i + size).join(''));
+    }
+  }
+}
+
+function collectSearchTokens(values) {
+  var tokens = {};
+
+  for (var i = 0; i < values.length; i++) {
+    var runs = searchRuns(values[i]);
+    for (var n = 0; n < runs.length; n++) {
+      addSearchNgrams(tokens, runs[n]);
+    }
+  }
+
+  return Object.keys(tokens);
+}
+
+function compactSearchValue(value) {
+  var text = value ? String(value).normalize('NFKC').toLowerCase() : '';
+  var compact = '';
+
+  for (var char of text) {
+    if (isCjkSearchChar(char) || isSearchWordChar(char)) compact += char;
+  }
+
+  return compact;
+}
+
+function collectPhraseTokens(values) {
+  var tokens = {};
+
+  for (var i = 0; i < values.length; i++) {
+    var compact = compactSearchValue(values[i]);
+    if (compact) addSearchNgrams(tokens, compact);
+  }
+
+  return Object.keys(tokens);
+}
+
+function buildVideoSearchText(title, url) {
+  var tokens = {};
+  var searchTokens = collectSearchTokens([title, url]);
+  var phraseTokens = collectPhraseTokens([title, url]);
+
+  for (var i = 0; i < searchTokens.length; i++) {
+    addSearchToken(tokens, searchTokens[i]);
+  }
+
+  for (var n = 0; n < phraseTokens.length; n++) {
+    addSearchToken(tokens, phraseTokens[n]);
+  }
+
+  return Object.keys(tokens).join(' ');
+}
+
+function searchQueryTokensForRun(run) {
+  var chars = Array.from(run);
+  if (chars.length <= SEARCH_NGRAM_MAX) return [run];
+
+  var tokens = [];
+  for (var i = 0; i <= chars.length - SEARCH_NGRAM_MAX; i++) {
+    tokens.push(chars.slice(i, i + SEARCH_NGRAM_MAX).join(''));
+  }
+
+  return tokens;
+}
+
+function quoteFtsToken(token) {
+  return '"' + String(token).replace(/"/g, '""') + '"';
+}
+
+function buildSearchRunQuery(run) {
+  return searchQueryTokensForRun(run).map(quoteFtsToken).join(' AND ');
+}
+
+function buildSearchTermQuery(term) {
+  var runs = searchRuns(term);
+  var runQueries = [];
+
+  for (var i = 0; i < runs.length; i++) {
+    runQueries.push(buildSearchRunQuery(runs[i]));
+  }
+
+  return runQueries.length ? '(' + runQueries.join(' AND ') + ')' : null;
+}
+
+function buildSearchPhraseQuery(value) {
+  var compact = compactSearchValue(value);
+  if (!compact) return null;
+
+  return '(' + searchQueryTokensForRun(compact).map(quoteFtsToken).join(' AND ') + ')';
+}
+
+function buildSearchMatchQuery(value, mode) {
+  if (mode === 'phrase') return buildSearchPhraseQuery(value);
+
+  var terms = value ? String(value).trim().split(/\s+/) : [];
+  var termQueries = [];
+
+  for (var i = 0; i < terms.length; i++) {
+    var query = buildSearchTermQuery(terms[i]);
+    if (query) termQueries.push(query);
+  }
+
+  if (!termQueries.length) return null;
+
+  return termQueries.join(mode === 'all' ? ' AND ' : ' OR ');
+}
+
 function buildVideoListQuery(collectionKey, options) {
   options = options || {};
 
@@ -167,26 +331,32 @@ function buildVideoListQuery(collectionKey, options) {
     : sortKey === 'site_order'
       ? 'ASC'
       : 'DESC';
+  var searchMode = options.searchMode === 'all' || options.searchMode === 'phrase' ? options.searchMode : 'any';
+  var matchQuery = options.search ? buildSearchMatchQuery(options.search, searchMode) : null;
   var params = [collectionKey];
+  var joins = [];
   var where = 'WHERE ci.collection_key = ?';
 
   if (!options.includeHidden) {
     where += ' AND ci.is_visible = 1';
   }
 
-  if (options.search && String(options.search).trim()) {
-    where += ' AND (LOWER(v.title) LIKE LOWER(?) OR v.url LIKE ?)';
-    var like = '%' + String(options.search).trim() + '%';
-    params.push(like, like);
+  if (matchQuery) {
+    joins.push('JOIN video_search ON video_search.rowid = v.rowid');
+    where += ' AND video_search MATCH ?';
+    params.push(matchQuery);
   }
 
+  var orderBy =
+    sort === 'site_order'
+      ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
+      : sort + ' ' + direction + ', v.url ASC';
+
   return {
+    joins: joins,
     params: params,
     where: where,
-    orderBy:
-      sort === 'site_order'
-        ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
-        : sort + ' ' + direction + ', v.url ASC'
+    orderBy: orderBy
   };
 }
 
@@ -271,6 +441,87 @@ JableDatabase.prototype.migrate = function () {
   this.ensureColumn('collection_items', 'is_visible', 'INTEGER NOT NULL DEFAULT 1');
   this.ensureColumn('collection_items', 'missing_at', 'TEXT');
   this.ensureColumn('collection_items', 'last_sync_run_id', 'TEXT');
+  this.ensureColumn('videos', 'search_text', 'TEXT');
+  this.ensureVideoSearchIndex(this.backfillVideoSearchText());
+};
+
+JableDatabase.prototype.backfillVideoSearchText = function () {
+  var rows = this.db.prepare('SELECT url, title FROM videos WHERE search_text IS NULL').all();
+  if (!rows.length) return false;
+
+  var update = this.db.prepare('UPDATE videos SET search_text = ? WHERE url = ?');
+
+  for (var i = 0; i < rows.length; i++) {
+    update.run(buildVideoSearchText(rows[i].title, rows[i].url), rows[i].url);
+  }
+
+  return true;
+};
+
+JableDatabase.prototype.videoSearchIndexHasExpectedColumns = function () {
+  var columns = this.db.prepare('PRAGMA table_info(video_search)').all();
+  var names = {};
+
+  for (var i = 0; i < columns.length; i++) {
+    names[columns[i].name] = true;
+  }
+
+  return !!(names.title && names.url && names.search_text);
+};
+
+JableDatabase.prototype.dropVideoSearchTriggers = function () {
+  this.db.exec(
+    [
+      'DROP TRIGGER IF EXISTS videos_ai;',
+      'DROP TRIGGER IF EXISTS videos_ad;',
+      'DROP TRIGGER IF EXISTS videos_au;'
+    ].join('\n')
+  );
+};
+
+JableDatabase.prototype.ensureVideoSearchIndex = function (searchTextChanged) {
+  var indexExists = this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('table', 'video_search');
+  var insertTriggerExists = this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('trigger', 'videos_ai');
+  var deleteTriggerExists = this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('trigger', 'videos_ad');
+  var updateTriggerExists = this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('trigger', 'videos_au');
+  var shouldRebuild =
+    searchTextChanged || !indexExists || !insertTriggerExists || !deleteTriggerExists || !updateTriggerExists;
+
+  this.dropVideoSearchTriggers();
+
+  if (indexExists && !this.videoSearchIndexHasExpectedColumns()) {
+    this.db.exec('DROP TABLE video_search');
+    indexExists = null;
+    shouldRebuild = true;
+  }
+
+  this.db.exec(
+    [
+      "CREATE VIRTUAL TABLE IF NOT EXISTS video_search USING fts5(title, url, search_text, content='videos', content_rowid='rowid', tokenize='unicode61');",
+      'CREATE TRIGGER IF NOT EXISTS videos_ai AFTER INSERT ON videos BEGIN',
+      '  INSERT INTO video_search(rowid, title, url, search_text) VALUES (new.rowid, new.title, new.url, new.search_text);',
+      'END;',
+      'CREATE TRIGGER IF NOT EXISTS videos_ad AFTER DELETE ON videos BEGIN',
+      "  INSERT INTO video_search(video_search, rowid, title, url, search_text) VALUES('delete', old.rowid, old.title, old.url, old.search_text);",
+      'END;',
+      'CREATE TRIGGER IF NOT EXISTS videos_au AFTER UPDATE OF title, url, search_text ON videos BEGIN',
+      "  INSERT INTO video_search(video_search, rowid, title, url, search_text) VALUES('delete', old.rowid, old.title, old.url, old.search_text);",
+      '  INSERT INTO video_search(rowid, title, url, search_text) VALUES (new.rowid, new.title, new.url, new.search_text);',
+      'END;'
+    ].join('\n')
+  );
+
+  if (shouldRebuild) {
+    this.db.prepare('INSERT INTO video_search(video_search) VALUES (?)').run('rebuild');
+  }
 };
 
 JableDatabase.prototype.ensureColumn = function (tableName, columnName, definition) {
@@ -329,6 +580,7 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
     '       ci.site_order, ci.is_visible, ci.missing_at, ci.last_sync_run_id',
     'FROM collection_items ci',
     'JOIN videos v ON v.url = ci.video_url',
+    query.joins.join(' '),
     query.where,
     'ORDER BY ' + query.orderBy
   ].join(' ');
@@ -348,9 +600,13 @@ JableDatabase.prototype.countVideos = function (collectionKey, options) {
 
   var query = buildVideoListQuery(collectionKey, options);
   var stmt = this.db.prepare(
-    ['SELECT COUNT(*) AS total', 'FROM collection_items ci', 'JOIN videos v ON v.url = ci.video_url', query.where].join(
-      ' '
-    )
+    [
+      'SELECT COUNT(*) AS total',
+      'FROM collection_items ci',
+      'JOIN videos v ON v.url = ci.video_url',
+      query.joins.join(' '),
+      query.where
+    ].join(' ')
   );
   var row = stmt.get.apply(stmt, query.params);
 
@@ -427,14 +683,15 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   var timestamp = nowIso();
   var upsertVideo = this.db.prepare(
     [
-      'INSERT INTO videos (url, title, views, likes, img, preview, created_at, updated_at)',
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       'ON CONFLICT(url) DO UPDATE SET',
       '  title = COALESCE(excluded.title, videos.title),',
       '  views = COALESCE(excluded.views, videos.views),',
       '  likes = COALESCE(excluded.likes, videos.likes),',
       '  img = COALESCE(excluded.img, videos.img),',
       '  preview = COALESCE(excluded.preview, videos.preview),',
+      '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
       '  updated_at = excluded.updated_at'
     ].join(' ')
   );
@@ -469,7 +726,17 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   try {
     for (var n = 0; n < normalizedRows.length; n++) {
       var video = normalizedRows[n];
-      upsertVideo.run(video.url, video.title, video.views, video.likes, video.img, video.preview, timestamp, timestamp);
+      upsertVideo.run(
+        video.url,
+        video.title,
+        video.views,
+        video.likes,
+        video.img,
+        video.preview,
+        video.searchText,
+        timestamp,
+        timestamp
+      );
       upsertItem.run(collectionKey, video.url, timestamp, timestamp, video.siteOrder, syncRunId);
     }
 

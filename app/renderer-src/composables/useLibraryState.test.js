@@ -59,12 +59,14 @@ describe('useLibraryState', function () {
       expect(api.countVideos).toHaveBeenCalledWith({
         collectionKey: 'favourites',
         search: '',
+        searchMode: 'any',
         sort: 'site_order',
         direction: 'asc'
       });
       expect(api.listVideos).toHaveBeenCalledWith({
         collectionKey: 'favourites',
         search: '',
+        searchMode: 'any',
         sort: 'site_order',
         direction: 'asc',
         limit: PAGE_SIZE,
@@ -82,6 +84,7 @@ describe('useLibraryState', function () {
       expect(api.listVideos).toHaveBeenLastCalledWith({
         collectionKey: 'favourites',
         search: '',
+        searchMode: 'any',
         sort: 'site_order',
         direction: 'asc',
         limit: PAGE_SIZE,
@@ -96,6 +99,7 @@ describe('useLibraryState', function () {
       expect(api.listVideos).toHaveBeenLastCalledWith({
         collectionKey: 'favourites',
         search: '',
+        searchMode: 'any',
         sort: 'site_order',
         direction: 'asc',
         limit: PAGE_SIZE,
@@ -140,6 +144,7 @@ describe('useLibraryState', function () {
       expect(api.listVideos).toHaveBeenLastCalledWith({
         collectionKey: 'watch_later',
         search: '',
+        searchMode: 'any',
         sort: 'site_order',
         direction: 'asc',
         limit: PAGE_SIZE,
@@ -171,8 +176,36 @@ describe('useLibraryState', function () {
       expect(api.listVideos).toHaveBeenLastCalledWith({
         collectionKey: 'favourites',
         search: 'keyword',
+        searchMode: 'any',
         sort: 'site_order',
         direction: 'desc',
+        limit: PAGE_SIZE,
+        offset: 0
+      });
+      expect(setup.state.currentPage.value).toBe(1);
+    } finally {
+      setup.stop();
+    }
+  });
+
+  it('uses updated search mode when watched filters change', async function () {
+    var api = {
+      countVideos: vi.fn().mockResolvedValue(0),
+      listVideos: vi.fn().mockResolvedValue([])
+    };
+    var setup = createState(api);
+
+    try {
+      setup.state.search.value = '肉便 老師';
+      setup.state.searchMode.value = 'all';
+      await settleWatchers();
+
+      expect(api.listVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '肉便 老師',
+        searchMode: 'all',
+        sort: 'site_order',
+        direction: 'asc',
         limit: PAGE_SIZE,
         offset: 0
       });

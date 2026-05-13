@@ -75,6 +75,14 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 | macOS：`Ctrl` + 點擊影片卡片             | 視為右鍵點擊，開啟影片選單                             |
 | 右鍵點擊影片卡片                         | 開啟影片選單，可在目前分頁開啟、在新分頁開啟或複製網址 |
 
+本機搜尋會搜尋標題與 URL，並支援三種搜尋模式：
+
+- **任一詞**：預設模式。以空白分隔關鍵字，命中任一關鍵字就會顯示。例如 `絕倫 老師` 會顯示包含 `絕倫` 或 `老師` 的項目。
+- **全部詞**：以空白分隔關鍵字，必須全部命中才會顯示。例如 `絕倫 老師` 只會顯示同時包含 `絕倫` 和 `老師` 的項目。
+- **精確片語**：以整段輸入搜尋連續片段，會正規化標點與空白。例如 `絕倫 老師` 可命中 `絕倫 老師` 或 `絕倫老師`，但不會命中 `絕倫 かわいい 老師`。
+
+搜尋只負責篩選結果；結果順序仍由右側的排序欄位與排序方向決定。
+
 ### 同步模式
 
 - **快速同步**：從 Jable 清單第 1 頁開始，遇到整頁都是已知影片後停止。它只會更新本次掃到影片的觀看數、喜歡數與網站排序。
@@ -186,6 +194,14 @@ The actions below are the supported keyboard shortcuts, mouse actions, trackpad 
 | Windows / Linux: `Ctrl` + click a cover or title | Open the video in a new browser tab and switch to it                               |
 | macOS: `Ctrl` + click a video card               | Treat as right-click and open the video menu                                       |
 | Right-click a video card                         | Open the video menu to open in the current tab, open in a new tab, or copy the URL |
+
+Local search checks titles and URLs and supports three modes:
+
+- **任一詞** (Any Term): the default. Split keywords on spaces and show items that match any keyword. For example, `絕倫 老師` shows items containing `絕倫` or `老師`.
+- **全部詞** (All Terms): split keywords on spaces and only show items that match every keyword. For example, `絕倫 老師` only shows items containing both `絕倫` and `老師`.
+- **精確片語** (Exact Phrase): search the input as one continuous phrase, with punctuation and spaces normalized. For example, `絕倫 老師` can match `絕倫 老師` or `絕倫老師`, but not `絕倫 かわいい 老師`.
+
+Search only filters the list; result order is still controlled by the sort field and sort direction on the right.
 
 ### Sync Modes
 

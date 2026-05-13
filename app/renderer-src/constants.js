@@ -27,6 +27,12 @@ export const SORT_OPTIONS = [
   { value: 'likes', label: '喜歡數' }
 ];
 
+export const SEARCH_MODE_OPTIONS = [
+  { value: 'any', label: '任一詞' },
+  { value: 'all', label: '全部詞' },
+  { value: 'phrase', label: '精確片語' }
+];
+
 export const DIRECTION_OPTIONS = [
   { value: 'asc', label: '遞增' },
   { value: 'desc', label: '遞減' }

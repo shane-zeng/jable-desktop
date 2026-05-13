@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import CollectionTabs from './CollectionTabs.vue';
 import PaginationControls from './PaginationControls.vue';
 import VideoCard from './VideoCard.vue';
-import { DIRECTION_OPTIONS, SORT_OPTIONS } from '../constants';
+import { DIRECTION_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
 
 defineProps({
   active: {
@@ -23,6 +23,10 @@ defineProps({
     required: true
   },
   search: {
+    type: String,
+    required: true
+  },
+  searchMode: {
     type: String,
     required: true
   },
@@ -63,6 +67,7 @@ var emit = defineEmits([
   'import-file',
   'export-json',
   'update:search',
+  'update:search-mode',
   'update:sort',
   'update:direction',
   'prev-page',
@@ -108,8 +113,13 @@ function handleImportFile(event) {
     </div>
 
     <div
-      class="grid grid-cols-[minmax(260px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[132px_minmax(260px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
     >
+      <select aria-label="搜尋模式" :value="searchMode" @change="emit('update:search-mode', $event.target.value)">
+        <option v-for="option in SEARCH_MODE_OPTIONS" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
+      </select>
       <input
         type="search"
         placeholder="搜尋標題或 URL"

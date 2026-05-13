@@ -1,13 +1,21 @@
 import { computed, ref, watch } from 'vue';
-import { COLLECTIONS, PAGE_SIZE, SORT_OPTIONS } from '../constants';
+import { COLLECTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
 
 var DEFAULT_SORT = 'site_order';
 var SORT_VALUES = SORT_OPTIONS.map(function (option) {
   return option.value;
 });
+var DEFAULT_SEARCH_MODE = 'any';
+var SEARCH_MODE_VALUES = SEARCH_MODE_OPTIONS.map(function (option) {
+  return option.value;
+});
 
 function normalizeSort(value) {
   return SORT_VALUES.indexOf(value) === -1 ? DEFAULT_SORT : value;
+}
+
+function normalizeSearchMode(value) {
+  return SEARCH_MODE_VALUES.indexOf(value) === -1 ? DEFAULT_SEARCH_MODE : value;
 }
 
 export function useLibraryState(api) {
@@ -16,6 +24,7 @@ export function useLibraryState(api) {
   var rows = ref([]);
   var totalRows = ref(0);
   var search = ref('');
+  var searchMode = ref('any');
   var sort = ref('site_order');
   var direction = ref('asc');
   var fullSyncContinuation = ref(null);
@@ -49,11 +58,14 @@ export function useLibraryState(api) {
   async function refreshVideos() {
     var token = ++refreshToken;
     var safeSort = normalizeSort(sort.value);
+    var safeSearchMode = normalizeSearchMode(searchMode.value);
     if (safeSort !== sort.value) sort.value = safeSort;
+    if (safeSearchMode !== searchMode.value) searchMode.value = safeSearchMode;
 
     var params = {
       collectionKey: activeCollection.value,
       search: search.value,
+      searchMode: safeSearchMode,
       sort: safeSort,
       direction: direction.value
     };
@@ -96,7 +108,7 @@ export function useLibraryState(api) {
     await refreshVideos();
   }
 
-  watch([search, sort, direction], function () {
+  watch([search, searchMode, sort, direction], function () {
     currentPage.value = 1;
     refreshVideos();
   });
@@ -112,6 +124,7 @@ export function useLibraryState(api) {
     countLabel: countLabel,
     pageLabel: pageLabel,
     search: search,
+    searchMode: searchMode,
     sort: sort,
     direction: direction,
     fullSyncContinuation: fullSyncContinuation,
