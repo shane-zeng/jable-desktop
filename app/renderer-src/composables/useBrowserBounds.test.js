@@ -123,6 +123,12 @@ describe('useBrowserBounds', function () {
           activeTabId: 'tab-2',
           tabs: [makeTabsState().tabs[0], Object.assign({}, makeTabsState().tabs[1], { locked: false })]
         })
+      ),
+      setBrowserTabMuted: vi.fn().mockResolvedValue(
+        makeTabsState({
+          activeTabId: 'tab-2',
+          tabs: [makeTabsState().tabs[0], Object.assign({}, makeTabsState().tabs[1], { muted: true })]
+        })
       )
     };
     var setup = createState(api);
@@ -148,6 +154,13 @@ describe('useBrowserBounds', function () {
         tabId: 'tab-2',
         locked: false
       });
+
+      await setup.state.setTabMuted('tab-2', true);
+      expect(api.setBrowserTabMuted).toHaveBeenCalledWith({
+        tabId: 'tab-2',
+        muted: true
+      });
+      expect(setup.state.tabs.value[1].muted).toBe(true);
     } finally {
       setup.stop();
     }

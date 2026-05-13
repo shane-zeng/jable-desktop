@@ -11,7 +11,12 @@ function makeTabs() {
       url: 'https://jable.tv/',
       favicon: 'https://jable.tv/favicon.ico',
       loading: false,
-      locked: false
+      locked: false,
+      muted: false,
+      audible: false,
+      mediaPlaying: false,
+      pictureInPicture: false,
+      discarded: false
     },
     {
       id: 'tab-2',
@@ -20,7 +25,12 @@ function makeTabs() {
       url: 'https://jable.tv/my/favourites/videos/',
       favicon: '',
       loading: true,
-      locked: true
+      locked: true,
+      muted: false,
+      audible: false,
+      mediaPlaying: false,
+      pictureInPicture: false,
+      discarded: false
     }
   ];
 }
@@ -66,6 +76,31 @@ describe('BrowserPanel', function () {
     expect(wrapper.emitted('new-tab')).toHaveLength(1);
     expect(wrapper.emitted('activate-tab')).toEqual([['tab-2']]);
     expect(wrapper.emitted('close-tab')).toEqual([['tab-1']]);
+  });
+
+  it('renders tab audio states and emits muted toggles', async function () {
+    var tabs = makeTabs();
+    tabs[0].audible = true;
+    tabs[1].muted = true;
+
+    var wrapper = mount(BrowserPanel, {
+      props: {
+        active: true,
+        tabs: tabs,
+        activeTabId: 'tab-1',
+        canCreateTab: true,
+        compact: false,
+        tabWidth: 220
+      }
+    });
+
+    await wrapper.find('[aria-label="分頁靜音"]').trigger('click');
+    await wrapper.find('[aria-label="取消分頁靜音"]').trigger('click');
+
+    expect(wrapper.emitted('set-tab-muted')).toEqual([
+      [{ tabId: 'tab-1', muted: true }],
+      [{ tabId: 'tab-2', muted: false }]
+    ]);
   });
 
   it('auto-hides compact floating tab rail until the left edge is hovered', async function () {

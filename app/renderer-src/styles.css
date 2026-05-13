@@ -200,6 +200,10 @@ button:focus {
   box-shadow: none;
 }
 
+.browser-tab-main.has-audio {
+  grid-template-columns: 28px 24px minmax(0, 1fr);
+}
+
 .browser-tab-title {
   display: block;
   overflow: hidden;
@@ -208,6 +212,7 @@ button:focus {
   mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent);
 }
 
+.browser-tab-audio,
 .browser-tab-close {
   min-height: 0;
   border: 0;
@@ -219,6 +224,12 @@ button:focus {
   transition:
     opacity 100ms ease,
     background-color 120ms ease;
+}
+
+.browser-tab-audio {
+  color: var(--muted);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .browser-tab-main:hover,
@@ -235,6 +246,14 @@ button:focus {
 .browser-tab-row:focus-within .browser-tab-close {
   opacity: 1;
   pointer-events: auto;
+}
+
+.browser-tab-audio.is-muted {
+  color: var(--accent-strong);
+}
+
+.browser-tab-audio.is-audible {
+  color: var(--focus);
 }
 
 .browser-tab-close:disabled {

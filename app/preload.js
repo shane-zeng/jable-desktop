@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld('jableApp', {
   setBrowserTabLocked: function (payload) {
     return ipcRenderer.invoke('browser:set-tab-locked', payload);
   },
+  setBrowserTabMuted: function (payload) {
+    return ipcRenderer.invoke('browser:set-tab-muted', payload);
+  },
   setBrowserBounds: function (bounds) {
     return ipcRenderer.invoke('browser:set-bounds', bounds);
   },

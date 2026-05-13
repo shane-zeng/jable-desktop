@@ -150,6 +150,15 @@ export function useBrowserBounds(api, activeView) {
     );
   }
 
+  async function setTabMuted(tabId, muted) {
+    applyTabsState(
+      await api.setBrowserTabMuted({
+        tabId: tabId,
+        muted: muted
+      })
+    );
+  }
+
   async function loadBrowser(url, forceReload, tabId) {
     var targetTabId = tabId || activeTabId.value;
     scheduleResize();
@@ -236,6 +245,7 @@ export function useBrowserBounds(api, activeView) {
     activateTab: activateTab,
     closeTab: closeTab,
     setTabLocked: setTabLocked,
+    setTabMuted: setTabMuted,
     loadBrowser: loadBrowser,
     currentBrowserUrl: currentBrowserUrl,
     hasTab: hasTab,

@@ -38,6 +38,7 @@ var emit = defineEmits([
   'new-tab',
   'activate-tab',
   'close-tab',
+  'set-tab-muted',
   'tab-context-menu',
   'resize-tabs'
 ]);
@@ -81,6 +82,14 @@ function displayTitle(tab) {
 function tabInitial(tab) {
   var title = displayTitle(tab);
   return title ? title.slice(0, 1).toUpperCase() : 'J';
+}
+
+function audioButtonLabel(tab) {
+  return tab.muted ? '取消分頁靜音' : '分頁靜音';
+}
+
+function hasAudioIndicator(tab) {
+  return !!(tab.muted || tab.audible || tab.mediaPlaying);
 }
 
 function showCompactTabs() {
@@ -202,11 +211,12 @@ onBeforeUnmount(function () {
           v-for="tab in tabs"
           :key="tab.id"
           class="browser-tab-row group relative mb-1 h-11 rounded-[13px] border border-transparent"
-          :class="{ 'is-active': tab.id === activeTabId }"
+          :class="{ 'is-active': tab.id === activeTabId, 'has-audio': hasAudioIndicator(tab) }"
           @contextmenu.prevent.stop="openTabMenu($event, tab)"
         >
           <button
-            class="browser-tab-main grid h-full w-full grid-cols-[28px_minmax(0,1fr)] items-center gap-2 border-0 bg-transparent px-2.5 py-0 pr-10 text-left hover:bg-transparent"
+            class="browser-tab-main grid h-full w-full items-center gap-2 border-0 bg-transparent px-2.5 py-0 pr-10 text-left hover:bg-transparent"
+            :class="hasAudioIndicator(tab) ? 'has-audio' : 'grid-cols-[28px_minmax(0,1fr)]'"
             type="button"
             role="tab"
             :title="displayTitle(tab)"
@@ -220,6 +230,35 @@ onBeforeUnmount(function () {
               :class="tab.locked ? 'bg-[var(--accent)] text-white' : 'bg-[var(--control)]'"
             >
               {{ tab.loading ? '...' : tabInitial(tab) }}
+            </span>
+            <span
+              v-if="hasAudioIndicator(tab)"
+              class="browser-tab-audio grid h-6 w-6 place-items-center text-[14px] leading-none"
+              :class="{
+                'is-muted': tab.muted,
+                'is-audible': tab.audible && !tab.muted
+              }"
+              role="button"
+              tabindex="-1"
+              :aria-label="audioButtonLabel(tab)"
+              @click.stop.prevent="emit('set-tab-muted', { tabId: tab.id, muted: !tab.muted })"
+            >
+              <svg v-if="tab.muted" class="h-[18px] w-[18px]" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M4 9v6h4l5 4V5L8 9H4Zm13.6 3 2.7-2.7-1.6-1.6-2.7 2.7-2.7-2.7-1.6 1.6 2.7 2.7-2.7 2.7 1.6 1.6 2.7-2.7 2.7 2.7 1.6-1.6L17.6 12Z"
+                />
+              </svg>
+              <svg v-else class="h-[18px] w-[18px]" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4Z" />
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="2"
+                  d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"
+                />
+              </svg>
             </span>
             <span class="browser-tab-title min-w-0 text-[14px] font-semibold leading-[1.25] text-[var(--text)]">
               {{ displayTitle(tab) }}

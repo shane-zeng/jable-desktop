@@ -2,6 +2,7 @@
 
 var electron = require('electron');
 var path = require('node:path');
+var browserTabPolicy = require('./browser-tab-policy');
 var JableDatabase = require('./database').JableDatabase;
 
 var app = electron.app;
@@ -10,6 +11,8 @@ var WebContentsView = electron.WebContentsView;
 var ipcMain = electron.ipcMain;
 var Menu = electron.Menu;
 var clipboard = electron.clipboard;
+var browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
+var serializedMediaState = browserTabPolicy.serializedMediaState;
 
 var JABLE_HOME_URL = 'https://jable.tv/';
 var JABLE_SESSION_PARTITION = 'persist:jable-session';
@@ -78,6 +81,10 @@ function createWindow() {
 
   loadRenderer();
   createBrowserTab({ url: JABLE_HOME_URL, active: true });
+}
+
+function shouldActivateWindowOpen(details) {
+  return !details || details.disposition !== 'background-tab';
 }
 
 function isPrimaryShortcut(input, key) {
@@ -248,18 +255,12 @@ function createBrowserTab(options) {
 
   var kind = options.kind === 'sync' ? 'sync' : 'normal';
   var id = 'tab-' + nextBrowserTabId++;
+  var preloadPath = path.join(__dirname, 'webview-preload.js');
   var tab = {
     id: id,
     kind: kind,
     view: new WebContentsView({
-      webPreferences: {
-        preload: path.join(__dirname, 'webview-preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        partition: JABLE_SESSION_PARTITION,
-        backgroundThrottling: false
-      }
+      webPreferences: browserTabWebPreferences(kind, preloadPath, JABLE_SESSION_PARTITION)
     }),
     attached: false,
     locked: !!options.locked,
@@ -267,6 +268,11 @@ function createBrowserTab(options) {
     url: options.url || '',
     favicon: options.favicon || '',
     loading: false,
+    muted: !!options.muted,
+    audible: false,
+    mediaPlaying: false,
+    pictureInPicture: false,
+    discarded: false,
     canGoBack: false,
     canGoForward: false
   };
@@ -289,12 +295,16 @@ function createBrowserTab(options) {
 function wireBrowserTab(tab) {
   registerAppShortcuts(tab.view.webContents);
 
+  if (tab.muted) {
+    tab.view.webContents.setAudioMuted(true);
+  }
+
   tab.view.webContents.setWindowOpenHandler(function (details) {
     if (details.url) {
       try {
         createBrowserTab({
           url: details.url,
-          active: true
+          active: shouldActivateWindowOpen(details)
         });
       } catch (error) {
         forwardBrowserMessage('browser-error', { message: error.message });
@@ -318,6 +328,7 @@ function wireBrowserTab(tab) {
 
   tab.view.webContents.on('did-start-loading', function () {
     tab.loading = true;
+    resetBrowserTabMediaState(tab);
     updateTabNavigationState(tab);
     notifyBrowserTabsChanged();
   });
@@ -352,6 +363,24 @@ function wireBrowserTab(tab) {
     notifyBrowserTabsChanged();
   });
 
+  tab.view.webContents.on('media-started-playing', function () {
+    tab.mediaPlaying = true;
+    syncBrowserTabMediaState(tab);
+    notifyBrowserTabsChanged();
+  });
+
+  tab.view.webContents.on('media-paused', function () {
+    tab.mediaPlaying = false;
+    syncBrowserTabMediaState(tab);
+    notifyBrowserTabsChanged();
+  });
+
+  tab.view.webContents.on('audio-state-changed', function (event) {
+    tab.audible = !!(event && event.audible);
+    syncBrowserTabMediaState(tab);
+    notifyBrowserTabsChanged();
+  });
+
   tab.view.webContents.on('context-menu', function (_event, params) {
     showBrowserContextMenu(tab, params);
   });
@@ -366,8 +395,9 @@ function cleanTitle(title) {
 function getBrowserTab(tabId) {
   var id = tabId || activeBrowserTabId;
   var tab = id ? browserTabsById[id] : null;
+  var webContents = tab && tab.view ? tab.view.webContents : null;
 
-  if (!tab || tab.view.webContents.isDestroyed()) {
+  if (!tab || !webContents || webContents.isDestroyed()) {
     throw new Error('找不到瀏覽器分頁');
   }
 
@@ -380,8 +410,33 @@ function getBrowserTabByWebContents(webContents) {
   return tabId ? browserTabsById[tabId] : null;
 }
 
+function resetBrowserTabMediaState(tab) {
+  if (!tab) return;
+
+  tab.audible = false;
+  tab.mediaPlaying = false;
+  tab.pictureInPicture = false;
+}
+
+function syncBrowserTabMediaState(tab) {
+  var webContents = tab && tab.view ? tab.view.webContents : null;
+
+  if (!webContents || webContents.isDestroyed()) return;
+
+  try {
+    tab.muted = webContents.isAudioMuted();
+  } catch (error) {}
+
+  try {
+    tab.audible = webContents.isCurrentlyAudible();
+  } catch (error) {}
+}
+
 function serializeBrowserTab(tab) {
   updateTabNavigationState(tab);
+  syncBrowserTabMediaState(tab);
+
+  var mediaState = serializedMediaState(tab);
 
   return {
     id: tab.id,
@@ -391,6 +446,11 @@ function serializeBrowserTab(tab) {
     favicon: tab.favicon || '',
     loading: !!tab.loading,
     locked: !!tab.locked,
+    muted: mediaState.muted,
+    audible: mediaState.audible,
+    mediaPlaying: mediaState.mediaPlaying,
+    pictureInPicture: mediaState.pictureInPicture,
+    discarded: mediaState.discarded,
     canGoBack: !!tab.canGoBack,
     canGoForward: !!tab.canGoForward
   };
@@ -549,6 +609,16 @@ function setBrowserTabLocked(payload) {
   return browserTabsState();
 }
 
+function setBrowserTabMuted(payload) {
+  payload = payload || {};
+  var tab = getBrowserTab(payload.tabId);
+
+  tab.view.webContents.setAudioMuted(!!payload.muted);
+  syncBrowserTabMediaState(tab);
+  notifyBrowserTabsChanged();
+  return browserTabsState();
+}
+
 function waitForBrowserStop(tab, timeoutMs) {
   return new Promise(function (resolve) {
     var done = false;
@@ -701,9 +771,9 @@ function showBrowserContextMenu(tab, params) {
 
   if (linkUrl) {
     items.push({
-      label: '在新分頁開啟連結',
+      label: '在背景新分頁開啟連結',
       click: function () {
-        safeCreateBrowserTab({ url: linkUrl, active: true });
+        safeCreateBrowserTab({ url: linkUrl, active: false });
       }
     });
     items.push({
@@ -719,9 +789,9 @@ function showBrowserContextMenu(tab, params) {
 
     var mediaLabel = contextMediaLabel(params.mediaType);
     items.push({
-      label: '在新分頁開啟' + mediaLabel,
+      label: '在背景新分頁開啟' + mediaLabel,
       click: function () {
-        safeCreateBrowserTab({ url: srcUrl, active: true });
+        safeCreateBrowserTab({ url: srcUrl, active: false });
       }
     });
     items.push({
@@ -791,6 +861,8 @@ function showBrowserTabMenu(payload) {
 
   payload = payload || {};
   var tab = getBrowserTab(payload.tabId);
+  syncBrowserTabMediaState(tab);
+
   var items = [
     {
       label: '新增分頁',
@@ -811,6 +883,12 @@ function showBrowserTabMenu(payload) {
       enabled: !tab.locked,
       click: function () {
         reloadBrowser(tab.id);
+      }
+    },
+    {
+      label: tab.muted ? '取消分頁靜音' : '分頁靜音',
+      click: function () {
+        setBrowserTabMuted({ tabId: tab.id, muted: !tab.muted });
       }
     },
     {
@@ -1042,6 +1120,10 @@ function registerIpcHandlers() {
     return setBrowserTabLocked(payload);
   });
 
+  ipcMain.handle('browser:set-tab-muted', function (_event, payload) {
+    return setBrowserTabMuted(payload);
+  });
+
   ipcMain.handle('browser:set-bounds', function (_event, bounds) {
     return setBrowserBounds(bounds);
   });
@@ -1125,7 +1207,7 @@ function registerIpcHandlers() {
     payload = payload || {};
     if (!payload.url) return;
 
-    safeCreateBrowserTab({ url: payload.url, active: true });
+    safeCreateBrowserTab({ url: payload.url, active: false });
   });
 }
 

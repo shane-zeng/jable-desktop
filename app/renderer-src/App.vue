@@ -475,6 +475,17 @@ async function closeBrowserTab(tabId) {
   }
 }
 
+async function setBrowserTabMuted(payload) {
+  payload = payload || {};
+
+  try {
+    await browser.setTabMuted(payload.tabId, payload.muted);
+  } catch (error) {
+    console.error(error);
+    setStatus('切換分頁靜音失敗：' + error.message);
+  }
+}
+
 async function showBrowserTabMenu(payload) {
   try {
     await api.showBrowserTabMenu(
@@ -542,6 +553,7 @@ onMounted(async function () {
         @new-tab="newBrowserTab"
         @activate-tab="activateBrowserTab"
         @close-tab="closeBrowserTab"
+        @set-tab-muted="setBrowserTabMuted"
         @tab-context-menu="showBrowserTabMenu"
         @resize-tabs="setBrowserTabsWidth"
         @layout-change="browser.scheduleResize"

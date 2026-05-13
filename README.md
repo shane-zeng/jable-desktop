@@ -45,17 +45,17 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 
 | 操作                          | 效果                                                                           |
 | ----------------------------- | ------------------------------------------------------------------------------ |
-| macOS：`Cmd` + `T`            | 開啟新的 Jable 分頁                                                            |
+| macOS：`Cmd` + `T`            | 開啟新的 Jable 分頁並切換到該分頁                                              |
 | macOS：`Cmd` + `W`            | 關閉目前瀏覽器分頁；同步中的分頁不能關閉                                       |
-| Windows / Linux：`Ctrl` + `T` | 開啟新的 Jable 分頁                                                            |
+| Windows / Linux：`Ctrl` + `T` | 開啟新的 Jable 分頁並切換到該分頁                                              |
 | Windows / Linux：`Ctrl` + `W` | 關閉目前瀏覽器分頁；同步中的分頁不能關閉                                       |
 | 點擊分頁                      | 切換到該分頁                                                                   |
-| 點擊 **+ 新增分頁**           | 開啟新的 Jable 分頁                                                            |
+| 點擊 **+ 新增分頁**           | 開啟新的 Jable 分頁並切換到該分頁                                              |
 | 點擊分頁上的 **×**            | 關閉該分頁；同步中的分頁不能關閉                                               |
 | 右鍵點擊分頁或分頁列          | 開啟分頁選單，可新增分頁、切換分頁、重新整理、複製網址、切換緊湊模式或關閉分頁 |
-| 滑鼠中鍵點擊網頁連結          | 在新分頁開啟連結                                                               |
-| 右鍵點擊網頁連結              | 可在新分頁開啟連結或複製連結網址                                               |
-| 右鍵點擊圖片、影片或音訊      | 可在新分頁開啟媒體或複製媒體網址                                               |
+| 滑鼠中鍵點擊網頁連結          | 在背景新分頁開啟連結，並留在目前分頁                                           |
+| 右鍵點擊網頁連結              | 可在背景新分頁開啟連結或複製連結網址                                           |
+| 右鍵點擊圖片、影片或音訊      | 可在背景新分頁開啟媒體或複製媒體網址                                           |
 | 右鍵點擊選取文字              | 可複製選取文字                                                                 |
 | 右鍵點擊一般網頁區域          | 可上一頁、下一頁、重新整理、新增分頁或複製目前頁面網址                         |
 | 右鍵點擊輸入框                | 可復原、重做、剪下、複製、貼上或全選                                           |
@@ -69,9 +69,9 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 | 操作                                     | 效果                                                   |
 | ---------------------------------------- | ------------------------------------------------------ |
 | 點擊封面或標題                           | 在目前瀏覽器分頁開啟影片                               |
-| 滑鼠中鍵點擊封面或標題                   | 在新分頁開啟影片                                       |
-| macOS：`Cmd` + 點擊封面或標題            | 在新分頁開啟影片                                       |
-| Windows / Linux：`Ctrl` + 點擊封面或標題 | 在新分頁開啟影片                                       |
+| 滑鼠中鍵點擊封面或標題                   | 在新分頁開啟影片並切換到瀏覽器新分頁                   |
+| macOS：`Cmd` + 點擊封面或標題            | 在新分頁開啟影片並切換到瀏覽器新分頁                   |
+| Windows / Linux：`Ctrl` + 點擊封面或標題 | 在新分頁開啟影片並切換到瀏覽器新分頁                   |
 | macOS：`Ctrl` + 點擊影片卡片             | 視為右鍵點擊，開啟影片選單                             |
 | 右鍵點擊影片卡片                         | 開啟影片選單，可在目前分頁開啟、在新分頁開啟或複製網址 |
 
@@ -157,17 +157,17 @@ The actions below are the supported keyboard shortcuts, mouse actions, trackpad 
 
 | Action                                        | Result                                                                                           |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| macOS: `Cmd` + `T`                            | Open a new Jable tab                                                                             |
+| macOS: `Cmd` + `T`                            | Open a new Jable tab and switch to it                                                            |
 | macOS: `Cmd` + `W`                            | Close the current browser tab; sync tabs cannot be closed                                        |
-| Windows / Linux: `Ctrl` + `T`                 | Open a new Jable tab                                                                             |
+| Windows / Linux: `Ctrl` + `T`                 | Open a new Jable tab and switch to it                                                            |
 | Windows / Linux: `Ctrl` + `W`                 | Close the current browser tab; sync tabs cannot be closed                                        |
 | Click a tab                                   | Switch to that tab                                                                               |
-| Click **+ 新增分頁** (New Tab)                | Open a new Jable tab                                                                             |
+| Click **+ 新增分頁** (New Tab)                | Open a new Jable tab and switch to it                                                            |
 | Click **×** on a tab                          | Close that tab; sync tabs cannot be closed                                                       |
 | Right-click a tab or the tab rail             | Open the tab menu to create, switch, reload, copy the URL, toggle compact mode, or close the tab |
-| Middle-click a page link                      | Open the link in a new tab                                                                       |
-| Right-click a page link                       | Open the link in a new tab or copy the link URL                                                  |
-| Right-click an image, video, or audio item    | Open the media in a new tab or copy the media URL                                                |
+| Middle-click a page link                      | Open the link in a background tab and stay on the current tab                                    |
+| Right-click a page link                       | Open the link in a background tab or copy the link URL                                           |
+| Right-click an image, video, or audio item    | Open the media in a background tab or copy the media URL                                         |
 | Right-click selected text                     | Copy the selected text                                                                           |
 | Right-click a regular page area               | Go back, go forward, reload, create a new tab, or copy the current page URL                      |
 | Right-click an input field                    | Undo, redo, cut, copy, paste, or select all                                                      |
@@ -181,9 +181,9 @@ The actions below are the supported keyboard shortcuts, mouse actions, trackpad 
 | Action                                           | Result                                                                             |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | Click a cover or title                           | Open the video in the current browser tab                                          |
-| Middle-click a cover or title                    | Open the video in a new tab                                                        |
-| macOS: `Cmd` + click a cover or title            | Open the video in a new tab                                                        |
-| Windows / Linux: `Ctrl` + click a cover or title | Open the video in a new tab                                                        |
+| Middle-click a cover or title                    | Open the video in a new browser tab and switch to it                               |
+| macOS: `Cmd` + click a cover or title            | Open the video in a new browser tab and switch to it                               |
+| Windows / Linux: `Ctrl` + click a cover or title | Open the video in a new browser tab and switch to it                               |
 | macOS: `Ctrl` + click a video card               | Treat as right-click and open the video menu                                       |
 | Right-click a video card                         | Open the video menu to open in the current tab, open in a new tab, or copy the URL |
 
