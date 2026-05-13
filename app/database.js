@@ -11,6 +11,7 @@ try {
 }
 
 var PAGE_SIZE = 24;
+var EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
 
 var COLLECTIONS = [
   { key: 'favourites', name: '影片收藏', sourcePath: '/my/favourites/videos/' },
@@ -89,6 +90,37 @@ function exportVideo(row) {
   };
 }
 
+function exportPage(rows, pageNumber, exportedAt) {
+  var data = rows.map(exportVideo);
+
+  return {
+    data: data,
+    meta: {
+      current_page: pageNumber,
+      per_page: PAGE_SIZE,
+      count: data.length,
+      first_url: data.length ? data[0].url : null,
+      last_url: data.length ? data[data.length - 1].url : null,
+      exported_at: exportedAt
+    }
+  };
+}
+
+function exportMeta(collection, state, exportedAt, total, pageCount) {
+  return {
+    format_version: 2,
+    source_path: collection.sourcePath,
+    source_url: 'https://jable.tv' + collection.sourcePath,
+    exported_at: exportedAt,
+    completed: !!(state && state.completed),
+    per_page: PAGE_SIZE,
+    page_count: pageCount,
+    total: total,
+    last_page: pageCount ? pageCount : null,
+    last_scraped_page: state ? state.last_scraped_page : null
+  };
+}
+
 function flattenResource(resource) {
   var rows = [];
   if (!resource || !Array.isArray(resource.data)) return rows;
@@ -109,19 +141,7 @@ function rowsByPage(rows) {
   var exportedAt = nowIso();
 
   for (var i = 0; i < rows.length; i += PAGE_SIZE) {
-    var chunk = rows.slice(i, i + PAGE_SIZE).map(exportVideo);
-
-    pages.push({
-      data: chunk,
-      meta: {
-        current_page: Math.floor(i / PAGE_SIZE) + 1,
-        per_page: PAGE_SIZE,
-        count: chunk.length,
-        first_url: chunk.length ? chunk[0].url : null,
-        last_url: chunk.length ? chunk[chunk.length - 1].url : null,
-        exported_at: exportedAt
-      }
-    });
+    pages.push(exportPage(rows.slice(i, i + PAGE_SIZE), Math.floor(i / PAGE_SIZE) + 1, exportedAt));
   }
 
   return pages;
@@ -180,6 +200,16 @@ function normalizeOffset(value) {
   var number = normalizeNumber(value);
   if (number === null || number <= 0) return 0;
   return Math.floor(number);
+}
+
+function exportTempPath(filePath) {
+  return filePath + '.tmp-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+}
+
+function nextTick() {
+  return new Promise(function (resolve) {
+    setImmediate(resolve);
+  });
 }
 
 function ensureDirectory(filePath) {
@@ -553,22 +583,79 @@ JableDatabase.prototype.exportResource = function (collectionKey) {
   var rows = this.listVideos(collectionKey, { sort: 'site_order', direction: 'asc' });
   var state = this.getSyncState(collectionKey);
   var pages = rowsByPage(rows);
+  var exportedAt = nowIso();
 
   return {
     data: pages,
-    meta: {
-      format_version: 2,
-      source_path: collection.sourcePath,
-      source_url: 'https://jable.tv' + collection.sourcePath,
-      exported_at: nowIso(),
-      completed: !!(state && state.completed),
-      per_page: PAGE_SIZE,
-      page_count: pages.length,
-      total: rows.length,
-      last_page: pages.length ? pages[pages.length - 1].meta.current_page : null,
-      last_scraped_page: state ? state.last_scraped_page : null
-    }
+    meta: exportMeta(collection, state, exportedAt, rows.length, pages.length)
   };
+};
+
+JableDatabase.prototype.exportResourceToFile = async function (collectionKey, filePath) {
+  this.ensureCollection(collectionKey);
+  if (!filePath) throw new Error('Export file path is required');
+
+  ensureDirectory(filePath);
+
+  var collection = collectionByKey(collectionKey);
+  var state = this.getSyncState(collectionKey);
+  var exportedAt = nowIso();
+  var total = this.countVideos(collectionKey);
+  var pageCount = Math.ceil(total / PAGE_SIZE);
+  var meta = exportMeta(collection, state, exportedAt, total, pageCount);
+  var tempPath = exportTempPath(filePath);
+  var handle = null;
+  var offset = 0;
+  var pageNumber = 1;
+  var hasPages = false;
+
+  try {
+    handle = await fs.promises.open(tempPath, 'w');
+    await handle.write('{"data":[');
+
+    while (offset < total) {
+      var rows = this.listVideos(collectionKey, {
+        sort: 'site_order',
+        direction: 'asc',
+        limit: EXPORT_BATCH_SIZE,
+        offset: offset
+      });
+
+      if (!rows.length) break;
+
+      for (var i = 0; i < rows.length; i += PAGE_SIZE) {
+        if (hasPages) await handle.write(',');
+        await handle.write(JSON.stringify(exportPage(rows.slice(i, i + PAGE_SIZE), pageNumber, exportedAt)));
+        hasPages = true;
+        pageNumber++;
+      }
+
+      offset += rows.length;
+      await nextTick();
+    }
+
+    await handle.write('],"meta":' + JSON.stringify(meta) + '}\n');
+    await handle.close();
+    handle = null;
+    await fs.promises.rename(tempPath, filePath);
+
+    return {
+      filePath: filePath,
+      total: total
+    };
+  } catch (error) {
+    if (handle) {
+      try {
+        await handle.close();
+      } catch (closeError) {}
+    }
+
+    try {
+      await fs.promises.unlink(tempPath);
+    } catch (unlinkError) {}
+
+    throw error;
+  }
 };
 
 module.exports = {

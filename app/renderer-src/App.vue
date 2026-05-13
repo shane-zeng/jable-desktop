@@ -388,27 +388,25 @@ async function prepareSyncTab(collectionKey, collection, mode, continuation) {
   };
 }
 
-function downloadJson(filename, data) {
-  var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
-}
-
 async function exportActiveCollection() {
-  if (busy.value) return;
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
 
   try {
-    var resource = await api.exportJson(library.activeCollection.value);
-    downloadJson(currentCollection().filename, resource);
-    setStatus('已匯出 ' + currentCollection().filename);
+    var result = await api.exportJsonFile(library.activeCollection.value);
+
+    if (result && result.canceled) {
+      setStatus('已取消匯出');
+      return;
+    }
+
+    setStatus('已匯出 ' + ((result && result.filename) || currentCollection().filename));
   } catch (error) {
     console.error(error);
     setStatus('匯出失敗：' + error.message);
+  } finally {
+    busy.value = false;
   }
 }
 

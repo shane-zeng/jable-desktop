@@ -3,7 +3,9 @@
 var electron = require('electron');
 var path = require('node:path');
 var browserTabPolicy = require('./browser-tab-policy');
-var JableDatabase = require('./database').JableDatabase;
+var databaseModule = require('./database');
+var JableDatabase = databaseModule.JableDatabase;
+var COLLECTIONS = databaseModule.COLLECTIONS;
 
 var app = electron.app;
 var BrowserWindow = electron.BrowserWindow;
@@ -11,6 +13,7 @@ var WebContentsView = electron.WebContentsView;
 var ipcMain = electron.ipcMain;
 var Menu = electron.Menu;
 var clipboard = electron.clipboard;
+var dialog = electron.dialog;
 var browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
 var serializedMediaState = browserTabPolicy.serializedMediaState;
 
@@ -742,6 +745,39 @@ function copyText(value) {
   clipboard.writeText(String(value));
 }
 
+function exportFilenameForCollection(collectionKey) {
+  for (var i = 0; i < COLLECTIONS.length; i++) {
+    if (COLLECTIONS[i].key === collectionKey) {
+      return collectionKey === 'watch_later' ? 'watch_later_list.json' : 'favourites_list.json';
+    }
+  }
+
+  throw new Error('Unknown collection: ' + collectionKey);
+}
+
+async function exportJsonFile(collectionKey) {
+  var filename = exportFilenameForCollection(collectionKey);
+  var dialogOptions = {
+    title: '匯出 JSON',
+    defaultPath: path.join(app.getPath('downloads'), filename),
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  };
+  var result =
+    mainWindow && !mainWindow.isDestroyed()
+      ? await dialog.showSaveDialog(mainWindow, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions);
+
+  if (result.canceled || !result.filePath) return { canceled: true };
+
+  var exported = await getDatabase().exportResourceToFile(collectionKey, result.filePath);
+
+  return {
+    canceled: false,
+    filename: path.basename(exported.filePath),
+    total: exported.total
+  };
+}
+
 function contextMediaLabel(mediaType) {
   if (mediaType === 'image') return '圖片';
   if (mediaType === 'video') return '影片';
@@ -1095,6 +1131,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('db:export-json', function (_event, collectionKey) {
     return getDatabase().exportResource(collectionKey);
+  });
+
+  ipcMain.handle('db:export-json-file', function (_event, collectionKey) {
+    return exportJsonFile(collectionKey);
   });
 
   ipcMain.handle('library:show-video-menu', function (_event, payload) {

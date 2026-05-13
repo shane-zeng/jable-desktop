@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('jableApp', {
   exportJson: function (collectionKey) {
     return ipcRenderer.invoke('db:export-json', collectionKey);
   },
+  exportJsonFile: function (collectionKey) {
+    return ipcRenderer.invoke('db:export-json-file', collectionKey);
+  },
   listBrowserTabs: function () {
     return ipcRenderer.invoke('browser:list-tabs');
   },

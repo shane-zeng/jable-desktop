@@ -20,6 +20,24 @@ function createTestDatabase(t) {
   return db;
 }
 
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function withoutExportedAt(resource) {
+  var copy = JSON.parse(JSON.stringify(resource));
+
+  if (copy.meta) delete copy.meta.exported_at;
+
+  if (Array.isArray(copy.data)) {
+    for (var i = 0; i < copy.data.length; i++) {
+      if (copy.data[i] && copy.data[i].meta) delete copy.data[i].meta.exported_at;
+    }
+  }
+
+  return copy;
+}
+
 test('saveSyncPage upserts videos and keeps one collection item per URL', function (t) {
   var db = createTestDatabase(t);
 
@@ -622,4 +640,92 @@ test('importResource accepts sort_order as an import alias and exports site_orde
     }),
     [1, 2]
   );
+});
+
+test('exportResourceToFile writes JSON equivalent to exportResource', async function (t) {
+  var db = createTestDatabase(t);
+  var filePath = path.join(path.dirname(db.filePath), 'favourites-export.json');
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Second',
+        url: 'https://jable.tv/videos/second/',
+        views: 20,
+        likes: 2,
+        siteOrder: 2
+      },
+      {
+        title: 'First',
+        url: 'https://jable.tv/videos/first/',
+        views: 10,
+        likes: 1,
+        siteOrder: 1
+      }
+    ]
+  });
+
+  var result = await db.exportResourceToFile('favourites', filePath);
+  var written = readJson(filePath);
+  var expected = db.exportResource('favourites');
+
+  assert.equal(result.filePath, filePath);
+  assert.equal(result.total, 2);
+  assert.deepEqual(withoutExportedAt(written), withoutExportedAt(expected));
+});
+
+test('exportResourceToFile writes an empty collection resource', async function (t) {
+  var db = createTestDatabase(t);
+  var filePath = path.join(path.dirname(db.filePath), 'empty-export.json');
+
+  var result = await db.exportResourceToFile('watch_later', filePath);
+  var written = readJson(filePath);
+
+  assert.equal(result.total, 0);
+  assert.deepEqual(written.data, []);
+  assert.equal(written.meta.format_version, 2);
+  assert.equal(written.meta.total, 0);
+  assert.equal(written.meta.page_count, 0);
+  assert.equal(written.meta.last_page, null);
+});
+
+test('exportResourceToFile chunks rows into paged JSON metadata', async function (t) {
+  var db = createTestDatabase(t);
+  var filePath = path.join(path.dirname(db.filePath), 'paged-export.json');
+  var rows = [];
+
+  for (var i = 1; i <= 25; i++) {
+    rows.push({
+      title: 'Video ' + i,
+      url: 'https://jable.tv/videos/video-' + i + '/',
+      views: i,
+      likes: i,
+      siteOrder: i
+    });
+  }
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: rows
+  });
+
+  await db.exportResourceToFile('favourites', filePath);
+  var written = readJson(filePath);
+
+  assert.equal(written.meta.total, 25);
+  assert.equal(written.meta.page_count, 2);
+  assert.equal(written.meta.last_page, 2);
+  assert.equal(written.data.length, 2);
+  assert.equal(written.data[0].meta.current_page, 1);
+  assert.equal(written.data[0].meta.count, 24);
+  assert.equal(written.data[0].meta.first_url, 'https://jable.tv/videos/video-1/');
+  assert.equal(written.data[0].meta.last_url, 'https://jable.tv/videos/video-24/');
+  assert.equal(written.data[1].meta.current_page, 2);
+  assert.equal(written.data[1].meta.count, 1);
+  assert.equal(written.data[1].meta.first_url, 'https://jable.tv/videos/video-25/');
+  assert.equal(written.data[1].meta.last_url, 'https://jable.tv/videos/video-25/');
+  assert.equal(written.data[1].data[0].site_order, 25);
 });
