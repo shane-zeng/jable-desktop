@@ -986,6 +986,10 @@ function registerIpcHandlers() {
     return getDatabase().listVideos(options.collectionKey, options);
   });
 
+  ipcMain.handle('db:count-videos', function (_event, options) {
+    return getDatabase().countVideos(options.collectionKey, options);
+  });
+
   ipcMain.handle('db:collection-urls', function (_event, collectionKey) {
     return getDatabase().getCollectionUrls(collectionKey);
   });

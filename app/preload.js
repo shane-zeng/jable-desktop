@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('jableApp', {
   listVideos: function (options) {
     return ipcRenderer.invoke('db:list-videos', options);
   },
+  countVideos: function (options) {
+    return ipcRenderer.invoke('db:count-videos', options);
+  },
   getCollectionUrls: function (collectionKey) {
     return ipcRenderer.invoke('db:collection-urls', collectionKey);
   },

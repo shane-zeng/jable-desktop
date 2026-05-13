@@ -127,6 +127,61 @@ function rowsByPage(rows) {
   return pages;
 }
 
+function buildVideoListQuery(collectionKey, options) {
+  options = options || {};
+
+  var sortMap = {
+    site_order: 'site_order',
+    title: 'v.title',
+    views: 'v.views',
+    likes: 'v.likes',
+    updated_at: 'v.updated_at',
+    last_seen_at: 'ci.last_seen_at'
+  };
+  var sortKey = sortMap[options.sort] ? options.sort : 'site_order';
+  var sort = sortMap[sortKey];
+  var direction = options.direction
+    ? options.direction === 'asc'
+      ? 'ASC'
+      : 'DESC'
+    : sortKey === 'site_order'
+      ? 'ASC'
+      : 'DESC';
+  var params = [collectionKey];
+  var where = 'WHERE ci.collection_key = ?';
+
+  if (!options.includeHidden) {
+    where += ' AND ci.is_visible = 1';
+  }
+
+  if (options.search && String(options.search).trim()) {
+    where += ' AND (LOWER(v.title) LIKE LOWER(?) OR v.url LIKE ?)';
+    var like = '%' + String(options.search).trim() + '%';
+    params.push(like, like);
+  }
+
+  return {
+    params: params,
+    where: where,
+    orderBy:
+      sort === 'site_order'
+        ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
+        : sort + ' ' + direction + ', v.url ASC'
+  };
+}
+
+function normalizeLimit(value) {
+  var number = normalizeNumber(value);
+  if (number === null || number <= 0) return null;
+  return Math.floor(number);
+}
+
+function normalizeOffset(value) {
+  var number = normalizeNumber(value);
+  if (number === null || number <= 0) return 0;
+  return Math.floor(number);
+}
+
 function ensureDirectory(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
@@ -236,52 +291,40 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
   this.ensureCollection(collectionKey);
   options = options || {};
 
-  var sortMap = {
-    site_order: 'site_order',
-    title: 'v.title',
-    views: 'v.views',
-    likes: 'v.likes',
-    updated_at: 'v.updated_at',
-    last_seen_at: 'ci.last_seen_at'
-  };
-  var sortKey = sortMap[options.sort] ? options.sort : 'site_order';
-  var sort = sortMap[sortKey];
-  var direction = options.direction
-    ? options.direction === 'asc'
-      ? 'ASC'
-      : 'DESC'
-    : sortKey === 'site_order'
-      ? 'ASC'
-      : 'DESC';
-  var params = [collectionKey];
-  var where = 'WHERE ci.collection_key = ?';
-
-  if (!options.includeHidden) {
-    where += ' AND ci.is_visible = 1';
-  }
-
-  if (options.search && String(options.search).trim()) {
-    where += ' AND (LOWER(v.title) LIKE LOWER(?) OR v.url LIKE ?)';
-    var like = '%' + String(options.search).trim() + '%';
-    params.push(like, like);
-  }
-
-  var orderBy =
-    sort === 'site_order'
-      ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
-      : sort + ' ' + direction + ', v.url ASC';
+  var query = buildVideoListQuery(collectionKey, options);
+  var limit = normalizeLimit(options.limit);
   var sql = [
     'SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,',
     '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,',
     '       ci.site_order, ci.is_visible, ci.missing_at, ci.last_sync_run_id',
     'FROM collection_items ci',
     'JOIN videos v ON v.url = ci.video_url',
-    where,
-    'ORDER BY ' + orderBy
+    query.where,
+    'ORDER BY ' + query.orderBy
   ].join(' ');
+
+  if (limit !== null) {
+    sql += ' LIMIT ? OFFSET ?';
+    query.params.push(limit, normalizeOffset(options.offset));
+  }
+
   var stmt = this.db.prepare(sql);
 
-  return stmt.all.apply(stmt, params);
+  return stmt.all.apply(stmt, query.params);
+};
+
+JableDatabase.prototype.countVideos = function (collectionKey, options) {
+  this.ensureCollection(collectionKey);
+
+  var query = buildVideoListQuery(collectionKey, options);
+  var stmt = this.db.prepare(
+    ['SELECT COUNT(*) AS total', 'FROM collection_items ci', 'JOIN videos v ON v.url = ci.video_url', query.where].join(
+      ' '
+    )
+  );
+  var row = stmt.get.apply(stmt, query.params);
+
+  return row ? row.total : 0;
 };
 
 JableDatabase.prototype.getCollectionUrls = function (collectionKey) {

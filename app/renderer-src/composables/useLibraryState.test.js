@@ -13,6 +13,17 @@ function makeRows(count) {
   });
 }
 
+function createPagedApi(rows) {
+  return {
+    countVideos: vi.fn().mockResolvedValue(rows.length),
+    listVideos: vi.fn().mockImplementation(function (options) {
+      var start = options.offset || 0;
+      var end = start + (options.limit || rows.length);
+      return Promise.resolve(rows.slice(start, end));
+    })
+  };
+}
+
 function createState(api) {
   var scope = effectScope();
   var state;
@@ -37,36 +48,59 @@ async function settleWatchers() {
 }
 
 describe('useLibraryState', function () {
-  it('refreshes videos with the current list parameters and paginates rows', async function () {
+  it('refreshes videos with the current list parameters and loads one page at a time', async function () {
     var rows = makeRows(PAGE_SIZE + 1);
-    var api = {
-      listVideos: vi.fn().mockResolvedValue(rows)
-    };
+    var api = createPagedApi(rows);
     var setup = createState(api);
 
     try {
       await setup.state.refreshVideos();
 
-      expect(api.listVideos).toHaveBeenCalledWith({
+      expect(api.countVideos).toHaveBeenCalledWith({
         collectionKey: 'favourites',
         search: '',
         sort: 'site_order',
         direction: 'asc'
       });
+      expect(api.listVideos).toHaveBeenCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        sort: 'site_order',
+        direction: 'asc',
+        limit: PAGE_SIZE,
+        offset: 0
+      });
+      expect(setup.state.rows.value).toHaveLength(PAGE_SIZE);
       expect(setup.state.totalPages.value).toBe(2);
       expect(setup.state.pageRows.value).toHaveLength(PAGE_SIZE);
       expect(setup.state.countLabel.value).toBe(PAGE_SIZE + 1 + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆');
       expect(setup.state.pageLabel.value).toBe('第 1 / 2 頁');
 
-      setup.state.goToPage(2);
+      await setup.state.goToPage(2);
       expect(setup.state.currentPage.value).toBe(2);
       expect(setup.state.pageRows.value).toHaveLength(1);
+      expect(api.listVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        sort: 'site_order',
+        direction: 'asc',
+        limit: PAGE_SIZE,
+        offset: PAGE_SIZE
+      });
 
-      setup.state.goToPage(99);
+      await setup.state.goToPage(99);
       expect(setup.state.currentPage.value).toBe(2);
 
-      setup.state.goToPage(0);
+      await setup.state.goToPage(0);
       expect(setup.state.currentPage.value).toBe(1);
+      expect(api.listVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        sort: 'site_order',
+        direction: 'asc',
+        limit: PAGE_SIZE,
+        offset: 0
+      });
     } finally {
       setup.stop();
     }
@@ -74,6 +108,7 @@ describe('useLibraryState', function () {
 
   it('normalizes invalid sort values before listing videos', async function () {
     var api = {
+      countVideos: vi.fn().mockResolvedValue(0),
       listVideos: vi.fn().mockResolvedValue([])
     };
     var setup = createState(api);
@@ -91,14 +126,12 @@ describe('useLibraryState', function () {
   });
 
   it('switches collections, resets the current page, and refreshes with the selected key', async function () {
-    var api = {
-      listVideos: vi.fn().mockResolvedValue(makeRows(PAGE_SIZE + 1))
-    };
+    var api = createPagedApi(makeRows(PAGE_SIZE + 1));
     var setup = createState(api);
 
     try {
       await setup.state.refreshVideos();
-      setup.state.goToPage(2);
+      await setup.state.goToPage(2);
 
       await setup.state.selectCollection('watch_later');
 
@@ -108,7 +141,9 @@ describe('useLibraryState', function () {
         collectionKey: 'watch_later',
         search: '',
         sort: 'site_order',
-        direction: 'asc'
+        direction: 'asc',
+        limit: PAGE_SIZE,
+        offset: 0
       });
 
       api.listVideos.mockClear();
@@ -123,6 +158,7 @@ describe('useLibraryState', function () {
 
   it('uses updated search and direction values when watched filters change', async function () {
     var api = {
+      countVideos: vi.fn().mockResolvedValue(0),
       listVideos: vi.fn().mockResolvedValue([])
     };
     var setup = createState(api);
@@ -136,7 +172,9 @@ describe('useLibraryState', function () {
         collectionKey: 'favourites',
         search: 'keyword',
         sort: 'site_order',
-        direction: 'desc'
+        direction: 'desc',
+        limit: PAGE_SIZE,
+        offset: 0
       });
       expect(setup.state.currentPage.value).toBe(1);
     } finally {

@@ -14,6 +14,7 @@ export function useLibraryState(api) {
   var activeCollection = ref('favourites');
   var currentPage = ref(1);
   var rows = ref([]);
+  var totalRows = ref(0);
   var search = ref('');
   var sort = ref('site_order');
   var direction = ref('asc');
@@ -25,16 +26,15 @@ export function useLibraryState(api) {
   });
 
   var totalPages = computed(function () {
-    return Math.max(1, Math.ceil(rows.value.length / PAGE_SIZE));
+    return Math.max(1, Math.ceil(totalRows.value / PAGE_SIZE));
   });
 
   var pageRows = computed(function () {
-    var start = (currentPage.value - 1) * PAGE_SIZE;
-    return rows.value.slice(start, start + PAGE_SIZE);
+    return rows.value;
   });
 
   var countLabel = computed(function () {
-    return rows.value.length + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆';
+    return totalRows.value + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆';
   });
 
   var pageLabel = computed(function () {
@@ -51,17 +51,29 @@ export function useLibraryState(api) {
     var safeSort = normalizeSort(sort.value);
     if (safeSort !== sort.value) sort.value = safeSort;
 
-    var videos = await api.listVideos({
+    var params = {
       collectionKey: activeCollection.value,
       search: search.value,
       sort: safeSort,
       direction: direction.value
-    });
+    };
+    var total = await api.countVideos(params);
+
+    if (token !== refreshToken) return;
+
+    totalRows.value = total;
+    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
+
+    var videos = await api.listVideos(
+      Object.assign({}, params, {
+        limit: PAGE_SIZE,
+        offset: (currentPage.value - 1) * PAGE_SIZE
+      })
+    );
 
     if (token !== refreshToken) return;
 
     rows.value = videos;
-    if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
   }
 
   async function selectCollection(collectionKey) {
@@ -76,11 +88,12 @@ export function useLibraryState(api) {
     currentPage.value = 1;
   }
 
-  function goToPage(page) {
+  async function goToPage(page) {
     var nextPage = Math.max(1, Math.min(totalPages.value, page));
     if (nextPage === currentPage.value) return;
 
     currentPage.value = nextPage;
+    await refreshVideos();
   }
 
   watch([search, sort, direction], function () {
@@ -93,6 +106,7 @@ export function useLibraryState(api) {
     currentCollection: currentCollection,
     currentPage: currentPage,
     rows: rows,
+    totalRows: totalRows,
     pageRows: pageRows,
     totalPages: totalPages,
     countLabel: countLabel,

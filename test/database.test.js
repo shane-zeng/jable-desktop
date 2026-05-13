@@ -149,6 +149,91 @@ test('listVideos puts legacy rows without site order after ordered rows', functi
   );
 });
 
+test('listVideos supports limit and offset', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'First',
+        url: 'https://jable.tv/videos/first/',
+        siteOrder: 1
+      },
+      {
+        title: 'Second',
+        url: 'https://jable.tv/videos/second/',
+        siteOrder: 2
+      },
+      {
+        title: 'Third',
+        url: 'https://jable.tv/videos/third/',
+        siteOrder: 3
+      }
+    ]
+  });
+
+  var rows = db.listVideos('favourites', {
+    sort: 'site_order',
+    direction: 'asc',
+    limit: 2,
+    offset: 1
+  });
+
+  assert.deepEqual(
+    rows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/second/', 'https://jable.tv/videos/third/']
+  );
+});
+
+test('countVideos uses the same search and visibility filters as listVideos', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'watch_later',
+    page: 1,
+    syncRunId: 'old-run',
+    rows: [
+      {
+        title: 'Visible target',
+        url: 'https://jable.tv/videos/visible-target/',
+        siteOrder: 1
+      },
+      {
+        title: 'Hidden target',
+        url: 'https://jable.tv/videos/hidden-target/',
+        siteOrder: 2
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'watch_later',
+    page: 1,
+    syncRunId: 'full-run',
+    rows: [
+      {
+        title: 'Visible target',
+        url: 'https://jable.tv/videos/visible-target/',
+        siteOrder: 1
+      }
+    ]
+  });
+  db.finishSync({
+    collectionKey: 'watch_later',
+    mode: 'full',
+    syncRunId: 'full-run',
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  assert.equal(db.countVideos('watch_later'), 1);
+  assert.equal(db.countVideos('watch_later', { includeHidden: true }), 2);
+  assert.equal(db.countVideos('watch_later', { search: 'target' }), 1);
+  assert.equal(db.countVideos('watch_later', { search: 'hidden', includeHidden: true }), 1);
+});
+
 test('quick sync updates scanned rows without hiding unscanned rows', function (t) {
   var db = createTestDatabase(t);
 
