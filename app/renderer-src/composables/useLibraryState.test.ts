@@ -3,20 +3,25 @@ import { describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick } from 'vue';
 import { PAGE_SIZE } from '../constants';
 import { useLibraryState } from './useLibraryState';
+import type { JableAppApi, ListVideosOptions, SortKey, VideoRow } from '../../types/jable';
 
-function makeRows(count) {
+function makeRows(count: number): VideoRow[] {
   return Array.from({ length: count }, function (_, index) {
     return {
       title: 'Video ' + (index + 1),
-      url: 'https://example.test/videos/' + (index + 1)
+      url: 'https://example.test/videos/' + (index + 1),
+      views: null,
+      likes: null,
+      img: null,
+      preview: null
     };
   });
 }
 
-function createPagedApi(rows) {
+function createPagedApi(rows: VideoRow[]) {
   return {
     countVideos: vi.fn().mockResolvedValue(rows.length),
-    listVideos: vi.fn().mockImplementation(function (options) {
+    listVideos: vi.fn().mockImplementation(function (options: ListVideosOptions) {
       var start = options.offset || 0;
       var end = start + (options.limit || rows.length);
       return Promise.resolve(rows.slice(start, end));
@@ -24,13 +29,13 @@ function createPagedApi(rows) {
   };
 }
 
-function createState(api) {
+function createState(api: Pick<JableAppApi, 'countVideos' | 'listVideos'>) {
   var scope = effectScope();
-  var state;
-
-  scope.run(function () {
-    state = useLibraryState(api);
+  var state = scope.run(function () {
+    return useLibraryState(api as JableAppApi);
   });
+
+  if (!state) throw new Error('Failed to create library state');
 
   return {
     state: state,
@@ -118,7 +123,7 @@ describe('useLibraryState', function () {
     var setup = createState(api);
 
     try {
-      setup.state.sort.value = 'unknown';
+      setup.state.sort.value = 'unknown' as unknown as SortKey;
       await settleWatchers();
 
       var lastCall = api.listVideos.mock.calls[api.listVideos.mock.calls.length - 1][0];

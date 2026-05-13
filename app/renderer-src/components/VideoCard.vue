@@ -1,22 +1,24 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
+import type { LibraryVideoMenuPayload, VideoRow } from '../../types/jable';
 
-var props = defineProps({
-  video: {
-    type: Object,
-    required: true
-  }
-});
+var props = defineProps<{
+  video: VideoRow;
+}>();
 
-var emit = defineEmits(['open', 'open-new', 'context-menu']);
-var previewVideo = ref(null);
+var emit = defineEmits<{
+  open: [url: string];
+  'open-new': [url: string];
+  'context-menu': [payload: LibraryVideoMenuPayload];
+}>();
+var previewVideo = ref<HTMLVideoElement | null>(null);
 
-function formatNumber(value) {
+function formatNumber(value: number | null | undefined) {
   if (value === null || typeof value === 'undefined') return '-';
   return Number(value).toLocaleString();
 }
 
-function formatDate(value) {
+function formatDate(value: string | null | undefined) {
   if (!value) return '-';
 
   try {
@@ -56,7 +58,7 @@ function isMacPlatform() {
   return /Mac|iPhone|iPad|iPod/.test(window.navigator.platform || '');
 }
 
-function openVideo(event) {
+function openVideo(event: MouseEvent) {
   event.preventDefault();
 
   var macPlatform = isMacPlatform();
@@ -71,14 +73,14 @@ function openVideo(event) {
   emit('open', props.video.url);
 }
 
-function openVideoAux(event) {
+function openVideoAux(event: MouseEvent) {
   if (event.button !== 1) return;
 
   event.preventDefault();
   emit('open-new', props.video.url);
 }
 
-function openVideoMenu(event) {
+function openVideoMenu(event: MouseEvent) {
   event.preventDefault();
   emit('context-menu', {
     url: props.video.url,

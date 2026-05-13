@@ -95,12 +95,33 @@ Desktop sync behavior:
 - Full sync runs in batches of 100 pages. Batch-limited or failed runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
+Desktop data and search behavior:
+
+- Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
+- Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
+- The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
+- Database migration adds and backfills `videos.search_text`, verifies the FTS table columns, recreates triggers when needed, and rebuilds the index if search text changed or FTS objects are missing.
+- Desktop JSON file export streams pages to a temporary file, yields between batches, and atomically renames the file when complete. Keep cleanup paths covered when changing export behavior.
+
+Browser and tab behavior:
+
+- Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.js`, main-process serialization, renderer state, and tests aligned.
+- App-level shortcuts are registered per `webContents`: `Cmd/Ctrl+T` creates a tab and `Cmd/Ctrl+W` closes the active tab when allowed. A small debounce avoids duplicate shortcut handling.
+- Middle-clicking web content opens a background tab through `browser:open-url-new-tab`; middle-clicking local video cards opens a new app tab and switches to it.
+- `nextActiveTabIdAfterClose` centralizes active-tab selection after a close. Update its Node tests when changing close behavior.
+
+Userscript cache behavior:
+
+- The userscript remains self-contained and dependency-free, but large exports prefer an IndexedDB cache with localStorage fallback.
+- IndexedDB cache methods cover open/read meta/load rows/known URL map/save progress/mark base rows/replace rows/migration. Preserve localStorage migration and progress feedback when changing long-running export flow.
+
 Desktop app files:
 
 - `app/main.js`: Electron main process and IPC handlers.
 - `app/webview-preload.js`: scraper injected into each embedded Jable `WebContentsView`.
 - `app/database.js`: SQLite schema, upsert logic, JSON import/export.
-- `app/renderer-src/`: Vue 3 + TailwindCSS renderer source.
+- `app/types/`: shared renderer-facing TypeScript wire types for IPC payloads and app state.
+- `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 
 ### Quality Checks
@@ -111,6 +132,7 @@ Use Node.js 24, matching the repository `engines` field and GitHub Actions.
 
 ```sh
 npm run lint
+npm run typecheck
 npm run format:check
 npm run check
 ```
@@ -119,9 +141,12 @@ Useful commands:
 
 - `npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
 - `npm run lint:fix`: apply safe ESLint fixes.
+- `npm run typecheck`: run strict `vue-tsc` checks for shared types and renderer TypeScript/Vue files.
 - `npm run format`: format the repository with Prettier.
 - `npm run format:check`: verify formatting without changing files.
-- `npm run check`: run lint, Node tests, renderer tests, and renderer build.
+- `npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
+
+TypeScript is intentionally scoped to the renderer and shared IPC/wire types. Electron main/preload/database modules and the Tampermonkey userscript remain JavaScript to preserve their current runtime shape.
 
 GitHub Actions run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs formatting, linting, and tests before building unsigned macOS and Windows artifacts.
 
@@ -133,7 +158,7 @@ Run the full local quality gate before opening a pull request:
 npm run check
 ```
 
-For targeted checks, use `npm test` for SQLite/import/export behavior, `npm run test:renderer` for renderer unit tests, and `npm run build:renderer` for renderer build validation.
+For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run typecheck` for renderer typing, `npm run test:renderer` for renderer unit tests, and `npm run build:renderer` for renderer build validation.
 
 Manual checks:
 
@@ -143,6 +168,7 @@ Manual checks:
 - Quick sync both favourites and watch-later lists.
 - Full sync a list and confirm local ordering matches the Jable page order.
 - For large lists, continue a paused full sync and confirm incomplete batches do not hide old rows or unlock the sync tab too early.
+- Search with `any`, `all`, and `phrase` modes and confirm title/URL filtering still matches README examples.
 - Import an existing userscript JSON export and verify rows appear in the matching tab.
 - Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
 

@@ -1,8 +1,9 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import BrowserPanel from './BrowserPanel.vue';
+import type { BrowserTabState } from '../../types/jable';
 
-function makeTabs() {
+function makeTabs(): BrowserTabState[] {
   return [
     {
       id: 'tab-1',
@@ -16,7 +17,9 @@ function makeTabs() {
       audible: false,
       mediaPlaying: false,
       pictureInPicture: false,
-      discarded: false
+      discarded: false,
+      canGoBack: false,
+      canGoForward: false
     },
     {
       id: 'tab-2',
@@ -30,7 +33,9 @@ function makeTabs() {
       audible: false,
       mediaPlaying: false,
       pictureInPicture: false,
-      discarded: false
+      discarded: false,
+      canGoBack: false,
+      canGoForward: false
     }
   ];
 }

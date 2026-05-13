@@ -1,18 +1,18 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import { COLLECTIONS } from '../constants';
+import type { CollectionKey } from '../../types/jable';
 
-var props = defineProps({
-  activeCollection: {
-    type: String,
-    required: true
-  }
-});
+var props = defineProps<{
+  activeCollection: CollectionKey;
+}>();
 
-var emit = defineEmits(['select']);
+var emit = defineEmits<{
+  select: [collectionKey: CollectionKey];
+}>();
 
 var collectionEntries = computed(function () {
-  return Object.keys(COLLECTIONS).map(function (key) {
+  return (Object.keys(COLLECTIONS) as CollectionKey[]).map(function (key) {
     return {
       key: key,
       name: COLLECTIONS[key].name

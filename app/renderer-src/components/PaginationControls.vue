@@ -1,24 +1,15 @@
-<script setup>
-defineProps({
-  busy: {
-    type: Boolean,
-    required: true
-  },
-  currentPage: {
-    type: Number,
-    required: true
-  },
-  totalPages: {
-    type: Number,
-    required: true
-  },
-  pageLabel: {
-    type: String,
-    required: true
-  }
-});
+<script setup lang="ts">
+defineProps<{
+  busy: boolean;
+  currentPage: number;
+  totalPages: number;
+  pageLabel: string;
+}>();
 
-var emit = defineEmits(['prev', 'next']);
+var emit = defineEmits<{
+  prev: [];
+  next: [];
+}>();
 </script>
 
 <template>

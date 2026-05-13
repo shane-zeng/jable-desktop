@@ -1,92 +1,78 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
 import CollectionTabs from './CollectionTabs.vue';
 import PaginationControls from './PaginationControls.vue';
 import VideoCard from './VideoCard.vue';
 import { DIRECTION_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import type {
+  CollectionKey,
+  LibraryVideoMenuPayload,
+  SearchMode,
+  SortDirection,
+  SortKey,
+  VideoRow
+} from '../../types/jable';
 
-defineProps({
-  active: {
-    type: Boolean,
-    required: true
-  },
-  activeCollection: {
-    type: String,
-    required: true
-  },
-  busy: {
-    type: Boolean,
-    required: true
-  },
-  fullSyncLabel: {
-    type: String,
-    required: true
-  },
-  search: {
-    type: String,
-    required: true
-  },
-  searchMode: {
-    type: String,
-    required: true
-  },
-  sort: {
-    type: String,
-    required: true
-  },
-  direction: {
-    type: String,
-    required: true
-  },
-  countLabel: {
-    type: String,
-    required: true
-  },
-  pageLabel: {
-    type: String,
-    required: true
-  },
-  rows: {
-    type: Array,
-    required: true
-  },
-  currentPage: {
-    type: Number,
-    required: true
-  },
-  totalPages: {
-    type: Number,
-    required: true
-  }
-});
+defineProps<{
+  active: boolean;
+  activeCollection: CollectionKey;
+  busy: boolean;
+  fullSyncLabel: string;
+  search: string;
+  searchMode: SearchMode;
+  sort: SortKey;
+  direction: SortDirection;
+  countLabel: string;
+  pageLabel: string;
+  rows: VideoRow[];
+  currentPage: number;
+  totalPages: number;
+}>();
 
-var emit = defineEmits([
-  'select-collection',
-  'quick-sync',
-  'full-sync',
-  'import-file',
-  'export-json',
-  'update:search',
-  'update:search-mode',
-  'update:sort',
-  'update:direction',
-  'prev-page',
-  'next-page',
-  'open-video',
-  'open-video-new-tab',
-  'video-context-menu'
-]);
+var emit = defineEmits<{
+  'select-collection': [collectionKey: string];
+  'quick-sync': [];
+  'full-sync': [];
+  'import-file': [file: File];
+  'export-json': [];
+  'update:search': [value: string];
+  'update:search-mode': [value: SearchMode];
+  'update:sort': [value: SortKey];
+  'update:direction': [value: SortDirection];
+  'prev-page': [];
+  'next-page': [];
+  'open-video': [url: string];
+  'open-video-new-tab': [url: string];
+  'video-context-menu': [payload: LibraryVideoMenuPayload];
+}>();
 
-var importFile = ref(null);
+var importFile = ref<HTMLInputElement | null>(null);
 
 function chooseImportFile() {
   if (importFile.value) importFile.value.click();
 }
 
-function handleImportFile(event) {
-  var file = event.target.files[0];
+function handleImportFile(event: Event) {
+  var target = event.target as HTMLInputElement;
+  var file = target.files ? target.files[0] : null;
   if (file) emit('import-file', file);
-  event.target.value = '';
+  target.value = '';
+}
+
+function inputValue(event: Event) {
+  return (event.target as HTMLInputElement | HTMLSelectElement).value;
+}
+
+function updateSearchMode(event: Event) {
+  emit('update:search-mode', inputValue(event) as SearchMode);
+}
+
+function updateSort(event: Event) {
+  emit('update:sort', inputValue(event) as SortKey);
+}
+
+function updateDirection(event: Event) {
+  emit('update:direction', inputValue(event) as SortDirection);
 }
 </script>
 
@@ -115,7 +101,7 @@ function handleImportFile(event) {
     <div
       class="grid grid-cols-[132px_minmax(260px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
     >
-      <select aria-label="搜尋模式" :value="searchMode" @change="emit('update:search-mode', $event.target.value)">
+      <select aria-label="搜尋模式" :value="searchMode" @change="updateSearchMode">
         <option v-for="option in SEARCH_MODE_OPTIONS" :key="option.value" :value="option.value">
           {{ option.label }}
         </option>
@@ -124,14 +110,14 @@ function handleImportFile(event) {
         type="search"
         placeholder="搜尋標題或 URL"
         :value="search"
-        @input="emit('update:search', $event.target.value)"
+        @input="emit('update:search', inputValue($event))"
       />
-      <select aria-label="排序" :value="sort" @change="emit('update:sort', $event.target.value)">
+      <select aria-label="排序" :value="sort" @change="updateSort">
         <option v-for="option in SORT_OPTIONS" :key="option.value" :value="option.value">
           {{ option.label }}
         </option>
       </select>
-      <select aria-label="排序方向" :value="direction" @change="emit('update:direction', $event.target.value)">
+      <select aria-label="排序方向" :value="direction" @change="updateDirection">
         <option v-for="option in DIRECTION_OPTIONS" :key="option.value" :value="option.value">
           {{ option.label }}
         </option>

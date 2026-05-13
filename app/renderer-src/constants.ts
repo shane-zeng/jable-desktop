@@ -1,3 +1,12 @@
+import type {
+  CollectionDefinition,
+  CollectionKey,
+  SearchMode,
+  SelectOption,
+  SortDirection,
+  SortKey
+} from '../types/jable';
+
 export const PAGE_SIZE = 24;
 export const FULL_SYNC_BATCH_LIMIT = 100;
 export const DEFAULT_BROWSER_URL = 'https://jable.tv/';
@@ -7,7 +16,7 @@ export const BROWSER_TABS_DEFAULT_WIDTH = 280;
 export const BROWSER_TABS_MIN_WIDTH = 180;
 export const BROWSER_TABS_MAX_WIDTH = 420;
 
-export const COLLECTIONS = {
+export const COLLECTIONS: Record<CollectionKey, CollectionDefinition> = {
   favourites: {
     name: '影片收藏',
     url: 'https://jable.tv/my/favourites/videos/',
@@ -20,20 +29,20 @@ export const COLLECTIONS = {
   }
 };
 
-export const SORT_OPTIONS = [
+export const SORT_OPTIONS: SelectOption<SortKey>[] = [
   { value: 'site_order', label: '網站排序' },
   { value: 'title', label: '標題' },
   { value: 'views', label: '觀看數' },
   { value: 'likes', label: '喜歡數' }
 ];
 
-export const SEARCH_MODE_OPTIONS = [
+export const SEARCH_MODE_OPTIONS: SelectOption<SearchMode>[] = [
   { value: 'any', label: '任一詞' },
   { value: 'all', label: '全部詞' },
   { value: 'phrase', label: '精確片語' }
 ];
 
-export const DIRECTION_OPTIONS = [
+export const DIRECTION_OPTIONS: SelectOption<SortDirection>[] = [
   { value: 'asc', label: '遞增' },
   { value: 'desc', label: '遞減' }
 ];

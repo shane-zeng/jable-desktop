@@ -1,10 +1,11 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import VideoCard from './VideoCard.vue';
+import type { VideoRow } from '../../types/jable';
 
 var originalPlatform = window.navigator.platform;
 
-function makeVideo(overrides) {
+function makeVideo(overrides?: Partial<VideoRow>): VideoRow {
   return Object.assign(
     {
       title: 'Sample Video',
@@ -19,7 +20,7 @@ function makeVideo(overrides) {
   );
 }
 
-function setNavigatorPlatform(value) {
+function setNavigatorPlatform(value: string) {
   Object.defineProperty(window.navigator, 'platform', {
     configurable: true,
     value: value

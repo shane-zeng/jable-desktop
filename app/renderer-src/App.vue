@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
@@ -16,23 +16,43 @@ import {
 import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
+import type {
+  AppInfo,
+  AppView,
+  BrowserMessage,
+  BrowserNavigationState,
+  BrowserTabMenuPayload,
+  BrowserTabsState,
+  CollectionDefinition,
+  CollectionKey,
+  ExportResource,
+  FullSyncContinuation,
+  LibraryVideoMenuAction,
+  LibraryVideoMenuPayload,
+  SyncMode,
+  SyncPagePayload,
+  SyncProgressPayload,
+  SyncResult,
+  SyncState,
+  VideoRow
+} from '../types/jable';
 
 var api = useJableApi();
-var activeView = ref('browser');
-var toast = ref(null);
+var activeView = ref<AppView>('browser');
+var toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
 var busy = ref(false);
 var syncing = ref(false);
 var browserTabsCompact = ref(false);
 var browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
-var appInfo = ref(null);
+var appInfo = ref<AppInfo | null>(null);
 var browser = useBrowserBounds(api, activeView);
 var library = useLibraryState(api);
-var pendingSaves = [];
-var saveFailure = null;
-var activeSyncRunId = null;
-var toastTimer = null;
+var pendingSaves: Promise<unknown>[] = [];
+var saveFailure: unknown = null;
+var activeSyncRunId: string | null = null;
+var toastTimer: number | null = null;
 
-var pageRows = computed(function () {
+var pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
 });
 
@@ -40,11 +60,15 @@ var libraryBusy = computed(function () {
   return busy.value || syncing.value;
 });
 
-function shouldSkipStatus(text) {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function shouldSkipStatus(text: string) {
   return !text || text === '準備中' || text === '就緒' || text === '已新增分頁' || text === '開啟影片中…';
 }
 
-function statusTone(text) {
+function statusTone(text: string) {
   if (/失敗|錯誤|未知/.test(text)) return 'error';
   if (/暫停|未完整|請先/.test(text)) return 'warning';
   if (/完成|已匯出|已匯入/.test(text)) return 'success';
@@ -60,7 +84,7 @@ function hideToast() {
   toast.value = null;
 }
 
-function setStatus(text) {
+function setStatus(text: string) {
   if (shouldSkipStatus(text)) return;
 
   if (toastTimer) clearTimeout(toastTimer);
@@ -81,13 +105,13 @@ function loadBrowserTabsCompact() {
   return localStorage.getItem('jable-desktop:browser-tabs-collapsed') === 'true';
 }
 
-function setBrowserTabsCompact(value) {
+function setBrowserTabsCompact(value: boolean) {
   browserTabsCompact.value = !!value;
   localStorage.setItem(BROWSER_TABS_COMPACT_STORAGE_KEY, browserTabsCompact.value ? 'true' : 'false');
   browser.scheduleResize();
 }
 
-function clampBrowserTabsWidth(value) {
+function clampBrowserTabsWidth(value: unknown) {
   var width = Number(value) || BROWSER_TABS_DEFAULT_WIDTH;
   return Math.max(BROWSER_TABS_MIN_WIDTH, Math.min(BROWSER_TABS_MAX_WIDTH, Math.round(width)));
 }
@@ -96,37 +120,37 @@ function loadBrowserTabsWidth() {
   return clampBrowserTabsWidth(localStorage.getItem(BROWSER_TABS_WIDTH_STORAGE_KEY));
 }
 
-function setBrowserTabsWidth(value) {
+function setBrowserTabsWidth(value: number) {
   browserTabsWidth.value = clampBrowserTabsWidth(value);
   localStorage.setItem(BROWSER_TABS_WIDTH_STORAGE_KEY, String(browserTabsWidth.value));
   browser.scheduleResize();
 }
 
-function setActiveView(view) {
+function setActiveView(view: AppView) {
   activeView.value = view;
   if (view !== 'browser') browser.hide();
   browser.scheduleResize();
   if (view === 'library') library.refreshVideos();
 }
 
-function syncModeName(mode) {
+function syncModeName(mode: SyncMode) {
   return mode === 'full' ? '完整同步' : '快速同步';
 }
 
-function createSyncRunId(mode, collectionKey) {
+function createSyncRunId(mode: SyncMode, collectionKey: CollectionKey) {
   return [mode, collectionKey, Date.now(), Math.random().toString(36).slice(2)].join(':');
 }
 
-function currentCollection() {
+function currentCollection(): CollectionDefinition {
   return COLLECTIONS[library.activeCollection.value];
 }
 
-function collectionUrlPattern(collectionKey) {
+function collectionUrlPattern(collectionKey: CollectionKey) {
   if (collectionKey === 'watch_later') return /\/my\/favourites\/videos-watch-later\/?$/;
   return /\/my\/favourites\/videos\/?$/;
 }
 
-function pathFromUrl(value) {
+function pathFromUrl(value: string) {
   try {
     return new URL(value).pathname;
   } catch (error) {
@@ -134,7 +158,7 @@ function pathFromUrl(value) {
   }
 }
 
-async function openInBrowser(url) {
+async function openInBrowser(url: string) {
   if (!url || busy.value || syncing.value) return;
 
   try {
@@ -142,11 +166,11 @@ async function openInBrowser(url) {
     await browser.loadBrowser(url, false);
   } catch (error) {
     console.error(error);
-    setStatus('開啟影片失敗：' + error.message);
+    setStatus('開啟影片失敗：' + errorMessage(error));
   }
 }
 
-async function openInNewBrowserTab(url) {
+async function openInNewBrowserTab(url: string) {
   if (!url || busy.value || syncing.value) return;
 
   try {
@@ -154,13 +178,12 @@ async function openInNewBrowserTab(url) {
     await browser.createTab(url, { active: true });
   } catch (error) {
     console.error(error);
-    setStatus('開啟新分頁失敗：' + error.message);
+    setStatus('開啟新分頁失敗：' + errorMessage(error));
   }
 }
 
-function handleLibraryVideoMenuAction(payload) {
-  payload = payload || {};
-
+function handleLibraryVideoMenuAction(payload: LibraryVideoMenuAction | null | undefined) {
+  if (!payload) return;
   if (payload.action === 'open-current') {
     openInBrowser(payload.url);
   } else if (payload.action === 'open-new') {
@@ -168,22 +191,22 @@ function handleLibraryVideoMenuAction(payload) {
   }
 }
 
-function handleBrowserMessage(message) {
+function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'browser-tabs-changed') {
-    browser.applyTabsState(message.args[0]);
+    browser.applyTabsState(message.args[0] as BrowserTabsState);
   }
 
   if (message.channel === 'browser-error') {
-    var errorPayload = message.args[0] || {};
+    var errorPayload = (message.args[0] || {}) as { message?: string };
     setStatus('瀏覽器分頁錯誤：' + (errorPayload.message || '未知錯誤'));
   }
 
   if (message.channel === 'library-video-menu-action') {
-    handleLibraryVideoMenuAction(message.args[0]);
+    handleLibraryVideoMenuAction(message.args[0] as LibraryVideoMenuAction);
   }
 
   if (message.channel === 'sync-page') {
-    var payload = message.args[0];
+    var payload = message.args[0] as SyncPagePayload;
     if (activeSyncRunId && payload.syncRunId !== activeSyncRunId) return;
     setStatus('同步第 ' + payload.page + ' 頁，' + payload.rows.length + ' 筆');
 
@@ -195,17 +218,17 @@ function handleBrowserMessage(message) {
   }
 
   if (message.channel === 'sync-progress') {
-    var progress = message.args[0];
+    var progress = message.args[0] as SyncProgressPayload;
     if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
     setStatus('已載入第 ' + progress.page + ' 頁');
   }
 
   if (message.channel === 'browser-navigation-state') {
-    browser.setNavigationState(message.args[0]);
+    browser.setNavigationState(message.args[0] as BrowserNavigationState);
   }
 
   if (message.channel === 'browser-tabs-compact-mode') {
-    var compactPayload = message.args[0] || {};
+    var compactPayload = (message.args[0] || {}) as { compact?: boolean };
     setBrowserTabsCompact(!!compactPayload.compact);
   }
 
@@ -214,7 +237,7 @@ function handleBrowserMessage(message) {
   }
 }
 
-function resultStatus(collection, mode, result, finishState) {
+function resultStatus(collection: CollectionDefinition, mode: SyncMode, result: SyncResult, finishState: SyncState) {
   var name = syncModeName(mode);
 
   if (result.completed === false) {
@@ -249,14 +272,14 @@ function resultStatus(collection, mode, result, finishState) {
   return collection.name + ' 快速同步完成：' + result.totalRows + ' 筆，' + reason;
 }
 
-async function syncCollection(mode) {
+async function syncCollection(mode: SyncMode) {
   if (busy.value || syncing.value) return;
 
   syncing.value = true;
   pendingSaves = [];
   saveFailure = null;
   activeSyncRunId = null;
-  var syncTabId = null;
+  var syncTabId: string | null = null;
 
   try {
     var collectionKey = library.activeCollection.value;
@@ -270,9 +293,9 @@ async function syncCollection(mode) {
     var syncTab = await prepareSyncTab(collectionKey, collection, mode, continuation);
     syncTabId = syncTab.tabId;
     var usedContinuation = syncTab.usedContinuation;
-    var syncRunId = usedContinuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
-    var siteOrderOffset = usedContinuation ? continuation.siteOrderOffset : 0;
-    var startPage = usedContinuation ? continuation.lastScrapedPage : null;
+    var syncRunId = usedContinuation && continuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
+    var siteOrderOffset = usedContinuation && continuation ? continuation.siteOrderOffset : 0;
+    var startPage = usedContinuation && continuation ? continuation.lastScrapedPage : null;
     var browserUrl = await browser.currentBrowserUrl(syncTabId);
 
     if (!collectionUrlPattern(collectionKey).test(pathFromUrl(browserUrl))) {
@@ -331,7 +354,7 @@ async function syncCollection(mode) {
     setStatus(resultStatus(collection, mode, result, finishState));
   } catch (error) {
     console.error(error);
-    setStatus(syncModeName(mode) + '失敗：' + error.message);
+    setStatus(syncModeName(mode) + '失敗：' + errorMessage(error));
     if (syncTabId) {
       try {
         await browser.setTabLocked(syncTabId, false);
@@ -343,7 +366,12 @@ async function syncCollection(mode) {
   }
 }
 
-async function prepareSyncTab(collectionKey, collection, mode, continuation) {
+async function prepareSyncTab(
+  collectionKey: CollectionKey,
+  collection: CollectionDefinition,
+  mode: SyncMode,
+  continuation: FullSyncContinuation | null
+) {
   setActiveView('browser');
 
   if (mode === 'full' && continuation && continuation.tabId && browser.hasTab(continuation.tabId)) {
@@ -379,6 +407,7 @@ async function prepareSyncTab(collectionKey, collection, mode, continuation) {
     title: '同步：' + collection.name
   });
   var tabId = browser.activeTabId.value;
+  if (!tabId) throw new Error('建立同步分頁失敗');
   await browser.loadBrowser(collection.url, true, tabId);
   await browser.setTabLocked(tabId, true);
 
@@ -404,13 +433,13 @@ async function exportActiveCollection() {
     setStatus('已匯出 ' + ((result && result.filename) || currentCollection().filename));
   } catch (error) {
     console.error(error);
-    setStatus('匯出失敗：' + error.message);
+    setStatus('匯出失敗：' + errorMessage(error));
   } finally {
     busy.value = false;
   }
 }
 
-async function importJsonFile(file) {
+async function importJsonFile(file: File | null) {
   if (!file || busy.value) return;
 
   busy.value = true;
@@ -420,7 +449,7 @@ async function importJsonFile(file) {
     var resource = JSON.parse(text);
     var result = await api.importJson({
       collectionKey: library.activeCollection.value,
-      resource: resource
+      resource: resource as ExportResource
     });
 
     library.currentPage.value = 1;
@@ -428,7 +457,7 @@ async function importJsonFile(file) {
     setStatus('已匯入 ' + result.imported + ' 筆到 ' + currentCollection().name);
   } catch (error) {
     console.error(error);
-    setStatus('匯入失敗：' + error.message);
+    setStatus('匯入失敗：' + errorMessage(error));
   } finally {
     busy.value = false;
   }
@@ -438,7 +467,7 @@ async function diagnoseLayout() {
   setStatus(await browser.diagnose());
 }
 
-async function selectCollection(collectionKey) {
+async function selectCollection(collectionKey: string) {
   await library.selectCollection(collectionKey);
 }
 
@@ -448,41 +477,39 @@ async function newBrowserTab() {
     await browser.createTab(DEFAULT_BROWSER_URL, { active: true });
   } catch (error) {
     console.error(error);
-    setStatus('新增分頁失敗：' + error.message);
+    setStatus('新增分頁失敗：' + errorMessage(error));
   }
 }
 
-async function activateBrowserTab(tabId) {
+async function activateBrowserTab(tabId: string) {
   try {
     setActiveView('browser');
     await browser.activateTab(tabId);
   } catch (error) {
     console.error(error);
-    setStatus('切換分頁失敗：' + error.message);
+    setStatus('切換分頁失敗：' + errorMessage(error));
   }
 }
 
-async function closeBrowserTab(tabId) {
+async function closeBrowserTab(tabId: string) {
   try {
     await browser.closeTab(tabId);
   } catch (error) {
     console.error(error);
-    setStatus('關閉分頁失敗：' + error.message);
+    setStatus('關閉分頁失敗：' + errorMessage(error));
   }
 }
 
-async function setBrowserTabMuted(payload) {
-  payload = payload || {};
-
+async function setBrowserTabMuted(payload: { tabId: string | null; muted: boolean }) {
   try {
     await browser.setTabMuted(payload.tabId, payload.muted);
   } catch (error) {
     console.error(error);
-    setStatus('切換分頁靜音失敗：' + error.message);
+    setStatus('切換分頁靜音失敗：' + errorMessage(error));
   }
 }
 
-async function showBrowserTabMenu(payload) {
+async function showBrowserTabMenu(payload: BrowserTabMenuPayload) {
   try {
     await api.showBrowserTabMenu(
       Object.assign({}, payload, {
@@ -491,16 +518,16 @@ async function showBrowserTabMenu(payload) {
     );
   } catch (error) {
     console.error(error);
-    setStatus('開啟分頁選單失敗：' + error.message);
+    setStatus('開啟分頁選單失敗：' + errorMessage(error));
   }
 }
 
-async function showLibraryVideoMenu(payload) {
+async function showLibraryVideoMenu(payload: LibraryVideoMenuPayload) {
   try {
     await api.showLibraryVideoMenu(payload);
   } catch (error) {
     console.error(error);
-    setStatus('開啟影片選單失敗：' + error.message);
+    setStatus('開啟影片選單失敗：' + errorMessage(error));
   }
 }
 

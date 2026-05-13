@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 import vue from 'eslint-plugin-vue';
 
 var commonRules = {
@@ -37,7 +38,7 @@ export default [
   js.configs.recommended,
   ...vue.configs['flat/essential'],
   {
-    files: ['**/*.{js,mjs,vue}'],
+    files: ['**/*.{js,mjs,ts,vue}'],
     languageOptions: {
       ecmaVersion: 'latest'
     },
@@ -51,9 +52,51 @@ export default [
     }
   },
   {
-    files: ['**/*.mjs', 'app/renderer-src/**/*.{js,vue}'],
+    files: ['**/*.mjs', 'app/renderer-src/**/*.{js,ts,vue}', 'app/types/**/*.ts'],
     languageOptions: {
       sourceType: 'module'
+    }
+  },
+  {
+    files: ['**/*.ts'],
+    plugins: {
+      '@typescript-eslint': tseslint.plugin
+    },
+    languageOptions: {
+      parser: tseslint.parser
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrors: 'none',
+          varsIgnorePattern: '^_'
+        }
+      ]
+    }
+  },
+  {
+    files: ['app/renderer-src/**/*.vue'],
+    plugins: {
+      '@typescript-eslint': tseslint.plugin
+    },
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser
+      }
+    },
+    rules: {
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrors: 'none',
+          varsIgnorePattern: '^_'
+        }
+      ]
     }
   },
   {
@@ -74,7 +117,7 @@ export default [
     }
   },
   {
-    files: ['app/renderer-src/**/*.{js,vue}'],
+    files: ['app/renderer-src/**/*.{js,ts,vue}'],
     languageOptions: {
       globals: {
         ...browserGlobals,
@@ -84,7 +127,7 @@ export default [
     }
   },
   {
-    files: ['app/renderer-src/**/*.test.js'],
+    files: ['app/renderer-src/**/*.{test,spec}.{js,ts}'],
     languageOptions: {
       globals: {
         ...browserGlobals,

@@ -1,20 +1,19 @@
-<script setup>
-defineProps({
-  activeView: {
-    type: String,
-    required: true
-  },
-  busy: {
-    type: Boolean,
-    required: true
-  },
-  navigation: {
-    type: Object,
-    required: true
-  }
-});
+<script setup lang="ts">
+import type { AppView, BrowserNavigationState } from '../../types/jable';
 
-var emit = defineEmits(['set-view', 'back', 'forward', 'reload', 'diagnose']);
+defineProps<{
+  activeView: AppView;
+  busy: boolean;
+  navigation: BrowserNavigationState;
+}>();
+
+var emit = defineEmits<{
+  'set-view': [view: AppView];
+  back: [];
+  forward: [];
+  reload: [];
+  diagnose: [];
+}>();
 </script>
 
 <template>

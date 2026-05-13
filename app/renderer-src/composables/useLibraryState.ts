@@ -1,33 +1,47 @@
 import { computed, ref, watch } from 'vue';
 import { COLLECTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import type {
+  CollectionKey,
+  FullSyncContinuation,
+  JableAppApi,
+  ListVideosOptions,
+  SearchMode,
+  SortDirection,
+  SortKey,
+  VideoRow
+} from '../../types/jable';
 
-var DEFAULT_SORT = 'site_order';
+var DEFAULT_SORT: SortKey = 'site_order';
 var SORT_VALUES = SORT_OPTIONS.map(function (option) {
   return option.value;
 });
-var DEFAULT_SEARCH_MODE = 'any';
+var DEFAULT_SEARCH_MODE: SearchMode = 'any';
 var SEARCH_MODE_VALUES = SEARCH_MODE_OPTIONS.map(function (option) {
   return option.value;
 });
 
-function normalizeSort(value) {
-  return SORT_VALUES.indexOf(value) === -1 ? DEFAULT_SORT : value;
+function normalizeSort(value: string): SortKey {
+  return SORT_VALUES.indexOf(value as SortKey) === -1 ? DEFAULT_SORT : (value as SortKey);
 }
 
-function normalizeSearchMode(value) {
-  return SEARCH_MODE_VALUES.indexOf(value) === -1 ? DEFAULT_SEARCH_MODE : value;
+function normalizeSearchMode(value: string): SearchMode {
+  return SEARCH_MODE_VALUES.indexOf(value as SearchMode) === -1 ? DEFAULT_SEARCH_MODE : (value as SearchMode);
 }
 
-export function useLibraryState(api) {
-  var activeCollection = ref('favourites');
+function isCollectionKey(value: string): value is CollectionKey {
+  return Object.prototype.hasOwnProperty.call(COLLECTIONS, value);
+}
+
+export function useLibraryState(api: JableAppApi) {
+  var activeCollection = ref<CollectionKey>('favourites');
   var currentPage = ref(1);
-  var rows = ref([]);
+  var rows = ref<VideoRow[]>([]);
   var totalRows = ref(0);
   var search = ref('');
-  var searchMode = ref('any');
-  var sort = ref('site_order');
-  var direction = ref('asc');
-  var fullSyncContinuation = ref(null);
+  var searchMode = ref<SearchMode>('any');
+  var sort = ref<SortKey>('site_order');
+  var direction = ref<SortDirection>('asc');
+  var fullSyncContinuation = ref<FullSyncContinuation | null>(null);
   var refreshToken = 0;
 
   var currentCollection = computed(function () {
@@ -62,7 +76,7 @@ export function useLibraryState(api) {
     if (safeSort !== sort.value) sort.value = safeSort;
     if (safeSearchMode !== searchMode.value) searchMode.value = safeSearchMode;
 
-    var params = {
+    var params: ListVideosOptions = {
       collectionKey: activeCollection.value,
       search: search.value,
       searchMode: safeSearchMode,
@@ -88,8 +102,8 @@ export function useLibraryState(api) {
     rows.value = videos;
   }
 
-  async function selectCollection(collectionKey) {
-    if (!COLLECTIONS[collectionKey]) return;
+  async function selectCollection(collectionKey: string) {
+    if (!isCollectionKey(collectionKey)) return;
 
     activeCollection.value = collectionKey;
     currentPage.value = 1;
@@ -100,7 +114,7 @@ export function useLibraryState(api) {
     currentPage.value = 1;
   }
 
-  async function goToPage(page) {
+  async function goToPage(page: number) {
     var nextPage = Math.max(1, Math.min(totalPages.value, page));
     if (nextPage === currentPage.value) return;
 

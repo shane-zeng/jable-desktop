@@ -1,9 +1,24 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import type { Ref } from 'vue';
+import type {
+  AppView,
+  BrowserBounds,
+  BrowserDiagnosis,
+  BrowserNavigationState,
+  BrowserTabState,
+  BrowserTabsState,
+  CreateBrowserTabPayload,
+  JableAppApi
+} from '../../types/jable';
 
-export function useBrowserBounds(api, activeView) {
-  var host = ref(null);
-  var tabs = ref([]);
-  var activeTabId = ref(null);
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
+  var host = ref<HTMLElement | null>(null);
+  var tabs = ref<BrowserTabState[]>([]);
+  var activeTabId = ref<string | null>(null);
   var maxTabs = ref(8);
 
   var activeTab = computed(function () {
@@ -25,7 +40,7 @@ export function useBrowserBounds(api, activeView) {
     };
   });
 
-  function findTab(tabId) {
+  function findTab(tabId: string | null | undefined): BrowserTabState | null {
     if (!tabId) return null;
 
     for (var i = 0; i < tabs.value.length; i++) {
@@ -35,11 +50,11 @@ export function useBrowserBounds(api, activeView) {
     return null;
   }
 
-  function hasTab(tabId) {
+  function hasTab(tabId: string | null | undefined): boolean {
     return !!findTab(tabId);
   }
 
-  function firstUnlockedSyncTab() {
+  function firstUnlockedSyncTab(): BrowserTabState | null {
     for (var i = 0; i < tabs.value.length; i++) {
       if (tabs.value[i].kind === 'sync' && !tabs.value[i].locked) return tabs.value[i];
     }
@@ -47,12 +62,12 @@ export function useBrowserBounds(api, activeView) {
     return null;
   }
 
-  function applyTabsState(state) {
-    state = state || {};
-    tabs.value = Array.isArray(state.tabs) ? state.tabs : [];
-    activeTabId.value = state.activeTabId || (tabs.value[0] ? tabs.value[0].id : null);
+  function applyTabsState(state: BrowserTabsState | null | undefined): BrowserTabsState | null | undefined {
+    var nextState = state || { activeTabId: null, maxTabs: maxTabs.value, tabs: [] };
+    tabs.value = Array.isArray(nextState.tabs) ? nextState.tabs : [];
+    activeTabId.value = nextState.activeTabId || (tabs.value[0] ? tabs.value[0].id : null);
 
-    if (state.maxTabs) maxTabs.value = state.maxTabs;
+    if (nextState.maxTabs) maxTabs.value = nextState.maxTabs;
     scheduleResize();
     return state;
   }
@@ -61,12 +76,12 @@ export function useBrowserBounds(api, activeView) {
     return applyTabsState(await api.listBrowserTabs());
   }
 
-  function setHost(element) {
+  function setHost(element: HTMLElement | null) {
     host.value = element;
     scheduleResize();
   }
 
-  function currentBounds() {
+  function currentBounds(): BrowserBounds {
     if (!host.value) return { visible: false };
 
     var rect = host.value.getBoundingClientRect();
@@ -103,7 +118,7 @@ export function useBrowserBounds(api, activeView) {
     });
   }
 
-  function setNavigationState(nextNavigation) {
+  function setNavigationState(nextNavigation?: Partial<BrowserNavigationState> | null) {
     nextNavigation = nextNavigation || {};
     var tabId = nextNavigation.tabId || activeTabId.value;
 
@@ -120,28 +135,28 @@ export function useBrowserBounds(api, activeView) {
     });
   }
 
-  async function refreshNavigationState(tabId) {
+  async function refreshNavigationState(tabId?: string | null) {
     setNavigationState(await api.getBrowserNavigationState({ tabId: tabId || activeTabId.value }));
   }
 
-  async function createTab(url, options) {
+  async function createTab(url: string | null, options?: Omit<CreateBrowserTabPayload, 'url'>) {
     options = options || {};
     applyTabsState(await api.createBrowserTab(Object.assign({}, options, { url: url })));
     scheduleResize();
     return activeTab.value;
   }
 
-  async function activateTab(tabId) {
+  async function activateTab(tabId: string | null) {
     applyTabsState(await api.activateBrowserTab(tabId));
     scheduleResize();
   }
 
-  async function closeTab(tabId) {
+  async function closeTab(tabId: string | null) {
     applyTabsState(await api.closeBrowserTab(tabId));
     scheduleResize();
   }
 
-  async function setTabLocked(tabId, locked) {
+  async function setTabLocked(tabId: string | null, locked: boolean) {
     applyTabsState(
       await api.setBrowserTabLocked({
         tabId: tabId,
@@ -150,7 +165,7 @@ export function useBrowserBounds(api, activeView) {
     );
   }
 
-  async function setTabMuted(tabId, muted) {
+  async function setTabMuted(tabId: string | null, muted: boolean) {
     applyTabsState(
       await api.setBrowserTabMuted({
         tabId: tabId,
@@ -159,7 +174,7 @@ export function useBrowserBounds(api, activeView) {
     );
   }
 
-  async function loadBrowser(url, forceReload, tabId) {
+  async function loadBrowser(url: string, forceReload: boolean, tabId?: string | null) {
     var targetTabId = tabId || activeTabId.value;
     scheduleResize();
     await api.navigateBrowser({
@@ -171,7 +186,7 @@ export function useBrowserBounds(api, activeView) {
     scheduleResize();
   }
 
-  async function currentBrowserUrl(tabId) {
+  async function currentBrowserUrl(tabId?: string | null) {
     try {
       return await api.getBrowserUrl({ tabId: tabId || activeTabId.value });
     } catch (error) {
@@ -191,7 +206,7 @@ export function useBrowserBounds(api, activeView) {
     setNavigationState(await api.reloadBrowser({ tabId: activeTabId.value }));
   }
 
-  async function reloadTab(tabId) {
+  async function reloadTab(tabId?: string | null) {
     setNavigationState(await api.reloadBrowser({ tabId: tabId || activeTabId.value }));
     await refreshTabs();
   }
@@ -200,12 +215,12 @@ export function useBrowserBounds(api, activeView) {
     resize();
 
     var hostRect = host.value ? host.value.getBoundingClientRect() : { width: 0, height: 0 };
-    var guest = null;
+    var guest: BrowserDiagnosis = {};
 
     try {
       guest = await api.diagnoseBrowser({ tabId: activeTabId.value });
     } catch (error) {
-      guest = { error: error.message };
+      guest = { error: errorMessage(error) };
     }
 
     var message = [

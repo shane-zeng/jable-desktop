@@ -1,48 +1,37 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { BROWSER_TABS_DEFAULT_WIDTH, BROWSER_TABS_MAX_WIDTH, BROWSER_TABS_MIN_WIDTH } from '../constants';
+import type { BrowserTabMenuPayload, BrowserTabState } from '../../types/jable';
 
 var COMPACT_TRIGGER_WIDTH = 18;
 var COMPACT_DISMISS_WIDTH = 26;
 
-var props = defineProps({
-  active: {
-    type: Boolean,
-    required: true
-  },
-  tabs: {
-    type: Array,
-    required: true
-  },
-  activeTabId: {
-    type: String,
-    default: null
-  },
-  canCreateTab: {
-    type: Boolean,
-    required: true
-  },
-  compact: {
-    type: Boolean,
-    required: true
-  },
-  tabWidth: {
-    type: Number,
-    default: BROWSER_TABS_DEFAULT_WIDTH
+var props = withDefaults(
+  defineProps<{
+    active: boolean;
+    tabs: BrowserTabState[];
+    activeTabId?: string | null;
+    canCreateTab: boolean;
+    compact: boolean;
+    tabWidth?: number;
+  }>(),
+  {
+    activeTabId: null,
+    tabWidth: BROWSER_TABS_DEFAULT_WIDTH
   }
-});
+);
 
-var emit = defineEmits([
-  'host',
-  'layout-change',
-  'new-tab',
-  'activate-tab',
-  'close-tab',
-  'set-tab-muted',
-  'tab-context-menu',
-  'resize-tabs'
-]);
-var browserHost = ref(null);
+var emit = defineEmits<{
+  host: [element: HTMLElement | null];
+  'layout-change': [];
+  'new-tab': [];
+  'activate-tab': [tabId: string];
+  'close-tab': [tabId: string];
+  'set-tab-muted': [payload: { tabId: string; muted: boolean }];
+  'tab-context-menu': [payload: BrowserTabMenuPayload];
+  'resize-tabs': [width: number];
+}>();
+var browserHost = ref<HTMLElement | null>(null);
 var compactTabsVisible = ref(false);
 var resizing = ref(false);
 var resizeStart = ref({
@@ -75,20 +64,20 @@ var compactDismissStyle = computed(function () {
   };
 });
 
-function displayTitle(tab) {
+function displayTitle(tab: BrowserTabState) {
   return tab.title || '新分頁';
 }
 
-function tabInitial(tab) {
+function tabInitial(tab: BrowserTabState) {
   var title = displayTitle(tab);
   return title ? title.slice(0, 1).toUpperCase() : 'J';
 }
 
-function audioButtonLabel(tab) {
+function audioButtonLabel(tab: BrowserTabState) {
   return tab.muted ? '取消分頁靜音' : '分頁靜音';
 }
 
-function hasAudioIndicator(tab) {
+function hasAudioIndicator(tab: BrowserTabState) {
   return !!(tab.muted || tab.audible || tab.mediaPlaying);
 }
 
@@ -104,7 +93,7 @@ function hideCompactTabs() {
   emit('layout-change');
 }
 
-function openTabMenu(event, tab) {
+function openTabMenu(event: MouseEvent, tab: BrowserTabState) {
   emit('tab-context-menu', {
     tabId: tab.id,
     x: event.clientX,
@@ -112,8 +101,8 @@ function openTabMenu(event, tab) {
   });
 }
 
-function openRailMenu(event) {
-  if (event.target.closest('.browser-tab-row')) return;
+function openRailMenu(event: MouseEvent) {
+  if ((event.target as Element | null)?.closest('.browser-tab-row')) return;
 
   emit('tab-context-menu', {
     tabId: props.activeTabId,
@@ -122,11 +111,11 @@ function openRailMenu(event) {
   });
 }
 
-function clampWidth(width) {
+function clampWidth(width: number) {
   return Math.max(BROWSER_TABS_MIN_WIDTH, Math.min(BROWSER_TABS_MAX_WIDTH, width));
 }
 
-function startResize(event) {
+function startResize(event: PointerEvent) {
   resizing.value = true;
   resizeStart.value = {
     x: event.clientX,
@@ -137,7 +126,7 @@ function startResize(event) {
   window.addEventListener('pointerup', stopResize);
 }
 
-function resizeTabs(event) {
+function resizeTabs(event: PointerEvent) {
   if (!resizing.value) return;
 
   emit('resize-tabs', clampWidth(resizeStart.value.width + event.clientX - resizeStart.value.x));

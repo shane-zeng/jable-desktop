@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { effectScope, ref } from 'vue';
 import { useBrowserBounds } from './useBrowserBounds';
+import type { AppView, BrowserTabKind, BrowserTabsState, JableAppApi } from '../../types/jable';
 
-function createState(api) {
+function createState(api: Partial<JableAppApi>) {
   var scope = effectScope();
-  var state;
-
-  scope.run(function () {
-    state = useBrowserBounds(api, ref('browser'));
+  var state = scope.run(function () {
+    return useBrowserBounds(api as JableAppApi, ref<AppView>('browser'));
   });
+
+  if (!state) throw new Error('Failed to create browser state');
 
   return {
     state: state,
@@ -18,32 +19,36 @@ function createState(api) {
   };
 }
 
-function makeTabsState(overrides) {
+function makeTab(id: string, kind: BrowserTabKind, overrides?: Partial<BrowserTabsState['tabs'][number]>) {
+  return Object.assign(
+    {
+      id: id,
+      kind: kind,
+      title: kind === 'sync' ? '同步：影片收藏' : 'Jable',
+      url: kind === 'sync' ? 'https://jable.tv/my/favourites/videos/' : 'https://jable.tv/',
+      favicon: '',
+      loading: false,
+      locked: false,
+      muted: false,
+      audible: false,
+      mediaPlaying: false,
+      pictureInPicture: false,
+      discarded: false,
+      canGoBack: false,
+      canGoForward: false
+    },
+    overrides || {}
+  );
+}
+
+function makeTabsState(overrides?: Partial<BrowserTabsState>): BrowserTabsState {
   return Object.assign(
     {
       activeTabId: 'tab-1',
       maxTabs: 8,
       tabs: [
-        {
-          id: 'tab-1',
-          kind: 'normal',
-          title: 'Jable',
-          url: 'https://jable.tv/',
-          loading: false,
-          locked: false,
-          canGoBack: false,
-          canGoForward: true
-        },
-        {
-          id: 'tab-2',
-          kind: 'sync',
-          title: '同步：影片收藏',
-          url: 'https://jable.tv/my/favourites/videos/',
-          loading: true,
-          locked: true,
-          canGoBack: false,
-          canGoForward: false
-        }
+        makeTab('tab-1', 'normal', { canGoForward: true }),
+        makeTab('tab-2', 'sync', { loading: true, locked: true })
       ]
     },
     overrides || {}
@@ -64,7 +69,7 @@ describe('useBrowserBounds', function () {
       );
 
       expect(setup.state.tabs.value).toHaveLength(2);
-      expect(setup.state.activeTab.value.id).toBe('tab-1');
+      expect(setup.state.activeTab.value?.id).toBe('tab-1');
       expect(setup.state.navigation.value).toEqual({
         tabId: 'tab-1',
         canGoBack: false,
@@ -96,7 +101,7 @@ describe('useBrowserBounds', function () {
       expect(setup.state.tabs.value[0].canGoForward).toBe(true);
       expect(setup.state.tabs.value[1].canGoBack).toBe(true);
       expect(setup.state.tabs.value[1].locked).toBe(false);
-      expect(setup.state.firstUnlockedSyncTab().id).toBe('tab-2');
+      expect(setup.state.firstUnlockedSyncTab()?.id).toBe('tab-2');
     } finally {
       setup.stop();
     }
@@ -108,7 +113,7 @@ describe('useBrowserBounds', function () {
       createBrowserTab: vi.fn().mockResolvedValue(
         makeTabsState({
           activeTabId: 'tab-3',
-          tabs: [{ id: 'tab-3', kind: 'normal', title: 'New', url: 'https://jable.tv/', loading: false, locked: false }]
+          tabs: [makeTab('tab-3', 'normal', { title: 'New' })]
         })
       ),
       activateBrowserTab: vi.fn().mockResolvedValue(makeTabsState({ activeTabId: 'tab-2' })),
