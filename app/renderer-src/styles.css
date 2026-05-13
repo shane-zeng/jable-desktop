@@ -107,14 +107,14 @@ button:focus {
 
 .app-toast {
   position: fixed;
-  top: 16px;
+  top: 8px;
   right: 16px;
   z-index: 80;
   display: flex;
   align-items: flex-start;
   gap: 10px;
   width: min(420px, calc(100vw - 32px));
-  padding: 12px 12px 12px 14px;
+  padding: 9px 12px 9px 14px;
   border: 1px solid var(--panel-border);
   border-left-width: 4px;
   border-radius: 8px;

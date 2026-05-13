@@ -39,16 +39,6 @@ function uniqByUrl(rows) {
   return out;
 }
 
-function allRowsKnown(rows, knownUrls) {
-  if (!rows.length) return false;
-
-  for (var i = 0; i < rows.length; i++) {
-    if (!rows[i].url || !knownUrls[rows[i].url]) return false;
-  }
-
-  return true;
-}
-
 function scrapeCurrentPage() {
   var out = [];
   var boxes = document.querySelectorAll('div.video-img-box');
@@ -300,13 +290,6 @@ async function syncCollection(options) {
   var siteOrderOffset = Number(options.siteOrderOffset) || 0;
   var startPage = Number(options.startPage) || null;
   var batchLimit = Number(options.batchLimit) || null;
-  var knownUrls = {};
-  var knownList = Array.isArray(options.knownUrls) ? options.knownUrls : [];
-
-  for (var i = 0; i < knownList.length; i++) {
-    knownUrls[knownList[i]] = true;
-  }
-
   var totalRows = 0;
   var totalPages = 0;
   var logicalPage = startPage || currentPageNumber();
@@ -329,7 +312,26 @@ async function syncCollection(options) {
     };
   }
 
-  function recordCurrentPage(pageNumber) {
+  async function checkRowsKnown(rows) {
+    if (!options.stopOnKnownPage || !rows.length) return false;
+
+    var urls = [];
+    for (var i = 0; i < rows.length; i++) {
+      urls.push(rows[i].url);
+    }
+
+    try {
+      return await ipcRenderer.invoke('db:collection-urls-known', {
+        collectionKey: collectionKey,
+        urls: urls
+      });
+    } catch (error) {
+      console.warn('[JableDesktopScraper] known URL check failed; continuing sync', error);
+      return false;
+    }
+  }
+
+  async function recordCurrentPage(pageNumber) {
     var rows = uniqByUrl(scrapeCurrentPage());
     lastScrapedPage = pageNumber || logicalPage || currentPageNumber();
     logicalPage = lastScrapedPage;
@@ -343,6 +345,8 @@ async function syncCollection(options) {
 
     if (rows.length) lastKnownUrl = rows[rows.length - 1].url;
 
+    var allKnown = await checkRowsKnown(rows);
+
     sendProgress('sync-page', {
       collectionKey: collectionKey,
       mode: mode,
@@ -352,19 +356,15 @@ async function syncCollection(options) {
       url: location.href
     });
 
-    if (options.stopOnKnownPage && allRowsKnown(rows, knownUrls)) {
+    if (allKnown) {
       stoppedByKnownPage = true;
       return true;
-    }
-
-    for (var n = 0; n < rows.length; n++) {
-      if (rows[n].url) knownUrls[rows[n].url] = true;
     }
 
     return false;
   }
 
-  if (recordCurrentPage()) {
+  if (await recordCurrentPage()) {
     return result(true);
   }
 
@@ -409,7 +409,7 @@ async function syncCollection(options) {
       message: 'page-loaded'
     });
 
-    if (recordCurrentPage(logicalPage)) return result(true);
+    if (await recordCurrentPage(logicalPage)) return result(true);
     if (batchLimit && totalPages >= batchLimit) {
       if (chooseNextPagerLink(readPagerLinks(), logicalPage)) {
         incompleteReason = 'batch-limit';

@@ -281,14 +281,12 @@ async function syncCollection(mode) {
       return;
     }
 
-    var knownUrls = await api.getCollectionUrls(collectionKey);
     var options = {
       collectionKey: collectionKey,
       mode: mode,
       syncRunId: syncRunId,
       siteOrderOffset: siteOrderOffset,
       startPage: startPage,
-      knownUrls: knownUrls,
       stopOnKnownPage: mode === 'quick',
       batchLimit: mode === 'full' ? FULL_SYNC_BATCH_LIMIT : null
     };

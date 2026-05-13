@@ -341,6 +341,45 @@ JableDatabase.prototype.getCollectionUrls = function (collectionKey) {
   });
 };
 
+JableDatabase.prototype.allCollectionUrlsKnown = function (collectionKey, urls) {
+  this.ensureCollection(collectionKey);
+
+  if (!Array.isArray(urls) || !urls.length) return false;
+
+  var seen = {};
+  var normalizedUrls = [];
+
+  for (var i = 0; i < urls.length; i++) {
+    var url = normalizeVideoUrl(urls[i]);
+    if (!url) return false;
+
+    if (!seen[url]) {
+      seen[url] = true;
+      normalizedUrls.push(url);
+    }
+  }
+
+  if (!normalizedUrls.length) return false;
+
+  var placeholders = [];
+  for (var n = 0; n < normalizedUrls.length; n++) {
+    placeholders.push('?');
+  }
+
+  var stmt = this.db.prepare(
+    [
+      'SELECT COUNT(*) AS total',
+      'FROM collection_items',
+      'WHERE collection_key = ?',
+      '  AND video_url IN (' + placeholders.join(', ') + ')'
+    ].join(' ')
+  );
+  var params = [collectionKey].concat(normalizedUrls);
+  var row = stmt.get.apply(stmt, params);
+
+  return !!row && row.total === normalizedUrls.length;
+};
+
 JableDatabase.prototype.saveSyncPage = function (payload) {
   var collectionKey = payload.collectionKey;
   this.ensureCollection(collectionKey);

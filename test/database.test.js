@@ -234,6 +234,60 @@ test('countVideos uses the same search and visibility filters as listVideos', fu
   assert.equal(db.countVideos('watch_later', { search: 'hidden', includeHidden: true }), 1);
 });
 
+test('allCollectionUrlsKnown checks normalized urls and includes hidden rows', function (t) {
+  var db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: 'old-run',
+    rows: [
+      {
+        title: 'Known row',
+        url: 'https://jable.tv/videos/known/',
+        siteOrder: 1
+      },
+      {
+        title: 'Hidden row',
+        url: 'https://jable.tv/videos/hidden/',
+        siteOrder: 2
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: 'full-run',
+    rows: [
+      {
+        title: 'Known row',
+        url: 'https://jable.tv/videos/known/',
+        siteOrder: 1
+      }
+    ]
+  });
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: 'full-run',
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  assert.equal(
+    db.allCollectionUrlsKnown('favourites', [
+      'https://jable.tv/videos/known?from=quick#fragment',
+      'https://jable.tv/videos/hidden'
+    ]),
+    true
+  );
+  assert.equal(
+    db.allCollectionUrlsKnown('favourites', ['https://jable.tv/videos/known/', 'https://jable.tv/videos/missing/']),
+    false
+  );
+  assert.equal(db.allCollectionUrlsKnown('favourites', []), false);
+  assert.equal(db.allCollectionUrlsKnown('favourites', ['https://jable.tv/videos/known/', null]), false);
+});
+
 test('quick sync updates scanned rows without hiding unscanned rows', function (t) {
   var db = createTestDatabase(t);
 

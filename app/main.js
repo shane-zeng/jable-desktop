@@ -1072,6 +1072,11 @@ function registerIpcHandlers() {
     return getDatabase().getCollectionUrls(collectionKey);
   });
 
+  ipcMain.handle('db:collection-urls-known', function (_event, payload) {
+    payload = payload || {};
+    return getDatabase().allCollectionUrlsKnown(payload.collectionKey, payload.urls);
+  });
+
   ipcMain.handle('db:save-sync-page', function (_event, payload) {
     return getDatabase().saveSyncPage(payload);
   });
