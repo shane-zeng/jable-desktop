@@ -14,6 +14,9 @@ var clipboard = electron.clipboard;
 var JABLE_HOME_URL = 'https://jable.tv/';
 var JABLE_SESSION_PARTITION = 'persist:jable-session';
 var MAX_BROWSER_TABS = 14;
+var IS_MACOS = process.platform === 'darwin';
+var NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
+var CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
 
 var mainWindow = null;
 var browserTabs = [];
@@ -24,6 +27,7 @@ var nextBrowserTabId = 1;
 var browserBounds = { visible: true, x: 0, y: 52, width: 900, height: 600 };
 var database = null;
 var databasePath = null;
+var lastShortcutAction = { name: '', at: 0 };
 
 function getDatabase() {
   if (!database) {
@@ -50,6 +54,8 @@ function createWindow() {
     }
   });
 
+  registerAppShortcuts(mainWindow.webContents);
+
   mainWindow.webContents.setWindowOpenHandler(function (details) {
     if (details.url) {
       try {
@@ -72,6 +78,156 @@ function createWindow() {
 
   loadRenderer();
   createBrowserTab({ url: JABLE_HOME_URL, active: true });
+}
+
+function isPrimaryShortcut(input, key) {
+  if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return false;
+  if (String(input.key || '').toLowerCase() !== key) return false;
+  if (input.alt || input.shift) return false;
+
+  if (IS_MACOS) return !!input.meta && !input.control;
+  return !!input.control && !input.meta;
+}
+
+function isNewTabShortcut(input) {
+  return isPrimaryShortcut(input, 't');
+}
+
+function isCloseTabShortcut(input) {
+  return isPrimaryShortcut(input, 'w');
+}
+
+function runShortcutAction(name, action) {
+  var now = Date.now();
+
+  if (lastShortcutAction.name === name && now - lastShortcutAction.at < 150) return;
+
+  lastShortcutAction = { name: name, at: now };
+  action();
+}
+
+function openHomeTabFromShortcut() {
+  runShortcutAction('new-tab', function () {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        createWindow();
+        return;
+      }
+
+      createBrowserTab({ url: JABLE_HOME_URL, active: true });
+      forwardBrowserMessage('browser-tab-shortcut', {});
+    } catch (error) {
+      forwardBrowserMessage('browser-error', { message: error.message });
+    }
+  });
+}
+
+function closeActiveTabFromShortcut() {
+  runShortcutAction('close-tab', function () {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    try {
+      closeBrowserTab(activeBrowserTabId);
+      forwardBrowserMessage('browser-tab-shortcut', {});
+    } catch (error) {
+      forwardBrowserMessage('browser-error', { message: error.message });
+    }
+  });
+}
+
+function registerAppShortcuts(webContents) {
+  webContents.on('before-input-event', function (event, input) {
+    if (isNewTabShortcut(input)) {
+      event.preventDefault();
+      openHomeTabFromShortcut();
+      return;
+    }
+
+    if (isCloseTabShortcut(input)) {
+      event.preventDefault();
+      closeActiveTabFromShortcut();
+    }
+  });
+}
+
+function installApplicationMenu() {
+  var template = [];
+  var fileSubmenu = [
+    {
+      label: '新增分頁',
+      accelerator: NEW_TAB_ACCELERATOR,
+      click: openHomeTabFromShortcut
+    },
+    {
+      label: '關閉分頁',
+      accelerator: CLOSE_TAB_ACCELERATOR,
+      click: closeActiveTabFromShortcut
+    }
+  ];
+
+  if (!IS_MACOS) {
+    fileSubmenu.push({ type: 'separator' });
+    fileSubmenu.push({ role: 'quit' });
+  }
+
+  if (IS_MACOS) {
+    template.push({
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    });
+  }
+
+  template.push({
+    label: '檔案',
+    submenu: fileSubmenu
+  });
+
+  template.push(
+    {
+      label: '編輯',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: '檢視',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: '視窗',
+      submenu: IS_MACOS
+        ? [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
+        : [{ role: 'minimize' }, { role: 'zoom' }]
+    }
+  );
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 function loadRenderer() {
@@ -131,6 +287,8 @@ function createBrowserTab(options) {
 }
 
 function wireBrowserTab(tab) {
+  registerAppShortcuts(tab.view.webContents);
+
   tab.view.webContents.setWindowOpenHandler(function (details) {
     if (details.url) {
       try {
@@ -955,12 +1113,23 @@ function registerIpcHandlers() {
     if (direction === 'back') goBrowserBack(tab.id);
     else if (direction === 'forward') goBrowserForward(tab.id);
   });
+
+  ipcMain.on('browser:open-url-new-tab', function (event, payload) {
+    var tab = getBrowserTabByWebContents(event.sender);
+    if (!tab) return;
+
+    payload = payload || {};
+    if (!payload.url) return;
+
+    safeCreateBrowserTab({ url: payload.url, active: true });
+  });
 }
 
 registerIpcHandlers();
 
 app.whenReady().then(function () {
   app.setName('Jable Desktop');
+  installApplicationMenu();
 
   getDatabase();
   createWindow();

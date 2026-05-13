@@ -255,9 +255,41 @@ function handleTrackpadHistoryWheel(event) {
   ipcRenderer.send('browser:trackpad-history', direction);
 }
 
+function closestAnchor(target) {
+  var el = null;
+
+  if (target && target.nodeType === Node.ELEMENT_NODE) el = target;
+  else if (target && target.parentElement) el = target.parentElement;
+
+  while (el && el !== document.documentElement) {
+    if (el.tagName === 'A' && el.href) return el;
+    el = el.parentElement;
+  }
+
+  return null;
+}
+
+function handleMiddleClickNewTab(event) {
+  if (!event.isTrusted || event.defaultPrevented || event.button !== 1) return;
+
+  var anchor = closestAnchor(event.target);
+  if (!anchor) return;
+
+  var href = anchor.getAttribute('href') || anchor.href || '';
+  var url = absUrl(href, anchor.baseURI || location.href);
+
+  if (!url || /^javascript:/i.test(url)) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  ipcRenderer.send('browser:open-url-new-tab', { url: url });
+}
+
 if (IS_MACOS) {
   window.addEventListener('wheel', handleTrackpadHistoryWheel, { capture: true, passive: false });
 }
+
+window.addEventListener('auxclick', handleMiddleClickNewTab, { capture: true });
 
 async function syncCollection(options) {
   options = options || {};

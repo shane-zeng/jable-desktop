@@ -71,6 +71,13 @@ function openVideo(event) {
   emit('open', props.video.url);
 }
 
+function openVideoAux(event) {
+  if (event.button !== 1) return;
+
+  event.preventDefault();
+  emit('open-new', props.video.url);
+}
+
 function openVideoMenu(event) {
   event.preventDefault();
   emit('context-menu', {
@@ -93,6 +100,7 @@ function openVideoMenu(event) {
       :aria-label="'開啟影片：' + (video.title || video.url)"
       data-test="video-thumb-link"
       @click="openVideo"
+      @auxclick="openVideoAux"
       @pointerenter="startPreview"
       @pointerleave="stopPreview"
     >
@@ -123,6 +131,7 @@ function openVideoMenu(event) {
           :href="video.url"
           data-test="video-title-link"
           @click="openVideo"
+          @auxclick="openVideoAux"
         >
           {{ video.title || video.url }}
         </a>

@@ -11,8 +11,7 @@ import {
   BROWSER_TABS_WIDTH_STORAGE_KEY,
   COLLECTIONS,
   DEFAULT_BROWSER_URL,
-  FULL_SYNC_BATCH_LIMIT,
-  THEME_STORAGE_KEY
+  FULL_SYNC_BATCH_LIMIT
 } from './constants';
 import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
@@ -23,7 +22,6 @@ var activeView = ref('browser');
 var toast = ref(null);
 var busy = ref(false);
 var syncing = ref(false);
-var theme = ref('system');
 var browserTabsCompact = ref(false);
 var browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 var appInfo = ref(null);
@@ -74,17 +72,6 @@ function setStatus(text) {
     toast.value = null;
     toastTimer = null;
   }, 4200);
-}
-
-function loadTheme() {
-  return localStorage.getItem(THEME_STORAGE_KEY) || 'system';
-}
-
-function applyTheme(nextTheme) {
-  var value = nextTheme === 'dark' || nextTheme === 'light' ? nextTheme : 'system';
-  theme.value = value;
-  document.documentElement.setAttribute('data-theme', value);
-  localStorage.setItem(THEME_STORAGE_KEY, value);
 }
 
 function loadBrowserTabsCompact() {
@@ -220,6 +207,10 @@ function handleBrowserMessage(message) {
   if (message.channel === 'browser-tabs-compact-mode') {
     var compactPayload = message.args[0] || {};
     setBrowserTabsCompact(!!compactPayload.compact);
+  }
+
+  if (message.channel === 'browser-tab-shortcut') {
+    setActiveView('browser');
   }
 }
 
@@ -507,7 +498,6 @@ async function showLibraryVideoMenu(payload) {
 }
 
 onMounted(async function () {
-  applyTheme(loadTheme());
   browserTabsCompact.value = loadBrowserTabsCompact();
   browserTabsWidth.value = loadBrowserTabsWidth();
   appInfo.value = await api.getAppInfo();
@@ -526,9 +516,7 @@ onMounted(async function () {
       :active-view="activeView"
       :busy="busy"
       :navigation="browser.navigation.value"
-      :theme="theme"
       @set-view="setActiveView"
-      @update:theme="applyTheme"
       @back="browser.goBack"
       @forward="browser.goForward"
       @reload="browser.reload"

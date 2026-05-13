@@ -11,18 +11,10 @@ defineProps({
   navigation: {
     type: Object,
     required: true
-  },
-  theme: {
-    type: String,
-    required: true
   }
 });
 
-var emit = defineEmits(['set-view', 'update:theme', 'back', 'forward', 'reload', 'diagnose']);
-
-function updateTheme(event) {
-  emit('update:theme', event.target.value);
-}
+var emit = defineEmits(['set-view', 'back', 'forward', 'reload', 'diagnose']);
 </script>
 
 <template>
@@ -94,11 +86,6 @@ function updateTheme(event) {
     </div>
 
     <div class="flex flex-wrap items-center justify-end gap-2 max-[1180px]:col-span-full max-[1180px]:justify-start">
-      <select class="min-h-[34px]" aria-label="主題" :value="theme" @change="updateTheme">
-        <option value="system">系統</option>
-        <option value="dark">深色</option>
-        <option value="light">淺色</option>
-      </select>
       <button type="button" hidden @click="emit('diagnose')">診斷</button>
     </div>
   </header>

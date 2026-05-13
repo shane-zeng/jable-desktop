@@ -86,6 +86,20 @@ describe('VideoCard', function () {
     expect(wrapper.emitted('open-new')).toEqual([[video.url]]);
   });
 
+  it('emits open-new with the video URL when a link is middle clicked', async function () {
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.find('[data-test="video-title-link"]').trigger('auxclick', { button: 1 });
+
+    expect(wrapper.emitted('open')).toBeUndefined();
+    expect(wrapper.emitted('open-new')).toEqual([[video.url]]);
+  });
+
   it('does not treat control click as a new tab gesture on macOS', async function () {
     setNavigatorPlatform('MacIntel');
     var video = makeVideo();
