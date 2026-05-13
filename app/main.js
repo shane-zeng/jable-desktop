@@ -469,7 +469,9 @@ function browserTabsState() {
 }
 
 function updateTabNavigationState(tab) {
-  if (!tab || tab.view.webContents.isDestroyed()) {
+  var webContents = tab && tab.view ? tab.view.webContents : null;
+
+  if (!tab || !webContents || webContents.isDestroyed()) {
     if (tab) {
       tab.canGoBack = false;
       tab.canGoForward = false;
@@ -477,8 +479,8 @@ function updateTabNavigationState(tab) {
     return;
   }
 
-  var history = tab.view.webContents.navigationHistory;
-  tab.url = tab.view.webContents.getURL() || tab.url;
+  var history = webContents.navigationHistory;
+  tab.url = webContents.getURL() || tab.url;
   tab.canGoBack = history.canGoBack();
   tab.canGoForward = history.canGoForward();
 }
