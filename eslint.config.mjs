@@ -4,8 +4,12 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import vue from 'eslint-plugin-vue';
 
-var commonRules = {
+const commonRules = {
+  'block-scoped-var': 'error',
+  eqeqeq: 'error',
   'no-empty': ['error', { allowEmptyCatch: true }],
+  'no-implicit-coercion': 'error',
+  'no-shadow': 'error',
   'no-unused-vars': [
     'error',
     {
@@ -14,19 +18,19 @@ var commonRules = {
       varsIgnorePattern: '^_'
     }
   ],
-  'no-var': 'off',
+  'no-var': 'error',
   'no-useless-assignment': 'off',
   'object-shorthand': 'off',
   'preserve-caught-error': 'off',
-  'prefer-const': 'off'
+  'prefer-const': 'error'
 };
 
-var browserGlobals = {
+const browserGlobals = {
   ...globals.browser,
   ...globals.es2024
 };
 
-var nodeGlobals = {
+const nodeGlobals = {
   ...globals.node,
   ...globals.es2024
 };
@@ -77,6 +81,7 @@ export default [
     },
     rules: {
       'no-unused-vars': 'off',
+      '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -99,6 +104,7 @@ export default [
     },
     rules: {
       'no-unused-vars': 'off',
+      '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

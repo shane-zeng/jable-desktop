@@ -8,7 +8,7 @@ defineProps<{
   pageLabel: string;
 }>();
 
-var emit = defineEmits<{
+const emit = defineEmits<{
   prev: [];
   next: [];
 }>();

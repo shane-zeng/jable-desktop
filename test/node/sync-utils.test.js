@@ -1,11 +1,11 @@
 'use strict';
 
-var test = require('node:test');
-var assert = require('node:assert/strict');
-var chooseNextPagerLink = require('../../app/runtime-dist/sync-utils').chooseNextPagerLink;
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const chooseNextPagerLink = require('../../app/runtime-dist/sync-utils').chooseNextPagerLink;
 
 test('chooseNextPagerLink selects the smallest page after the current page', function () {
-  var links = [
+  const links = [
     { pageNumber: 1, label: '1' },
     { pageNumber: 4, label: '4' },
     { pageNumber: 2, label: '2' },
@@ -16,7 +16,7 @@ test('chooseNextPagerLink selects the smallest page after the current page', fun
 });
 
 test('chooseNextPagerLink ignores previous pages and non-numeric links', function () {
-  var links = [
+  const links = [
     { pageNumber: 1, label: '1' },
     { pageNumber: null, label: 'Next' },
     { pageNumber: 2, label: '2' }

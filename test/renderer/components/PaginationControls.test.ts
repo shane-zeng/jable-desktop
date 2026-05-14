@@ -10,7 +10,7 @@ describe('PaginationControls', function () {
 
   it('renders Japanese pagination labels', function () {
     setLocale('ja-JP', false);
-    var wrapper = mount(PaginationControls, {
+    const wrapper = mount(PaginationControls, {
       props: {
         busy: false,
         currentPage: 2,

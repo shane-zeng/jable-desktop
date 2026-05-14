@@ -9,7 +9,7 @@ describe('TopBar', function () {
   });
 
   it('marks the active main view visibly and semantically', async function () {
-    var wrapper = mount(TopBar, {
+    const wrapper = mount(TopBar, {
       props: {
         activeView: 'library',
         busy: false,
@@ -22,7 +22,7 @@ describe('TopBar', function () {
       }
     });
 
-    var tabs = wrapper.findAll('[role="tab"]');
+    const tabs = wrapper.findAll('[role="tab"]');
 
     expect(tabs[0].attributes('aria-selected')).toBe('false');
     expect(tabs[0].classes()).not.toContain('is-active');
@@ -36,7 +36,7 @@ describe('TopBar', function () {
 
   it('renders English labels after switching locale', async function () {
     setLocale('en-US', false);
-    var wrapper = mount(TopBar, {
+    const wrapper = mount(TopBar, {
       props: {
         activeView: 'browser',
         busy: false,
@@ -57,7 +57,7 @@ describe('TopBar', function () {
 
   it('renders Japanese labels and locale option after switching locale', function () {
     setLocale('ja-JP', false);
-    var wrapper = mount(TopBar, {
+    const wrapper = mount(TopBar, {
       props: {
         activeView: 'browser',
         busy: false,

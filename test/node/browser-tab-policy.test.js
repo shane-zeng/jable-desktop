@@ -1,11 +1,11 @@
 'use strict';
 
-var assert = require('node:assert/strict');
-var test = require('node:test');
-var policy = require('../../app/runtime-dist/browser-tab-policy');
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const policy = require('../../app/runtime-dist/browser-tab-policy');
 
 test('normal browser tabs use background throttling', function () {
-  var preferences = policy.browserTabWebPreferences('normal', '/tmp/preload.js', 'persist:test');
+  const preferences = policy.browserTabWebPreferences('normal', '/tmp/preload.js', 'persist:test');
 
   assert.equal(preferences.backgroundThrottling, true);
   assert.equal(preferences.preload, '/tmp/preload.js');
@@ -13,7 +13,7 @@ test('normal browser tabs use background throttling', function () {
 });
 
 test('sync browser tabs keep background throttling disabled', function () {
-  var preferences = policy.browserTabWebPreferences('sync', '/tmp/preload.js', 'persist:test');
+  const preferences = policy.browserTabWebPreferences('sync', '/tmp/preload.js', 'persist:test');
 
   assert.equal(preferences.backgroundThrottling, false);
 });
@@ -38,62 +38,62 @@ test('serializedMediaState exposes stable tab media flags', function () {
 });
 
 test('nextActiveTabIdAfterClose prefers the next tab when closing the active tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2', 'tab-2'), 'tab-3');
 });
 
 test('nextActiveTabIdAfterClose falls back to the previous tab when closing the last active tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-3', 'tab-3'), 'tab-2');
 });
 
 test('nextActiveTabIdAfterClose keeps the current active tab when closing an inactive tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2', 'tab-1'), 'tab-2');
 });
 
 test('nextActiveTabIdAfterClose returns null when closing the only active tab', function () {
-  var tabs = [{ id: 'tab-1' }];
+  const tabs = [{ id: 'tab-1' }];
 
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-1', 'tab-1'), null);
 });
 
 test('nextActiveTabIdByOffset returns the next tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-2', 1), 'tab-3');
 });
 
 test('nextActiveTabIdByOffset returns the previous tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-2', -1), 'tab-1');
 });
 
 test('nextActiveTabIdByOffset wraps from the last tab to the first tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-3', 1), 'tab-1');
 });
 
 test('nextActiveTabIdByOffset wraps from the first tab to the last tab', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3' }];
 
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-1', -1), 'tab-3');
 });
 
 test('nextActiveTabIdByOffset keeps the active tab when there is only one tab', function () {
-  var tabs = [{ id: 'tab-1' }];
+  const tabs = [{ id: 'tab-1' }];
 
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-1', 1), 'tab-1');
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-1', -1), 'tab-1');
 });
 
 test('nextActiveTabIdByOffset returns null when the active tab is missing', function () {
-  var tabs = [{ id: 'tab-1' }, { id: 'tab-2' }];
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }];
 
   assert.equal(policy.nextActiveTabIdByOffset(tabs, 'tab-3', 1), null);
 });

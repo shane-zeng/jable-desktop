@@ -1,6 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
+import type * as NodePath from 'node:path';
 import type {
   BrowserBounds,
   BrowserNavigatePayload,
@@ -19,6 +20,7 @@ import type {
   ListVideosOptions,
   SupportedLocale,
   SyncPagePayload,
+  SyncState,
   VideoRow
 } from './types/jable';
 
@@ -75,7 +77,7 @@ type JableDatabaseInstance = {
   allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean;
   saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null };
   applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult;
-  finishSync(payload: FinishSyncPayload): import('./types/jable').SyncState;
+  finishSync(payload: FinishSyncPayload): SyncState;
   clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
   importResource(
     collectionKey: CollectionKey,
@@ -128,51 +130,51 @@ type UpdateCheckerModule = {
 type UpdateCheckOptions = { manual?: boolean };
 type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
-var electron = require('electron') as typeof import('electron');
-var path = require('node:path') as typeof import('node:path');
-var browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
-var databaseModule = require('./database') as DatabaseModule;
-var i18n = require('./i18n') as I18nModule;
-var updateChecker = require('./update-checker') as UpdateCheckerModule;
-var JableDatabase = databaseModule.JableDatabase;
-var COLLECTIONS = databaseModule.COLLECTIONS;
+const electron: typeof Electron = require('electron');
+const path: typeof NodePath = require('node:path');
+const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
+const databaseModule = require('./database') as DatabaseModule;
+const i18n = require('./i18n') as I18nModule;
+const updateChecker = require('./update-checker') as UpdateCheckerModule;
+const JableDatabase = databaseModule.JableDatabase;
+const COLLECTIONS = databaseModule.COLLECTIONS;
 
-var app = electron.app;
-var BrowserWindow = electron.BrowserWindow;
-var WebContentsView = electron.WebContentsView;
-var ipcMain = electron.ipcMain;
-var Menu = electron.Menu;
-var clipboard = electron.clipboard;
-var dialog = electron.dialog;
-var shell = electron.shell;
-var browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
-var browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
-var nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
-var nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
-var serializedMediaState = browserTabPolicy.serializedMediaState;
+const app = electron.app;
+const BrowserWindow = electron.BrowserWindow;
+const WebContentsView = electron.WebContentsView;
+const ipcMain = electron.ipcMain;
+const Menu = electron.Menu;
+const clipboard = electron.clipboard;
+const dialog = electron.dialog;
+const shell = electron.shell;
+const browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
+const browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
+const nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
+const nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
+const serializedMediaState = browserTabPolicy.serializedMediaState;
 
-var JABLE_HOME_URL = 'https://jable.tv/';
-var JABLE_SESSION_PARTITION = 'persist:jable-session';
-var MAX_BROWSER_TABS = 14;
-var BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
-var IS_MACOS = process.platform === 'darwin';
-var NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
-var CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
+const JABLE_HOME_URL = 'https://jable.tv/';
+const JABLE_SESSION_PARTITION = 'persist:jable-session';
+const MAX_BROWSER_TABS = 14;
+const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
+const IS_MACOS = process.platform === 'darwin';
+const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
+const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
 
-var mainWindow: Electron.BrowserWindow | null = null;
-var browserTabs: BrowserTab[] = [];
-var browserTabsById: Record<string, BrowserTab> = {};
-var webContentsTabIds: Record<string, string> = {};
-var activeBrowserTabId: string | null = null;
-var nextBrowserTabId = 1;
-var browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
-var browserHtmlFullScreenTabId: string | null = null;
-var database: JableDatabaseInstance | null = null;
-var databasePath: string | null = null;
-var lastShortcutAction = { name: '', at: 0 };
-var currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
-var updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
-var lastBackgroundUpdateVersion: string | null = null;
+let mainWindow: Electron.BrowserWindow | null = null;
+const browserTabs: BrowserTab[] = [];
+const browserTabsById: Record<string, BrowserTab> = {};
+const webContentsTabIds: Record<string, string> = {};
+let activeBrowserTabId: string | null = null;
+let nextBrowserTabId = 1;
+let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
+let browserHtmlFullScreenTabId: string | null = null;
+let database: JableDatabaseInstance | null = null;
+let databasePath: string | null = null;
+let lastShortcutAction = { name: '', at: 0 };
+let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
+let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
+let lastBackgroundUpdateVersion: string | null = null;
 
 function t(key: string, params?: TranslationParams | null): string {
   return i18n.t(currentLocale, key, params);
@@ -252,8 +254,8 @@ function isPrimaryShortcut(input: BrowserTabShortcutInput | null | undefined, ke
   if (String(input.key || '').toLowerCase() !== key) return false;
   if (input.alt || input.shift) return false;
 
-  if (IS_MACOS) return !!input.meta && !input.control;
-  return !!input.control && !input.meta;
+  if (IS_MACOS) return Boolean(input.meta) && !input.control;
+  return Boolean(input.control) && !input.meta;
 }
 
 function isNewTabShortcut(input: BrowserTabShortcutInput | null | undefined) {
@@ -269,7 +271,7 @@ function isToggleCompactTabsShortcut(input: BrowserTabShortcutInput | null | und
 }
 
 function runShortcutAction(name: string, action: () => void) {
-  var now = Date.now();
+  const now = Date.now();
 
   if (lastShortcutAction.name === name && now - lastShortcutAction.at < 150) return;
 
@@ -311,7 +313,7 @@ function activateRelativeBrowserTabFromShortcut(offset: number) {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
     try {
-      var tabId = nextActiveTabIdByOffset(browserTabs, activeBrowserTabId, offset);
+      const tabId = nextActiveTabIdByOffset(browserTabs, activeBrowserTabId, offset);
       if (!tabId || tabId === activeBrowserTabId) return;
 
       activateBrowserTab(tabId);
@@ -342,7 +344,7 @@ function registerAppShortcuts(webContents: Electron.WebContents) {
       return;
     }
 
-    var tabSwitchOffset = browserTabShortcutOffset(input, IS_MACOS);
+    const tabSwitchOffset = browserTabShortcutOffset(input, IS_MACOS);
     if (tabSwitchOffset) {
       event.preventDefault();
       activateRelativeBrowserTabFromShortcut(tabSwitchOffset);
@@ -357,8 +359,8 @@ function registerAppShortcuts(webContents: Electron.WebContents) {
 }
 
 function installApplicationMenu() {
-  var template: Electron.MenuItemConstructorOptions[] = [];
-  var fileSubmenu: Electron.MenuItemConstructorOptions[] = [
+  const template: Electron.MenuItemConstructorOptions[] = [];
+  const fileSubmenu: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('menu.newTab'),
       accelerator: NEW_TAB_ACCELERATOR,
@@ -535,10 +537,10 @@ function fetchUpdateCheck(): Promise<UpdateCheckResult> {
 }
 
 function checkForUpdates(options?: UpdateCheckOptions | null): Promise<UpdateCheckResult> {
-  var normalizedOptions = options || {};
+  const normalizedOptions = options || {};
 
   return fetchUpdateCheck().then(function (result) {
-    return displayUpdateCheckResult(result, !!normalizedOptions.manual);
+    return displayUpdateCheckResult(result, Boolean(normalizedOptions.manual));
   });
 }
 
@@ -559,28 +561,28 @@ function scheduleBackgroundUpdateCheck() {
 }
 
 function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
-  var normalizedOptions = options || {};
+  const normalizedOptions = options || {};
 
   if (browserTabs.length >= MAX_BROWSER_TABS) {
     throw new Error(t('errors.maxTabs', { count: MAX_BROWSER_TABS }));
   }
 
-  var kind: BrowserTabKind = normalizedOptions.kind === 'sync' ? 'sync' : 'normal';
-  var id = 'tab-' + nextBrowserTabId++;
-  var preloadPath = path.join(__dirname, 'webview-preload.js');
-  var tab: BrowserTab = {
+  const kind: BrowserTabKind = normalizedOptions.kind === 'sync' ? 'sync' : 'normal';
+  const id = 'tab-' + nextBrowserTabId++;
+  const preloadPath = path.join(__dirname, 'webview-preload.js');
+  const tab: BrowserTab = {
     id: id,
     kind: kind,
     view: new WebContentsView({
       webPreferences: browserTabWebPreferences(kind, preloadPath, JABLE_SESSION_PARTITION)
     }),
     attached: false,
-    locked: !!normalizedOptions.locked,
+    locked: Boolean(normalizedOptions.locked),
     title: normalizedOptions.title || (kind === 'sync' ? t('browser.sync') : 'Jable'),
     url: normalizedOptions.url || '',
     favicon: normalizedOptions.favicon || '',
     loading: false,
-    muted: !!normalizedOptions.muted,
+    muted: Boolean(normalizedOptions.muted),
     audible: false,
     mediaPlaying: false,
     pictureInPicture: false,
@@ -598,7 +600,7 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
     activeBrowserTabId = id;
   }
 
-  if (normalizedOptions.url) loadTabUrl(tab, normalizedOptions.url, !!normalizedOptions.forceReload);
+  if (normalizedOptions.url) loadTabUrl(tab, normalizedOptions.url, Boolean(normalizedOptions.forceReload));
   attachActiveBrowserTab();
   if (activeBrowserTabId === tab.id) focusBrowserTab(tab);
   notifyBrowserTabsChanged();
@@ -689,7 +691,7 @@ function wireBrowserTab(tab: BrowserTab) {
   });
 
   tab.view.webContents.on('audio-state-changed', function (event: { audible?: boolean }) {
-    tab.audible = !!(event && event.audible);
+    tab.audible = Boolean(event && event.audible);
     syncBrowserTabMediaState(tab);
     notifyBrowserTabsChanged();
   });
@@ -714,9 +716,9 @@ function cleanTitle(title: unknown): string {
 }
 
 function getBrowserTab(tabId?: string | null): BrowserTab {
-  var id = tabId || activeBrowserTabId;
-  var tab = id ? browserTabsById[id] : null;
-  var webContents = tab && tab.view ? tab.view.webContents : null;
+  const id = tabId || activeBrowserTabId;
+  const tab = id ? browserTabsById[id] : null;
+  const webContents = tab && tab.view ? tab.view.webContents : null;
 
   if (!tab || !webContents || webContents.isDestroyed()) {
     throw new Error(t('errors.tabNotFound'));
@@ -727,7 +729,7 @@ function getBrowserTab(tabId?: string | null): BrowserTab {
 
 function getBrowserTabByWebContents(webContents: Electron.WebContents | null | undefined): BrowserTab | null {
   if (!webContents) return null;
-  var tabId = webContentsTabIds[String(webContents.id)];
+  const tabId = webContentsTabIds[String(webContents.id)];
   return tabId ? browserTabsById[tabId] : null;
 }
 
@@ -742,7 +744,7 @@ function resetBrowserTabMediaState(tab: BrowserTab | null | undefined) {
 function syncBrowserTabMediaState(tab: BrowserTab | null | undefined) {
   if (!tab) return;
 
-  var webContents = tab.view.webContents;
+  const webContents = tab.view.webContents;
 
   if (!webContents || webContents.isDestroyed()) return;
 
@@ -759,7 +761,7 @@ function serializeBrowserTab(tab: BrowserTab) {
   updateTabNavigationState(tab);
   syncBrowserTabMediaState(tab);
 
-  var mediaState = serializedMediaState(tab);
+  const mediaState = serializedMediaState(tab);
 
   return {
     id: tab.id,
@@ -767,15 +769,15 @@ function serializeBrowserTab(tab: BrowserTab) {
     title: tab.title || t('browser.newPage'),
     url: tab.url || '',
     favicon: tab.favicon || '',
-    loading: !!tab.loading,
-    locked: !!tab.locked,
+    loading: Boolean(tab.loading),
+    locked: Boolean(tab.locked),
     muted: mediaState.muted,
     audible: mediaState.audible,
     mediaPlaying: mediaState.mediaPlaying,
     pictureInPicture: mediaState.pictureInPicture,
     discarded: mediaState.discarded,
-    canGoBack: !!tab.canGoBack,
-    canGoForward: !!tab.canGoForward
+    canGoBack: Boolean(tab.canGoBack),
+    canGoForward: Boolean(tab.canGoForward)
   };
 }
 
@@ -788,7 +790,7 @@ function browserTabsState(): BrowserTabsState {
 }
 
 function updateTabNavigationState(tab: BrowserTab | null | undefined) {
-  var webContents = tab && tab.view ? tab.view.webContents : null;
+  const webContents = tab && tab.view ? tab.view.webContents : null;
 
   if (!tab || !webContents || webContents.isDestroyed()) {
     if (tab) {
@@ -798,7 +800,7 @@ function updateTabNavigationState(tab: BrowserTab | null | undefined) {
     return;
   }
 
-  var history = webContents.navigationHistory;
+  const history = webContents.navigationHistory;
   tab.url = webContents.getURL() || tab.url;
   tab.canGoBack = history.canGoBack();
   tab.canGoForward = history.canGoForward();
@@ -810,7 +812,7 @@ function notifyBrowserTabsChanged() {
 }
 
 function browserNavigationState(tabId?: string | null): BrowserNavigationState {
-  var tab: BrowserTab | null = null;
+  let tab: BrowserTab | null = null;
 
   try {
     tab = getBrowserTab(tabId);
@@ -835,7 +837,7 @@ function detachBrowserTab(tab: BrowserTab | null | undefined) {
 }
 
 function detachAllBrowserTabs() {
-  for (var i = 0; i < browserTabs.length; i++) {
+  for (let i = 0; i < browserTabs.length; i++) {
     detachBrowserTab(browserTabs[i]);
   }
 }
@@ -854,8 +856,8 @@ function focusBrowserTab(tab: BrowserTab | null | undefined) {
 }
 
 function attachActiveBrowserTab() {
-  var activeTab: BrowserTab | null = null;
-  var bounds: BrowserBoundsState | null = null;
+  let activeTab: BrowserTab | null = null;
+  let bounds: BrowserBoundsState | null = null;
 
   try {
     activeTab = getBrowserTab();
@@ -863,7 +865,7 @@ function attachActiveBrowserTab() {
     return;
   }
 
-  for (var i = 0; i < browserTabs.length; i++) {
+  for (let i = 0; i < browserTabs.length; i++) {
     if (browserTabs[i] !== activeTab) detachBrowserTab(browserTabs[i]);
   }
 
@@ -886,7 +888,7 @@ function attachActiveBrowserTab() {
 function browserTabBounds(tab: BrowserTab): BrowserBoundsState {
   // HTML fullscreen expands only within WebContentsView bounds, so stretch the view over the app chrome.
   if (browserHtmlFullScreenTabId === tab.id && mainWindow && !mainWindow.isDestroyed()) {
-    var size = mainWindow.getContentSize();
+    const size = mainWindow.getContentSize();
 
     return {
       visible: true,
@@ -948,7 +950,7 @@ function setBrowserBounds(bounds: BrowserBounds | null | undefined): BrowserBoun
 }
 
 function activateBrowserTab(tabId: string | null): BrowserTabsState {
-  var tab = getBrowserTab(tabId);
+  const tab = getBrowserTab(tabId);
   if (browserHtmlFullScreenTabId && browserHtmlFullScreenTabId !== tab.id) {
     browserHtmlFullScreenTabId = null;
   }
@@ -960,11 +962,11 @@ function activateBrowserTab(tabId: string | null): BrowserTabsState {
 }
 
 function closeBrowserTab(tabId: string | null): BrowserTabsState {
-  var tab = getBrowserTab(tabId);
+  const tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error(t('errors.lockedClose'));
 
-  var shouldFocusNextTab = activeBrowserTabId === tab.id;
-  var nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
+  const shouldFocusNextTab = activeBrowserTabId === tab.id;
+  const nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
   detachBrowserTab(tab);
   delete browserTabsById[tab.id];
   delete webContentsTabIds[String(tab.view.webContents.id)];
@@ -991,18 +993,18 @@ function closeBrowserTab(tabId: string | null): BrowserTabsState {
 }
 
 function setBrowserTabLocked(payload?: BrowserTabLockedPayload | null): BrowserTabsState {
-  var normalizedPayload: BrowserTabLockedPayload = payload || { locked: false };
-  var tab = getBrowserTab(normalizedPayload.tabId);
-  tab.locked = !!normalizedPayload.locked;
+  const normalizedPayload: BrowserTabLockedPayload = payload || { locked: false };
+  const tab = getBrowserTab(normalizedPayload.tabId);
+  tab.locked = Boolean(normalizedPayload.locked);
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
 
 function setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState {
-  var normalizedPayload: BrowserTabMutedPayload = payload || { muted: false };
-  var tab = getBrowserTab(normalizedPayload.tabId);
+  const normalizedPayload: BrowserTabMutedPayload = payload || { muted: false };
+  const tab = getBrowserTab(normalizedPayload.tabId);
 
-  tab.view.webContents.setAudioMuted(!!normalizedPayload.muted);
+  tab.view.webContents.setAudioMuted(Boolean(normalizedPayload.muted));
   syncBrowserTabMediaState(tab);
   notifyBrowserTabsChanged();
   return browserTabsState();
@@ -1010,8 +1012,8 @@ function setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTab
 
 function waitForBrowserStop(tab: BrowserTab, timeoutMs?: number): Promise<string> {
   return new Promise(function (resolve) {
-    var done = false;
-    var timer = setTimeout(finish, timeoutMs || 25000);
+    let done = false;
+    const timer = setTimeout(finish, timeoutMs || 25000);
 
     function finish() {
       if (done) return;
@@ -1027,7 +1029,7 @@ function waitForBrowserStop(tab: BrowserTab, timeoutMs?: number): Promise<string
 }
 
 function loadTabUrl(tab: BrowserTab, targetUrl: string, forceReload: boolean) {
-  var currentUrl = tab.view.webContents.getURL();
+  const currentUrl = tab.view.webContents.getURL();
   tab.url = targetUrl || tab.url;
   tab.loading = true;
 
@@ -1039,22 +1041,22 @@ function loadTabUrl(tab: BrowserTab, targetUrl: string, forceReload: boolean) {
 }
 
 async function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string> {
-  var normalizedPayload: BrowserNavigatePayload = payload || { url: '' };
-  var tab = getBrowserTab(normalizedPayload.tabId);
-  var targetUrl = normalizedPayload.url;
+  const normalizedPayload: BrowserNavigatePayload = payload || { url: '' };
+  const tab = getBrowserTab(normalizedPayload.tabId);
+  const targetUrl = normalizedPayload.url;
 
   if (!targetUrl) return tab.view.webContents.getURL();
   if (tab.locked) throw new Error(t('errors.lockedNavigate'));
 
-  var wait = waitForBrowserStop(tab);
-  loadTabUrl(tab, targetUrl, !!normalizedPayload.forceReload);
-  var loadedUrl = await wait;
+  const wait = waitForBrowserStop(tab);
+  loadTabUrl(tab, targetUrl, Boolean(normalizedPayload.forceReload));
+  const loadedUrl = await wait;
   notifyBrowserTabsChanged();
   return loadedUrl;
 }
 
 async function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {
-  var tab = getBrowserTab(tabId);
+  const tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error(t('errors.lockedReload'));
 
   tab.view.webContents.reload();
@@ -1064,7 +1066,7 @@ async function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationSt
 }
 
 async function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState> {
-  var tab: BrowserTab | null = null;
+  let tab: BrowserTab | null = null;
 
   try {
     tab = getBrowserTab(tabId);
@@ -1078,10 +1080,10 @@ async function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationSt
     return browserNavigationState(tab.id);
   }
 
-  var history = tab.view.webContents.navigationHistory;
+  const history = tab.view.webContents.navigationHistory;
 
   if (history.canGoBack()) {
-    var wait = waitForBrowserStop(tab);
+    const wait = waitForBrowserStop(tab);
     history.goBack();
     await wait;
   }
@@ -1091,7 +1093,7 @@ async function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationSt
 }
 
 async function goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState> {
-  var tab: BrowserTab | null = null;
+  let tab: BrowserTab | null = null;
 
   try {
     tab = getBrowserTab(tabId);
@@ -1105,10 +1107,10 @@ async function goBrowserForward(tabId?: string | null): Promise<BrowserNavigatio
     return browserNavigationState(tab.id);
   }
 
-  var history = tab.view.webContents.navigationHistory;
+  const history = tab.view.webContents.navigationHistory;
 
   if (history.canGoForward()) {
-    var wait = waitForBrowserStop(tab);
+    const wait = waitForBrowserStop(tab);
     history.goForward();
     await wait;
   }
@@ -1132,7 +1134,7 @@ function copyText(value: unknown) {
 }
 
 function exportFilenameForCollection(collectionKey: CollectionKey): string {
-  for (var i = 0; i < COLLECTIONS.length; i++) {
+  for (let i = 0; i < COLLECTIONS.length; i++) {
     if (COLLECTIONS[i].key === collectionKey) {
       return collectionKey === 'watch_later' ? 'watch_later_list.json' : 'favourites_list.json';
     }
@@ -1142,20 +1144,20 @@ function exportFilenameForCollection(collectionKey: CollectionKey): string {
 }
 
 async function exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult> {
-  var filename = exportFilenameForCollection(collectionKey);
-  var dialogOptions = {
+  const filename = exportFilenameForCollection(collectionKey);
+  const dialogOptions = {
     title: t('dialog.exportJson'),
     defaultPath: path.join(app.getPath('downloads'), filename),
     filters: [{ name: 'JSON', extensions: ['json'] }]
   };
-  var result =
+  const result =
     mainWindow && !mainWindow.isDestroyed()
       ? await dialog.showSaveDialog(mainWindow, dialogOptions)
       : await dialog.showSaveDialog(dialogOptions);
 
   if (result.canceled || !result.filePath) return { canceled: true };
 
-  var exported = await getDatabase().exportResourceToFile(collectionKey, result.filePath);
+  const exported = await getDatabase().exportResourceToFile(collectionKey, result.filePath);
 
   return {
     canceled: false,
@@ -1179,17 +1181,17 @@ function pushSeparator(items: Electron.MenuItemConstructorOptions[]) {
 function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuParams) {
   if (!mainWindow || mainWindow.isDestroyed() || !tab) return;
 
-  var contextParams = params || ({} as Electron.ContextMenuParams);
+  const contextParams = params || ({} as Electron.ContextMenuParams);
 
   if (contextParams.isEditable) {
     showEditableContextMenu(tab, contextParams);
     return;
   }
 
-  var items: Electron.MenuItemConstructorOptions[] = [];
-  var linkUrl = contextParams.linkURL || '';
-  var srcUrl = contextParams.srcURL || '';
-  var selectionText = String(contextParams.selectionText || '').trim();
+  const items: Electron.MenuItemConstructorOptions[] = [];
+  const linkUrl = contextParams.linkURL || '';
+  const srcUrl = contextParams.srcURL || '';
+  const selectionText = String(contextParams.selectionText || '').trim();
 
   if (linkUrl) {
     items.push({
@@ -1209,7 +1211,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
   if (srcUrl) {
     if (items.length) pushSeparator(items);
 
-    var mediaLabel = contextMediaLabel(contextParams.mediaType);
+    const mediaLabel = contextMediaLabel(contextParams.mediaType);
     items.push({
       label: t('context.openMediaInBackground', { media: mediaLabel }),
       click: function () {
@@ -1269,7 +1271,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
   });
   items.push({
     label: t('context.copyCurrentPageUrl'),
-    enabled: !!(tab.url || contextParams.pageURL),
+    enabled: Boolean(tab.url || contextParams.pageURL),
     click: function () {
       copyText(tab.url || contextParams.pageURL);
     }
@@ -1281,11 +1283,11 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
 function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: boolean } {
   if (!mainWindow || mainWindow.isDestroyed()) return { shown: false };
 
-  var normalizedPayload: BrowserTabMenuPayload = payload || {};
-  var tab = getBrowserTab(normalizedPayload.tabId);
+  const normalizedPayload: BrowserTabMenuPayload = payload || {};
+  const tab = getBrowserTab(normalizedPayload.tabId);
   syncBrowserTabMediaState(tab);
 
-  var items: Electron.MenuItemConstructorOptions[] = [
+  const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.newTab'),
       enabled: browserTabs.length < MAX_BROWSER_TABS,
@@ -1315,7 +1317,7 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
     },
     {
       label: t('context.copyTabUrl'),
-      enabled: !!tab.url,
+      enabled: Boolean(tab.url),
       click: function () {
         copyText(tab.url);
       }
@@ -1324,9 +1326,9 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
     {
       label: t('context.compactMode'),
       type: 'checkbox',
-      checked: !!normalizedPayload.compactMode,
+      checked: Boolean(normalizedPayload.compactMode),
       click: function (menuItem: Electron.MenuItem) {
-        forwardBrowserMessage('browser-tabs-compact-mode', { compact: !!menuItem.checked });
+        forwardBrowserMessage('browser-tabs-compact-mode', { compact: Boolean(menuItem.checked) });
       }
     },
     { type: 'separator' },
@@ -1338,7 +1340,7 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
       }
     }
   ];
-  var popupOptions: PopupOptions = { window: mainWindow };
+  const popupOptions: PopupOptions = { window: mainWindow };
 
   if (typeof normalizedPayload.x === 'number' && typeof normalizedPayload.y === 'number') {
     popupOptions.x = Math.round(normalizedPayload.x);
@@ -1352,12 +1354,12 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
 function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown: boolean } {
   if (!mainWindow || mainWindow.isDestroyed()) return { shown: false };
 
-  var normalizedPayload: LibraryVideoMenuPayload = payload || { url: '' };
-  var url = normalizedPayload.url || '';
+  const normalizedPayload: LibraryVideoMenuPayload = payload || { url: '' };
+  const url = normalizedPayload.url || '';
 
   if (!url) return { shown: false };
 
-  var activeTab: BrowserTab | null = null;
+  let activeTab: BrowserTab | null = null;
 
   try {
     activeTab = getBrowserTab(activeBrowserTabId);
@@ -1365,10 +1367,10 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
     activeTab = null;
   }
 
-  var items: Electron.MenuItemConstructorOptions[] = [
+  const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.openCurrentTab'),
-      enabled: !!(activeTab && !activeTab.locked),
+      enabled: Boolean(activeTab && !activeTab.locked),
       click: function () {
         forwardBrowserMessage('library-video-menu-action', {
           action: 'open-current',
@@ -1394,7 +1396,7 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
       }
     }
   ];
-  var popupOptions: PopupOptions = { window: mainWindow };
+  const popupOptions: PopupOptions = { window: mainWindow };
 
   if (typeof normalizedPayload.x === 'number' && typeof normalizedPayload.y === 'number') {
     popupOptions.x = Math.round(normalizedPayload.x);
@@ -1408,20 +1410,20 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
 function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuParams) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  var browserWindow = mainWindow;
-  var contextParams = params || ({} as Electron.ContextMenuParams);
-  var editFlags = contextParams.editFlags || {};
-  var items: Electron.MenuItemConstructorOptions[] = [
+  const browserWindow = mainWindow;
+  const contextParams = params || ({} as Electron.ContextMenuParams);
+  const editFlags = contextParams.editFlags || {};
+  const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.undo'),
-      enabled: !!editFlags.canUndo,
+      enabled: Boolean(editFlags.canUndo),
       click: function () {
         tab.view.webContents.undo();
       }
     },
     {
       label: t('context.redo'),
-      enabled: !!editFlags.canRedo,
+      enabled: Boolean(editFlags.canRedo),
       click: function () {
         tab.view.webContents.redo();
       }
@@ -1429,21 +1431,21 @@ function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuPa
     { type: 'separator' },
     {
       label: t('context.cut'),
-      enabled: !!editFlags.canCut,
+      enabled: Boolean(editFlags.canCut),
       click: function () {
         tab.view.webContents.cut();
       }
     },
     {
       label: t('context.copy'),
-      enabled: !!editFlags.canCopy,
+      enabled: Boolean(editFlags.canCopy),
       click: function () {
         tab.view.webContents.copy();
       }
     },
     {
       label: t('context.paste'),
-      enabled: !!editFlags.canPaste,
+      enabled: Boolean(editFlags.canPaste),
       click: function () {
         tab.view.webContents.paste();
       }
@@ -1451,7 +1453,7 @@ function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuPa
     { type: 'separator' },
     {
       label: t('context.selectAll'),
-      enabled: !!editFlags.canSelectAll,
+      enabled: Boolean(editFlags.canSelectAll),
       click: function () {
         tab.view.webContents.selectAll();
       }
@@ -1470,8 +1472,8 @@ function forwardBrowserMessage(channel: string, payload: unknown) {
 }
 
 function syncPayloadForEvent(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent, payload: unknown) {
-  var tab = getBrowserTabByWebContents(event.sender);
-  var normalizedPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  const tab = getBrowserTabByWebContents(event.sender);
+  const normalizedPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
   return Object.assign({}, normalizedPayload, {
     tabId: tab ? tab.id : null
   });
@@ -1517,7 +1519,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('db:apply-collection-toggle', function (event, payload) {
     try {
-      var result = getDatabase().applyCollectionToggle(payload);
+      const result = getDatabase().applyCollectionToggle(payload);
       forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));
       return result;
     } catch (error) {
@@ -1613,17 +1615,17 @@ function registerIpcHandlers() {
 
   ipcMain.handle('browser:sync-collection', function (_event, payload) {
     payload = payload || {};
-    var tab = getBrowserTab(payload.tabId);
-    var options = Object.assign({}, payload.options || payload);
+    const tab = getBrowserTab(payload.tabId);
+    const options = Object.assign({}, payload.options || payload);
     delete options.tabId;
     delete options.options;
-    var script = 'window.jableDesktopScraper.syncCollection(' + JSON.stringify(options) + ')';
+    const script = 'window.jableDesktopScraper.syncCollection(' + JSON.stringify(options) + ')';
     return tab.view.webContents.executeJavaScript(script, true);
   });
 
   ipcMain.handle('browser:diagnose', function (_event, payload) {
     payload = payload || {};
-    var tab = getBrowserTab(payload.tabId);
+    const tab = getBrowserTab(payload.tabId);
     return tab.view.webContents.executeJavaScript(
       [
         '({',
@@ -1647,7 +1649,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.on('browser:trackpad-history', function (event, direction) {
-    var tab = getBrowserTabByWebContents(event.sender);
+    const tab = getBrowserTabByWebContents(event.sender);
     if (!tab) return;
 
     if (direction === 'back') goBrowserBack(tab.id);
@@ -1655,7 +1657,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.on('browser:open-url-new-tab', function (event, payload) {
-    var tab = getBrowserTabByWebContents(event.sender);
+    const tab = getBrowserTabByWebContents(event.sender);
     if (!tab) return;
 
     payload = payload || {};

@@ -1,6 +1,9 @@
 'use strict';
 
 import type { FileHandle } from 'node:fs/promises';
+import type * as NodeFs from 'node:fs';
+import type * as NodePath from 'node:path';
+import type * as NodeSqlite from 'node:sqlite';
 import type { DatabaseSync as DatabaseSyncInstance, SQLInputValue } from 'node:sqlite';
 import type {
   CollectionKey,
@@ -65,21 +68,21 @@ type VideoUrlRow = { video_url: string };
 type VideoSearchRow = { title: string | null; url: string; search_text?: string | null };
 type TableColumnRow = { name: string };
 
-var fs = require('node:fs') as typeof import('node:fs');
-var path = require('node:path') as typeof import('node:path');
+const fs: typeof NodeFs = require('node:fs');
+const path: typeof NodePath = require('node:path');
 
-var DatabaseSync: typeof import('node:sqlite').DatabaseSync;
+let DatabaseSync: typeof NodeSqlite.DatabaseSync;
 try {
-  DatabaseSync = (require('node:sqlite') as typeof import('node:sqlite')).DatabaseSync;
+  DatabaseSync = (require('node:sqlite') as typeof NodeSqlite).DatabaseSync;
 } catch (error) {
   throw new Error('node:sqlite is required. Use Node.js 24+ or an Electron version that includes node:sqlite.');
 }
 
-var PAGE_SIZE = 24;
-var EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
-var SEARCH_NGRAM_MAX = 3;
+const PAGE_SIZE = 24;
+const EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
+const SEARCH_NGRAM_MAX = 3;
 
-var COLLECTIONS: DatabaseCollection[] = [
+const COLLECTIONS: DatabaseCollection[] = [
   { key: 'favourites', name: '影片收藏', sourcePath: '/my/favourites/videos/' },
   { key: 'watch_later', name: '稍後觀看', sourcePath: '/my/favourites/videos-watch-later/' }
 ];
@@ -93,7 +96,7 @@ function nowIso() {
  * @returns {DatabaseCollection | null}
  */
 function collectionByKey(key: unknown): DatabaseCollection | null {
-  for (var i = 0; i < COLLECTIONS.length; i++) {
+  for (let i = 0; i < COLLECTIONS.length; i++) {
     if (COLLECTIONS[i].key === key) return COLLECTIONS[i];
   }
 
@@ -106,7 +109,7 @@ function collectionByKey(key: unknown): DatabaseCollection | null {
  */
 function normalizeNumber(value: unknown): number | null {
   if (value === null || typeof value === 'undefined' || value === '') return null;
-  var number = Number(value);
+  const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
@@ -116,7 +119,7 @@ function normalizeNumber(value: unknown): number | null {
  */
 function normalizeText(value: unknown): string | null {
   if (value === null || typeof value === 'undefined') return null;
-  var text = String(value).trim();
+  const text = String(value).trim();
   return text || null;
 }
 
@@ -125,11 +128,11 @@ function normalizeText(value: unknown): string | null {
  * @returns {string | null}
  */
 function normalizeVideoUrl(value: unknown): string | null {
-  var text = normalizeText(value);
+  const text = normalizeText(value);
   if (!text) return null;
 
   try {
-    var parsed = new URL(text);
+    const parsed = new URL(text);
     parsed.search = '';
     parsed.hash = '';
     if (/^\/videos\/[^/]+$/.test(parsed.pathname)) parsed.pathname += '/';
@@ -145,10 +148,10 @@ function normalizeVideoUrl(value: unknown): string | null {
  */
 function normalizeVideo(row: VideoInput | null | undefined): NormalizedVideo | null {
   if (!row || !row.url) return null;
-  var url = normalizeVideoUrl(row.url);
+  const url = normalizeVideoUrl(row.url);
   if (!url) return null;
 
-  var video: NormalizedVideo = {
+  const video: NormalizedVideo = {
     url: url,
     title: normalizeText(row.title),
     views: normalizeNumber(row.views),
@@ -198,7 +201,7 @@ function exportVideo(row: VideoRow): ExportVideoRow {
  * @returns {ExportPage}
  */
 function exportPage(rows: VideoRow[], pageNumber: number, exportedAt: string): ExportPage {
-  var data = rows.map(exportVideo);
+  const data = rows.map(exportVideo);
 
   return {
     data: data,
@@ -233,7 +236,7 @@ function exportMeta(
     source_path: collection.sourcePath,
     source_url: 'https://jable.tv' + collection.sourcePath,
     exported_at: exportedAt,
-    completed: !!(state && state.completed),
+    completed: Boolean(state && state.completed),
     per_page: PAGE_SIZE,
     page_count: pageCount,
     total: total,
@@ -247,14 +250,14 @@ function exportMeta(
  * @returns {VideoInput[]}
  */
 function flattenResource(resource: ImportResource | null | undefined): VideoInput[] {
-  var rows: VideoInput[] = [];
+  let rows: VideoInput[] = [];
   if (!resource || !Array.isArray(resource.data)) return rows;
 
-  for (var i = 0; i < resource.data.length; i++) {
-    var item = resource.data[i];
+  for (let i = 0; i < resource.data.length; i++) {
+    const item = resource.data[i];
     if (!item) continue;
 
-    var resourceItem = item as VideoInput & { data?: VideoInput[] };
+    const resourceItem = item as VideoInput & { data?: VideoInput[] };
     if (Array.isArray(resourceItem.data)) rows = rows.concat(resourceItem.data);
     else if (resourceItem.url) rows.push(resourceItem);
   }
@@ -267,10 +270,10 @@ function flattenResource(resource: ImportResource | null | undefined): VideoInpu
  * @returns {ExportPage[]}
  */
 function rowsByPage(rows: VideoRow[]): ExportPage[] {
-  var pages: ExportPage[] = [];
-  var exportedAt = nowIso();
+  const pages: ExportPage[] = [];
+  const exportedAt = nowIso();
 
-  for (var i = 0; i < rows.length; i += PAGE_SIZE) {
+  for (let i = 0; i < rows.length; i += PAGE_SIZE) {
     pages.push(exportPage(rows.slice(i, i + PAGE_SIZE), Math.floor(i / PAGE_SIZE) + 1, exportedAt));
   }
 
@@ -298,13 +301,13 @@ function isSearchWordChar(char: string): boolean {
  * @returns {string[]}
  */
 function searchRuns(value: unknown): string[] {
-  var text = value ? String(value).normalize('NFKC').toLowerCase() : '';
-  var runs: string[] = [];
-  var current = '';
-  var currentType: 'cjk' | 'word' | null = null;
+  const text = value ? String(value).normalize('NFKC').toLowerCase() : '';
+  const runs: string[] = [];
+  let current = '';
+  let currentType: 'cjk' | 'word' | null = null;
 
-  for (var char of text) {
-    var charType: 'cjk' | 'word' | null = null;
+  for (const char of text) {
+    let charType: 'cjk' | 'word' | null = null;
     if (isCjkSearchChar(char)) charType = 'cjk';
     else if (isSearchWordChar(char)) charType = 'word';
 
@@ -341,11 +344,11 @@ function addSearchToken(tokens: Record<string, boolean>, token: string | null | 
  * @param {string} run
  */
 function addSearchNgrams(tokens: Record<string, boolean>, run: string) {
-  var chars = Array.from(run);
-  var maxSize = Math.min(SEARCH_NGRAM_MAX, chars.length);
+  const chars = Array.from(run);
+  const maxSize = Math.min(SEARCH_NGRAM_MAX, chars.length);
 
-  for (var size = 1; size <= maxSize; size++) {
-    for (var i = 0; i <= chars.length - size; i++) {
+  for (let size = 1; size <= maxSize; size++) {
+    for (let i = 0; i <= chars.length - size; i++) {
       addSearchToken(tokens, chars.slice(i, i + size).join(''));
     }
   }
@@ -356,11 +359,11 @@ function addSearchNgrams(tokens: Record<string, boolean>, run: string) {
  * @returns {string[]}
  */
 function collectSearchTokens(values: unknown[]): string[] {
-  var tokens: Record<string, boolean> = {};
+  const tokens: Record<string, boolean> = {};
 
-  for (var i = 0; i < values.length; i++) {
-    var runs = searchRuns(values[i]);
-    for (var n = 0; n < runs.length; n++) {
+  for (let i = 0; i < values.length; i++) {
+    const runs = searchRuns(values[i]);
+    for (let n = 0; n < runs.length; n++) {
       addSearchNgrams(tokens, runs[n]);
     }
   }
@@ -373,10 +376,10 @@ function collectSearchTokens(values: unknown[]): string[] {
  * @returns {string}
  */
 function compactSearchValue(value: unknown): string {
-  var text = value ? String(value).normalize('NFKC').toLowerCase() : '';
-  var compact = '';
+  const text = value ? String(value).normalize('NFKC').toLowerCase() : '';
+  let compact = '';
 
-  for (var char of text) {
+  for (const char of text) {
     if (isCjkSearchChar(char) || isSearchWordChar(char)) compact += char;
   }
 
@@ -388,10 +391,10 @@ function compactSearchValue(value: unknown): string {
  * @returns {string[]}
  */
 function collectPhraseTokens(values: unknown[]): string[] {
-  var tokens: Record<string, boolean> = {};
+  const tokens: Record<string, boolean> = {};
 
-  for (var i = 0; i < values.length; i++) {
-    var compact = compactSearchValue(values[i]);
+  for (let i = 0; i < values.length; i++) {
+    const compact = compactSearchValue(values[i]);
     if (compact) addSearchNgrams(tokens, compact);
   }
 
@@ -404,15 +407,15 @@ function collectPhraseTokens(values: unknown[]): string[] {
  * @returns {string}
  */
 function buildVideoSearchText(title: unknown, url: unknown): string {
-  var tokens: Record<string, boolean> = {};
-  var searchTokens = collectSearchTokens([title, url]);
-  var phraseTokens = collectPhraseTokens([title, url]);
+  const tokens: Record<string, boolean> = {};
+  const searchTokens = collectSearchTokens([title, url]);
+  const phraseTokens = collectPhraseTokens([title, url]);
 
-  for (var i = 0; i < searchTokens.length; i++) {
+  for (let i = 0; i < searchTokens.length; i++) {
     addSearchToken(tokens, searchTokens[i]);
   }
 
-  for (var n = 0; n < phraseTokens.length; n++) {
+  for (let n = 0; n < phraseTokens.length; n++) {
     addSearchToken(tokens, phraseTokens[n]);
   }
 
@@ -424,11 +427,11 @@ function buildVideoSearchText(title: unknown, url: unknown): string {
  * @returns {string[]}
  */
 function searchQueryTokensForRun(run: string): string[] {
-  var chars = Array.from(run);
+  const chars = Array.from(run);
   if (chars.length <= SEARCH_NGRAM_MAX) return [run];
 
-  var tokens: string[] = [];
-  for (var i = 0; i <= chars.length - SEARCH_NGRAM_MAX; i++) {
+  const tokens: string[] = [];
+  for (let i = 0; i <= chars.length - SEARCH_NGRAM_MAX; i++) {
     tokens.push(chars.slice(i, i + SEARCH_NGRAM_MAX).join(''));
   }
 
@@ -456,10 +459,10 @@ function buildSearchRunQuery(run: string): string {
  * @returns {string | null}
  */
 function buildSearchTermQuery(term: string): string | null {
-  var runs = searchRuns(term);
-  var runQueries: string[] = [];
+  const runs = searchRuns(term);
+  const runQueries: string[] = [];
 
-  for (var i = 0; i < runs.length; i++) {
+  for (let i = 0; i < runs.length; i++) {
     runQueries.push(buildSearchRunQuery(runs[i]));
   }
 
@@ -471,7 +474,7 @@ function buildSearchTermQuery(term: string): string | null {
  * @returns {string | null}
  */
 function buildSearchPhraseQuery(value: unknown): string | null {
-  var compact = compactSearchValue(value);
+  const compact = compactSearchValue(value);
   if (!compact) return null;
 
   return '(' + searchQueryTokensForRun(compact).map(quoteFtsToken).join(' AND ') + ')';
@@ -485,11 +488,11 @@ function buildSearchPhraseQuery(value: unknown): string | null {
 function buildSearchMatchQuery(value: unknown, mode: SearchMode): string | null {
   if (mode === 'phrase') return buildSearchPhraseQuery(value);
 
-  var terms = value ? String(value).trim().split(/\s+/) : [];
-  var termQueries: string[] = [];
+  const terms = value ? String(value).trim().split(/\s+/) : [];
+  const termQueries: string[] = [];
 
-  for (var i = 0; i < terms.length; i++) {
-    var query = buildSearchTermQuery(terms[i]);
+  for (let i = 0; i < terms.length; i++) {
+    const query = buildSearchTermQuery(terms[i]);
     if (query) termQueries.push(query);
   }
 
@@ -507,9 +510,9 @@ function buildVideoListQuery(
   collectionKey: CollectionKey,
   options: DatabaseListOptions | null | undefined
 ): VideoListQuery {
-  var normalizedOptions = options || {};
+  const normalizedOptions = options || {};
 
-  var sortMap: Record<DatabaseSortKey, string> = {
+  const sortMap: Record<DatabaseSortKey, string> = {
     site_order: 'site_order',
     title: 'v.title',
     views: 'v.views',
@@ -517,24 +520,24 @@ function buildVideoListQuery(
     updated_at: 'v.updated_at',
     last_seen_at: 'ci.last_seen_at'
   };
-  var requestedSort = normalizedOptions.sort;
-  var sortKey: DatabaseSortKey = requestedSort && sortMap[requestedSort] ? requestedSort : 'site_order';
-  var sort = sortMap[sortKey];
-  var direction = normalizedOptions.direction
+  const requestedSort = normalizedOptions.sort;
+  const sortKey: DatabaseSortKey = requestedSort && sortMap[requestedSort] ? requestedSort : 'site_order';
+  const sort = sortMap[sortKey];
+  const direction = normalizedOptions.direction
     ? normalizedOptions.direction === 'asc'
       ? 'ASC'
       : 'DESC'
     : sortKey === 'site_order'
       ? 'ASC'
       : 'DESC';
-  var searchMode: SearchMode =
+  const searchMode: SearchMode =
     normalizedOptions.searchMode === 'all' || normalizedOptions.searchMode === 'phrase'
       ? normalizedOptions.searchMode
       : 'any';
-  var matchQuery = normalizedOptions.search ? buildSearchMatchQuery(normalizedOptions.search, searchMode) : null;
-  var params: SQLInputValue[] = [collectionKey];
-  var joins: string[] = [];
-  var where = 'WHERE ci.collection_key = ?';
+  const matchQuery = normalizedOptions.search ? buildSearchMatchQuery(normalizedOptions.search, searchMode) : null;
+  const params: SQLInputValue[] = [collectionKey];
+  const joins: string[] = [];
+  let where = 'WHERE ci.collection_key = ?';
 
   if (!normalizedOptions.includeHidden) {
     where += ' AND ci.is_visible = 1';
@@ -546,7 +549,7 @@ function buildVideoListQuery(
     params.push(matchQuery);
   }
 
-  var orderBy =
+  const orderBy =
     sort === 'site_order'
       ? 'ci.site_order IS NULL ASC, ci.site_order ' + direction + ', ci.last_seen_at DESC, v.url ASC'
       : sort + ' ' + direction + ', v.url ASC';
@@ -564,7 +567,7 @@ function buildVideoListQuery(
  * @returns {number | null}
  */
 function normalizeLimit(value: unknown): number | null {
-  var number = normalizeNumber(value);
+  const number = normalizeNumber(value);
   if (number === null || number <= 0) return null;
   return Math.floor(number);
 }
@@ -574,7 +577,7 @@ function normalizeLimit(value: unknown): number | null {
  * @returns {number}
  */
 function normalizeOffset(value: unknown): number {
-  var number = normalizeNumber(value);
+  const number = normalizeNumber(value);
   if (number === null || number <= 0) return 0;
   return Math.floor(number);
 }
@@ -671,12 +674,12 @@ class JableDatabase {
   }
 
   backfillVideoSearchText(): boolean {
-    var rows = this.db.prepare('SELECT url, title FROM videos WHERE search_text IS NULL').all() as VideoSearchRow[];
+    const rows = this.db.prepare('SELECT url, title FROM videos WHERE search_text IS NULL').all() as VideoSearchRow[];
     if (!rows.length) return false;
 
-    var update = this.db.prepare('UPDATE videos SET search_text = ? WHERE url = ?');
+    const update = this.db.prepare('UPDATE videos SET search_text = ? WHERE url = ?');
 
-    for (var i = 0; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       update.run(buildVideoSearchText(rows[i].title, rows[i].url), rows[i].url);
     }
 
@@ -684,14 +687,14 @@ class JableDatabase {
   }
 
   videoSearchIndexHasExpectedColumns(): boolean {
-    var columns = this.db.prepare('PRAGMA table_info(video_search)').all() as TableColumnRow[];
-    var names: Record<string, boolean> = {};
+    const columns = this.db.prepare('PRAGMA table_info(video_search)').all() as TableColumnRow[];
+    const names: Record<string, boolean> = {};
 
-    for (var i = 0; i < columns.length; i++) {
+    for (let i = 0; i < columns.length; i++) {
       names[columns[i].name] = true;
     }
 
-    return !!(names.title && names.url && names.search_text);
+    return Boolean(names.title && names.url && names.search_text);
   }
 
   dropVideoSearchTriggers() {
@@ -708,19 +711,19 @@ class JableDatabase {
    * @param {boolean} searchTextChanged
    */
   ensureVideoSearchIndex(searchTextChanged: boolean) {
-    var indexExists = this.db
+    let indexExists = this.db
       .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
       .get('table', 'video_search') as NameRow | null | undefined;
-    var insertTriggerExists = this.db
+    const insertTriggerExists = this.db
       .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
       .get('trigger', 'videos_ai') as NameRow | undefined;
-    var deleteTriggerExists = this.db
+    const deleteTriggerExists = this.db
       .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
       .get('trigger', 'videos_ad') as NameRow | undefined;
-    var updateTriggerExists = this.db
+    const updateTriggerExists = this.db
       .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
       .get('trigger', 'videos_au') as NameRow | undefined;
-    var shouldRebuild =
+    let shouldRebuild =
       searchTextChanged || !indexExists || !insertTriggerExists || !deleteTriggerExists || !updateTriggerExists;
 
     this.dropVideoSearchTriggers();
@@ -758,9 +761,9 @@ class JableDatabase {
    * @param {string} definition
    */
   ensureColumn(tableName: string, columnName: string, definition: string) {
-    var columns = this.db.prepare('PRAGMA table_info(' + tableName + ')').all() as TableColumnRow[];
+    const columns = this.db.prepare('PRAGMA table_info(' + tableName + ')').all() as TableColumnRow[];
 
-    for (var i = 0; i < columns.length; i++) {
+    for (let i = 0; i < columns.length; i++) {
       if (columns[i].name === columnName) return;
     }
 
@@ -768,9 +771,9 @@ class JableDatabase {
   }
 
   seedCollections() {
-    var stmt = this.db.prepare('INSERT OR IGNORE INTO collections (key, name) VALUES (?, ?)');
+    const stmt = this.db.prepare('INSERT OR IGNORE INTO collections (key, name) VALUES (?, ?)');
 
-    for (var i = 0; i < COLLECTIONS.length; i++) {
+    for (let i = 0; i < COLLECTIONS.length; i++) {
       stmt.run(COLLECTIONS[i].key, COLLECTIONS[i].name);
     }
   }
@@ -796,7 +799,7 @@ class JableDatabase {
   getSyncState(collectionKey: CollectionKey): SyncState | null {
     this.ensureCollection(collectionKey);
 
-    var row = this.db
+    const row = this.db
       .prepare(
         [
           'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
@@ -807,7 +810,7 @@ class JableDatabase {
       .get(collectionKey) as (Omit<SyncState, 'completed'> & { completed: number | boolean }) | undefined;
 
     if (!row) return null;
-    row.completed = !!row.completed;
+    row.completed = Boolean(row.completed);
     return row as SyncState;
   }
 
@@ -818,11 +821,11 @@ class JableDatabase {
    */
   listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[] {
     this.ensureCollection(collectionKey);
-    var normalizedOptions = options || {};
+    const normalizedOptions = options || {};
 
-    var query = buildVideoListQuery(collectionKey, normalizedOptions);
-    var limit = normalizeLimit(normalizedOptions.limit);
-    var sql = [
+    const query = buildVideoListQuery(collectionKey, normalizedOptions);
+    const limit = normalizeLimit(normalizedOptions.limit);
+    let sql = [
       'SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,',
       '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,',
       '       ci.site_order, ci.is_visible, ci.missing_at, ci.last_sync_run_id',
@@ -838,7 +841,7 @@ class JableDatabase {
       query.params.push(limit, normalizeOffset(normalizedOptions.offset));
     }
 
-    var stmt = this.db.prepare(sql);
+    const stmt = this.db.prepare(sql);
 
     return stmt.all(...query.params) as unknown as VideoRow[];
   }
@@ -851,8 +854,8 @@ class JableDatabase {
   countVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): number {
     this.ensureCollection(collectionKey);
 
-    var query = buildVideoListQuery(collectionKey, options);
-    var stmt = this.db.prepare(
+    const query = buildVideoListQuery(collectionKey, options);
+    const stmt = this.db.prepare(
       [
         'SELECT COUNT(*) AS total',
         'FROM collection_items ci',
@@ -861,7 +864,7 @@ class JableDatabase {
         query.where
       ].join(' ')
     );
-    var row = stmt.get(...query.params) as CountRow | undefined;
+    const row = stmt.get(...query.params) as CountRow | undefined;
 
     return row ? row.total : 0;
   }
@@ -873,7 +876,7 @@ class JableDatabase {
   getCollectionUrls(collectionKey: CollectionKey): string[] {
     this.ensureCollection(collectionKey);
 
-    var rows = this.db
+    const rows = this.db
       .prepare(
         ['SELECT video_url', 'FROM collection_items', 'WHERE collection_key = ?', 'ORDER BY last_seen_at DESC'].join(
           ' '
@@ -896,11 +899,11 @@ class JableDatabase {
 
     if (!Array.isArray(urls) || !urls.length) return false;
 
-    var seen: Record<string, boolean> = {};
-    var normalizedUrls: string[] = [];
+    const seen: Record<string, boolean> = {};
+    const normalizedUrls: string[] = [];
 
-    for (var i = 0; i < urls.length; i++) {
-      var url = normalizeVideoUrl(urls[i]);
+    for (let i = 0; i < urls.length; i++) {
+      const url = normalizeVideoUrl(urls[i]);
       if (!url) return false;
 
       if (!seen[url]) {
@@ -911,12 +914,12 @@ class JableDatabase {
 
     if (!normalizedUrls.length) return false;
 
-    var placeholders: string[] = [];
-    for (var n = 0; n < normalizedUrls.length; n++) {
+    const placeholders: string[] = [];
+    for (let n = 0; n < normalizedUrls.length; n++) {
       placeholders.push('?');
     }
 
-    var stmt = this.db.prepare(
+    const stmt = this.db.prepare(
       [
         'SELECT COUNT(*) AS total',
         'FROM collection_items',
@@ -924,13 +927,14 @@ class JableDatabase {
         '  AND video_url IN (' + placeholders.join(', ') + ')'
       ].join(' ')
     );
-    var params: SQLInputValue[] = [collectionKey];
-    for (var p = 0; p < normalizedUrls.length; p++) {
+    const params: SQLInputValue[] = [collectionKey];
+    for (let p = 0; p < normalizedUrls.length; p++) {
       params.push(normalizedUrls[p]);
     }
-    var row = stmt.get(...params) as CountRow | undefined;
+    const row = stmt.get(...params) as CountRow | undefined;
 
-    return !!row && row.total === normalizedUrls.length;
+    if (!row) return false;
+    return row.total === normalizedUrls.length;
   }
 
   /**
@@ -938,21 +942,21 @@ class JableDatabase {
    * @returns {{ saved: number, collectionKey: CollectionKey, page: number | null }}
    */
   saveSyncPage(payload: SaveSyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null } {
-    var collectionKey = payload.collectionKey;
+    const collectionKey = payload.collectionKey;
     this.ensureCollection(collectionKey);
 
-    var page = normalizeNumber(payload.page) || null;
-    var syncRunId = normalizeText(payload.syncRunId);
-    var rows = Array.isArray(payload.rows) ? payload.rows : [];
-    var normalizedRows: NormalizedVideo[] = [];
+    const page = normalizeNumber(payload.page) || null;
+    const syncRunId = normalizeText(payload.syncRunId);
+    const rows = Array.isArray(payload.rows) ? payload.rows : [];
+    const normalizedRows: NormalizedVideo[] = [];
 
-    for (var i = 0; i < rows.length; i++) {
-      var row = normalizeVideo(rows[i] as VideoInput);
+    for (let i = 0; i < rows.length; i++) {
+      const row = normalizeVideo(rows[i] as VideoInput);
       if (row) normalizedRows.push(row);
     }
 
-    var timestamp = nowIso();
-    var upsertVideo = this.db.prepare(
+    const timestamp = nowIso();
+    const upsertVideo = this.db.prepare(
       [
         'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
         'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -966,7 +970,7 @@ class JableDatabase {
         '  updated_at = excluded.updated_at'
       ].join(' ')
     );
-    var upsertItem = this.db.prepare(
+    const upsertItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',
         '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
@@ -980,7 +984,7 @@ class JableDatabase {
         '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'
       ].join(' ')
     );
-    var upsertState = this.db.prepare(
+    const upsertState = this.db.prepare(
       [
         'INSERT INTO sync_states (collection_key, completed, last_scraped_page, last_known_url, updated_at)',
         'VALUES (?, 0, ?, ?, ?)',
@@ -995,8 +999,8 @@ class JableDatabase {
     this.db.exec('BEGIN IMMEDIATE');
 
     try {
-      for (var n = 0; n < normalizedRows.length; n++) {
-        var video = normalizedRows[n];
+      for (let n = 0; n < normalizedRows.length; n++) {
+        const video = normalizedRows[n];
         upsertVideo.run(
           video.url,
           video.title,
@@ -1043,18 +1047,18 @@ class JableDatabase {
   } {
     payload = payload || {};
 
-    var collectionKey = payload.collectionKey;
+    const collectionKey = payload.collectionKey;
     if (!collectionKey) throw new Error('Collection toggle requires a collection key');
     this.ensureCollection(collectionKey);
 
-    var action: 'add' | 'remove' = payload.action === 'remove' ? 'remove' : 'add';
-    var video = normalizeVideo(payload.video || payload);
+    const action: 'add' | 'remove' = payload.action === 'remove' ? 'remove' : 'add';
+    const video = normalizeVideo(payload.video || payload);
     if (!video || !video.url) throw new Error('Collection toggle requires a video URL');
 
-    var timestamp = nowIso();
+    const timestamp = nowIso();
 
     if (action === 'remove') {
-      var removeResult = this.db
+      const removeResult = this.db
         .prepare(
           [
             'UPDATE collection_items',
@@ -1068,14 +1072,14 @@ class JableDatabase {
 
       return {
         action: action,
-        changed: !!(removeResult && removeResult.changes),
+        changed: Boolean(removeResult && removeResult.changes),
         collectionKey: collectionKey,
         url: video.url,
         visible: false
       };
     }
 
-    var upsertVideo = this.db.prepare(
+    const upsertVideo = this.db.prepare(
       [
         'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
         'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -1089,7 +1093,7 @@ class JableDatabase {
         '  updated_at = excluded.updated_at'
       ].join(' ')
     );
-    var upsertItem = this.db.prepare(
+    const upsertItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',
         '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
@@ -1144,17 +1148,17 @@ class JableDatabase {
    * @returns {SyncState}
    */
   finishSync(payload: FinishSyncInput): SyncState {
-    var collectionKey = payload.collectionKey;
+    const collectionKey = payload.collectionKey;
     this.ensureCollection(collectionKey);
 
-    var result: SyncResultInput = payload.result || {};
-    var timestamp = nowIso();
-    var lastScrapedPage = normalizeNumber(result.lastScrapedPage);
-    var lastKnownUrl = normalizeText(result.lastKnownUrl);
-    var completed = result.completed === false ? 0 : 1;
-    var mode = normalizeText(payload.mode || result.mode);
-    var syncRunId = normalizeText(payload.syncRunId || result.syncRunId);
-    var hidden = 0;
+    const result: SyncResultInput = payload.result || {};
+    const timestamp = nowIso();
+    const lastScrapedPage = normalizeNumber(result.lastScrapedPage);
+    const lastKnownUrl = normalizeText(result.lastKnownUrl);
+    const completed = result.completed === false ? 0 : 1;
+    const mode = normalizeText(payload.mode || result.mode);
+    const syncRunId = normalizeText(payload.syncRunId || result.syncRunId);
+    let hidden = 0;
 
     this.db
       .prepare(
@@ -1171,7 +1175,7 @@ class JableDatabase {
       .run(collectionKey, completed, lastScrapedPage, lastKnownUrl, timestamp);
 
     if (mode === 'full' && completed && syncRunId) {
-      var update = this.db
+      const update = this.db
         .prepare(
           [
             'UPDATE collection_items',
@@ -1185,7 +1189,7 @@ class JableDatabase {
       hidden = Number(update.changes || 0);
     }
 
-    var state = this.getSyncState(collectionKey);
+    const state = this.getSyncState(collectionKey);
     if (!state) throw new Error('Sync state was not saved for collection: ' + collectionKey);
     state.hidden = hidden;
     return state;
@@ -1213,12 +1217,12 @@ class JableDatabase {
   ): { imported: number; collectionKey: CollectionKey } {
     this.ensureCollection(collectionKey);
 
-    var rows = flattenResource(resource);
-    for (var i = 0; i < rows.length; i++) {
-      var siteOrder = normalizeNumber(readSiteOrder(rows[i]));
+    const rows = flattenResource(resource);
+    for (let i = 0; i < rows.length; i++) {
+      const siteOrder = normalizeNumber(readSiteOrder(rows[i]));
       rows[i].siteOrder = siteOrder === null ? i + 1 : siteOrder;
     }
-    var saved = this.saveSyncPage({
+    const saved = this.saveSyncPage({
       collectionKey: collectionKey,
       page: resource && resource.meta ? resource.meta.last_scraped_page : null,
       rows: rows
@@ -1247,12 +1251,12 @@ class JableDatabase {
   exportResource(collectionKey: CollectionKey): ExportResource {
     this.ensureCollection(collectionKey);
 
-    var collection = collectionByKey(collectionKey);
+    const collection = collectionByKey(collectionKey);
     if (!collection) throw new Error('Unknown collection: ' + collectionKey);
-    var rows = this.listVideos(collectionKey, { sort: 'site_order', direction: 'asc' });
-    var state = this.getSyncState(collectionKey);
-    var pages = rowsByPage(rows);
-    var exportedAt = nowIso();
+    const rows = this.listVideos(collectionKey, { sort: 'site_order', direction: 'asc' });
+    const state = this.getSyncState(collectionKey);
+    const pages = rowsByPage(rows);
+    const exportedAt = nowIso();
 
     return {
       data: pages,
@@ -1274,25 +1278,25 @@ class JableDatabase {
 
     ensureDirectory(filePath);
 
-    var collection = collectionByKey(collectionKey);
+    const collection = collectionByKey(collectionKey);
     if (!collection) throw new Error('Unknown collection: ' + collectionKey);
-    var state = this.getSyncState(collectionKey);
-    var exportedAt = nowIso();
-    var total = this.countVideos(collectionKey);
-    var pageCount = Math.ceil(total / PAGE_SIZE);
-    var meta = exportMeta(collection, state, exportedAt, total, pageCount);
-    var tempPath = exportTempPath(filePath);
-    var handle: FileHandle | null = null;
-    var offset = 0;
-    var pageNumber = 1;
-    var hasPages = false;
+    const state = this.getSyncState(collectionKey);
+    const exportedAt = nowIso();
+    const total = this.countVideos(collectionKey);
+    const pageCount = Math.ceil(total / PAGE_SIZE);
+    const meta = exportMeta(collection, state, exportedAt, total, pageCount);
+    const tempPath = exportTempPath(filePath);
+    let handle: FileHandle | null = null;
+    let offset = 0;
+    let pageNumber = 1;
+    let hasPages = false;
 
     try {
       handle = await fs.promises.open(tempPath, 'w');
       await handle.write('{"data":[');
 
       while (offset < total) {
-        var rows = this.listVideos(collectionKey, {
+        const rows = this.listVideos(collectionKey, {
           sort: 'site_order',
           direction: 'asc',
           limit: EXPORT_BATCH_SIZE,
@@ -1301,7 +1305,7 @@ class JableDatabase {
 
         if (!rows.length) break;
 
-        for (var i = 0; i < rows.length; i += PAGE_SIZE) {
+        for (let i = 0; i < rows.length; i += PAGE_SIZE) {
           if (hasPages) await handle.write(',');
           await handle.write(JSON.stringify(exportPage(rows.slice(i, i + PAGE_SIZE), pageNumber, exportedAt)));
           hasPages = true;

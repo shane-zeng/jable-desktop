@@ -1,18 +1,18 @@
 'use strict';
 
-var fs = require('node:fs');
-var path = require('node:path');
-var test = require('node:test');
-var assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const assert = require('node:assert/strict');
 
-var USERSCRIPT_PATH = path.join(__dirname, '..', '..', 'jable-favourites-exporter.user.js');
+const USERSCRIPT_PATH = path.join(__dirname, '..', '..', 'jable-favourites-exporter.user.js');
 
 function readUserscript() {
   return fs.readFileSync(USERSCRIPT_PATH, 'utf8');
 }
 
 test('userscript exposes a persisted locale selector for the floating exporter UI', function () {
-  var source = readUserscript();
+  const source = readUserscript();
 
   assert.match(source, /LOCALE_STORAGE_KEY = STORAGE_PREFIX \+ 'locale'/);
   assert.match(source, /LOCALE_SELECT_ID = 'fav-export-locale-select'/);
@@ -23,7 +23,7 @@ test('userscript exposes a persisted locale selector for the floating exporter U
 });
 
 test('userscript includes Japanese locale detection and messages', function () {
-  var source = readUserscript();
+  const source = readUserscript();
 
   assert.match(source, /'ja-JP': \{/);
   assert.match(source, /locale === 'ja'/);
@@ -32,7 +32,7 @@ test('userscript includes Japanese locale detection and messages', function () {
 });
 
 test('userscript keeps busy-state labels separate from normal localized button labels', function () {
-  var source = readUserscript();
+  const source = readUserscript();
 
   assert.match(source, /data-busy/);
   assert.match(source, /refreshExportUiText/);

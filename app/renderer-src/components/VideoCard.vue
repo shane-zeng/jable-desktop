@@ -3,17 +3,17 @@ import { ref } from 'vue';
 import { useI18n } from '../i18n';
 import type { LibraryVideoMenuPayload, VideoRow } from '../../types/jable';
 
-var props = defineProps<{
+const props = defineProps<{
   video: VideoRow;
 }>();
 
-var emit = defineEmits<{
+const emit = defineEmits<{
   open: [url: string];
   'open-new': [url: string];
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
-var i18n = useI18n();
-var previewVideo = ref<HTMLVideoElement | null>(null);
+const i18n = useI18n();
+const previewVideo = ref<HTMLVideoElement | null>(null);
 
 function formatNumber(value: number | null | undefined) {
   if (value === null || typeof value === 'undefined') return '-';
@@ -39,7 +39,7 @@ function startPreview() {
 
   previewVideo.value.classList.add('active');
 
-  var play = previewVideo.value.play();
+  const play = previewVideo.value.play();
   if (play && typeof play.catch === 'function') {
     play.catch(function () {});
   }
@@ -63,7 +63,7 @@ function isMacPlatform() {
 function openVideo(event: MouseEvent) {
   event.preventDefault();
 
-  var macPlatform = isMacPlatform();
+  const macPlatform = isMacPlatform();
 
   if (event.metaKey || (!macPlatform && event.ctrlKey)) {
     emit('open-new', props.video.url);

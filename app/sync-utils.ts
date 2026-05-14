@@ -5,17 +5,17 @@ type PagerLink = {
 };
 
 function numericPage(value: unknown): number | null {
-  var n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
+  const n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function chooseNextPagerLink<T extends PagerLink>(links: T[], currentPage: unknown): T | null {
-  var current = numericPage(currentPage) || 1;
-  var best: { pageNumber: number; link: T } | null = null;
+  const current = numericPage(currentPage) || 1;
+  let best: { pageNumber: number; link: T } | null = null;
 
-  for (var i = 0; i < links.length; i++) {
-    var link = links[i];
-    var pageNumber = numericPage(link.pageNumber);
+  for (let i = 0; i < links.length; i++) {
+    const link = links[i];
+    const pageNumber = numericPage(link.pageNumber);
     if (!pageNumber || pageNumber <= current) continue;
     if (!best || pageNumber < best.pageNumber) {
       best = {

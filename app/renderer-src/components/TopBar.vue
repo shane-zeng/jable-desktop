@@ -8,7 +8,7 @@ defineProps<{
   navigation: BrowserNavigationState;
 }>();
 
-var emit = defineEmits<{
+const emit = defineEmits<{
   'set-view': [view: AppView];
   back: [];
   forward: [];
@@ -16,7 +16,7 @@ var emit = defineEmits<{
   diagnose: [];
 }>();
 
-var i18n = useI18n();
+const i18n = useI18n();
 
 function updateLocale(event: Event) {
   i18n.setLocale((event.target as HTMLSelectElement).value);

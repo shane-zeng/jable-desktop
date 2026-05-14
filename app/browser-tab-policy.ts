@@ -54,11 +54,11 @@ function serializedMediaState(tab: Partial<BrowserTabLike> | null | undefined) {
   tab = tab || {};
 
   return {
-    muted: !!tab.muted,
-    audible: !!tab.audible,
-    mediaPlaying: !!tab.mediaPlaying,
-    pictureInPicture: !!tab.pictureInPicture,
-    discarded: !!tab.discarded
+    muted: Boolean(tab.muted),
+    audible: Boolean(tab.audible),
+    mediaPlaying: Boolean(tab.mediaPlaying),
+    pictureInPicture: Boolean(tab.pictureInPicture),
+    discarded: Boolean(tab.discarded)
   };
 }
 
@@ -71,9 +71,9 @@ function nextActiveTabIdByOffset(
 
   if (!activeTabId || !tabs.length) return null;
 
-  var activeIndex = -1;
+  let activeIndex = -1;
 
-  for (var i = 0; i < tabs.length; i++) {
+  for (let i = 0; i < tabs.length; i++) {
     if (!tabs[i] || tabs[i].id !== activeTabId) continue;
     activeIndex = i;
     break;
@@ -82,18 +82,18 @@ function nextActiveTabIdByOffset(
   if (activeIndex === -1) return null;
   if (tabs.length === 1 || !offset) return activeTabId;
 
-  var nextIndex = (activeIndex + offset) % tabs.length;
+  let nextIndex = (activeIndex + offset) % tabs.length;
   if (nextIndex < 0) nextIndex += tabs.length;
 
-  var nextTab = tabs[nextIndex];
+  const nextTab = tabs[nextIndex];
   return nextTab && typeof nextTab.id === 'string' ? nextTab.id : null;
 }
 
 function browserTabShortcutOffset(input: BrowserTabShortcutInput | null | undefined, isMacos: boolean): number {
   if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return 0;
 
-  var key = String(input.key || '').toLowerCase();
-  var code = String(input.code || '').toLowerCase();
+  const key = String(input.key || '').toLowerCase();
+  const code = String(input.code || '').toLowerCase();
 
   if (key === 'tab' || code === 'tab') {
     if (!input.control || input.meta || input.alt) return 0;
@@ -130,10 +130,10 @@ function nextActiveTabIdAfterClose(
 
   if (activeTabId !== closingTabId) return activeTabId || null;
 
-  for (var i = 0; i < tabs.length; i++) {
+  for (let i = 0; i < tabs.length; i++) {
     if (!tabs[i] || tabs[i].id !== closingTabId) continue;
 
-    var nextTab = tabs[i + 1] || tabs[i - 1] || null;
+    const nextTab = tabs[i + 1] || tabs[i - 1] || null;
     return nextTab ? nextTab.id : null;
   }
 

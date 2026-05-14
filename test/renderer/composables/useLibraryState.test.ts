@@ -23,16 +23,16 @@ function createPagedApi(rows: VideoRow[]) {
   return {
     countVideos: vi.fn().mockResolvedValue(rows.length),
     listVideos: vi.fn().mockImplementation(function (options: ListVideosOptions) {
-      var start = options.offset || 0;
-      var end = start + (options.limit || rows.length);
+      const start = options.offset || 0;
+      const end = start + (options.limit || rows.length);
       return Promise.resolve(rows.slice(start, end));
     })
   };
 }
 
 function createState(api: Pick<JableAppApi, 'countVideos' | 'listVideos'>) {
-  var scope = effectScope();
-  var state = scope.run(function () {
+  const scope = effectScope();
+  const state = scope.run(function () {
     return useLibraryState(api as JableAppApi);
   });
 
@@ -59,9 +59,9 @@ describe('useLibraryState', function () {
   });
 
   it('refreshes videos with the current list parameters and loads one page at a time', async function () {
-    var rows = makeRows(PAGE_SIZE + 1);
-    var api = createPagedApi(rows);
-    var setup = createState(api);
+    const rows = makeRows(PAGE_SIZE + 1);
+    const api = createPagedApi(rows);
+    const setup = createState(api);
 
     try {
       await setup.state.refreshVideos();
@@ -121,17 +121,17 @@ describe('useLibraryState', function () {
   });
 
   it('normalizes invalid sort values before listing videos', async function () {
-    var api = {
+    const api = {
       countVideos: vi.fn().mockResolvedValue(0),
       listVideos: vi.fn().mockResolvedValue([])
     };
-    var setup = createState(api);
+    const setup = createState(api);
 
     try {
       setup.state.sort.value = 'unknown' as unknown as SortKey;
       await settleWatchers();
 
-      var lastCall = api.listVideos.mock.calls[api.listVideos.mock.calls.length - 1][0];
+      const lastCall = api.listVideos.mock.calls[api.listVideos.mock.calls.length - 1][0];
       expect(setup.state.sort.value).toBe('site_order');
       expect(lastCall.sort).toBe('site_order');
     } finally {
@@ -140,8 +140,8 @@ describe('useLibraryState', function () {
   });
 
   it('switches collections, resets the current page, and refreshes with the selected key', async function () {
-    var api = createPagedApi(makeRows(PAGE_SIZE + 1));
-    var setup = createState(api);
+    const api = createPagedApi(makeRows(PAGE_SIZE + 1));
+    const setup = createState(api);
 
     try {
       await setup.state.refreshVideos();
@@ -172,11 +172,11 @@ describe('useLibraryState', function () {
   });
 
   it('uses updated search and direction values when watched filters change', async function () {
-    var api = {
+    const api = {
       countVideos: vi.fn().mockResolvedValue(0),
       listVideos: vi.fn().mockResolvedValue([])
     };
-    var setup = createState(api);
+    const setup = createState(api);
 
     try {
       setup.state.search.value = 'keyword';
@@ -199,11 +199,11 @@ describe('useLibraryState', function () {
   });
 
   it('uses updated search mode when watched filters change', async function () {
-    var api = {
+    const api = {
       countVideos: vi.fn().mockResolvedValue(0),
       listVideos: vi.fn().mockResolvedValue([])
     };
-    var setup = createState(api);
+    const setup = createState(api);
 
     try {
       setup.state.search.value = '肉便 老師';
@@ -227,9 +227,9 @@ describe('useLibraryState', function () {
 
   it('formats pagination labels in English', async function () {
     setLocale('en-US', false);
-    var rows = makeRows(PAGE_SIZE + 1);
-    var api = createPagedApi(rows);
-    var setup = createState(api);
+    const rows = makeRows(PAGE_SIZE + 1);
+    const api = createPagedApi(rows);
+    const setup = createState(api);
 
     try {
       await setup.state.refreshVideos();
@@ -244,9 +244,9 @@ describe('useLibraryState', function () {
 
   it('formats pagination and sync labels in Japanese', async function () {
     setLocale('ja-JP', false);
-    var rows = makeRows(PAGE_SIZE + 1);
-    var api = createPagedApi(rows);
-    var setup = createState(api);
+    const rows = makeRows(PAGE_SIZE + 1);
+    const api = createPagedApi(rows);
+    const setup = createState(api);
 
     try {
       await setup.state.refreshVideos();

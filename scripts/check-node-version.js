@@ -1,7 +1,7 @@
 'use strict';
 
-var version = process.versions.node;
-var major = Number(version.split('.')[0]);
+const version = process.versions.node;
+const major = Number(version.split('.')[0]);
 
 if (major < 24 || major >= 26) {
   console.error('Unsupported Node.js version: v' + version);

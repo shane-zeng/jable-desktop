@@ -4,7 +4,7 @@ import VideoCard from '@/components/VideoCard.vue';
 import { setLocale } from '@/i18n';
 import type { VideoRow } from '../../../app/types/jable';
 
-var originalPlatform = window.navigator.platform;
+const originalPlatform = window.navigator.platform;
 
 function makeVideo(overrides?: Partial<VideoRow>): VideoRow {
   return Object.assign(
@@ -38,8 +38,8 @@ describe('VideoCard', function () {
   });
 
   it('renders the video title, URL, views, and likes', function () {
-    var video = makeVideo({ img: null, preview: null });
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo({ img: null, preview: null });
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -57,8 +57,8 @@ describe('VideoCard', function () {
   });
 
   it('emits open with the video URL when the title link is clicked', async function () {
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -70,8 +70,8 @@ describe('VideoCard', function () {
   });
 
   it('emits open with the video URL when the cover is clicked', async function () {
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -84,8 +84,8 @@ describe('VideoCard', function () {
 
   it('emits open-new with the video URL when a link is command clicked', async function () {
     setNavigatorPlatform('MacIntel');
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -98,8 +98,8 @@ describe('VideoCard', function () {
   });
 
   it('emits open-new with the video URL when a link is middle clicked', async function () {
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -113,8 +113,8 @@ describe('VideoCard', function () {
 
   it('does not treat control click as a new tab gesture on macOS', async function () {
     setNavigatorPlatform('MacIntel');
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -128,8 +128,8 @@ describe('VideoCard', function () {
 
   it('emits open-new with the video URL when a link is control clicked off macOS', async function () {
     setNavigatorPlatform('Win32');
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -142,8 +142,8 @@ describe('VideoCard', function () {
   });
 
   it('emits context-menu with video details and pointer coordinates', async function () {
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -168,8 +168,8 @@ describe('VideoCard', function () {
 
   it('renders English aria labels and sync metadata', function () {
     setLocale('en-US', false);
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
@@ -181,13 +181,13 @@ describe('VideoCard', function () {
 
   it('renders Japanese aria labels, metadata labels, and locale-formatted sync date', function () {
     setLocale('ja-JP', false);
-    var video = makeVideo();
-    var wrapper = mount(VideoCard, {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
       props: {
         video: video
       }
     });
-    var syncedAt = new Date(video.last_seen_at || '').toLocaleString('ja-JP');
+    const syncedAt = new Date(video.last_seen_at || '').toLocaleString('ja-JP');
 
     expect(wrapper.find('[data-test="video-thumb-link"]').attributes('aria-label')).toBe('動画を開く: Sample Video');
     expect(wrapper.text()).toContain(Number(video.views).toLocaleString('ja-JP'));

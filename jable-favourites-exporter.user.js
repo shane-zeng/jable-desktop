@@ -17,29 +17,29 @@
    * Configuration
    * ------------------------------------- */
   // 可選：'json' 或 'csv'
-  var EXPORT_FORMAT = 'json';
-  var PAGE_SIZE = 24;
-  var STORAGE_PREFIX = 'jable-favourites-exporter:';
-  var IDB_DB_NAME = 'jable-favourites-exporter';
-  var IDB_DB_VERSION = 1;
-  var IDB_META_STORE = 'meta';
-  var IDB_VIDEOS_STORE = 'videos';
-  var IDB_COLLECTION_INDEX = 'collectionKey';
-  var IDB_KEY_SEPARATOR = '\u001f';
+  const EXPORT_FORMAT = 'json';
+  const PAGE_SIZE = 24;
+  const STORAGE_PREFIX = 'jable-favourites-exporter:';
+  const IDB_DB_NAME = 'jable-favourites-exporter';
+  const IDB_DB_VERSION = 1;
+  const IDB_META_STORE = 'meta';
+  const IDB_VIDEOS_STORE = 'videos';
+  const IDB_COLLECTION_INDEX = 'collectionKey';
+  const IDB_KEY_SEPARATOR = '\u001f';
 
   /* ---------------------------------------
    * Selectors
    * ------------------------------------- */
-  var SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos'; // 清單容器
-  var SEL_TITLES = 'div.detail h6.title a'; // 標題 <a>
-  var SEL_PAGER = 'ul.pagination'; // 分頁容器
-  var SEL_PAGER_LINKS = 'ul.pagination a.page-link'; // 可點擊的分頁
-  var BTN_ID = 'fav-export-all-btn'; // 匯出按鈕 ID
-  var WRAP_ID = 'fav-export-all-wrap';
-  var LOCALE_SELECT_ID = 'fav-export-locale-select';
-  var LOCALE_STORAGE_KEY = STORAGE_PREFIX + 'locale';
+  const SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos'; // 清單容器
+  const SEL_TITLES = 'div.detail h6.title a'; // 標題 <a>
+  const SEL_PAGER = 'ul.pagination'; // 分頁容器
+  const SEL_PAGER_LINKS = 'ul.pagination a.page-link'; // 可點擊的分頁
+  const BTN_ID = 'fav-export-all-btn'; // 匯出按鈕 ID
+  const WRAP_ID = 'fav-export-all-wrap';
+  const LOCALE_SELECT_ID = 'fav-export-locale-select';
+  const LOCALE_STORAGE_KEY = STORAGE_PREFIX + 'locale';
 
-  var I18N_MESSAGES = {
+  const I18N_MESSAGES = {
     'zh-TW': {
       preparing: '準備中…',
       exporting: '完成，匯出中…',
@@ -68,10 +68,10 @@
       localeSelectLabel: 'Export ツールの言語'
     }
   };
-  var CURRENT_LOCALE = detectLocale();
+  let CURRENT_LOCALE = detectLocale();
 
   function normalizeLocale(value) {
-    var locale = String(value || '').toLowerCase();
+    const locale = String(value || '').toLowerCase();
 
     if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
     if (locale === 'ja' || locale.indexOf('ja-') === 0) return 'ja-JP';
@@ -90,7 +90,7 @@
 
   function readStoredLocale() {
     try {
-      var stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+      const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
       return stored ? normalizeLocale(stored) : null;
     } catch (e) {
       return null;
@@ -104,16 +104,16 @@
   }
 
   function detectLocale() {
-    var stored = readStoredLocale();
+    const stored = readStoredLocale();
     if (stored) return stored;
 
-    var languages = [];
+    let languages = [];
 
     if (navigator.languages && navigator.languages.length) languages = languages.concat(navigator.languages);
     if (navigator.language) languages.push(navigator.language);
 
-    for (var i = 0; i < languages.length; i++) {
-      var normalized = normalizeLocale(languages[i]);
+    for (let i = 0; i < languages.length; i++) {
+      const normalized = normalizeLocale(languages[i]);
       if (normalized !== 'zh-TW' || /^zh/i.test(String(languages[i] || ''))) return normalized;
     }
 
@@ -127,8 +127,8 @@
   }
 
   function t(key, params) {
-    var messages = I18N_MESSAGES[CURRENT_LOCALE] || I18N_MESSAGES['zh-TW'];
-    var template = messages[key] || I18N_MESSAGES['zh-TW'][key] || key;
+    const messages = I18N_MESSAGES[CURRENT_LOCALE] || I18N_MESSAGES['zh-TW'];
+    const template = messages[key] || I18N_MESSAGES['zh-TW'][key] || key;
 
     params = params || {};
     return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, function (match, name) {
@@ -139,8 +139,8 @@
   }
 
   function refreshExportUiText() {
-    var btn = document.getElementById(BTN_ID);
-    var select = document.getElementById(LOCALE_SELECT_ID);
+    const btn = document.getElementById(BTN_ID);
+    const select = document.getElementById(LOCALE_SELECT_ID);
 
     if (btn) {
       btn.setAttribute('data-label', t('exportButton'));
@@ -162,7 +162,7 @@
    * File naming by current path
    * ------------------------------------- */
   function fileBaseByPath() {
-    var url = location.pathname.replace(/[?#].*$/, '');
+    const url = location.pathname.replace(/[?#].*$/, '');
     if (/\/my\/favourites\/videos-watch-later\/?$/.test(url)) return 'watch_later_list';
     if (/\/my\/favourites\/videos\/?$/.test(url)) return 'favourites_list';
     return 'export_list';
@@ -172,21 +172,21 @@
    * Utilities
    * ------------------------------------- */
   function log() {
-    var args = Array.prototype.slice.call(arguments);
+    const args = Array.prototype.slice.call(arguments);
     args.unshift('[FavExporter]');
     console.log.apply(console, args);
   }
 
   function escCsv(s) {
-    s = s == null ? '' : String(s);
+    s = s === null || typeof s === 'undefined' ? '' : String(s);
     return '"' + s.replace(/"/g, '""') + '"';
   }
 
   function uniqByUrl(rows) {
-    var seen = {};
-    var out = [];
-    for (var i = 0; i < rows.length; i++) {
-      var u = rows[i].url;
+    const seen = {};
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const u = rows[i].url;
       if (!u) continue;
       if (!seen[u]) {
         seen[u] = 1;
@@ -197,9 +197,9 @@
   }
 
   function toCSV(rows) {
-    var lines = ['title,url,views,likes,img,preview'];
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
+    const lines = ['title,url,views,likes,img,preview'];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       lines.push(
         escCsv(r.title) +
           ',' +
@@ -218,11 +218,11 @@
   }
 
   function flattenPages(resource) {
-    var rows = [];
+    let rows = [];
     if (!resource || !resource.data) return rows;
 
-    for (var i = 0; i < resource.data.length; i++) {
-      var page = resource.data[i];
+    for (let i = 0; i < resource.data.length; i++) {
+      const page = resource.data[i];
       if (page && page.data) rows = rows.concat(page.data);
     }
 
@@ -230,12 +230,12 @@
   }
 
   function rowsByPage(rows) {
-    var pages = [];
-    var exportedAt = new Date().toISOString();
+    const pages = [];
+    const exportedAt = new Date().toISOString();
 
-    for (var i = 0; i < rows.length; i += PAGE_SIZE) {
-      var chunk = rows.slice(i, i + PAGE_SIZE);
-      var pageNumber = Math.floor(i / PAGE_SIZE) + 1;
+    for (let i = 0; i < rows.length; i += PAGE_SIZE) {
+      const chunk = rows.slice(i, i + PAGE_SIZE);
+      const pageNumber = Math.floor(i / PAGE_SIZE) + 1;
 
       pages.push({
         data: chunk,
@@ -254,8 +254,8 @@
   }
 
   function buildExportResource(rows, completed, lastScrapedPage) {
-    var pages = rowsByPage(rows);
-    var exportedAt = new Date().toISOString();
+    const pages = rowsByPage(rows);
+    const exportedAt = new Date().toISOString();
 
     return {
       data: pages,
@@ -264,7 +264,7 @@
         source_path: location.pathname,
         source_url: location.href,
         exported_at: exportedAt,
-        completed: !!completed,
+        completed: Boolean(completed),
         per_page: PAGE_SIZE,
         page_count: pages.length,
         total: rows.length,
@@ -280,10 +280,10 @@
 
   function loadCachedResource() {
     try {
-      var raw = localStorage.getItem(storageKey());
+      const raw = localStorage.getItem(storageKey());
       if (!raw) return null;
 
-      var resource = JSON.parse(raw);
+      const resource = JSON.parse(raw);
       if (!resource || !resource.data || !resource.meta) return null;
 
       return resource;
@@ -322,11 +322,11 @@
     }
 
     return new Promise(function (resolve, reject) {
-      var request = window.indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
+      const request = window.indexedDB.open(IDB_DB_NAME, IDB_DB_VERSION);
 
       request.onupgradeneeded = function (event) {
-        var db = event.target.result;
-        var videos = null;
+        const db = event.target.result;
+        let videos = null;
 
         if (!db.objectStoreNames.contains(IDB_META_STORE)) {
           db.createObjectStore(IDB_META_STORE, { keyPath: 'collectionKey' });
@@ -356,11 +356,11 @@
   }
 
   function exportMetaFromResource(resource, collectionKey, rowCount) {
-    var meta = (resource && resource.meta) || {};
+    const meta = (resource && resource.meta) || {};
 
     return {
       collectionKey: collectionKey,
-      completed: !!meta.completed,
+      completed: Boolean(meta.completed),
       lastScrapedPage: meta.last_scraped_page || null,
       rowCount: rowCount || 0,
       sourcePath: meta.source_path || location.pathname,
@@ -400,18 +400,18 @@
   }
 
   IndexedDbCacheAdapter.prototype.getMeta = function (collectionKey) {
-    var tx = this.db.transaction(IDB_META_STORE, 'readonly');
+    const tx = this.db.transaction(IDB_META_STORE, 'readonly');
     return idbRequest(tx.objectStore(IDB_META_STORE).get(collectionKey));
   };
 
   IndexedDbCacheAdapter.prototype.loadRows = function (collectionKey) {
-    var tx = this.db.transaction(IDB_VIDEOS_STORE, 'readonly');
-    var store = tx.objectStore(IDB_VIDEOS_STORE);
-    var request = store.index(IDB_COLLECTION_INDEX).getAll(collectionKey);
+    const tx = this.db.transaction(IDB_VIDEOS_STORE, 'readonly');
+    const store = tx.objectStore(IDB_VIDEOS_STORE);
+    const request = store.index(IDB_COLLECTION_INDEX).getAll(collectionKey);
 
     return idbRequest(request).then(function (records) {
       records.sort(function (a, b) {
-        var groupDiff = (a.orderGroup || 0) - (b.orderGroup || 0);
+        const groupDiff = (a.orderGroup || 0) - (b.orderGroup || 0);
         if (groupDiff) return groupDiff;
 
         return (a.order || 0) - (b.order || 0);
@@ -422,16 +422,16 @@
   };
 
   IndexedDbCacheAdapter.prototype.knownUrlMap = function (collectionKey, urls) {
-    var tx = this.db.transaction(IDB_VIDEOS_STORE, 'readonly');
-    var store = tx.objectStore(IDB_VIDEOS_STORE);
-    var known = {};
-    var checks = [];
+    const tx = this.db.transaction(IDB_VIDEOS_STORE, 'readonly');
+    const store = tx.objectStore(IDB_VIDEOS_STORE);
+    const known = {};
+    const checks = [];
 
-    for (var i = 0; i < urls.length; i++) {
+    for (let i = 0; i < urls.length; i++) {
       (function (url) {
         checks.push(
           idbRequest(store.get(idbCacheKey(collectionKey, url))).then(function (record) {
-            known[url] = !!record;
+            known[url] = Boolean(record);
           })
         );
       })(urls[i]);
@@ -450,15 +450,15 @@
     orderStart,
     orderGroup
   ) {
-    var tx = this.db.transaction([IDB_META_STORE, IDB_VIDEOS_STORE], 'readwrite');
-    var metaStore = tx.objectStore(IDB_META_STORE);
-    var videosStore = tx.objectStore(IDB_VIDEOS_STORE);
-    var nextCount = currentCount + rows.length;
-    var completed = false;
-    var firstOrder = typeof orderStart === 'number' ? orderStart : currentCount;
-    var group = orderGroup || 0;
+    const tx = this.db.transaction([IDB_META_STORE, IDB_VIDEOS_STORE], 'readwrite');
+    const metaStore = tx.objectStore(IDB_META_STORE);
+    const videosStore = tx.objectStore(IDB_VIDEOS_STORE);
+    const nextCount = currentCount + rows.length;
+    const completed = false;
+    const firstOrder = typeof orderStart === 'number' ? orderStart : currentCount;
+    const group = orderGroup || 0;
 
-    for (var i = 0; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       videosStore.put(rowRecord(collectionKey, rows[i], firstOrder + i + 1, group));
     }
 
@@ -486,13 +486,13 @@
   };
 
   IndexedDbCacheAdapter.prototype.markRowsAsBase = function (collectionKey) {
-    var tx = this.db.transaction(IDB_VIDEOS_STORE, 'readwrite');
-    var videosStore = tx.objectStore(IDB_VIDEOS_STORE);
-    var index = videosStore.index(IDB_COLLECTION_INDEX);
+    const tx = this.db.transaction(IDB_VIDEOS_STORE, 'readwrite');
+    const videosStore = tx.objectStore(IDB_VIDEOS_STORE);
+    const index = videosStore.index(IDB_COLLECTION_INDEX);
 
     index.openCursor(IDBKeyRange.only(collectionKey)).onsuccess = function (event) {
-      var cursor = event.target.result;
-      var record = null;
+      const cursor = event.target.result;
+      let record = null;
 
       if (!cursor) return;
 
@@ -516,13 +516,13 @@
   };
 
   IndexedDbCacheAdapter.prototype.replaceRows = function (collectionKey, rows, completed, lastScrapedPage) {
-    var tx = this.db.transaction([IDB_META_STORE, IDB_VIDEOS_STORE], 'readwrite');
-    var metaStore = tx.objectStore(IDB_META_STORE);
-    var videosStore = tx.objectStore(IDB_VIDEOS_STORE);
-    var index = videosStore.index(IDB_COLLECTION_INDEX);
+    const tx = this.db.transaction([IDB_META_STORE, IDB_VIDEOS_STORE], 'readwrite');
+    const metaStore = tx.objectStore(IDB_META_STORE);
+    const videosStore = tx.objectStore(IDB_VIDEOS_STORE);
+    const index = videosStore.index(IDB_COLLECTION_INDEX);
 
     index.openCursor(IDBKeyRange.only(collectionKey)).onsuccess = function (event) {
-      var cursor = event.target.result;
+      const cursor = event.target.result;
 
       if (cursor) {
         cursor.delete();
@@ -530,13 +530,13 @@
         return;
       }
 
-      for (var i = 0; i < rows.length; i++) {
+      for (let i = 0; i < rows.length; i++) {
         videosStore.put(rowRecord(collectionKey, rows[i], i + 1, 0));
       }
 
       metaStore.put({
         collectionKey: collectionKey,
-        completed: !!completed,
+        completed: Boolean(completed),
         lastScrapedPage: lastScrapedPage || null,
         rowCount: rows.length,
         sourcePath: location.pathname,
@@ -559,11 +559,11 @@
   };
 
   IndexedDbCacheAdapter.prototype.ensureMigrated = function (collectionKey) {
-    var adapter = this;
+    const adapter = this;
 
     return adapter.getMeta(collectionKey).then(function (meta) {
-      var cache = null;
-      var cachedRows = null;
+      let cache = null;
+      let cachedRows = null;
 
       if (meta) return meta;
 
@@ -573,7 +573,7 @@
       if (!cache || !cache.meta || !rowsHaveMediaFields(cachedRows)) return null;
 
       return adapter
-        .replaceRows(collectionKey, cachedRows, !!cache.meta.completed, cache.meta.last_scraped_page)
+        .replaceRows(collectionKey, cachedRows, Boolean(cache.meta.completed), cache.meta.last_scraped_page)
         .then(function () {
           return exportMetaFromResource(cache, collectionKey, cachedRows.length);
         });
@@ -587,8 +587,8 @@
   }
 
   function urlMap(rows) {
-    var out = {};
-    for (var i = 0; i < rows.length; i++) {
+    const out = {};
+    for (let i = 0; i < rows.length; i++) {
       if (rows[i].url) out[rows[i].url] = true;
     }
     return out;
@@ -597,7 +597,7 @@
   function allRowsKnown(rows, known) {
     if (!rows.length) return false;
 
-    for (var i = 0; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       if (!rows[i].url || !known[rows[i].url]) return false;
     }
 
@@ -605,7 +605,7 @@
   }
 
   function rowsHaveMediaFields(rows) {
-    for (var i = 0; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       if (typeof rows[i].img === 'undefined' || typeof rows[i].preview === 'undefined') {
         return false;
       }
@@ -619,7 +619,7 @@
   }
 
   function downloadBlob(name, blob) {
-    var a = document.createElement('a');
+    const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = name;
     document.body.appendChild(a);
@@ -648,31 +648,31 @@
    * ------------------------------------- */
   // 擷取當前頁面 { title, url, views, likes, img, preview }
   function scrapeCurrentPage() {
-    var out = [];
-    var boxes = document.querySelectorAll('div.video-img-box');
+    const out = [];
+    const boxes = document.querySelectorAll('div.video-img-box');
 
-    for (var i = 0; i < boxes.length; i++) {
-      var box = boxes[i];
-      var a = box.querySelector('div.detail h6.title a');
+    for (let i = 0; i < boxes.length; i++) {
+      const box = boxes[i];
+      const a = box.querySelector('div.detail h6.title a');
       if (!a) continue;
 
-      var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
-      var href = a.getAttribute('href') || '';
-      var img = box.querySelector('div.img-box img');
-      var imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
-      var previewSrc = img ? img.getAttribute('data-preview') || '' : '';
+      const title = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      const href = a.getAttribute('href') || '';
+      const img = box.querySelector('div.img-box img');
+      const imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
+      const previewSrc = img ? img.getAttribute('data-preview') || '' : '';
 
-      var views = null;
-      var likes = null;
+      let views = null;
+      let likes = null;
 
-      var sub = box.querySelector('div.detail p.sub-title');
+      const sub = box.querySelector('div.detail p.sub-title');
       if (sub) {
-        var texts = [];
-        for (var n = 0; n < sub.childNodes.length; n++) {
-          var node = sub.childNodes[n];
+        const texts = [];
+        for (let n = 0; n < sub.childNodes.length; n++) {
+          const node = sub.childNodes[n];
           if (node.nodeType === Node.TEXT_NODE) {
-            var t = node.textContent.replace(/\s+/g, ' ').trim();
-            if (t) texts.push(t);
+            const text = node.textContent.replace(/\s+/g, ' ').trim();
+            if (text) texts.push(text);
           }
         }
         if (texts.length >= 1) {
@@ -701,32 +701,32 @@
    * Pagination helpers
    * ------------------------------------- */
   function normalizePageNumber(value) {
-    var n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
+    const n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
     return isFinite(n) && n > 0 ? n : 1;
   }
 
   function currentPageNumber() {
-    var active = document.querySelector('ul.pagination span.page-link.active');
+    const active = document.querySelector('ul.pagination span.page-link.active');
     return active ? normalizePageNumber(active.textContent) : 1;
   }
 
   function signature() {
-    var list = document.querySelectorAll(SEL_TITLES);
-    var count = list.length;
-    var first = count ? list[0].getAttribute('href') || '' : '';
+    const list = document.querySelectorAll(SEL_TITLES);
+    const count = list.length;
+    const first = count ? list[0].getAttribute('href') || '' : '';
     return count + '|' + first;
   }
 
   function waitForContainerChange(oldSig, timeoutMs) {
     if (!timeoutMs) timeoutMs = 12000;
-    var target = document.querySelector(SEL_LIST_CONTAINER) || document.body;
-    var deadline = Date.now() + timeoutMs;
+    const target = document.querySelector(SEL_LIST_CONTAINER) || document.body;
+    const deadline = Date.now() + timeoutMs;
 
     return new Promise(function (resolve) {
-      var done = false;
+      let done = false;
 
       function check() {
-        var cur = signature();
+        const cur = signature();
         if (cur && cur !== oldSig) {
           done = true;
           resolve(true);
@@ -736,7 +736,7 @@
         }
       }
 
-      var mo = new MutationObserver(function () {
+      const mo = new MutationObserver(function () {
         check();
       });
       mo.observe(target, { childList: true, subtree: true });
@@ -754,20 +754,20 @@
   }
 
   function readPagerLinks() {
-    var pager = document.querySelector(SEL_PAGER);
+    const pager = document.querySelector(SEL_PAGER);
     if (!pager) return [];
 
-    var anchors = pager.querySelectorAll(SEL_PAGER_LINKS);
-    var out = [];
+    const anchors = pager.querySelectorAll(SEL_PAGER_LINKS);
+    const out = [];
 
-    for (var i = 0; i < anchors.length; i++) {
-      var a = anchors[i];
-      var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
+    for (let i = 0; i < anchors.length; i++) {
+      const a = anchors[i];
+      const txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
 
-      var params = a.getAttribute('data-parameters') || '';
-      var m = params.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
+      const params = a.getAttribute('data-parameters') || '';
+      const m = params.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
 
-      var pid = null;
+      let pid = null;
       if (m) pid = m[1];
       else if (/^\d+$/.test(txt)) pid = txt;
       else pid = txt || 'a_' + i;
@@ -788,9 +788,9 @@
   }
 
   function urlsFromRows(rows) {
-    var out = [];
+    const out = [];
 
-    for (var i = 0; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
       if (rows[i].url) out.push(rows[i].url);
     }
 
@@ -798,7 +798,7 @@
   }
 
   function showExportError(message) {
-    var btn = document.getElementById(BTN_ID);
+    const btn = document.getElementById(BTN_ID);
 
     setBtnBusy(false);
 
@@ -811,10 +811,10 @@
   }
 
   function mergeFinalRows(cacheComplete, newRows, cachedRows) {
-    var newUrls = urlMap(newRows);
-    var oldRows = [];
+    const newUrls = urlMap(newRows);
+    const oldRows = [];
 
-    for (var i = 0; i < cachedRows.length; i++) {
+    for (let i = 0; i < cachedRows.length; i++) {
       if (!newUrls[cachedRows[i].url]) oldRows.push(cachedRows[i]);
     }
 
@@ -824,29 +824,29 @@
   async function exportAllByClickWithIndexedDb(adapter) {
     setBtnBusy(true, t('preparing'));
 
-    var collectionKey = fileBaseByPath();
-    var meta = await adapter.ensureMigrated(collectionKey);
-    var cacheComplete = !!(meta && meta.completed);
-    var cachedCount = meta && meta.rowCount ? Number(meta.rowCount) : 0;
-    var newRows = [];
-    var visited = {};
-    var safety = 100;
-    var lastScrapedPage = null;
-    var baseRowsMarked = false;
+    const collectionKey = fileBaseByPath();
+    const meta = await adapter.ensureMigrated(collectionKey);
+    const cacheComplete = Boolean(meta && meta.completed);
+    let cachedCount = meta && meta.rowCount ? Number(meta.rowCount) : 0;
+    const newRows = [];
+    const visited = {};
+    let safety = 100;
+    let lastScrapedPage = null;
+    let baseRowsMarked = false;
 
-    var active = document.querySelector('ul.pagination span.page-link.active');
+    const active = document.querySelector('ul.pagination span.page-link.active');
     if (active) {
-      var t = (active.textContent || '').trim();
-      if (t) visited[t] = true;
+      const activePageText = (active.textContent || '').trim();
+      if (activePageText) visited[activePageText] = true;
     }
 
     async function recordCurrentPage() {
-      var rows = uniqByUrl(scrapeCurrentPage());
-      var knownUrls = await adapter.knownUrlMap(collectionKey, urlsFromRows(rows));
-      var rowsToSave = [];
-      var orderStart = cacheComplete ? newRows.length : cachedCount;
-      var orderGroup = 0;
-      var saved = null;
+      const rows = uniqByUrl(scrapeCurrentPage());
+      const knownUrls = await adapter.knownUrlMap(collectionKey, urlsFromRows(rows));
+      const rowsToSave = [];
+      const orderStart = cacheComplete ? newRows.length : cachedCount;
+      const orderGroup = 0;
+      let saved = null;
 
       lastScrapedPage = currentPageNumber();
 
@@ -855,8 +855,8 @@
         return true;
       }
 
-      for (var i = 0; i < rows.length; i++) {
-        var url = rows[i].url;
+      for (let i = 0; i < rows.length; i++) {
+        const url = rows[i].url;
         if (!url || knownUrls[url]) continue;
 
         knownUrls[url] = true;
@@ -882,10 +882,10 @@
     }
 
     async function finish() {
-      var base = fileBaseByPath();
-      var cachedRows = await adapter.loadRows(collectionKey);
-      var finalRows = mergeFinalRows(cacheComplete, newRows, cachedRows);
-      var resource = buildExportResource(finalRows, true, lastScrapedPage);
+      const base = fileBaseByPath();
+      const cachedRows = await adapter.loadRows(collectionKey);
+      const finalRows = mergeFinalRows(cacheComplete, newRows, cachedRows);
+      const resource = buildExportResource(finalRows, true, lastScrapedPage);
 
       await adapter.replaceRows(collectionKey, finalRows, true, lastScrapedPage);
 
@@ -903,25 +903,25 @@
     if (await recordCurrentPage()) return finish();
 
     while (true) {
-      var links = null;
-      var candidates = [];
-      var next = null;
-      var oldSig = null;
-      var changed = false;
+      let links = null;
+      const candidates = [];
+      let next = null;
+      let oldSig = null;
+      let changed = false;
 
       if (safety-- <= 0) return finish();
 
       links = readPagerLinks();
 
-      for (var i = 0; i < links.length; i++) {
+      for (let i = 0; i < links.length; i++) {
         if (!visited[links[i].id]) candidates.push(links[i]);
       }
 
       if (!candidates.length) return finish();
 
       candidates.sort(function (a, b) {
-        var na = parseInt(a.id, 10);
-        var nb = parseInt(b.id, 10);
+        const na = parseInt(a.id, 10);
+        const nb = parseInt(b.id, 10);
         if (isFinite(na) && isFinite(nb)) return na - nb;
         return String(a.id).localeCompare(String(b.id));
       });
@@ -956,7 +956,7 @@
   }
 
   async function exportAllByClick() {
-    var adapter = null;
+    let adapter = null;
 
     try {
       adapter = await createIndexedDbCacheAdapter();
@@ -977,22 +977,22 @@
   function exportAllByClickWithLocalStorage() {
     setBtnBusy(true, t('preparing'));
 
-    var cache = loadCachedResource();
-    var cachedRows = flattenPages(cache);
-    var cacheHasMedia = rowsHaveMediaFields(cachedRows);
-    var cacheComplete = !!(cache && cache.meta && cache.meta.completed && cacheHasMedia);
+    const cache = loadCachedResource();
+    let cachedRows = flattenPages(cache);
+    const cacheHasMedia = rowsHaveMediaFields(cachedRows);
+    const cacheComplete = Boolean(cache && cache.meta && cache.meta.completed && cacheHasMedia);
     if (!cacheHasMedia) cachedRows = [];
 
-    var knownUrls = urlMap(cachedRows);
-    var newRows = [];
-    var visited = {};
-    var safety = 100;
-    var lastScrapedPage = null;
+    const knownUrls = urlMap(cachedRows);
+    const newRows = [];
+    const visited = {};
+    let safety = 100;
+    let lastScrapedPage = null;
 
-    var active = document.querySelector('ul.pagination span.page-link.active');
+    const active = document.querySelector('ul.pagination span.page-link.active');
     if (active) {
-      var t = (active.textContent || '').trim();
-      if (t) visited[t] = true;
+      const activePageText = (active.textContent || '').trim();
+      if (activePageText) visited[activePageText] = true;
     }
 
     function rowsForProgress() {
@@ -1000,7 +1000,7 @@
     }
 
     function recordCurrentPage() {
-      var rows = uniqByUrl(scrapeCurrentPage());
+      const rows = uniqByUrl(scrapeCurrentPage());
       lastScrapedPage = currentPageNumber();
 
       if (cacheComplete && allRowsKnown(rows, knownUrls)) {
@@ -1008,8 +1008,8 @@
         return true;
       }
 
-      for (var i = 0; i < rows.length; i++) {
-        var url = rows[i].url;
+      for (let i = 0; i < rows.length; i++) {
+        const url = rows[i].url;
         if (!url || knownUrls[url]) continue;
 
         knownUrls[url] = true;
@@ -1025,24 +1025,24 @@
     function step() {
       if (safety-- <= 0) return finish();
 
-      var links = readPagerLinks();
-      var candidates = [];
+      const links = readPagerLinks();
+      const candidates = [];
 
-      for (var i = 0; i < links.length; i++) {
+      for (let i = 0; i < links.length; i++) {
         if (!visited[links[i].id]) candidates.push(links[i]);
       }
 
       if (!candidates.length) return finish();
 
       candidates.sort(function (a, b) {
-        var na = parseInt(a.id, 10);
-        var nb = parseInt(b.id, 10);
+        const na = parseInt(a.id, 10);
+        const nb = parseInt(b.id, 10);
         if (isFinite(na) && isFinite(nb)) return na - nb;
         return String(a.id).localeCompare(String(b.id));
       });
 
-      var next = candidates[0];
-      var oldSig = signature();
+      const next = candidates[0];
+      const oldSig = signature();
 
       try {
         next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1068,8 +1068,8 @@
 
     function finish() {
       setBtnBusy(false, t('exporting'));
-      var base = fileBaseByPath();
-      var resource = buildExportResource(rowsForProgress(), true, lastScrapedPage);
+      const base = fileBaseByPath();
+      const resource = buildExportResource(rowsForProgress(), true, lastScrapedPage);
       saveCachedResource(resource);
 
       if (EXPORT_FORMAT === 'csv') {
@@ -1088,22 +1088,22 @@
    * UI: add export button
    * ------------------------------------- */
   function setBtnBusy(busy, text) {
-    var btn = document.getElementById(BTN_ID);
+    const btn = document.getElementById(BTN_ID);
     if (!btn) return;
 
     if (!btn.getAttribute('data-label')) {
       btn.setAttribute('data-label', btn.textContent);
     }
 
-    btn.disabled = !!busy;
+    btn.disabled = Boolean(busy);
     btn.setAttribute('data-busy', busy ? 'true' : 'false');
     btn.textContent = busy ? text || t('processing') : btn.getAttribute('data-label');
     btn.style.opacity = busy ? '0.7' : '1';
   }
 
   function addNavButton() {
-    var existingBtn = document.getElementById(BTN_ID);
-    var existingWrap = document.getElementById(WRAP_ID);
+    const existingBtn = document.getElementById(BTN_ID);
+    const existingWrap = document.getElementById(WRAP_ID);
 
     if (existingBtn && existingWrap) {
       refreshExportUiText();
@@ -1113,9 +1113,9 @@
     if (existingWrap && existingWrap.parentNode) existingWrap.parentNode.removeChild(existingWrap);
     if (!isExportPage() || !document.body) return false;
 
-    var wrap = document.createElement('div');
-    var btn = document.createElement('button');
-    var select = document.createElement('select');
+    const wrap = document.createElement('div');
+    const btn = document.createElement('button');
+    const select = document.createElement('select');
 
     wrap.id = WRAP_ID;
 
@@ -1184,19 +1184,19 @@
 
   // 嘗試插入按鈕
   (function waitAndInsert() {
-    var tries = 0;
-    var t = setInterval(function () {
+    let tries = 0;
+    const insertTimer = setInterval(function () {
       tries++;
-      if (addNavButton()) clearInterval(t);
+      if (addNavButton()) clearInterval(insertTimer);
       else if (tries > 40) {
-        clearInterval(t);
+        clearInterval(insertTimer);
         addNavButton();
       }
     }, 500);
   })();
 
   // SPA 變動時補插
-  var mo = new MutationObserver(function () {
+  const mo = new MutationObserver(function () {
     if (!document.getElementById(BTN_ID) || !document.getElementById(WRAP_ID)) addNavButton();
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });

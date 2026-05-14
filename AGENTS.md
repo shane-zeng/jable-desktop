@@ -59,7 +59,7 @@ For userscript validation, install or update `jable-favourites-exporter.user.js`
 Use plain JavaScript compatible with modern browsers and Tampermonkey in the userscript:
 
 - Two-space indentation.
-- `var` declarations, matching the existing script.
+- Prefer `const`; use `let` only when reassignment is required. Do not introduce new `var` declarations.
 - Small, direct functions with descriptive names such as `scrapeCurrentPage`, `readPagerLinks`, and `downloadJson`.
 - Uppercase constants for selectors and IDs, for example `SEL_PAGER_LINKS` and `BTN_ID`.
 

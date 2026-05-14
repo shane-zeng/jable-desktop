@@ -47,7 +47,7 @@ describe('BrowserPanel', function () {
   });
 
   it('renders browser tabs with active, loading, and locked states', function () {
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),
@@ -68,7 +68,7 @@ describe('BrowserPanel', function () {
   });
 
   it('emits tab actions', async function () {
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),
@@ -89,11 +89,11 @@ describe('BrowserPanel', function () {
   });
 
   it('renders tab audio states and emits muted toggles', async function () {
-    var tabs = makeTabs();
+    const tabs = makeTabs();
     tabs[0].audible = true;
     tabs[1].muted = true;
 
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: tabs,
@@ -114,7 +114,7 @@ describe('BrowserPanel', function () {
   });
 
   it('auto-hides compact floating tab rail until the left edge is hovered', async function () {
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),
@@ -143,7 +143,7 @@ describe('BrowserPanel', function () {
   });
 
   it('emits tab context menu coordinates', async function () {
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),
@@ -171,7 +171,7 @@ describe('BrowserPanel', function () {
   });
 
   it('emits the active tab context menu from the rail background', async function () {
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),
@@ -199,7 +199,7 @@ describe('BrowserPanel', function () {
   });
 
   it('emits resized tab width while dragging the rail handle', async function () {
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),
@@ -221,7 +221,7 @@ describe('BrowserPanel', function () {
 
   it('renders English tab controls', function () {
     setLocale('en-US', false);
-    var wrapper = mount(BrowserPanel, {
+    const wrapper = mount(BrowserPanel, {
       props: {
         active: true,
         tabs: makeTabs(),

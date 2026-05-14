@@ -30,7 +30,7 @@ defineProps<{
   totalPages: number;
 }>();
 
-var emit = defineEmits<{
+const emit = defineEmits<{
   'select-collection': [collectionKey: string];
   'quick-sync': [];
   'full-sync': [];
@@ -47,15 +47,15 @@ var emit = defineEmits<{
   'video-context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 
-var importFile = ref<HTMLInputElement | null>(null);
+const importFile = ref<HTMLInputElement | null>(null);
 
 function chooseImportFile() {
   if (importFile.value) importFile.value.click();
 }
 
 function handleImportFile(event: Event) {
-  var target = event.target as HTMLInputElement;
-  var file = target.files ? target.files[0] : null;
+  const target = event.target as HTMLInputElement;
+  const file = target.files ? target.files[0] : null;
   if (file) emit('import-file', file);
   target.value = '';
 }

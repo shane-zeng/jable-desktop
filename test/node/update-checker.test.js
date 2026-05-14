@@ -1,8 +1,8 @@
 'use strict';
 
-var test = require('node:test');
-var assert = require('node:assert/strict');
-var updateChecker = require('../../app/runtime-dist/update-checker');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const updateChecker = require('../../app/runtime-dist/update-checker');
 
 test('detects newer release versions with or without v prefix', function () {
   assert.deepEqual(updateChecker.evaluateReleaseUpdate('0.7.3', release('v0.7.4')), {
@@ -64,7 +64,7 @@ test('returns stable no-update results for invalid releases', function () {
 });
 
 test('returns a stable failure result for GitHub API errors', async function () {
-  var httpResult = await updateChecker.checkLatestRelease({
+  const httpResult = await updateChecker.checkLatestRelease({
     currentVersion: '0.7.3',
     fetch: async function () {
       return {
@@ -78,7 +78,7 @@ test('returns a stable failure result for GitHub API errors', async function () 
   assert.equal(httpResult.reason, 'request-failed');
   assert.match(httpResult.error, /HTTP 500/);
 
-  var rejectionResult = await updateChecker.checkLatestRelease({
+  const rejectionResult = await updateChecker.checkLatestRelease({
     currentVersion: '0.7.3',
     fetch: async function () {
       throw new Error('network down');

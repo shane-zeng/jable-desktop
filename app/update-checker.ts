@@ -1,7 +1,7 @@
 'use strict';
 
-var LATEST_RELEASE_API_URL = 'https://api.github.com/repos/shane-zeng/jable-favourites-exporter/releases/latest';
-var USER_AGENT = 'Jable-Desktop';
+const LATEST_RELEASE_API_URL = 'https://api.github.com/repos/shane-zeng/jable-favourites-exporter/releases/latest';
+const USER_AGENT = 'Jable-Desktop';
 
 type ParsedVersion = [number, number, number];
 
@@ -25,7 +25,7 @@ type CheckLatestReleaseOptions = {
 };
 
 function parseVersion(value: unknown): ParsedVersion | null {
-  var match = String(value || '')
+  const match = String(value || '')
     .trim()
     .match(/^v?(\d+)\.(\d+)\.(\d+)$/i);
 
@@ -35,7 +35,7 @@ function parseVersion(value: unknown): ParsedVersion | null {
 }
 
 function compareParsedVersions(left: ParsedVersion, right: ParsedVersion): number {
-  for (var i = 0; i < 3; i++) {
+  for (let i = 0; i < 3; i++) {
     if (left[i] > right[i]) return 1;
     if (left[i] < right[i]) return -1;
   }
@@ -48,10 +48,10 @@ function versionLabel(parsed: ParsedVersion): string {
 }
 
 function releaseVersion(release: GitHubRelease | null | undefined): ParsedVersion | null {
-  var candidates = [release && release.tag_name, release && release.name];
+  const candidates = [release && release.tag_name, release && release.name];
 
-  for (var i = 0; i < candidates.length; i++) {
-    var parsed = parseVersion(candidates[i]);
+  for (let i = 0; i < candidates.length; i++) {
+    const parsed = parseVersion(candidates[i]);
     if (parsed) return parsed;
   }
 
@@ -63,7 +63,7 @@ function errorMessage(error: unknown): string {
 }
 
 function evaluateReleaseUpdate(currentVersion: unknown, release: unknown) {
-  var current = parseVersion(currentVersion);
+  const current = parseVersion(currentVersion);
 
   if (!current) {
     return {
@@ -81,7 +81,7 @@ function evaluateReleaseUpdate(currentVersion: unknown, release: unknown) {
     };
   }
 
-  var releaseInfo = release as GitHubRelease;
+  const releaseInfo = release as GitHubRelease;
 
   if (releaseInfo.draft || releaseInfo.prerelease) {
     return {
@@ -91,7 +91,7 @@ function evaluateReleaseUpdate(currentVersion: unknown, release: unknown) {
     };
   }
 
-  var latest = releaseVersion(releaseInfo);
+  const latest = releaseVersion(releaseInfo);
 
   if (!latest) {
     return {
@@ -132,10 +132,10 @@ async function checkLatestRelease(options?: CheckLatestReleaseOptions | null) {
   options = options || {};
 
   try {
-    var fetchImpl = (options.fetch || globalThis.fetch) as CheckLatestReleaseOptions['fetch'];
+    const fetchImpl = (options.fetch || globalThis.fetch) as CheckLatestReleaseOptions['fetch'];
     if (typeof fetchImpl !== 'function') throw new Error('fetch is not available');
 
-    var response = await fetchImpl(LATEST_RELEASE_API_URL, {
+    const response = await fetchImpl(LATEST_RELEASE_API_URL, {
       headers: {
         Accept: 'application/vnd.github+json',
         'User-Agent': USER_AGENT

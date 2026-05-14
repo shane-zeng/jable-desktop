@@ -1,19 +1,19 @@
 'use strict';
 
-var test = require('node:test');
-var assert = require('node:assert/strict');
-var i18n = require('../../app/runtime-dist/i18n');
-var zhTW = require('../../app/runtime-dist/i18n/locales/zh-TW.json');
-var enUS = require('../../app/runtime-dist/i18n/locales/en-US.json');
-var jaJP = require('../../app/runtime-dist/i18n/locales/ja-JP.json');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const i18n = require('../../app/runtime-dist/i18n');
+const zhTW = require('../../app/runtime-dist/i18n/locales/zh-TW.json');
+const enUS = require('../../app/runtime-dist/i18n/locales/en-US.json');
+const jaJP = require('../../app/runtime-dist/i18n/locales/ja-JP.json');
 
 function flattenKeys(value, prefix, out) {
   out = out || [];
   prefix = prefix || '';
 
   Object.keys(value).forEach(function (key) {
-    var path = prefix ? prefix + '.' + key : key;
-    var child = value[key];
+    const path = prefix ? prefix + '.' + key : key;
+    const child = value[key];
 
     if (child && typeof child === 'object' && !Array.isArray(child)) {
       flattenKeys(child, path, out);
@@ -58,7 +58,7 @@ test('keeps locale dictionaries in key parity', function () {
 });
 
 test('exposes missing keys in test and development environments', function () {
-  var originalNodeEnv = process.env.NODE_ENV;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   try {
     process.env.NODE_ENV = 'test';

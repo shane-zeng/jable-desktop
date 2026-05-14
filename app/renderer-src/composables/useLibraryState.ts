@@ -12,12 +12,12 @@ import type {
   VideoRow
 } from '../../types/jable';
 
-var DEFAULT_SORT: SortKey = 'site_order';
-var SORT_VALUES = SORT_OPTIONS.map(function (option) {
+const DEFAULT_SORT: SortKey = 'site_order';
+const SORT_VALUES = SORT_OPTIONS.map(function (option) {
   return option.value;
 });
-var DEFAULT_SEARCH_MODE: SearchMode = 'any';
-var SEARCH_MODE_VALUES = SEARCH_MODE_OPTIONS.map(function (option) {
+const DEFAULT_SEARCH_MODE: SearchMode = 'any';
+const SEARCH_MODE_VALUES = SEARCH_MODE_OPTIONS.map(function (option) {
   return option.value;
 });
 
@@ -34,64 +34,64 @@ function isCollectionKey(value: string): value is CollectionKey {
 }
 
 export function useLibraryState(api: JableAppApi) {
-  var activeCollection = ref<CollectionKey>('favourites');
-  var currentPage = ref(1);
-  var rows = ref<VideoRow[]>([]);
-  var totalRows = ref(0);
-  var search = ref('');
-  var searchMode = ref<SearchMode>('any');
-  var sort = ref<SortKey>('site_order');
-  var direction = ref<SortDirection>('asc');
-  var fullSyncContinuation = ref<FullSyncContinuation | null>(null);
-  var refreshToken = 0;
+  const activeCollection = ref<CollectionKey>('favourites');
+  const currentPage = ref(1);
+  const rows = ref<VideoRow[]>([]);
+  const totalRows = ref(0);
+  const search = ref('');
+  const searchMode = ref<SearchMode>('any');
+  const sort = ref<SortKey>('site_order');
+  const direction = ref<SortDirection>('asc');
+  const fullSyncContinuation = ref<FullSyncContinuation | null>(null);
+  let refreshToken = 0;
 
-  var currentCollection = computed(function () {
+  const currentCollection = computed(function () {
     return COLLECTIONS[activeCollection.value];
   });
 
-  var totalPages = computed(function () {
+  const totalPages = computed(function () {
     return Math.max(1, Math.ceil(totalRows.value / PAGE_SIZE));
   });
 
-  var pageRows = computed(function () {
+  const pageRows = computed(function () {
     return rows.value;
   });
 
-  var countLabel = computed(function () {
+  const countLabel = computed(function () {
     return t('library.count', { total: totalRows.value, pageSize: PAGE_SIZE });
   });
 
-  var pageLabel = computed(function () {
+  const pageLabel = computed(function () {
     return t('library.page', { current: currentPage.value, total: totalPages.value });
   });
 
-  var fullSyncButtonLabel = computed(function () {
-    var pending = fullSyncContinuation.value && fullSyncContinuation.value.collectionKey === activeCollection.value;
+  const fullSyncButtonLabel = computed(function () {
+    const pending = fullSyncContinuation.value && fullSyncContinuation.value.collectionKey === activeCollection.value;
     return pending ? t('library.continueFullSync') : t('library.fullSync');
   });
 
   async function refreshVideos() {
-    var token = ++refreshToken;
-    var safeSort = normalizeSort(sort.value);
-    var safeSearchMode = normalizeSearchMode(searchMode.value);
+    const token = ++refreshToken;
+    const safeSort = normalizeSort(sort.value);
+    const safeSearchMode = normalizeSearchMode(searchMode.value);
     if (safeSort !== sort.value) sort.value = safeSort;
     if (safeSearchMode !== searchMode.value) searchMode.value = safeSearchMode;
 
-    var params: ListVideosOptions = {
+    const params: ListVideosOptions = {
       collectionKey: activeCollection.value,
       search: search.value,
       searchMode: safeSearchMode,
       sort: safeSort,
       direction: direction.value
     };
-    var total = await api.countVideos(params);
+    const total = await api.countVideos(params);
 
     if (token !== refreshToken) return;
 
     totalRows.value = total;
     if (currentPage.value > totalPages.value) currentPage.value = totalPages.value;
 
-    var videos = await api.listVideos(
+    const videos = await api.listVideos(
       Object.assign({}, params, {
         limit: PAGE_SIZE,
         offset: (currentPage.value - 1) * PAGE_SIZE
@@ -116,7 +116,7 @@ export function useLibraryState(api: JableAppApi) {
   }
 
   async function goToPage(page: number) {
-    var nextPage = Math.max(1, Math.min(totalPages.value, page));
+    const nextPage = Math.max(1, Math.min(totalPages.value, page));
     if (nextPage === currentPage.value) return;
 
     currentPage.value = nextPage;

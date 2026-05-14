@@ -16,34 +16,34 @@ function errorMessage(error: unknown): string {
 }
 
 export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
-  var host = ref<HTMLElement | null>(null);
-  var tabs = ref<BrowserTabState[]>([]);
-  var activeTabId = ref<string | null>(null);
-  var maxTabs = ref(8);
+  const host = ref<HTMLElement | null>(null);
+  const tabs = ref<BrowserTabState[]>([]);
+  const activeTabId = ref<string | null>(null);
+  const maxTabs = ref(8);
 
-  var activeTab = computed(function () {
+  const activeTab = computed(function () {
     return findTab(activeTabId.value);
   });
 
-  var canCreateTab = computed(function () {
+  const canCreateTab = computed(function () {
     return tabs.value.length < maxTabs.value;
   });
 
-  var navigation = computed(function () {
-    var tab = activeTab.value;
+  const navigation = computed(function () {
+    const tab = activeTab.value;
 
     return {
       tabId: tab ? tab.id : null,
-      canGoBack: !!(tab && tab.canGoBack),
-      canGoForward: !!(tab && tab.canGoForward),
-      locked: !!(tab && tab.locked)
+      canGoBack: Boolean(tab && tab.canGoBack),
+      canGoForward: Boolean(tab && tab.canGoForward),
+      locked: Boolean(tab && tab.locked)
     };
   });
 
   function findTab(tabId: string | null | undefined): BrowserTabState | null {
     if (!tabId) return null;
 
-    for (var i = 0; i < tabs.value.length; i++) {
+    for (let i = 0; i < tabs.value.length; i++) {
       if (tabs.value[i].id === tabId) return tabs.value[i];
     }
 
@@ -51,11 +51,11 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   }
 
   function hasTab(tabId: string | null | undefined): boolean {
-    return !!findTab(tabId);
+    return Boolean(findTab(tabId));
   }
 
   function firstUnlockedSyncTab(): BrowserTabState | null {
-    for (var i = 0; i < tabs.value.length; i++) {
+    for (let i = 0; i < tabs.value.length; i++) {
       if (tabs.value[i].kind === 'sync' && !tabs.value[i].locked) return tabs.value[i];
     }
 
@@ -63,7 +63,7 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   }
 
   function applyTabsState(state: BrowserTabsState | null | undefined): BrowserTabsState | null | undefined {
-    var nextState = state || { activeTabId: null, maxTabs: maxTabs.value, tabs: [] };
+    const nextState = state || { activeTabId: null, maxTabs: maxTabs.value, tabs: [] };
     tabs.value = Array.isArray(nextState.tabs) ? nextState.tabs : [];
     activeTabId.value = nextState.activeTabId || (tabs.value[0] ? tabs.value[0].id : null);
 
@@ -84,7 +84,7 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   function currentBounds(): BrowserBounds {
     if (!host.value) return { visible: false };
 
-    var rect = host.value.getBoundingClientRect();
+    const rect = host.value.getBoundingClientRect();
     return {
       visible: activeView.value === 'browser',
       x: Math.round(rect.left),
@@ -120,7 +120,7 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
 
   function setNavigationState(nextNavigation?: Partial<BrowserNavigationState> | null) {
     nextNavigation = nextNavigation || {};
-    var tabId = nextNavigation.tabId || activeTabId.value;
+    const tabId = nextNavigation.tabId || activeTabId.value;
 
     if (!tabId) return;
 
@@ -128,9 +128,9 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
       if (tab.id !== tabId) return tab;
 
       return Object.assign({}, tab, {
-        canGoBack: !!nextNavigation.canGoBack,
-        canGoForward: !!nextNavigation.canGoForward,
-        locked: !!nextNavigation.locked
+        canGoBack: Boolean(nextNavigation.canGoBack),
+        canGoForward: Boolean(nextNavigation.canGoForward),
+        locked: Boolean(nextNavigation.locked)
       });
     });
   }
@@ -175,7 +175,7 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   }
 
   async function loadBrowser(url: string, forceReload: boolean, tabId?: string | null) {
-    var targetTabId = tabId || activeTabId.value;
+    const targetTabId = tabId || activeTabId.value;
     scheduleResize();
     await api.navigateBrowser({
       url: url,
@@ -214,8 +214,8 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   async function diagnose() {
     resize();
 
-    var hostRect = host.value ? host.value.getBoundingClientRect() : { width: 0, height: 0 };
-    var guest: BrowserDiagnosis = {};
+    const hostRect = host.value ? host.value.getBoundingClientRect() : { width: 0, height: 0 };
+    let guest: BrowserDiagnosis = {};
 
     try {
       guest = await api.diagnoseBrowser({ tabId: activeTabId.value });
@@ -223,7 +223,7 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
       guest = { error: errorMessage(error) };
     }
 
-    var message = [
+    const message = [
       'app=' + window.innerWidth + 'x' + window.innerHeight,
       'host=' + Math.round(hostRect.width) + 'x' + Math.round(hostRect.height),
       'guest=' +

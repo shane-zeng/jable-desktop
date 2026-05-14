@@ -1,13 +1,14 @@
 'use strict';
 
 import type { IpcRendererEvent } from 'electron';
+import type * as Electron from 'electron';
 import type { BrowserMessage, JableAppApi } from './types/jable';
 
-var electron = require('electron') as typeof import('electron');
-var contextBridge = electron.contextBridge;
-var ipcRenderer = electron.ipcRenderer;
+const electron: typeof Electron = require('electron');
+const contextBridge = electron.contextBridge;
+const ipcRenderer = electron.ipcRenderer;
 
-var jableApp: JableAppApi = {
+const jableApp: JableAppApi = {
   getAppInfo: function () {
     return ipcRenderer.invoke('app:info');
   },

@@ -1,11 +1,11 @@
 'use strict';
 
-var childProcess = require('node:child_process');
-var fs = require('node:fs');
-var path = require('node:path');
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 
-var CHANGELOG_PATH = path.resolve(process.cwd(), 'CHANGELOG.md');
-var releaseTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME || process.argv[2];
+const CHANGELOG_PATH = path.resolve(process.cwd(), 'CHANGELOG.md');
+const releaseTag = process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME || process.argv[2];
 
 if (!releaseTag) {
   console.error('Missing release tag. Set RELEASE_TAG or pass the tag as the first argument.');
@@ -25,13 +25,13 @@ function escapeRegExp(value) {
 
 function readRepositoryUrl() {
   if (process.env.GITHUB_REPOSITORY) {
-    var serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+    const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
     return serverUrl.replace(/\/$/, '') + '/' + process.env.GITHUB_REPOSITORY;
   }
 
   try {
-    var remote = runGit(['config', '--get', 'remote.origin.url']).trim();
-    var sshMatch = remote.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+    const remote = runGit(['config', '--get', 'remote.origin.url']).trim();
+    const sshMatch = remote.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
 
     if (sshMatch) {
       return 'https://' + sshMatch[1] + '/' + sshMatch[2];
@@ -53,12 +53,12 @@ function readVersionTags() {
 }
 
 function readReleaseDate(tag) {
-  var date = runGit(['for-each-ref', '--format=%(creatordate:short)', 'refs/tags/' + tag]).trim();
+  const date = runGit(['for-each-ref', '--format=%(creatordate:short)', 'refs/tags/' + tag]).trim();
   return date || new Date().toISOString().slice(0, 10);
 }
 
 function findPreviousTag(tags, tag) {
-  var index = tags.indexOf(tag);
+  const index = tags.indexOf(tag);
 
   if (index === -1) {
     throw new Error('Tag not found in local git tags: ' + tag);
@@ -68,7 +68,7 @@ function findPreviousTag(tags, tag) {
 }
 
 function readCommitSubjects(previousTag, tag) {
-  var range = previousTag ? previousTag + '..' + tag : tag;
+  const range = previousTag ? previousTag + '..' + tag : tag;
 
   return runGit(['log', '--first-parent', '--reverse', '--pretty=format:%s', range])
     .split('\n')
@@ -82,7 +82,7 @@ function readCommitSubjects(previousTag, tag) {
 }
 
 function readUnreleasedBody(markdown) {
-  var match = markdown.match(/## \[Unreleased\]\n\n[\s\S]*?(?=^## \[|$)/m);
+  const match = markdown.match(/## \[Unreleased\]\n\n[\s\S]*?(?=^## \[|$)/m);
 
   if (!match) {
     throw new Error('CHANGELOG.md must contain a "## [Unreleased]" section.');
@@ -108,7 +108,7 @@ function buildReleaseBody(unreleasedBody, previousTag, tag) {
     return normalizeReleaseBody(unreleasedBody);
   }
 
-  var subjects = readCommitSubjects(previousTag, tag);
+  const subjects = readCommitSubjects(previousTag, tag);
 
   if (subjects.length === 0) {
     return '### Changed\n\n- Release ' + tag + '.';
@@ -129,23 +129,23 @@ function insertReleaseSection(markdown, tag, releaseDate, releaseBody) {
     return markdown;
   }
 
-  var unreleased = readUnreleasedBody(markdown);
-  var releaseSection = '## [' + tag + '] - ' + releaseDate + '\n\n' + normalizeReleaseBody(releaseBody) + '\n\n';
+  const unreleased = readUnreleasedBody(markdown);
+  const releaseSection = '## [' + tag + '] - ' + releaseDate + '\n\n' + normalizeReleaseBody(releaseBody) + '\n\n';
 
   return markdown.slice(0, unreleased.index) + '## [Unreleased]\n\n' + releaseSection + markdown.slice(unreleased.end);
 }
 
 function updateCompareLinks(markdown, tag, previousTag, repositoryUrl) {
-  var lines = markdown.trimEnd().split('\n');
-  var firstLinkIndex = lines.findIndex(function (line) {
+  const lines = markdown.trimEnd().split('\n');
+  const firstLinkIndex = lines.findIndex(function (line) {
     return /^\[(?:Unreleased|v[^\]]+)\]: /.test(line);
   });
-  var bodyLines = firstLinkIndex === -1 ? lines : lines.slice(0, firstLinkIndex);
-  var existingLinks = firstLinkIndex === -1 ? [] : lines.slice(firstLinkIndex);
-  var tagLink = previousTag
+  const bodyLines = firstLinkIndex === -1 ? lines : lines.slice(0, firstLinkIndex);
+  const existingLinks = firstLinkIndex === -1 ? [] : lines.slice(firstLinkIndex);
+  const tagLink = previousTag
     ? '[' + tag + ']: ' + repositoryUrl + '/compare/' + previousTag + '...' + tag
     : '[' + tag + ']: ' + repositoryUrl + '/releases/tag/' + tag;
-  var newLinks = ['[Unreleased]: ' + repositoryUrl + '/compare/' + tag + '...HEAD', tagLink].concat(
+  const newLinks = ['[Unreleased]: ' + repositoryUrl + '/compare/' + tag + '...HEAD', tagLink].concat(
     existingLinks.filter(function (line) {
       return (
         line && line !== '[Unreleased]: ' && !line.startsWith('[Unreleased]:') && !line.startsWith('[' + tag + ']:')
@@ -156,14 +156,14 @@ function updateCompareLinks(markdown, tag, previousTag, repositoryUrl) {
   return bodyLines.join('\n').trimEnd() + '\n\n' + newLinks.join('\n') + '\n';
 }
 
-var changelog = fs.readFileSync(CHANGELOG_PATH, 'utf8');
-var tags = readVersionTags();
-var previousTag = findPreviousTag(tags, releaseTag);
-var releaseDate = readReleaseDate(releaseTag);
-var unreleasedBody = hasReleaseSection(changelog, releaseTag) ? '' : readUnreleasedBody(changelog).body;
-var releaseBody = buildReleaseBody(unreleasedBody, previousTag, releaseTag);
-var repositoryUrl = readRepositoryUrl();
-var nextChangelog = insertReleaseSection(changelog, releaseTag, releaseDate, releaseBody);
+const changelog = fs.readFileSync(CHANGELOG_PATH, 'utf8');
+const tags = readVersionTags();
+const previousTag = findPreviousTag(tags, releaseTag);
+const releaseDate = readReleaseDate(releaseTag);
+const unreleasedBody = hasReleaseSection(changelog, releaseTag) ? '' : readUnreleasedBody(changelog).body;
+const releaseBody = buildReleaseBody(unreleasedBody, previousTag, releaseTag);
+const repositoryUrl = readRepositoryUrl();
+let nextChangelog = insertReleaseSection(changelog, releaseTag, releaseDate, releaseBody);
 
 nextChangelog = updateCompareLinks(nextChangelog, releaseTag, previousTag, repositoryUrl);
 

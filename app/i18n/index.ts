@@ -8,16 +8,16 @@ type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 type LocaleMessages = Record<string, unknown>;
 type InterpolationParams = Record<string, string | number | boolean | null | undefined>;
 
-var DEFAULT_LOCALE: SupportedLocale = 'zh-TW';
-var SUPPORTED_LOCALES: SupportedLocale[] = ['zh-TW', 'en-US', 'ja-JP'];
-var messages: Record<SupportedLocale, LocaleMessages> = {
+const DEFAULT_LOCALE: SupportedLocale = 'zh-TW';
+const SUPPORTED_LOCALES: SupportedLocale[] = ['zh-TW', 'en-US', 'ja-JP'];
+const messages: Record<SupportedLocale, LocaleMessages> = {
   'zh-TW': zhTW,
   'en-US': enUS,
   'ja-JP': jaJP
 };
 
 function normalizeLocale(value: unknown): SupportedLocale {
-  var locale = String(value || '').toLowerCase();
+  const locale = String(value || '').toLowerCase();
 
   if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
   if (locale === 'ja' || locale.indexOf('ja-') === 0) return 'ja-JP';
@@ -35,10 +35,10 @@ function normalizeLocale(value: unknown): SupportedLocale {
 }
 
 function messageAt(locale: SupportedLocale, key: string): string | null {
-  var current: unknown = messages[locale];
-  var parts = String(key || '').split('.');
+  let current: unknown = messages[locale];
+  const parts = String(key || '').split('.');
 
-  for (var i = 0; i < parts.length; i++) {
+  for (let i = 0; i < parts.length; i++) {
     if (!current || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, parts[i])) {
       return null;
     }
@@ -68,8 +68,8 @@ function missingKey(key: string): string {
 }
 
 function t(locale: unknown, key: string, params?: InterpolationParams | null): string {
-  var normalized = normalizeLocale(locale);
-  var message = messageAt(normalized, key) || messageAt(DEFAULT_LOCALE, key) || missingKey(key);
+  const normalized = normalizeLocale(locale);
+  const message = messageAt(normalized, key) || messageAt(DEFAULT_LOCALE, key) || missingKey(key);
 
   return interpolate(message, params);
 }

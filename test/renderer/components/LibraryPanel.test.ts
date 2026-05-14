@@ -10,7 +10,7 @@ describe('LibraryPanel', function () {
 
   it('renders English controls, placeholders, empty state, and option labels', function () {
     setLocale('en-US', false);
-    var wrapper = mount(LibraryPanel, {
+    const wrapper = mount(LibraryPanel, {
       props: {
         active: true,
         activeCollection: 'favourites',
@@ -40,7 +40,7 @@ describe('LibraryPanel', function () {
 
   it('renders Japanese controls, placeholders, empty state, and option labels', function () {
     setLocale('ja-JP', false);
-    var wrapper = mount(LibraryPanel, {
+    const wrapper = mount(LibraryPanel, {
       props: {
         active: true,
         activeCollection: 'favourites',

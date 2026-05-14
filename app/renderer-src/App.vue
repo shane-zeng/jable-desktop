@@ -39,28 +39,28 @@ import type {
   VideoRow
 } from '../types/jable';
 
-var api = useJableApi();
-var i18n = useI18n();
-var activeView = ref<AppView>('browser');
-var toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
-var busy = ref(false);
-var syncing = ref(false);
-var browserTabsCompact = ref(false);
-var browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
-var appInfo = ref<AppInfo | null>(null);
-var browser = useBrowserBounds(api, activeView);
-var library = useLibraryState(api);
-var pendingSaves: Promise<unknown>[] = [];
-var saveFailure: unknown = null;
-var activeSyncRunId: string | null = null;
-var toastTimer: number | null = null;
-var mainLocaleSynced = false;
+const api = useJableApi();
+const i18n = useI18n();
+const activeView = ref<AppView>('browser');
+const toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
+const busy = ref(false);
+const syncing = ref(false);
+const browserTabsCompact = ref(false);
+const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
+const appInfo = ref<AppInfo | null>(null);
+const browser = useBrowserBounds(api, activeView);
+const library = useLibraryState(api);
+let pendingSaves: Promise<unknown>[] = [];
+let saveFailure: unknown = null;
+let activeSyncRunId: string | null = null;
+let toastTimer: number | null = null;
+let mainLocaleSynced = false;
 
-var pageRows = computed<VideoRow[]>(function () {
+const pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
 });
 
-var libraryBusy = computed(function () {
+const libraryBusy = computed(function () {
   return busy.value || syncing.value;
 });
 
@@ -113,20 +113,20 @@ function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info'
 }
 
 function loadBrowserTabsCompact() {
-  var value = localStorage.getItem(BROWSER_TABS_COMPACT_STORAGE_KEY);
+  const value = localStorage.getItem(BROWSER_TABS_COMPACT_STORAGE_KEY);
   if (value !== null) return value === 'true';
 
   return localStorage.getItem('jable-desktop:browser-tabs-collapsed') === 'true';
 }
 
 function setBrowserTabsCompact(value: boolean) {
-  browserTabsCompact.value = !!value;
+  browserTabsCompact.value = Boolean(value);
   localStorage.setItem(BROWSER_TABS_COMPACT_STORAGE_KEY, browserTabsCompact.value ? 'true' : 'false');
   browser.scheduleResize();
 }
 
 function clampBrowserTabsWidth(value: unknown) {
-  var width = Number(value) || BROWSER_TABS_DEFAULT_WIDTH;
+  const width = Number(value) || BROWSER_TABS_DEFAULT_WIDTH;
   return Math.max(BROWSER_TABS_MIN_WIDTH, Math.min(BROWSER_TABS_MAX_WIDTH, Math.round(width)));
 }
 
@@ -210,7 +210,7 @@ function handleLibraryVideoMenuAction(payload: LibraryVideoMenuAction | null | u
 }
 
 function collectionToggleStatus(payload: CollectionToggleResult) {
-  var name = collectionName(payload.collectionKey);
+  const name = collectionName(payload.collectionKey);
 
   if (payload.action === 'remove') {
     return payload.changed
@@ -227,7 +227,7 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 
   if (message.channel === 'browser-error') {
-    var errorPayload = (message.args[0] || {}) as { message?: string };
+    const errorPayload = (message.args[0] || {}) as { message?: string };
     setStatus(
       i18n.t('status.browserTabError', { error: errorPayload.message || i18n.t('status.unknownError') }),
       'error'
@@ -239,11 +239,11 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 
   if (message.channel === 'sync-page') {
-    var payload = message.args[0] as SyncPagePayload;
+    const payload = message.args[0] as SyncPagePayload;
     if (activeSyncRunId && payload.syncRunId !== activeSyncRunId) return;
     setStatus(i18n.t('status.syncPage', { page: payload.page, count: payload.rows.length }));
 
-    var save = api.saveSyncPage(payload).catch(function (error) {
+    const save = api.saveSyncPage(payload).catch(function (error) {
       saveFailure = error;
       throw error;
     });
@@ -251,13 +251,13 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 
   if (message.channel === 'sync-progress') {
-    var progress = message.args[0] as SyncProgressPayload;
+    const progress = message.args[0] as SyncProgressPayload;
     if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
     setStatus(i18n.t('status.syncProgress', { page: progress.page }));
   }
 
   if (message.channel === 'collection-toggle') {
-    var togglePayload = message.args[0] as CollectionToggleResult;
+    const togglePayload = message.args[0] as CollectionToggleResult;
     if (togglePayload.collectionKey === library.activeCollection.value) {
       if (togglePayload.action === 'add') library.currentPage.value = 1;
       library.refreshVideos().catch(function (error) {
@@ -273,8 +273,8 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 
   if (message.channel === 'browser-tabs-compact-mode') {
-    var compactPayload = (message.args[0] || {}) as { compact?: boolean };
-    setBrowserTabsCompact(!!compactPayload.compact);
+    const compactPayload = (message.args[0] || {}) as { compact?: boolean };
+    setBrowserTabsCompact(Boolean(compactPayload.compact));
   }
 
   if (message.channel === 'browser-tabs-compact-toggle-shortcut' && activeView.value === 'browser') {
@@ -287,8 +287,8 @@ function handleBrowserMessage(message: BrowserMessage) {
 }
 
 function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: SyncResult, finishState: SyncState) {
-  var name = syncModeName(mode);
-  var collection = collectionName(collectionKey);
+  const name = syncModeName(mode);
+  const collection = collectionName(collectionKey);
 
   if (result.completed === false) {
     if (result.incompleteReason === 'batch-limit') {
@@ -315,7 +315,9 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
     });
   }
 
-  var reason = result.stoppedByKnownPage ? i18n.t('status.stoppedByKnownPage') : i18n.t('status.finishedVisiblePages');
+  const reason = result.stoppedByKnownPage
+    ? i18n.t('status.stoppedByKnownPage')
+    : i18n.t('status.finishedVisiblePages');
   return i18n.t('status.quickSyncComplete', {
     collection: collection,
     rows: result.totalRows,
@@ -330,24 +332,24 @@ async function syncCollection(mode: SyncMode) {
   pendingSaves = [];
   saveFailure = null;
   activeSyncRunId = null;
-  var syncTabId: string | null = null;
+  let syncTabId: string | null = null;
 
   try {
-    var collectionKey = library.activeCollection.value;
-    var collection = currentCollection();
-    var continuation =
+    const collectionKey = library.activeCollection.value;
+    const collection = currentCollection();
+    const continuation =
       mode === 'full' &&
       library.fullSyncContinuation.value &&
       library.fullSyncContinuation.value.collectionKey === collectionKey
         ? library.fullSyncContinuation.value
         : null;
-    var syncTab = await prepareSyncTab(collectionKey, collection, mode, continuation);
+    const syncTab = await prepareSyncTab(collectionKey, collection, mode, continuation);
     syncTabId = syncTab.tabId;
-    var usedContinuation = syncTab.usedContinuation;
-    var syncRunId = usedContinuation && continuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
-    var siteOrderOffset = usedContinuation && continuation ? continuation.siteOrderOffset : 0;
-    var startPage = usedContinuation && continuation ? continuation.lastScrapedPage : null;
-    var browserUrl = await browser.currentBrowserUrl(syncTabId);
+    const usedContinuation = syncTab.usedContinuation;
+    const syncRunId = usedContinuation && continuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
+    const siteOrderOffset = usedContinuation && continuation ? continuation.siteOrderOffset : 0;
+    const startPage = usedContinuation && continuation ? continuation.lastScrapedPage : null;
+    const browserUrl = await browser.currentBrowserUrl(syncTabId);
 
     if (!collectionUrlPattern(collectionKey).test(pathFromUrl(browserUrl))) {
       await browser.setTabLocked(syncTabId, false);
@@ -355,7 +357,7 @@ async function syncCollection(mode: SyncMode) {
       return;
     }
 
-    var options = {
+    const options = {
       collectionKey: collectionKey,
       mode: mode,
       syncRunId: syncRunId,
@@ -367,7 +369,7 @@ async function syncCollection(mode: SyncMode) {
 
     setStatus(i18n.t('status.syncStart', { mode: syncModeName(mode), collection: collectionName(collectionKey) }));
     activeSyncRunId = syncRunId;
-    var result = await api.syncBrowserCollection({
+    const result = await api.syncBrowserCollection({
       tabId: syncTabId,
       options: options
     });
@@ -375,7 +377,7 @@ async function syncCollection(mode: SyncMode) {
 
     if (saveFailure) throw saveFailure;
 
-    var finishState = await api.finishSync({
+    const finishState = await api.finishSync({
       collectionKey: collectionKey,
       mode: mode,
       syncRunId: syncRunId,
@@ -429,7 +431,7 @@ async function prepareSyncTab(
     await browser.activateTab(continuation.tabId);
     await browser.setTabLocked(continuation.tabId, true);
 
-    var continuationUrl = await browser.currentBrowserUrl(continuation.tabId);
+    const continuationUrl = await browser.currentBrowserUrl(continuation.tabId);
     if (collectionUrlPattern(collectionKey).test(pathFromUrl(continuationUrl))) {
       return {
         tabId: continuation.tabId,
@@ -441,7 +443,7 @@ async function prepareSyncTab(
     library.fullSyncContinuation.value = null;
   }
 
-  var existingSyncTab = browser.firstUnlockedSyncTab();
+  const existingSyncTab = browser.firstUnlockedSyncTab();
   if (existingSyncTab) {
     await browser.activateTab(existingSyncTab.id);
     await browser.loadBrowser(collection.url, true, existingSyncTab.id);
@@ -457,7 +459,7 @@ async function prepareSyncTab(
     kind: 'sync',
     title: i18n.t('browser.syncTabTitle', { collection: collectionName(collectionKey) })
   });
-  var tabId = browser.activeTabId.value;
+  const tabId = browser.activeTabId.value;
   if (!tabId) throw new Error(i18n.t('status.createSyncTabFailed'));
   await browser.loadBrowser(collection.url, true, tabId);
   await browser.setTabLocked(tabId, true);
@@ -474,7 +476,7 @@ async function exportActiveCollection() {
   busy.value = true;
 
   try {
-    var result = await api.exportJsonFile(library.activeCollection.value);
+    const result = await api.exportJsonFile(library.activeCollection.value);
 
     if (result && result.canceled) {
       setStatus(i18n.t('status.exportCanceled'));
@@ -499,9 +501,9 @@ async function importJsonFile(file: File | null) {
   busy.value = true;
 
   try {
-    var text = await file.text();
-    var resource = JSON.parse(text);
-    var result = await api.importJson({
+    const text = await file.text();
+    const resource = JSON.parse(text);
+    const result = await api.importJson({
       collectionKey: library.activeCollection.value,
       resource: resource as ExportResource
     });

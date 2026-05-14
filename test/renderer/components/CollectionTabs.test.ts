@@ -9,13 +9,13 @@ describe('CollectionTabs', function () {
   });
 
   it('marks the active local collection visibly and semantically', async function () {
-    var wrapper = mount(CollectionTabs, {
+    const wrapper = mount(CollectionTabs, {
       props: {
         activeCollection: 'watch_later'
       }
     });
 
-    var tabs = wrapper.findAll('[role="tab"]');
+    const tabs = wrapper.findAll('[role="tab"]');
 
     expect(tabs[0].text()).toBe('影片收藏');
     expect(tabs[0].attributes('aria-selected')).toBe('false');
@@ -31,13 +31,13 @@ describe('CollectionTabs', function () {
 
   it('renders English collection names', function () {
     setLocale('en-US', false);
-    var wrapper = mount(CollectionTabs, {
+    const wrapper = mount(CollectionTabs, {
       props: {
         activeCollection: 'watch_later'
       }
     });
 
-    var tabs = wrapper.findAll('[role="tab"]');
+    const tabs = wrapper.findAll('[role="tab"]');
 
     expect(tabs[0].text()).toBe('Favourites');
     expect(tabs[1].text()).toBe('Watch Later');

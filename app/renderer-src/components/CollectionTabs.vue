@@ -4,15 +4,15 @@ import { COLLECTIONS } from '../constants';
 import { t } from '../i18n';
 import type { CollectionKey } from '../../types/jable';
 
-var props = defineProps<{
+const props = defineProps<{
   activeCollection: CollectionKey;
 }>();
 
-var emit = defineEmits<{
+const emit = defineEmits<{
   select: [collectionKey: CollectionKey];
 }>();
 
-var collectionEntries = computed(function () {
+const collectionEntries = computed(function () {
   return (Object.keys(COLLECTIONS) as CollectionKey[]).map(function (key) {
     return {
       key: key,

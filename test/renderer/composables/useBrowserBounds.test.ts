@@ -4,8 +4,8 @@ import { useBrowserBounds } from '@/composables/useBrowserBounds';
 import type { AppView, BrowserTabKind, BrowserTabsState, JableAppApi } from '../../../app/types/jable';
 
 function createState(api: Partial<JableAppApi>) {
-  var scope = effectScope();
-  var state = scope.run(function () {
+  const scope = effectScope();
+  const state = scope.run(function () {
     return useBrowserBounds(api as JableAppApi, ref<AppView>('browser'));
   });
 
@@ -57,7 +57,7 @@ function makeTabsState(overrides?: Partial<BrowserTabsState>): BrowserTabsState 
 
 describe('useBrowserBounds', function () {
   it('tracks tabs, active navigation state, and tab limits', function () {
-    var setup = createState({
+    const setup = createState({
       setBrowserBounds: vi.fn()
     });
 
@@ -85,7 +85,7 @@ describe('useBrowserBounds', function () {
   });
 
   it('updates navigation state for the matching tab only', function () {
-    var setup = createState({
+    const setup = createState({
       setBrowserBounds: vi.fn()
     });
 
@@ -108,7 +108,7 @@ describe('useBrowserBounds', function () {
   });
 
   it('delegates tab operations to the browser API and stores returned state', async function () {
-    var api = {
+    const api = {
       setBrowserBounds: vi.fn(),
       createBrowserTab: vi.fn().mockResolvedValue(
         makeTabsState({
@@ -136,7 +136,7 @@ describe('useBrowserBounds', function () {
         })
       )
     };
-    var setup = createState(api);
+    const setup = createState(api);
 
     try {
       await setup.state.createTab('https://jable.tv/videos/sample/', { active: true });

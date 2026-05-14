@@ -4,10 +4,10 @@ import { BROWSER_TABS_DEFAULT_WIDTH, BROWSER_TABS_MAX_WIDTH, BROWSER_TABS_MIN_WI
 import { t } from '../i18n';
 import type { BrowserTabMenuPayload, BrowserTabState } from '../../types/jable';
 
-var COMPACT_TRIGGER_WIDTH = 18;
-var COMPACT_DISMISS_WIDTH = 26;
+const COMPACT_TRIGGER_WIDTH = 18;
+const COMPACT_DISMISS_WIDTH = 26;
 
-var props = withDefaults(
+const props = withDefaults(
   defineProps<{
     active: boolean;
     tabs: BrowserTabState[];
@@ -22,7 +22,7 @@ var props = withDefaults(
   }
 );
 
-var emit = defineEmits<{
+const emit = defineEmits<{
   host: [element: HTMLElement | null];
   'layout-change': [];
   'new-tab': [];
@@ -32,33 +32,33 @@ var emit = defineEmits<{
   'tab-context-menu': [payload: BrowserTabMenuPayload];
   'resize-tabs': [width: number];
 }>();
-var browserHost = ref<HTMLElement | null>(null);
-var compactTabsVisible = ref(false);
-var resizing = ref(false);
-var resizeStart = ref({
+const browserHost = ref<HTMLElement | null>(null);
+const compactTabsVisible = ref(false);
+const resizing = ref(false);
+const resizeStart = ref({
   x: 0,
   width: BROWSER_TABS_DEFAULT_WIDTH
 });
 
-var panelStyle = computed(function () {
+const panelStyle = computed(function () {
   return {
     gridTemplateColumns: props.tabWidth + 'px 6px minmax(0, 1fr)'
   };
 });
 
-var floatingTabsStyle = computed(function () {
+const floatingTabsStyle = computed(function () {
   return {
     width: props.tabWidth + 'px'
   };
 });
 
-var compactHostStyle = computed(function () {
+const compactHostStyle = computed(function () {
   return {
     left: compactTabsVisible.value ? props.tabWidth + COMPACT_DISMISS_WIDTH + 'px' : COMPACT_TRIGGER_WIDTH + 'px'
   };
 });
 
-var compactDismissStyle = computed(function () {
+const compactDismissStyle = computed(function () {
   return {
     left: props.tabWidth + 8 + 'px',
     width: COMPACT_DISMISS_WIDTH - 8 + 'px'
@@ -70,7 +70,7 @@ function displayTitle(tab: BrowserTabState) {
 }
 
 function tabInitial(tab: BrowserTabState) {
-  var title = displayTitle(tab);
+  const title = displayTitle(tab);
   return title ? title.slice(0, 1).toUpperCase() : 'J';
 }
 
@@ -79,7 +79,7 @@ function audioButtonLabel(tab: BrowserTabState) {
 }
 
 function hasAudioIndicator(tab: BrowserTabState) {
-  return !!(tab.muted || tab.audible || tab.mediaPlaying);
+  return Boolean(tab.muted || tab.audible || tab.mediaPlaying);
 }
 
 function showCompactTabs() {
@@ -134,7 +134,7 @@ function resizeTabs(event: PointerEvent) {
 }
 
 function stopResize() {
-  var wasResizing = resizing.value;
+  const wasResizing = resizing.value;
   resizing.value = false;
   window.removeEventListener('pointermove', resizeTabs);
   window.removeEventListener('pointerup', stopResize);
