@@ -36,6 +36,69 @@
   var SEL_PAGER_LINKS = 'ul.pagination a.page-link'; // 可點擊的分頁
   var BTN_ID = 'fav-export-all-btn'; // 匯出按鈕 ID
 
+  var I18N_MESSAGES = {
+    'zh-TW': {
+      preparing: '準備中…',
+      exporting: '完成，匯出中…',
+      progress: '已擷取 {count} 筆，前往下一頁…',
+      cacheFailed: '暫存失敗，請查看 console',
+      processing: '處理中…',
+      exportButton: '📦 匯出所有分頁影片'
+    },
+    'en-US': {
+      preparing: 'Preparing...',
+      exporting: 'Complete, exporting...',
+      progress: 'Captured {count} items, moving to the next page...',
+      cacheFailed: 'Cache failed. Check the console.',
+      processing: 'Processing...',
+      exportButton: '📦 Export all pages'
+    }
+  };
+  var CURRENT_LOCALE = detectLocale();
+
+  function normalizeLocale(value) {
+    var locale = String(value || '').toLowerCase();
+
+    if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
+    if (
+      locale === 'zh' ||
+      locale === 'zh-tw' ||
+      locale === 'zh-hk' ||
+      locale === 'zh-mo' ||
+      locale.indexOf('zh-hant') === 0
+    ) {
+      return 'zh-TW';
+    }
+
+    return 'zh-TW';
+  }
+
+  function detectLocale() {
+    var languages = [];
+
+    if (navigator.languages && navigator.languages.length) languages = languages.concat(navigator.languages);
+    if (navigator.language) languages.push(navigator.language);
+
+    for (var i = 0; i < languages.length; i++) {
+      var normalized = normalizeLocale(languages[i]);
+      if (normalized === 'en-US' || /^zh/i.test(String(languages[i] || ''))) return normalized;
+    }
+
+    return 'zh-TW';
+  }
+
+  function t(key, params) {
+    var messages = I18N_MESSAGES[CURRENT_LOCALE] || I18N_MESSAGES['zh-TW'];
+    var template = messages[key] || I18N_MESSAGES['zh-TW'][key] || key;
+
+    params = params || {};
+    return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, function (match, name) {
+      if (!Object.prototype.hasOwnProperty.call(params, name)) return match;
+      if (params[name] === null || typeof params[name] === 'undefined') return '';
+      return String(params[name]);
+    });
+  }
+
   function isExportPage() {
     return /\/my\/favourites\/videos(?:-watch-later)?\/?$/.test(location.pathname);
   }
@@ -704,7 +767,7 @@
   }
 
   async function exportAllByClickWithIndexedDb(adapter) {
-    setBtnBusy(true, '準備中…');
+    setBtnBusy(true, t('preparing'));
 
     var collectionKey = fileBaseByPath();
     var meta = await adapter.ensureMigrated(collectionKey);
@@ -771,7 +834,7 @@
 
       await adapter.replaceRows(collectionKey, finalRows, true, lastScrapedPage);
 
-      setBtnBusy(false, '完成，匯出中…');
+      setBtnBusy(false, t('exporting'));
 
       if (EXPORT_FORMAT === 'csv') {
         downloadCsv(base + '.csv', toCSV(flattenPages(resource)));
@@ -832,7 +895,7 @@
       if (await recordCurrentPage()) return finish();
 
       log('page', next.id, 'new rows', newRows.length, 'total', cachedCount);
-      setBtnBusy(true, '已擷取 ' + cachedCount + ' 筆，前往下一頁…');
+      setBtnBusy(true, t('progress', { count: cachedCount }));
       await delay(500 + Math.random() * 500);
     }
   }
@@ -852,12 +915,12 @@
       await exportAllByClickWithIndexedDb(adapter);
     } catch (e) {
       log('export failed', e);
-      showExportError('暫存失敗，請查看 console');
+      showExportError(t('cacheFailed'));
     }
   }
 
   function exportAllByClickWithLocalStorage() {
-    setBtnBusy(true, '準備中…');
+    setBtnBusy(true, t('preparing'));
 
     var cache = loadCachedResource();
     var cachedRows = flattenPages(cache);
@@ -942,14 +1005,14 @@
           if (recordCurrentPage()) return finish();
 
           log('page', next.id, 'new rows', newRows.length, 'total', rowsForProgress().length);
-          setBtnBusy(true, '已擷取 ' + rowsForProgress().length + ' 筆，前往下一頁…');
+          setBtnBusy(true, t('progress', { count: rowsForProgress().length }));
           setTimeout(step, 500 + Math.random() * 500);
         });
       }, 200);
     }
 
     function finish() {
-      setBtnBusy(false, '完成，匯出中…');
+      setBtnBusy(false, t('exporting'));
       var base = fileBaseByPath();
       var resource = buildExportResource(rowsForProgress(), true, lastScrapedPage);
       saveCachedResource(resource);
@@ -978,7 +1041,7 @@
     }
 
     btn.disabled = !!busy;
-    btn.textContent = busy ? text || '處理中…' : btn.getAttribute('data-label');
+    btn.textContent = busy ? text || t('processing') : btn.getAttribute('data-label');
     btn.style.opacity = busy ? '0.7' : '1';
   }
 
@@ -989,7 +1052,7 @@
     var btn = document.createElement('button');
     btn.id = BTN_ID;
     btn.type = 'button';
-    btn.textContent = '📦 匯出所有分頁影片';
+    btn.textContent = t('exportButton');
 
     btn.style.setProperty('position', 'fixed', 'important');
     btn.style.setProperty('right', '16px', 'important');

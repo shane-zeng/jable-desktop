@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from '../i18n';
 import type { LibraryVideoMenuPayload, VideoRow } from '../../types/jable';
 
 var props = defineProps<{
@@ -11,18 +12,19 @@ var emit = defineEmits<{
   'open-new': [url: string];
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
+var i18n = useI18n();
 var previewVideo = ref<HTMLVideoElement | null>(null);
 
 function formatNumber(value: number | null | undefined) {
   if (value === null || typeof value === 'undefined') return '-';
-  return Number(value).toLocaleString();
+  return Number(value).toLocaleString(i18n.locale.value);
 }
 
 function formatDate(value: string | null | undefined) {
   if (!value) return '-';
 
   try {
-    return new Date(value).toLocaleString();
+    return new Date(value).toLocaleString(i18n.locale.value);
   } catch (error) {
     return value;
   }
@@ -99,7 +101,7 @@ function openVideoMenu(event: MouseEvent) {
     <a
       class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       :href="video.url"
-      :aria-label="'開啟影片：' + (video.title || video.url)"
+      :aria-label="i18n.t('video.open', { target: video.title || video.url })"
       data-test="video-thumb-link"
       @click="openVideo"
       @auxclick="openVideoAux"
@@ -146,12 +148,12 @@ function openVideoMenu(event: MouseEvent) {
       >
         <div class="truncate">
           <span class="font-medium text-[var(--text)]">{{ formatNumber(video.views) }}</span>
-          <span> views</span>
+          <span> {{ i18n.t('video.views') }}</span>
           <span class="px-1.5">·</span>
           <span class="font-medium text-[var(--text)]">{{ formatNumber(video.likes) }}</span>
-          <span> likes</span>
+          <span> {{ i18n.t('video.likes') }}</span>
         </div>
-        <div class="truncate">同步 {{ formatDate(video.last_seen_at) }}</div>
+        <div class="truncate">{{ i18n.t('video.synced', { date: formatDate(video.last_seen_at) }) }}</div>
       </div>
     </div>
   </article>

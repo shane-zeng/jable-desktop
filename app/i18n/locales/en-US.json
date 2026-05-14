@@ -1,0 +1,171 @@
+{
+  "app": {
+    "name": "Jable Desktop"
+  },
+  "locale": {
+    "label": "Interface Language",
+    "zhTW": "繁體中文",
+    "enUS": "English"
+  },
+  "collections": {
+    "favourites": "Favourites",
+    "watch_later": "Watch Later"
+  },
+  "options": {
+    "sort": {
+      "site_order": "Site Order",
+      "title": "Title",
+      "views": "Views",
+      "likes": "Likes"
+    },
+    "searchMode": {
+      "any": "Any Word",
+      "all": "All Words",
+      "phrase": "Exact Phrase"
+    },
+    "direction": {
+      "asc": "Ascending",
+      "desc": "Descending"
+    }
+  },
+  "topBar": {
+    "back": "Back",
+    "next": "Forward",
+    "reload": "Reload",
+    "browser": "Browser",
+    "library": "Local Data",
+    "diagnose": "Diagnose",
+    "mainViews": "Main Views"
+  },
+  "browser": {
+    "aria": "Jable Browser",
+    "tabs": "Browser Tabs",
+    "pages": "Browser Pages",
+    "newTab": "New Tab",
+    "closeTab": "Close Tab",
+    "newPage": "New Tab",
+    "muteTab": "Mute Tab",
+    "unmuteTab": "Unmute Tab",
+    "resizeTabs": "Drag to resize the tab rail",
+    "sync": "Sync",
+    "syncTabTitle": "Sync: {collection}"
+  },
+  "library": {
+    "aria": "Local Library",
+    "collections": "Collections",
+    "quickSync": "Quick Sync",
+    "fullSync": "Full Sync",
+    "continueFullSync": "Continue Full Sync",
+    "importJson": "Import JSON",
+    "exportJson": "Export JSON",
+    "searchMode": "Search Mode",
+    "searchPlaceholder": "Search title or URL",
+    "sort": "Sort",
+    "sortDirection": "Sort Direction",
+    "empty": "No local data yet",
+    "count": "{total} items · {pageSize} per page",
+    "page": "Page {current} / {total}"
+  },
+  "pagination": {
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "video": {
+    "open": "Open video: {target}",
+    "views": "views",
+    "likes": "likes",
+    "synced": "Synced {date}"
+  },
+  "sync": {
+    "quick": "Quick Sync",
+    "full": "Full Sync"
+  },
+  "status": {
+    "unknownError": "Unknown error",
+    "browserOpenFailed": "Failed to open video: {error}",
+    "browserOpenNewTabFailed": "Failed to open new tab: {error}",
+    "browserTabError": "Browser tab error: {error}",
+    "syncPage": "Syncing page {page}, {count} items",
+    "syncProgress": "Loaded page {page}",
+    "updateLibraryFailed": "Failed to update local list: {error}",
+    "collectionRemoved": "Removed local data from {collection}",
+    "collectionRemoveNoop": "Removed from {collection}; this item was not in local data",
+    "collectionAdded": "Added to {collection} and synced locally",
+    "fullSyncPaused": "{collection} {mode} paused: this batch scanned {pages} pages and {rows} items. You can continue full sync.",
+    "syncIncomplete": "{collection} {mode} did not complete: {reason}",
+    "fullSyncComplete": "{collection} full sync complete: {rows} items, hid {hidden} missing items",
+    "quickSyncComplete": "{collection} quick sync complete: {rows} items, {reason}",
+    "stoppedByKnownPage": "stopped after reaching a known page",
+    "finishedVisiblePages": "finished all visible pages",
+    "loginRequired": "Please log in to Jable in the browser and confirm the {collection} page can open.",
+    "syncStart": "Starting {mode} for {collection}",
+    "syncFailed": "{mode} failed: {error}",
+    "createSyncTabFailed": "Failed to create sync tab",
+    "exportCanceled": "Export canceled",
+    "exported": "Exported {filename}",
+    "exportFailed": "Export failed: {error}",
+    "imported": "Imported {count} items into {collection}",
+    "importFailed": "Import failed: {error}",
+    "newTabFailed": "Failed to create tab: {error}",
+    "activateTabFailed": "Failed to switch tabs: {error}",
+    "closeTabFailed": "Failed to close tab: {error}",
+    "muteTabFailed": "Failed to change tab audio: {error}",
+    "tabMenuFailed": "Failed to open tab menu: {error}",
+    "videoMenuFailed": "Failed to open video menu: {error}"
+  },
+  "toast": {
+    "close": "Close notification"
+  },
+  "menu": {
+    "file": "File",
+    "edit": "Edit",
+    "view": "View",
+    "window": "Window",
+    "newTab": "New Tab",
+    "closeTab": "Close Tab"
+  },
+  "context": {
+    "openLinkInBackground": "Open Link in Background Tab",
+    "copyLinkUrl": "Copy Link URL",
+    "openMediaInBackground": "Open {media} in Background Tab",
+    "copyMediaUrl": "Copy {media} URL",
+    "copySelection": "Copy Selected Text",
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "newTab": "New Tab",
+    "copyCurrentPageUrl": "Copy Current Page URL",
+    "switchToTab": "Switch to This Tab",
+    "reloadTab": "Reload Tab",
+    "muteTab": "Mute Tab",
+    "unmuteTab": "Unmute Tab",
+    "copyTabUrl": "Copy Tab URL",
+    "compactMode": "Compact Mode",
+    "closeTab": "Close Tab",
+    "openCurrentTab": "Open in Current Tab",
+    "openNewTab": "Open in New Tab",
+    "copyUrl": "Copy URL",
+    "undo": "Undo",
+    "redo": "Redo",
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select All"
+  },
+  "media": {
+    "image": "image",
+    "video": "video",
+    "audio": "audio",
+    "media": "media"
+  },
+  "dialog": {
+    "exportJson": "Export JSON"
+  },
+  "errors": {
+    "maxTabs": "You can open at most {count} browser tabs",
+    "tabNotFound": "Browser tab not found",
+    "lockedClose": "A syncing tab cannot be closed",
+    "lockedNavigate": "A syncing tab cannot be navigated manually",
+    "lockedReload": "A syncing tab cannot be reloaded"
+  }
+}

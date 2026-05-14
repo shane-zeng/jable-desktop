@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '../i18n';
 import type { AppView, BrowserNavigationState } from '../../types/jable';
 
 defineProps<{
@@ -14,6 +15,12 @@ var emit = defineEmits<{
   reload: [];
   diagnose: [];
 }>();
+
+var i18n = useI18n();
+
+function updateLocale(event: Event) {
+  i18n.setLocale((event.target as HTMLSelectElement).value);
+}
 </script>
 
 <template>
@@ -24,8 +31,8 @@ var emit = defineEmits<{
       <button
         class="w-[34px] px-0 text-xl leading-none"
         type="button"
-        title="上一頁"
-        aria-label="上一頁"
+        :title="i18n.t('topBar.back')"
+        :aria-label="i18n.t('topBar.back')"
         :disabled="activeView !== 'browser' || navigation.locked || !navigation.canGoBack"
         @click="emit('back')"
       >
@@ -34,8 +41,8 @@ var emit = defineEmits<{
       <button
         class="w-[34px] px-0 text-xl leading-none"
         type="button"
-        title="下一頁"
-        aria-label="下一頁"
+        :title="i18n.t('topBar.next')"
+        :aria-label="i18n.t('topBar.next')"
         :disabled="activeView !== 'browser' || navigation.locked || !navigation.canGoForward"
         @click="emit('forward')"
       >
@@ -44,8 +51,8 @@ var emit = defineEmits<{
       <button
         class="w-[34px] px-0 text-xl leading-none"
         type="button"
-        title="重新整理"
-        aria-label="重新整理"
+        :title="i18n.t('topBar.reload')"
+        :aria-label="i18n.t('topBar.reload')"
         :disabled="activeView !== 'browser' || navigation.locked"
         @click="emit('reload')"
       >
@@ -56,7 +63,7 @@ var emit = defineEmits<{
     <div
       class="segmented-tabs flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px] max-[1180px]:justify-self-start"
       role="tablist"
-      aria-label="Main views"
+      :aria-label="i18n.t('topBar.mainViews')"
     >
       <button
         class="segmented-tab min-h-[30px]"
@@ -68,7 +75,7 @@ var emit = defineEmits<{
         :aria-selected="activeView === 'browser'"
         @click="emit('set-view', 'browser')"
       >
-        瀏覽器
+        {{ i18n.t('topBar.browser') }}
       </button>
       <button
         class="segmented-tab min-h-[30px]"
@@ -80,12 +87,24 @@ var emit = defineEmits<{
         :aria-selected="activeView === 'library'"
         @click="emit('set-view', 'library')"
       >
-        本機資料
+        {{ i18n.t('topBar.library') }}
       </button>
     </div>
 
     <div class="flex flex-wrap items-center justify-end gap-2 max-[1180px]:col-span-full max-[1180px]:justify-start">
-      <button type="button" hidden @click="emit('diagnose')">診斷</button>
+      <label class="sr-only" for="app-locale-select">{{ i18n.t('locale.label') }}</label>
+      <select
+        id="app-locale-select"
+        class="h-[34px] w-[132px] text-sm"
+        :aria-label="i18n.t('locale.label')"
+        :value="i18n.locale.value"
+        @change="updateLocale"
+      >
+        <option v-for="option in i18n.localeOptions" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
+      </select>
+      <button type="button" hidden @click="emit('diagnose')">{{ i18n.t('topBar.diagnose') }}</button>
     </div>
   </header>
 </template>

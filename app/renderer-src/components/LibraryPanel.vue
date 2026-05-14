@@ -4,6 +4,7 @@ import CollectionTabs from './CollectionTabs.vue';
 import PaginationControls from './PaginationControls.vue';
 import VideoCard from './VideoCard.vue';
 import { DIRECTION_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import { t } from '../i18n';
 import type {
   CollectionKey,
   LibraryVideoMenuPayload,
@@ -80,7 +81,7 @@ function updateDirection(event: Event) {
   <section
     class="h-full min-h-0 w-full min-w-0 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] overflow-hidden bg-[var(--panel)]"
     :class="active ? 'grid' : 'hidden'"
-    aria-label="Local library"
+    :aria-label="t('library.aria')"
   >
     <div
       class="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-3.5 py-2.5 max-[1180px]:flex-wrap"
@@ -88,12 +89,14 @@ function updateDirection(event: Event) {
       <CollectionTabs :active-collection="activeCollection" @select="emit('select-collection', $event)" />
 
       <div class="flex flex-wrap justify-end gap-2">
-        <button class="primary" type="button" :disabled="busy" @click="emit('quick-sync')">快速同步</button>
+        <button class="primary" type="button" :disabled="busy" @click="emit('quick-sync')">
+          {{ t('library.quickSync') }}
+        </button>
         <button type="button" :disabled="busy" @click="emit('full-sync')">
           {{ fullSyncLabel }}
         </button>
-        <button type="button" :disabled="busy" @click="chooseImportFile">匯入 JSON</button>
-        <button type="button" :disabled="busy" @click="emit('export-json')">匯出 JSON</button>
+        <button type="button" :disabled="busy" @click="chooseImportFile">{{ t('library.importJson') }}</button>
+        <button type="button" :disabled="busy" @click="emit('export-json')">{{ t('library.exportJson') }}</button>
         <input ref="importFile" type="file" accept="application/json,.json" hidden @change="handleImportFile" />
       </div>
     </div>
@@ -101,25 +104,25 @@ function updateDirection(event: Event) {
     <div
       class="grid grid-cols-[132px_minmax(260px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
     >
-      <select aria-label="搜尋模式" :value="searchMode" @change="updateSearchMode">
+      <select :aria-label="t('library.searchMode')" :value="searchMode" @change="updateSearchMode">
         <option v-for="option in SEARCH_MODE_OPTIONS" :key="option.value" :value="option.value">
-          {{ option.label }}
+          {{ t('options.searchMode.' + option.value) }}
         </option>
       </select>
       <input
         type="search"
-        placeholder="搜尋標題或 URL"
+        :placeholder="t('library.searchPlaceholder')"
         :value="search"
         @input="emit('update:search', inputValue($event))"
       />
-      <select aria-label="排序" :value="sort" @change="updateSort">
+      <select :aria-label="t('library.sort')" :value="sort" @change="updateSort">
         <option v-for="option in SORT_OPTIONS" :key="option.value" :value="option.value">
-          {{ option.label }}
+          {{ t('options.sort.' + option.value) }}
         </option>
       </select>
-      <select aria-label="排序方向" :value="direction" @change="updateDirection">
+      <select :aria-label="t('library.sortDirection')" :value="direction" @change="updateDirection">
         <option v-for="option in DIRECTION_OPTIONS" :key="option.value" :value="option.value">
-          {{ option.label }}
+          {{ t('options.direction.' + option.value) }}
         </option>
       </select>
     </div>
@@ -133,7 +136,9 @@ function updateDirection(event: Event) {
     <div
       class="grid min-h-0 content-start gap-3 overflow-auto p-3.5 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]"
     >
-      <div v-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">目前沒有本機資料</div>
+      <div v-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
+        {{ t('library.empty') }}
+      </div>
       <template v-else>
         <VideoCard
           v-for="video in rows"

@@ -4,6 +4,7 @@ var electron = require('electron');
 var path = require('node:path');
 var browserTabPolicy = require('./browser-tab-policy');
 var databaseModule = require('./database');
+var i18n = require('./i18n');
 var JableDatabase = databaseModule.JableDatabase;
 var COLLECTIONS = databaseModule.COLLECTIONS;
 
@@ -38,6 +39,17 @@ var browserHtmlFullScreenTabId = null;
 var database = null;
 var databasePath = null;
 var lastShortcutAction = { name: '', at: 0 };
+var currentLocale = i18n.DEFAULT_LOCALE;
+
+function t(key, params) {
+  return i18n.t(currentLocale, key, params);
+}
+
+function setCurrentLocale(locale) {
+  currentLocale = i18n.normalizeLocale(locale);
+  if (app.isReady()) installApplicationMenu();
+  return currentLocale;
+}
 
 function getDatabase() {
   if (!database) {
@@ -211,12 +223,12 @@ function installApplicationMenu() {
   var template = [];
   var fileSubmenu = [
     {
-      label: '新增分頁',
+      label: t('menu.newTab'),
       accelerator: NEW_TAB_ACCELERATOR,
       click: openHomeTabFromShortcut
     },
     {
-      label: '關閉分頁',
+      label: t('menu.closeTab'),
       accelerator: CLOSE_TAB_ACCELERATOR,
       click: closeActiveTabFromShortcut
     }
@@ -245,13 +257,13 @@ function installApplicationMenu() {
   }
 
   template.push({
-    label: '檔案',
+    label: t('menu.file'),
     submenu: fileSubmenu
   });
 
   template.push(
     {
-      label: '編輯',
+      label: t('menu.edit'),
       submenu: [
         { role: 'undo' },
         { role: 'redo' },
@@ -263,7 +275,7 @@ function installApplicationMenu() {
       ]
     },
     {
-      label: '檢視',
+      label: t('menu.view'),
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
@@ -277,7 +289,7 @@ function installApplicationMenu() {
       ]
     },
     {
-      label: '視窗',
+      label: t('menu.window'),
       submenu: IS_MACOS
         ? [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
         : [{ role: 'minimize' }, { role: 'zoom' }]
@@ -300,7 +312,7 @@ function createBrowserTab(options) {
   options = options || {};
 
   if (browserTabs.length >= MAX_BROWSER_TABS) {
-    throw new Error('最多只能開啟 ' + MAX_BROWSER_TABS + ' 個瀏覽器分頁');
+    throw new Error(t('errors.maxTabs', { count: MAX_BROWSER_TABS }));
   }
 
   var kind = options.kind === 'sync' ? 'sync' : 'normal';
@@ -314,7 +326,7 @@ function createBrowserTab(options) {
     }),
     attached: false,
     locked: !!options.locked,
-    title: options.title || (kind === 'sync' ? '同步' : 'Jable'),
+    title: options.title || (kind === 'sync' ? t('browser.sync') : 'Jable'),
     url: options.url || '',
     favicon: options.favicon || '',
     loading: false,
@@ -457,7 +469,7 @@ function getBrowserTab(tabId) {
   var webContents = tab && tab.view ? tab.view.webContents : null;
 
   if (!tab || !webContents || webContents.isDestroyed()) {
-    throw new Error('找不到瀏覽器分頁');
+    throw new Error(t('errors.tabNotFound'));
   }
 
   return tab;
@@ -500,7 +512,7 @@ function serializeBrowserTab(tab) {
   return {
     id: tab.id,
     kind: tab.kind,
-    title: tab.title || '新分頁',
+    title: tab.title || t('browser.newPage'),
     url: tab.url || '',
     favicon: tab.favicon || '',
     loading: !!tab.loading,
@@ -696,7 +708,7 @@ function activateBrowserTab(tabId) {
 
 function closeBrowserTab(tabId) {
   var tab = getBrowserTab(tabId);
-  if (tab.locked) throw new Error('同步中的分頁不能關閉');
+  if (tab.locked) throw new Error(t('errors.lockedClose'));
 
   var shouldFocusNextTab = activeBrowserTabId === tab.id;
   var nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
@@ -779,7 +791,7 @@ async function navigateBrowser(payload) {
   var targetUrl = payload.url;
 
   if (!targetUrl) return tab.view.webContents.getURL();
-  if (tab.locked) throw new Error('同步中的分頁不能手動導航');
+  if (tab.locked) throw new Error(t('errors.lockedNavigate'));
 
   var wait = waitForBrowserStop(tab);
   loadTabUrl(tab, targetUrl, !!payload.forceReload);
@@ -790,7 +802,7 @@ async function navigateBrowser(payload) {
 
 async function reloadBrowser(tabId) {
   var tab = getBrowserTab(tabId);
-  if (tab.locked) throw new Error('同步中的分頁不能重新整理');
+  if (tab.locked) throw new Error(t('errors.lockedReload'));
 
   tab.view.webContents.reload();
   updateTabNavigationState(tab);
@@ -879,7 +891,7 @@ function exportFilenameForCollection(collectionKey) {
 async function exportJsonFile(collectionKey) {
   var filename = exportFilenameForCollection(collectionKey);
   var dialogOptions = {
-    title: '匯出 JSON',
+    title: t('dialog.exportJson'),
     defaultPath: path.join(app.getPath('downloads'), filename),
     filters: [{ name: 'JSON', extensions: ['json'] }]
   };
@@ -900,10 +912,10 @@ async function exportJsonFile(collectionKey) {
 }
 
 function contextMediaLabel(mediaType) {
-  if (mediaType === 'image') return '圖片';
-  if (mediaType === 'video') return '影片';
-  if (mediaType === 'audio') return '音訊';
-  return '媒體';
+  if (mediaType === 'image') return t('media.image');
+  if (mediaType === 'video') return t('media.video');
+  if (mediaType === 'audio') return t('media.audio');
+  return t('media.media');
 }
 
 function pushSeparator(items) {
@@ -928,13 +940,13 @@ function showBrowserContextMenu(tab, params) {
 
   if (linkUrl) {
     items.push({
-      label: '在背景新分頁開啟連結',
+      label: t('context.openLinkInBackground'),
       click: function () {
         safeCreateBrowserTab({ url: linkUrl, active: false });
       }
     });
     items.push({
-      label: '複製連結網址',
+      label: t('context.copyLinkUrl'),
       click: function () {
         copyText(linkUrl);
       }
@@ -946,13 +958,13 @@ function showBrowserContextMenu(tab, params) {
 
     var mediaLabel = contextMediaLabel(params.mediaType);
     items.push({
-      label: '在背景新分頁開啟' + mediaLabel,
+      label: t('context.openMediaInBackground', { media: mediaLabel }),
       click: function () {
         safeCreateBrowserTab({ url: srcUrl, active: false });
       }
     });
     items.push({
-      label: '複製' + mediaLabel + '網址',
+      label: t('context.copyMediaUrl', { media: mediaLabel }),
       click: function () {
         copyText(srcUrl);
       }
@@ -962,7 +974,7 @@ function showBrowserContextMenu(tab, params) {
   if (selectionText) {
     if (items.length) pushSeparator(items);
     items.push({
-      label: '複製選取文字',
+      label: t('context.copySelection'),
       click: function () {
         copyText(selectionText);
       }
@@ -972,21 +984,21 @@ function showBrowserContextMenu(tab, params) {
   if (items.length) pushSeparator(items);
 
   items.push({
-    label: '上一頁',
+    label: t('context.back'),
     enabled: tab.canGoBack && !tab.locked,
     click: function () {
       goBrowserBack(tab.id);
     }
   });
   items.push({
-    label: '下一頁',
+    label: t('context.forward'),
     enabled: tab.canGoForward && !tab.locked,
     click: function () {
       goBrowserForward(tab.id);
     }
   });
   items.push({
-    label: '重新整理',
+    label: t('context.reload'),
     enabled: !tab.locked,
     click: function () {
       reloadBrowser(tab.id);
@@ -996,14 +1008,14 @@ function showBrowserContextMenu(tab, params) {
   pushSeparator(items);
 
   items.push({
-    label: '新增分頁',
+    label: t('context.newTab'),
     enabled: browserTabs.length < MAX_BROWSER_TABS,
     click: function () {
       safeCreateBrowserTab({ url: JABLE_HOME_URL, active: true });
     }
   });
   items.push({
-    label: '複製目前頁面網址',
+    label: t('context.copyCurrentPageUrl'),
     enabled: !!(tab.url || params.pageURL),
     click: function () {
       copyText(tab.url || params.pageURL);
@@ -1022,34 +1034,34 @@ function showBrowserTabMenu(payload) {
 
   var items = [
     {
-      label: '新增分頁',
+      label: t('context.newTab'),
       enabled: browserTabs.length < MAX_BROWSER_TABS,
       click: function () {
         safeCreateBrowserTab({ url: JABLE_HOME_URL, active: true });
       }
     },
     {
-      label: '切換到此分頁',
+      label: t('context.switchToTab'),
       enabled: activeBrowserTabId !== tab.id,
       click: function () {
         activateBrowserTab(tab.id);
       }
     },
     {
-      label: '重新整理分頁',
+      label: t('context.reloadTab'),
       enabled: !tab.locked,
       click: function () {
         reloadBrowser(tab.id);
       }
     },
     {
-      label: tab.muted ? '取消分頁靜音' : '分頁靜音',
+      label: tab.muted ? t('context.unmuteTab') : t('context.muteTab'),
       click: function () {
         setBrowserTabMuted({ tabId: tab.id, muted: !tab.muted });
       }
     },
     {
-      label: '複製分頁網址',
+      label: t('context.copyTabUrl'),
       enabled: !!tab.url,
       click: function () {
         copyText(tab.url);
@@ -1057,7 +1069,7 @@ function showBrowserTabMenu(payload) {
     },
     { type: 'separator' },
     {
-      label: '緊湊模式',
+      label: t('context.compactMode'),
       type: 'checkbox',
       checked: !!payload.compactMode,
       click: function (menuItem) {
@@ -1066,7 +1078,7 @@ function showBrowserTabMenu(payload) {
     },
     { type: 'separator' },
     {
-      label: '關閉分頁',
+      label: t('context.closeTab'),
       enabled: !tab.locked,
       click: function () {
         closeBrowserTab(tab.id);
@@ -1102,7 +1114,7 @@ function showLibraryVideoMenu(payload) {
 
   var items = [
     {
-      label: '在目前分頁開啟',
+      label: t('context.openCurrentTab'),
       enabled: !!(activeTab && !activeTab.locked),
       click: function () {
         forwardBrowserMessage('library-video-menu-action', {
@@ -1112,7 +1124,7 @@ function showLibraryVideoMenu(payload) {
       }
     },
     {
-      label: '在新分頁開啟',
+      label: t('context.openNewTab'),
       enabled: browserTabs.length < MAX_BROWSER_TABS,
       click: function () {
         forwardBrowserMessage('library-video-menu-action', {
@@ -1123,7 +1135,7 @@ function showLibraryVideoMenu(payload) {
     },
     { type: 'separator' },
     {
-      label: '複製網址',
+      label: t('context.copyUrl'),
       click: function () {
         copyText(url);
       }
@@ -1145,14 +1157,14 @@ function showEditableContextMenu(tab, params) {
   var editFlags = params.editFlags || {};
   var items = [
     {
-      label: '復原',
+      label: t('context.undo'),
       enabled: !!editFlags.canUndo,
       click: function () {
         tab.view.webContents.undo();
       }
     },
     {
-      label: '重做',
+      label: t('context.redo'),
       enabled: !!editFlags.canRedo,
       click: function () {
         tab.view.webContents.redo();
@@ -1160,21 +1172,21 @@ function showEditableContextMenu(tab, params) {
     },
     { type: 'separator' },
     {
-      label: '剪下',
+      label: t('context.cut'),
       enabled: !!editFlags.canCut,
       click: function () {
         tab.view.webContents.cut();
       }
     },
     {
-      label: '複製',
+      label: t('context.copy'),
       enabled: !!editFlags.canCopy,
       click: function () {
         tab.view.webContents.copy();
       }
     },
     {
-      label: '貼上',
+      label: t('context.paste'),
       enabled: !!editFlags.canPaste,
       click: function () {
         tab.view.webContents.paste();
@@ -1182,7 +1194,7 @@ function showEditableContextMenu(tab, params) {
     },
     { type: 'separator' },
     {
-      label: '全選',
+      label: t('context.selectAll'),
       enabled: !!editFlags.canSelectAll,
       click: function () {
         tab.view.webContents.selectAll();
@@ -1213,7 +1225,15 @@ function registerIpcHandlers() {
     getDatabase();
 
     return {
-      databasePath: databasePath
+      databasePath: databasePath,
+      locale: currentLocale,
+      systemLocale: app.getLocale()
+    };
+  });
+
+  ipcMain.handle('app:set-locale', function (_event, locale) {
+    return {
+      locale: setCurrentLocale(locale)
     };
   });
 
@@ -1392,6 +1412,7 @@ registerIpcHandlers();
 
 app.whenReady().then(function () {
   app.setName('Jable Desktop');
+  currentLocale = i18n.normalizeLocale(app.getLocale());
   installApplicationMenu();
 
   getDatabase();

@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { setLocale } from '../i18n';
 import VideoCard from './VideoCard.vue';
 import type { VideoRow } from '../../types/jable';
 
@@ -28,6 +29,10 @@ function setNavigatorPlatform(value: string) {
 }
 
 describe('VideoCard', function () {
+  beforeEach(function () {
+    setLocale('zh-TW', false);
+  });
+
   afterEach(function () {
     setNavigatorPlatform(originalPlatform);
   });
@@ -154,5 +159,18 @@ describe('VideoCard', function () {
         }
       ]
     ]);
+  });
+
+  it('renders English aria labels and sync metadata', function () {
+    setLocale('en-US', false);
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    expect(wrapper.find('[data-test="video-thumb-link"]').attributes('aria-label')).toBe('Open video: Sample Video');
+    expect(wrapper.text()).toContain('Synced');
   });
 });

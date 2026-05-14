@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue';
 import { COLLECTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import { t } from '../i18n';
 import type {
   CollectionKey,
   FullSyncContinuation,
@@ -57,16 +58,16 @@ export function useLibraryState(api: JableAppApi) {
   });
 
   var countLabel = computed(function () {
-    return totalRows.value + ' 筆 · 每頁 ' + PAGE_SIZE + ' 筆';
+    return t('library.count', { total: totalRows.value, pageSize: PAGE_SIZE });
   });
 
   var pageLabel = computed(function () {
-    return '第 ' + currentPage.value + ' / ' + totalPages.value + ' 頁';
+    return t('library.page', { current: currentPage.value, total: totalPages.value });
   });
 
   var fullSyncButtonLabel = computed(function () {
     var pending = fullSyncContinuation.value && fullSyncContinuation.value.collectionKey === activeCollection.value;
-    return pending ? '繼續完整同步' : '完整同步';
+    return pending ? t('library.continueFullSync') : t('library.fullSync');
   });
 
   async function refreshVideos() {

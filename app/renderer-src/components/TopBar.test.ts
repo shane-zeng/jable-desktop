@@ -1,8 +1,13 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { setLocale } from '../i18n';
 import TopBar from './TopBar.vue';
 
 describe('TopBar', function () {
+  beforeEach(function () {
+    setLocale('zh-TW', false);
+  });
+
   it('marks the active main view visibly and semantically', async function () {
     var wrapper = mount(TopBar, {
       props: {
@@ -27,5 +32,26 @@ describe('TopBar', function () {
     await tabs[0].trigger('click');
 
     expect(wrapper.emitted('set-view')).toEqual([['browser']]);
+  });
+
+  it('renders English labels after switching locale', async function () {
+    setLocale('en-US', false);
+    var wrapper = mount(TopBar, {
+      props: {
+        activeView: 'browser',
+        busy: false,
+        navigation: {
+          tabId: null,
+          canGoBack: true,
+          canGoForward: false,
+          locked: false
+        }
+      }
+    });
+
+    expect(wrapper.text()).toContain('Browser');
+    expect(wrapper.text()).toContain('Local Data');
+    expect(wrapper.find('[aria-label="Back"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="Interface Language"]').exists()).toBe(true);
   });
 });

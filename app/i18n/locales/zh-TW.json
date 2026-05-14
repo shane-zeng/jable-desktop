@@ -1,0 +1,171 @@
+{
+  "app": {
+    "name": "Jable Desktop"
+  },
+  "locale": {
+    "label": "介面語言",
+    "zhTW": "繁體中文",
+    "enUS": "English"
+  },
+  "collections": {
+    "favourites": "影片收藏",
+    "watch_later": "稍後觀看"
+  },
+  "options": {
+    "sort": {
+      "site_order": "網站排序",
+      "title": "標題",
+      "views": "觀看數",
+      "likes": "喜歡數"
+    },
+    "searchMode": {
+      "any": "任一詞",
+      "all": "全部詞",
+      "phrase": "精確片語"
+    },
+    "direction": {
+      "asc": "遞增",
+      "desc": "遞減"
+    }
+  },
+  "topBar": {
+    "back": "上一頁",
+    "next": "下一頁",
+    "reload": "重新整理",
+    "browser": "瀏覽器",
+    "library": "本機資料",
+    "diagnose": "診斷",
+    "mainViews": "主要檢視"
+  },
+  "browser": {
+    "aria": "Jable 瀏覽器",
+    "tabs": "瀏覽器分頁",
+    "pages": "瀏覽器頁面",
+    "newTab": "新增分頁",
+    "closeTab": "關閉分頁",
+    "newPage": "新分頁",
+    "muteTab": "分頁靜音",
+    "unmuteTab": "取消分頁靜音",
+    "resizeTabs": "拖曳調整分頁列寬度",
+    "sync": "同步",
+    "syncTabTitle": "同步：{collection}"
+  },
+  "library": {
+    "aria": "本機資料庫",
+    "collections": "收藏分類",
+    "quickSync": "快速同步",
+    "fullSync": "完整同步",
+    "continueFullSync": "繼續完整同步",
+    "importJson": "匯入 JSON",
+    "exportJson": "匯出 JSON",
+    "searchMode": "搜尋模式",
+    "searchPlaceholder": "搜尋標題或 URL",
+    "sort": "排序",
+    "sortDirection": "排序方向",
+    "empty": "目前沒有本機資料",
+    "count": "{total} 筆 · 每頁 {pageSize} 筆",
+    "page": "第 {current} / {total} 頁"
+  },
+  "pagination": {
+    "prev": "上一頁",
+    "next": "下一頁"
+  },
+  "video": {
+    "open": "開啟影片：{target}",
+    "views": "views",
+    "likes": "likes",
+    "synced": "同步 {date}"
+  },
+  "sync": {
+    "quick": "快速同步",
+    "full": "完整同步"
+  },
+  "status": {
+    "unknownError": "未知錯誤",
+    "browserOpenFailed": "開啟影片失敗：{error}",
+    "browserOpenNewTabFailed": "開啟新分頁失敗：{error}",
+    "browserTabError": "瀏覽器分頁錯誤：{error}",
+    "syncPage": "同步第 {page} 頁，{count} 筆",
+    "syncProgress": "已載入第 {page} 頁",
+    "updateLibraryFailed": "更新本機列表失敗：{error}",
+    "collectionRemoved": "已從{collection}移除本機資料",
+    "collectionRemoveNoop": "已從{collection}取消；本機原本沒有這筆資料",
+    "collectionAdded": "已加入{collection}並同步到本機",
+    "fullSyncPaused": "{collection} {mode}已暫停：本批 {pages} 頁、{rows} 筆，可繼續完整同步",
+    "syncIncomplete": "{collection} {mode}未完整完成：{reason}",
+    "fullSyncComplete": "{collection} 完整同步完成：{rows} 筆，隱藏 {hidden} 筆缺漏資料",
+    "quickSyncComplete": "{collection} 快速同步完成：{rows} 筆，{reason}",
+    "stoppedByKnownPage": "遇到已知頁面後停止",
+    "finishedVisiblePages": "已跑完可見分頁",
+    "loginRequired": "請先在瀏覽器登入 Jable，並確認可開啟「{collection}」頁面",
+    "syncStart": "開始{mode} {collection}",
+    "syncFailed": "{mode}失敗：{error}",
+    "createSyncTabFailed": "建立同步分頁失敗",
+    "exportCanceled": "已取消匯出",
+    "exported": "已匯出 {filename}",
+    "exportFailed": "匯出失敗：{error}",
+    "imported": "已匯入 {count} 筆到 {collection}",
+    "importFailed": "匯入失敗：{error}",
+    "newTabFailed": "新增分頁失敗：{error}",
+    "activateTabFailed": "切換分頁失敗：{error}",
+    "closeTabFailed": "關閉分頁失敗：{error}",
+    "muteTabFailed": "切換分頁靜音失敗：{error}",
+    "tabMenuFailed": "開啟分頁選單失敗：{error}",
+    "videoMenuFailed": "開啟影片選單失敗：{error}"
+  },
+  "toast": {
+    "close": "關閉通知"
+  },
+  "menu": {
+    "file": "檔案",
+    "edit": "編輯",
+    "view": "檢視",
+    "window": "視窗",
+    "newTab": "新增分頁",
+    "closeTab": "關閉分頁"
+  },
+  "context": {
+    "openLinkInBackground": "在背景新分頁開啟連結",
+    "copyLinkUrl": "複製連結網址",
+    "openMediaInBackground": "在背景新分頁開啟{media}",
+    "copyMediaUrl": "複製{media}網址",
+    "copySelection": "複製選取文字",
+    "back": "上一頁",
+    "forward": "下一頁",
+    "reload": "重新整理",
+    "newTab": "新增分頁",
+    "copyCurrentPageUrl": "複製目前頁面網址",
+    "switchToTab": "切換到此分頁",
+    "reloadTab": "重新整理分頁",
+    "muteTab": "分頁靜音",
+    "unmuteTab": "取消分頁靜音",
+    "copyTabUrl": "複製分頁網址",
+    "compactMode": "緊湊模式",
+    "closeTab": "關閉分頁",
+    "openCurrentTab": "在目前分頁開啟",
+    "openNewTab": "在新分頁開啟",
+    "copyUrl": "複製網址",
+    "undo": "復原",
+    "redo": "重做",
+    "cut": "剪下",
+    "copy": "複製",
+    "paste": "貼上",
+    "selectAll": "全選"
+  },
+  "media": {
+    "image": "圖片",
+    "video": "影片",
+    "audio": "音訊",
+    "media": "媒體"
+  },
+  "dialog": {
+    "exportJson": "匯出 JSON"
+  },
+  "errors": {
+    "maxTabs": "最多只能開啟 {count} 個瀏覽器分頁",
+    "tabNotFound": "找不到瀏覽器分頁",
+    "lockedClose": "同步中的分頁不能關閉",
+    "lockedNavigate": "同步中的分頁不能手動導航",
+    "lockedReload": "同步中的分頁不能重新整理"
+  }
+}

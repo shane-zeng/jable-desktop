@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { BROWSER_TABS_DEFAULT_WIDTH, BROWSER_TABS_MAX_WIDTH, BROWSER_TABS_MIN_WIDTH } from '../constants';
+import { t } from '../i18n';
 import type { BrowserTabMenuPayload, BrowserTabState } from '../../types/jable';
 
 var COMPACT_TRIGGER_WIDTH = 18;
@@ -65,7 +66,7 @@ var compactDismissStyle = computed(function () {
 });
 
 function displayTitle(tab: BrowserTabState) {
-  return tab.title || '新分頁';
+  return tab.title || t('browser.newPage');
 }
 
 function tabInitial(tab: BrowserTabState) {
@@ -74,7 +75,7 @@ function tabInitial(tab: BrowserTabState) {
 }
 
 function audioButtonLabel(tab: BrowserTabState) {
-  return tab.muted ? '取消分頁靜音' : '分頁靜音';
+  return tab.muted ? t('browser.unmuteTab') : t('browser.muteTab');
 }
 
 function hasAudioIndicator(tab: BrowserTabState) {
@@ -167,7 +168,7 @@ onBeforeUnmount(function () {
         : 'hidden'
     "
     :style="active && !compact ? panelStyle : null"
-    aria-label="Jable browser"
+    :aria-label="t('browser.aria')"
   >
     <div
       v-if="compact"
@@ -185,7 +186,7 @@ onBeforeUnmount(function () {
           : 'relative border-r border-[var(--panel-border)] bg-[var(--panel)]'
       "
       :style="compact ? floatingTabsStyle : null"
-      aria-label="Browser tabs"
+      :aria-label="t('browser.tabs')"
       @pointerenter="showCompactTabs"
       @mouseleave="hideCompactTabs"
     >
@@ -193,7 +194,7 @@ onBeforeUnmount(function () {
         class="min-h-0 overflow-auto"
         :class="compact ? 'p-2.5 pt-3' : 'p-2.5'"
         role="tablist"
-        aria-label="Browser pages"
+        :aria-label="t('browser.pages')"
         @contextmenu.prevent.stop="openRailMenu"
       >
         <div
@@ -256,8 +257,8 @@ onBeforeUnmount(function () {
           <button
             class="browser-tab-close absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center border-0 bg-transparent px-0 text-[24px] leading-none"
             type="button"
-            title="關閉分頁"
-            aria-label="關閉分頁"
+            :title="t('browser.closeTab')"
+            :aria-label="t('browser.closeTab')"
             :disabled="tab.locked"
             @click.stop="emit('close-tab', tab.id)"
           >
@@ -268,13 +269,13 @@ onBeforeUnmount(function () {
         <button
           class="browser-new-tab mt-2 grid h-11 w-full grid-cols-[28px_minmax(0,1fr)] items-center gap-2 border-0 bg-transparent px-2.5 py-0 text-left text-[var(--muted)]"
           type="button"
-          title="新增分頁"
-          aria-label="新增分頁"
+          :title="t('browser.newTab')"
+          :aria-label="t('browser.newTab')"
           :disabled="!canCreateTab"
           @click="emit('new-tab')"
         >
           <span class="text-2xl leading-none">+</span>
-          <span class="min-w-0 truncate text-[15px] font-semibold">新增分頁</span>
+          <span class="min-w-0 truncate text-[15px] font-semibold">{{ t('browser.newTab') }}</span>
         </button>
       </div>
 
@@ -283,7 +284,7 @@ onBeforeUnmount(function () {
         class="absolute bottom-0 right-[-6px] top-0 z-50 w-3 cursor-col-resize rounded-full bg-transparent hover:bg-[var(--segmented)]"
         role="separator"
         aria-orientation="vertical"
-        title="拖曳調整分頁列寬度"
+        :title="t('browser.resizeTabs')"
         @pointerdown="startResize"
         @dblclick="resetWidth"
       ></div>
@@ -303,7 +304,7 @@ onBeforeUnmount(function () {
       class="relative cursor-col-resize border-r border-[var(--panel-border)] bg-[var(--browser-bg)] hover:bg-[var(--segmented)]"
       role="separator"
       aria-orientation="vertical"
-      title="拖曳調整分頁列寬度"
+      :title="t('browser.resizeTabs')"
       @pointerdown="startResize"
       @dblclick="resetWidth"
     ></div>

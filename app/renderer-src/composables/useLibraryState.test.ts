@@ -1,7 +1,8 @@
 import { flushPromises } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick } from 'vue';
 import { PAGE_SIZE } from '../constants';
+import { setLocale } from '../i18n';
 import { useLibraryState } from './useLibraryState';
 import type { JableAppApi, ListVideosOptions, SortKey, VideoRow } from '../../types/jable';
 
@@ -53,6 +54,10 @@ async function settleWatchers() {
 }
 
 describe('useLibraryState', function () {
+  beforeEach(function () {
+    setLocale('zh-TW', false);
+  });
+
   it('refreshes videos with the current list parameters and loads one page at a time', async function () {
     var rows = makeRows(PAGE_SIZE + 1);
     var api = createPagedApi(rows);
@@ -215,6 +220,23 @@ describe('useLibraryState', function () {
         offset: 0
       });
       expect(setup.state.currentPage.value).toBe(1);
+    } finally {
+      setup.stop();
+    }
+  });
+
+  it('formats pagination labels in English', async function () {
+    setLocale('en-US', false);
+    var rows = makeRows(PAGE_SIZE + 1);
+    var api = createPagedApi(rows);
+    var setup = createState(api);
+
+    try {
+      await setup.state.refreshVideos();
+
+      expect(setup.state.countLabel.value).toBe(PAGE_SIZE + 1 + ' items · ' + PAGE_SIZE + ' per page');
+      expect(setup.state.pageLabel.value).toBe('Page 1 / 2');
+      expect(setup.state.fullSyncButtonLabel.value).toBe('Full Sync');
     } finally {
       setup.stop();
     }

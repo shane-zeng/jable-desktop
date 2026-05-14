@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { COLLECTIONS } from '../constants';
+import { t } from '../i18n';
 import type { CollectionKey } from '../../types/jable';
 
 var props = defineProps<{
@@ -15,7 +16,7 @@ var collectionEntries = computed(function () {
   return (Object.keys(COLLECTIONS) as CollectionKey[]).map(function (key) {
     return {
       key: key,
-      name: COLLECTIONS[key].name
+      name: t('collections.' + key)
     };
   });
 });
@@ -25,7 +26,7 @@ var collectionEntries = computed(function () {
   <div
     class="segmented-tabs flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
     role="tablist"
-    aria-label="Collections"
+    :aria-label="t('library.collections')"
   >
     <button
       v-for="collection in collectionEntries"

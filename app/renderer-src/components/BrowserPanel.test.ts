@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { setLocale } from '../i18n';
 import BrowserPanel from './BrowserPanel.vue';
 import type { BrowserTabState } from '../../types/jable';
 
@@ -41,6 +42,10 @@ function makeTabs(): BrowserTabState[] {
 }
 
 describe('BrowserPanel', function () {
+  beforeEach(function () {
+    setLocale('zh-TW', false);
+  });
+
   it('renders browser tabs with active, loading, and locked states', function () {
     var wrapper = mount(BrowserPanel, {
       props: {
@@ -212,5 +217,22 @@ describe('BrowserPanel', function () {
     window.dispatchEvent(new PointerEvent('pointerup'));
 
     expect(wrapper.emitted('resize-tabs')).toEqual([[280]]);
+  });
+
+  it('renders English tab controls', function () {
+    setLocale('en-US', false);
+    var wrapper = mount(BrowserPanel, {
+      props: {
+        active: true,
+        tabs: makeTabs(),
+        activeTabId: 'tab-1',
+        canCreateTab: true,
+        compact: false,
+        tabWidth: 220
+      }
+    });
+
+    expect(wrapper.find('[aria-label="New Tab"]').exists()).toBe(true);
+    expect(wrapper.findAll('[aria-label="Close Tab"]')).toHaveLength(2);
   });
 });

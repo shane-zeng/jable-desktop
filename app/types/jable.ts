@@ -5,6 +5,7 @@ export type SearchMode = 'any' | 'all' | 'phrase';
 export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
 export type AppView = 'browser' | 'library';
+export type SupportedLocale = 'zh-TW' | 'en-US';
 
 export interface CollectionDefinition {
   name: string;
@@ -256,6 +257,8 @@ export interface FinishSyncPayload {
 
 export interface AppInfo {
   databasePath: string | null;
+  locale: SupportedLocale;
+  systemLocale: string;
 }
 
 export interface ImportJsonPayload {
@@ -287,6 +290,7 @@ export interface BrowserMessage {
 
 export interface JableAppApi {
   getAppInfo(): Promise<AppInfo>;
+  setLocale(locale: string): Promise<{ locale: SupportedLocale }>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;
   countVideos(options: ListVideosOptions): Promise<number>;
   getCollectionUrls(collectionKey: CollectionKey): Promise<string[]>;

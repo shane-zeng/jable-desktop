@@ -1,8 +1,13 @@
 import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { setLocale } from '../i18n';
 import CollectionTabs from './CollectionTabs.vue';
 
 describe('CollectionTabs', function () {
+  beforeEach(function () {
+    setLocale('zh-TW', false);
+  });
+
   it('marks the active local collection visibly and semantically', async function () {
     var wrapper = mount(CollectionTabs, {
       props: {
@@ -22,5 +27,19 @@ describe('CollectionTabs', function () {
     await tabs[0].trigger('click');
 
     expect(wrapper.emitted('select')).toEqual([['favourites']]);
+  });
+
+  it('renders English collection names', function () {
+    setLocale('en-US', false);
+    var wrapper = mount(CollectionTabs, {
+      props: {
+        activeCollection: 'watch_later'
+      }
+    });
+
+    var tabs = wrapper.findAll('[role="tab"]');
+
+    expect(tabs[0].text()).toBe('Favourites');
+    expect(tabs[1].text()).toBe('Watch Later');
   });
 });

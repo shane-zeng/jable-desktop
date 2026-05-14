@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
 import TopBar from './components/TopBar.vue';
@@ -16,6 +16,7 @@ import {
 import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
+import { useI18n } from './i18n';
 import type {
   AppInfo,
   AppView,
@@ -39,6 +40,7 @@ import type {
 } from '../types/jable';
 
 var api = useJableApi();
+var i18n = useI18n();
 var activeView = ref<AppView>('browser');
 var toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
 var busy = ref(false);
@@ -52,6 +54,7 @@ var pendingSaves: Promise<unknown>[] = [];
 var saveFailure: unknown = null;
 var activeSyncRunId: string | null = null;
 var toastTimer: number | null = null;
+var mainLocaleSynced = false;
 
 var pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
@@ -66,13 +69,23 @@ function errorMessage(error: unknown): string {
 }
 
 function shouldSkipStatus(text: string) {
-  return !text || text === '準備中' || text === '就緒' || text === '已新增分頁' || text === '開啟影片中…';
+  return (
+    !text ||
+    text === '準備中' ||
+    text === '就緒' ||
+    text === '已新增分頁' ||
+    text === '開啟影片中…' ||
+    text === 'Preparing...' ||
+    text === 'Ready' ||
+    text === 'New tab added' ||
+    text === 'Opening video...'
+  );
 }
 
 function statusTone(text: string) {
-  if (/失敗|錯誤|未知/.test(text)) return 'error';
-  if (/暫停|未完整|請先/.test(text)) return 'warning';
-  if (/完成|已匯出|已匯入/.test(text)) return 'success';
+  if (/失敗|錯誤|未知|failed|error|unknown/i.test(text)) return 'error';
+  if (/暫停|未完整|請先|paused|did not complete|please log in/i.test(text)) return 'warning';
+  if (/完成|已匯出|已匯入|complete|exported|imported/i.test(text)) return 'success';
   return 'info';
 }
 
@@ -85,13 +98,13 @@ function hideToast() {
   toast.value = null;
 }
 
-function setStatus(text: string) {
+function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info') {
   if (shouldSkipStatus(text)) return;
 
   if (toastTimer) clearTimeout(toastTimer);
   toast.value = {
     text: text,
-    tone: statusTone(text)
+    tone: tone || statusTone(text)
   };
   toastTimer = setTimeout(function () {
     toast.value = null;
@@ -135,7 +148,7 @@ function setActiveView(view: AppView) {
 }
 
 function syncModeName(mode: SyncMode) {
-  return mode === 'full' ? '完整同步' : '快速同步';
+  return mode === 'full' ? i18n.t('sync.full') : i18n.t('sync.quick');
 }
 
 function createSyncRunId(mode: SyncMode, collectionKey: CollectionKey) {
@@ -144,6 +157,10 @@ function createSyncRunId(mode: SyncMode, collectionKey: CollectionKey) {
 
 function currentCollection(): CollectionDefinition {
   return COLLECTIONS[library.activeCollection.value];
+}
+
+function collectionName(collectionKey: CollectionKey) {
+  return i18n.t('collections.' + collectionKey);
 }
 
 function collectionUrlPattern(collectionKey: CollectionKey) {
@@ -167,7 +184,7 @@ async function openInBrowser(url: string) {
     await browser.loadBrowser(url, false);
   } catch (error) {
     console.error(error);
-    setStatus('開啟影片失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.browserOpenFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -179,7 +196,7 @@ async function openInNewBrowserTab(url: string) {
     await browser.createTab(url, { active: true });
   } catch (error) {
     console.error(error);
-    setStatus('開啟新分頁失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.browserOpenNewTabFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -193,14 +210,15 @@ function handleLibraryVideoMenuAction(payload: LibraryVideoMenuAction | null | u
 }
 
 function collectionToggleStatus(payload: CollectionToggleResult) {
-  var collection = COLLECTIONS[payload.collectionKey];
-  var name = collection ? collection.name : payload.collectionKey;
+  var name = collectionName(payload.collectionKey);
 
   if (payload.action === 'remove') {
-    return payload.changed ? '已從' + name + '移除本機資料' : '已從' + name + '取消；本機原本沒有這筆資料';
+    return payload.changed
+      ? i18n.t('status.collectionRemoved', { collection: name })
+      : i18n.t('status.collectionRemoveNoop', { collection: name });
   }
 
-  return '已加入' + name + '並同步到本機';
+  return i18n.t('status.collectionAdded', { collection: name });
 }
 
 function handleBrowserMessage(message: BrowserMessage) {
@@ -210,7 +228,10 @@ function handleBrowserMessage(message: BrowserMessage) {
 
   if (message.channel === 'browser-error') {
     var errorPayload = (message.args[0] || {}) as { message?: string };
-    setStatus('瀏覽器分頁錯誤：' + (errorPayload.message || '未知錯誤'));
+    setStatus(
+      i18n.t('status.browserTabError', { error: errorPayload.message || i18n.t('status.unknownError') }),
+      'error'
+    );
   }
 
   if (message.channel === 'library-video-menu-action') {
@@ -220,7 +241,7 @@ function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'sync-page') {
     var payload = message.args[0] as SyncPagePayload;
     if (activeSyncRunId && payload.syncRunId !== activeSyncRunId) return;
-    setStatus('同步第 ' + payload.page + ' 頁，' + payload.rows.length + ' 筆');
+    setStatus(i18n.t('status.syncPage', { page: payload.page, count: payload.rows.length }));
 
     var save = api.saveSyncPage(payload).catch(function (error) {
       saveFailure = error;
@@ -232,7 +253,7 @@ function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'sync-progress') {
     var progress = message.args[0] as SyncProgressPayload;
     if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
-    setStatus('已載入第 ' + progress.page + ' 頁');
+    setStatus(i18n.t('status.syncProgress', { page: progress.page }));
   }
 
   if (message.channel === 'collection-toggle') {
@@ -241,7 +262,7 @@ function handleBrowserMessage(message: BrowserMessage) {
       if (togglePayload.action === 'add') library.currentPage.value = 1;
       library.refreshVideos().catch(function (error) {
         console.error(error);
-        setStatus('更新本機列表失敗：' + errorMessage(error));
+        setStatus(i18n.t('status.updateLibraryFailed', { error: errorMessage(error) }), 'error');
       });
     }
     setStatus(collectionToggleStatus(togglePayload));
@@ -265,39 +286,43 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 }
 
-function resultStatus(collection: CollectionDefinition, mode: SyncMode, result: SyncResult, finishState: SyncState) {
+function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: SyncResult, finishState: SyncState) {
   var name = syncModeName(mode);
+  var collection = collectionName(collectionKey);
 
   if (result.completed === false) {
     if (result.incompleteReason === 'batch-limit') {
-      return (
-        collection.name +
-        ' ' +
-        name +
-        '已暫停：本批 ' +
-        result.totalPages +
-        ' 頁、' +
-        result.totalRows +
-        ' 筆，可繼續完整同步'
-      );
+      return i18n.t('status.fullSyncPaused', {
+        collection: collection,
+        mode: name,
+        pages: result.totalPages,
+        rows: result.totalRows
+      });
     }
 
-    return collection.name + ' ' + name + '未完整完成：' + (result.incompleteReason || '未知原因');
+    return i18n.t('status.syncIncomplete', {
+      collection: collection,
+      mode: name,
+      reason: result.incompleteReason || i18n.t('status.unknownError')
+    });
   }
 
   if (mode === 'full') {
-    return (
-      collection.name +
-      ' 完整同步完成：' +
-      result.totalRows +
-      ' 筆，隱藏 ' +
-      ((finishState && finishState.hidden) || 0) +
-      ' 筆缺漏資料'
-    );
+    return i18n.t('status.fullSyncComplete', {
+      collection: collection,
+      rows: result.totalRows,
+      hidden: (finishState && finishState.hidden) || 0
+    });
   }
 
-  var reason = result.stoppedByKnownPage ? '遇到已知頁面後停止' : '已跑完可見分頁';
-  return collection.name + ' 快速同步完成：' + result.totalRows + ' 筆，' + reason;
+  var reason = result.stoppedByKnownPage
+    ? i18n.t('status.stoppedByKnownPage')
+    : i18n.t('status.finishedVisiblePages');
+  return i18n.t('status.quickSyncComplete', {
+    collection: collection,
+    rows: result.totalRows,
+    reason: reason
+  });
 }
 
 async function syncCollection(mode: SyncMode) {
@@ -328,7 +353,7 @@ async function syncCollection(mode: SyncMode) {
 
     if (!collectionUrlPattern(collectionKey).test(pathFromUrl(browserUrl))) {
       await browser.setTabLocked(syncTabId, false);
-      setStatus('請先在瀏覽器登入 Jable，並確認可開啟「' + collection.name + '」頁面');
+      setStatus(i18n.t('status.loginRequired', { collection: collectionName(collectionKey) }), 'warning');
       return;
     }
 
@@ -342,7 +367,7 @@ async function syncCollection(mode: SyncMode) {
       batchLimit: mode === 'full' ? FULL_SYNC_BATCH_LIMIT : null
     };
 
-    setStatus('開始' + syncModeName(mode) + ' ' + collection.name);
+    setStatus(i18n.t('status.syncStart', { mode: syncModeName(mode), collection: collectionName(collectionKey) }));
     activeSyncRunId = syncRunId;
     var result = await api.syncBrowserCollection({
       tabId: syncTabId,
@@ -379,10 +404,10 @@ async function syncCollection(mode: SyncMode) {
     setActiveView('library');
     await library.refreshVideos();
 
-    setStatus(resultStatus(collection, mode, result, finishState));
+    setStatus(resultStatus(collectionKey, mode, result, finishState));
   } catch (error) {
     console.error(error);
-    setStatus(syncModeName(mode) + '失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.syncFailed', { mode: syncModeName(mode), error: errorMessage(error) }), 'error');
     if (syncTabId) {
       try {
         await browser.setTabLocked(syncTabId, false);
@@ -432,10 +457,10 @@ async function prepareSyncTab(
   await browser.createTab(null, {
     active: true,
     kind: 'sync',
-    title: '同步：' + collection.name
+    title: i18n.t('browser.syncTabTitle', { collection: collectionName(collectionKey) })
   });
   var tabId = browser.activeTabId.value;
-  if (!tabId) throw new Error('建立同步分頁失敗');
+  if (!tabId) throw new Error(i18n.t('status.createSyncTabFailed'));
   await browser.loadBrowser(collection.url, true, tabId);
   await browser.setTabLocked(tabId, true);
 
@@ -454,14 +479,17 @@ async function exportActiveCollection() {
     var result = await api.exportJsonFile(library.activeCollection.value);
 
     if (result && result.canceled) {
-      setStatus('已取消匯出');
+      setStatus(i18n.t('status.exportCanceled'));
       return;
     }
 
-    setStatus('已匯出 ' + ((result && result.filename) || currentCollection().filename));
+    setStatus(
+      i18n.t('status.exported', { filename: (result && result.filename) || currentCollection().filename }),
+      'success'
+    );
   } catch (error) {
     console.error(error);
-    setStatus('匯出失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.exportFailed', { error: errorMessage(error) }), 'error');
   } finally {
     busy.value = false;
   }
@@ -482,10 +510,13 @@ async function importJsonFile(file: File | null) {
 
     library.currentPage.value = 1;
     await library.refreshVideos();
-    setStatus('已匯入 ' + result.imported + ' 筆到 ' + currentCollection().name);
+    setStatus(
+      i18n.t('status.imported', { count: result.imported, collection: collectionName(library.activeCollection.value) }),
+      'success'
+    );
   } catch (error) {
     console.error(error);
-    setStatus('匯入失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.importFailed', { error: errorMessage(error) }), 'error');
   } finally {
     busy.value = false;
   }
@@ -505,7 +536,7 @@ async function newBrowserTab() {
     await browser.createTab(DEFAULT_BROWSER_URL, { active: true });
   } catch (error) {
     console.error(error);
-    setStatus('新增分頁失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.newTabFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -515,7 +546,7 @@ async function activateBrowserTab(tabId: string) {
     await browser.activateTab(tabId);
   } catch (error) {
     console.error(error);
-    setStatus('切換分頁失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.activateTabFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -524,7 +555,7 @@ async function closeBrowserTab(tabId: string) {
     await browser.closeTab(tabId);
   } catch (error) {
     console.error(error);
-    setStatus('關閉分頁失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.closeTabFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -533,7 +564,7 @@ async function setBrowserTabMuted(payload: { tabId: string | null; muted: boolea
     await browser.setTabMuted(payload.tabId, payload.muted);
   } catch (error) {
     console.error(error);
-    setStatus('切換分頁靜音失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.muteTabFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -546,7 +577,7 @@ async function showBrowserTabMenu(payload: BrowserTabMenuPayload) {
     );
   } catch (error) {
     console.error(error);
-    setStatus('開啟分頁選單失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.tabMenuFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -555,14 +586,30 @@ async function showLibraryVideoMenu(payload: LibraryVideoMenuPayload) {
     await api.showLibraryVideoMenu(payload);
   } catch (error) {
     console.error(error);
-    setStatus('開啟影片選單失敗：' + errorMessage(error));
+    setStatus(i18n.t('status.videoMenuFailed', { error: errorMessage(error) }), 'error');
   }
 }
+
+async function syncMainLocale(locale: string) {
+  try {
+    await api.setLocale(locale);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+watch(i18n.locale, function (locale) {
+  if (!mainLocaleSynced) return;
+  syncMainLocale(locale);
+});
 
 onMounted(async function () {
   browserTabsCompact.value = loadBrowserTabsCompact();
   browserTabsWidth.value = loadBrowserTabsWidth();
   appInfo.value = await api.getAppInfo();
+  i18n.initializeLocale(appInfo.value.systemLocale || appInfo.value.locale);
+  await syncMainLocale(i18n.locale.value);
+  mainLocaleSynced = true;
   api.onBrowserMessage(handleBrowserMessage);
   setActiveView('browser');
   browser.scheduleResize();
@@ -588,7 +635,7 @@ onMounted(async function () {
     <Transition name="status-toast">
       <div v-if="toast" class="app-toast" :class="'app-toast-' + toast.tone" role="status" aria-live="polite">
         <span class="min-w-0 flex-1">{{ toast.text }}</span>
-        <button class="app-toast-close" type="button" aria-label="關閉通知" @click="hideToast">×</button>
+        <button class="app-toast-close" type="button" :aria-label="i18n.t('toast.close')" @click="hideToast">×</button>
       </div>
     </Transition>
 

@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('jableApp', {
   getAppInfo: function () {
     return ipcRenderer.invoke('app:info');
   },
+  setLocale: function (locale) {
+    return ipcRenderer.invoke('app:set-locale', locale);
+  },
   listVideos: function (options) {
     return ipcRenderer.invoke('db:list-videos', options);
   },
