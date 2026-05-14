@@ -147,11 +147,15 @@ function openVideoMenu(event: MouseEvent) {
         class="mt-auto space-y-1 border-t border-[var(--panel-border)] pt-2 text-xs leading-[1.4] text-[var(--muted)]"
       >
         <div class="truncate">
-          <span class="font-medium text-[var(--text)]">{{ formatNumber(video.views) }}</span>
-          <span class="pl-1">{{ i18n.t('video.views') }}</span>
+          <span class="font-medium text-[var(--text)]" data-test="video-views-value">{{
+            formatNumber(video.views)
+          }}</span>
+          <span class="pl-1" data-test="video-views-label">{{ i18n.t('video.views') }}</span>
           <span class="px-1.5">·</span>
-          <span class="font-medium text-[var(--text)]">{{ formatNumber(video.likes) }}</span>
-          <span class="pl-1">{{ i18n.t('video.likes') }}</span>
+          <span class="font-medium text-[var(--text)]" data-test="video-likes-value">{{
+            formatNumber(video.likes)
+          }}</span>
+          <span class="pl-1" data-test="video-likes-label">{{ i18n.t('video.likes') }}</span>
         </div>
         <div class="truncate">{{ i18n.t('video.synced', { date: formatDate(video.last_seen_at) }) }}</div>
       </div>

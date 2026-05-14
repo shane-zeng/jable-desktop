@@ -47,6 +47,7 @@ jobs:
         with:
           name: macos
           if-no-files-found: error
+          retention-days: 1
           path: |
             release/*.dmg
             release/*.zip
@@ -86,6 +87,7 @@ jobs:
         with:
           name: windows
           if-no-files-found: error
+          retention-days: 1
           path: |
             release/*.exe
             release/*.zip
@@ -147,6 +149,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install changelog formatter dependencies
+        run: npm ci --ignore-scripts
 
       - name: Update changelog for released tag
         env:
@@ -164,6 +170,7 @@ jobs:
           fi
 
           node scripts/update-release-changelog.js
+          npm exec -- prettier --write CHANGELOG.md
 
       - name: Commit changelog update
         env:

@@ -6,11 +6,15 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+### Changed
+
+- Retain release workflow handoff artifacts for 1 day because GitHub Release assets are the durable download files.
+- Normalize generated changelog release bodies to avoid extra blank lines after section headings.
+- Run Prettier on generated changelog updates before the release workflow commits them.
+
 ## [v0.7.3] - 2026-05-15
 
 ### Added
-
-
 
 - Add release workflow automation that commits `CHANGELOG.md` after a draft GitHub release is created.
 - Add a changelog update script for release tags.

@@ -38,7 +38,7 @@ describe('VideoCard', function () {
   });
 
   it('renders the video title, URL, views, and likes', function () {
-    var video = makeVideo();
+    var video = makeVideo({ img: null, preview: null });
     var wrapper = mount(VideoCard, {
       props: {
         video: video
@@ -47,10 +47,10 @@ describe('VideoCard', function () {
 
     expect(wrapper.find('[data-test="video-title-link"]').text()).toBe(video.title);
     expect(wrapper.find('[data-test="video-title-link"]').attributes('href')).toBe(video.url);
-    expect(wrapper.text()).toContain(Number(video.views).toLocaleString());
-    expect(wrapper.text()).toContain(Number(video.likes).toLocaleString());
+    expect(wrapper.find('[data-test="video-views-value"]').text()).toBe(Number(video.views).toLocaleString('zh-TW'));
+    expect(wrapper.find('[data-test="video-likes-value"]').text()).toBe(Number(video.likes).toLocaleString('zh-TW'));
     expect(
-      wrapper.findAll('.pl-1').map(function (label) {
+      wrapper.findAll('[data-test$="-label"]').map(function (label) {
         return label.text();
       })
     ).toEqual(['views', 'likes']);
@@ -194,7 +194,7 @@ describe('VideoCard', function () {
     expect(wrapper.text()).toContain(Number(video.likes).toLocaleString('ja-JP'));
     expect(wrapper.text()).toContain('同期 ' + syncedAt);
     expect(
-      wrapper.findAll('.pl-1').map(function (label) {
+      wrapper.findAll('[data-test$="-label"]').map(function (label) {
         return label.text();
       })
     ).toEqual(['再生', 'いいね']);

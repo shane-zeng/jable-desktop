@@ -263,9 +263,11 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow checks formatting, runs linting and tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch as `github-actions[bot]`. Review and smoke test the draft assets before publishing the release.
+The workflow checks formatting, runs linting and tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
 
-The post-release changelog step uses `scripts/update-release-changelog.js`. If `Unreleased` contains notes, the script moves them into the new version section. If `Unreleased` is empty, it creates a `Changed` section from first-parent commit subjects between the previous version tag and the released tag, excluding previous automated changelog commits. The script refreshes the compare links at the bottom of `CHANGELOG.md`.
+The macOS and Windows workflow artifacts uploaded between build jobs and the release job are retained for 1 day only. The draft GitHub release assets are the durable release downloads.
+
+The post-release changelog step uses `scripts/update-release-changelog.js`. If `Unreleased` contains notes, the script moves them into the new version section. If `Unreleased` is empty, it creates a `Changed` section from first-parent commit subjects between the previous version tag and the released tag, excluding previous automated changelog commits. The script refreshes the compare links at the bottom of `CHANGELOG.md`, and the workflow runs Prettier on `CHANGELOG.md` before committing it.
 
 Because this changelog commit happens after the tag-triggered release succeeds, the tag archive itself does not include that generated changelog entry. The default branch does. If the default branch advances before the release job reaches the changelog step, branch protection blocks the bot push, or a manual release needs the same update, run:
 
@@ -276,7 +278,16 @@ git commit -m "Update changelog for v0.2.0"
 git push
 ```
 
-No GitHub Actions repository secrets or variables are required for the unsigned release workflow. GitHub provides `GITHUB_TOKEN` automatically, and the workflow sets `permissions: contents: write` so it can create the draft release and push the post-release changelog commit.
+GitHub provides `GITHUB_TOKEN` automatically, and the workflow sets `permissions: contents: write` so it can create the draft release. The post-release changelog commit requires a repository secret named `RELEASE_BYPASS_PAT`, because the `main` ruleset requires changes through pull requests and `GITHUB_TOKEN` cannot bypass that rule.
+
+`RELEASE_BYPASS_PAT` should be a fine-grained personal access token with:
+
+- Repository access limited to `shane-zeng/jable-desktop`.
+- `Contents: Read and write`.
+- The required `Metadata: Read-only` permission.
+- An owner that can bypass the `main` ruleset, such as a repository admin listed in the ruleset bypass list.
+
+The token is used only by the changelog checkout and push steps. Avoid granting unrelated permissions such as `Actions: Read and write` unless a future workflow explicitly needs them.
 
 Expected draft release artifacts:
 

@@ -99,9 +99,13 @@ function hasReleaseSection(markdown, tag) {
   return new RegExp('^## \\[' + escapeRegExp(tag) + '\\] - ', 'm').test(markdown);
 }
 
+function normalizeReleaseBody(body) {
+  return body.trim().replace(/\n{3,}/g, '\n\n');
+}
+
 function buildReleaseBody(unreleasedBody, previousTag, tag) {
   if (unreleasedBody) {
-    return unreleasedBody;
+    return normalizeReleaseBody(unreleasedBody);
   }
 
   var subjects = readCommitSubjects(previousTag, tag);
@@ -126,7 +130,7 @@ function insertReleaseSection(markdown, tag, releaseDate, releaseBody) {
   }
 
   var unreleased = readUnreleasedBody(markdown);
-  var releaseSection = '## [' + tag + '] - ' + releaseDate + '\n\n' + releaseBody + '\n\n';
+  var releaseSection = '## [' + tag + '] - ' + releaseDate + '\n\n' + normalizeReleaseBody(releaseBody) + '\n\n';
 
   return markdown.slice(0, unreleased.index) + '## [Unreleased]\n\n' + releaseSection + markdown.slice(unreleased.end);
 }

@@ -116,7 +116,7 @@ Verify relevant behavior after changes:
 
 Recent commits use short, imperative summaries, for example `Add Jable Favourites Exporter user script`.
 
-Version tags are released first, then `.github/workflows/release.yml` commits the matching `CHANGELOG.md` entry back to the default branch after the draft GitHub release is created. Keep release-worthy notes under `Unreleased` when useful; the workflow moves them into the released version section. If the workflow cannot push the changelog update, run `RELEASE_TAG=vX.Y.Z fnm exec --using 24 node scripts/update-release-changelog.js`, commit `CHANGELOG.md`, and push the branch manually.
+Version tags are released first, then `.github/workflows/release.yml` commits the matching `CHANGELOG.md` entry back to the default branch after the draft GitHub release is created. The post-release changelog push uses the `RELEASE_BYPASS_PAT` repository secret, which must have `Contents: Read and write` and belong to an actor allowed to bypass the `main` ruleset. Keep release-worthy notes under `Unreleased` when useful; the workflow moves them into the released version section. If the workflow cannot push the changelog update, run `RELEASE_TAG=vX.Y.Z fnm exec --using 24 node scripts/update-release-changelog.js`, commit `CHANGELOG.md`, and push the branch manually.
 
 Pull requests should include:
 
