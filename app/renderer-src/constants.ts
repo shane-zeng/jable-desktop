@@ -1,10 +1,4 @@
-import type {
-  CollectionDefinition,
-  CollectionKey,
-  SearchMode,
-  SortDirection,
-  SortKey
-} from '../types/jable';
+import type { CollectionDefinition, CollectionKey, SearchMode, SortDirection, SortKey } from '../types/jable';
 
 interface ValueOption<T extends string> {
   value: T;
@@ -37,13 +31,6 @@ export const SORT_OPTIONS: ValueOption<SortKey>[] = [
   { value: 'likes' }
 ];
 
-export const SEARCH_MODE_OPTIONS: ValueOption<SearchMode>[] = [
-  { value: 'any' },
-  { value: 'all' },
-  { value: 'phrase' }
-];
+export const SEARCH_MODE_OPTIONS: ValueOption<SearchMode>[] = [{ value: 'any' }, { value: 'all' }, { value: 'phrase' }];
 
-export const DIRECTION_OPTIONS: ValueOption<SortDirection>[] = [
-  { value: 'asc' },
-  { value: 'desc' }
-];
+export const DIRECTION_OPTIONS: ValueOption<SortDirection>[] = [{ value: 'asc' }, { value: 'desc' }];

@@ -315,9 +315,7 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
     });
   }
 
-  var reason = result.stoppedByKnownPage
-    ? i18n.t('status.stoppedByKnownPage')
-    : i18n.t('status.finishedVisiblePages');
+  var reason = result.stoppedByKnownPage ? i18n.t('status.stoppedByKnownPage') : i18n.t('status.finishedVisiblePages');
   return i18n.t('status.quickSyncComplete', {
     collection: collection,
     rows: result.totalRows,
