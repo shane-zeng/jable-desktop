@@ -258,6 +258,8 @@ Unsigned artifacts are currently the default release output. The desktop app use
 
 Pushing a version tag runs `.github/workflows/release.yml`:
 
+Before creating or pushing a version tag, update `CHANGELOG.md`. Every tag must have a dated version section with the release changes, and the changelog update must be committed before the tag points at that release commit. Keep `[Unreleased]` for future work and refresh the compare links at the bottom of the file.
+
 ```sh
 git tag v0.2.0
 git push origin v0.2.0

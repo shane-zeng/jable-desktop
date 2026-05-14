@@ -17,6 +17,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/`: Node test files for database behavior, import/export, sync utilities, i18n, and browser tab policy.
 - `docs/`: user guides, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
+- `CHANGELOG.md`: tracked release history for every version tag.
 - `AGENTS.md`: contributor guidance for future maintenance.
 
 Keep the userscript self-contained. Put desktop-only code under `app/`, renderer tests beside renderer source, and Node tests under `test/`.
@@ -113,6 +114,8 @@ Verify relevant behavior after changes:
 ## Commit & Pull Request Guidelines
 
 Recent commits use short, imperative summaries, for example `Add Jable Favourites Exporter user script`.
+
+Every version tag must have a matching `CHANGELOG.md` entry before the tag is pushed. Move relevant `Unreleased` notes into a dated version section, add compare links at the bottom, and keep the changelog update in the release commit or an earlier commit that is already reachable from the tag.
 
 Pull requests should include:
 
