@@ -91,7 +91,8 @@ function nextActiveTabIdByOffset(tabs, activeTabId, offset) {
   var nextIndex = (activeIndex + offset) % tabs.length;
   if (nextIndex < 0) nextIndex += tabs.length;
 
-  return tabs[nextIndex] ? tabs[nextIndex].id : null;
+  var nextTab = tabs[nextIndex];
+  return nextTab && typeof nextTab.id === 'string' ? nextTab.id : null;
 }
 
 /**

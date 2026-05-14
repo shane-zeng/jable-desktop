@@ -4,14 +4,27 @@ var zhTW = require('./locales/zh-TW.json');
 var enUS = require('./locales/en-US.json');
 var jaJP = require('./locales/ja-JP.json');
 
+/**
+ * @typedef {'zh-TW' | 'en-US' | 'ja-JP'} SupportedLocale
+ * @typedef {Record<string, unknown>} LocaleMessages
+ * @typedef {Record<string, string | number | boolean | null | undefined>} InterpolationParams
+ */
+
+/** @type {SupportedLocale} */
 var DEFAULT_LOCALE = 'zh-TW';
+/** @type {SupportedLocale[]} */
 var SUPPORTED_LOCALES = ['zh-TW', 'en-US', 'ja-JP'];
+/** @type {Record<SupportedLocale, LocaleMessages>} */
 var messages = {
   'zh-TW': zhTW,
   'en-US': enUS,
   'ja-JP': jaJP
 };
 
+/**
+ * @param {unknown} value
+ * @returns {SupportedLocale}
+ */
 function normalizeLocale(value) {
   var locale = String(value || '').toLowerCase();
 
@@ -30,7 +43,13 @@ function normalizeLocale(value) {
   return DEFAULT_LOCALE;
 }
 
+/**
+ * @param {SupportedLocale} locale
+ * @param {string} key
+ * @returns {string | null}
+ */
 function messageAt(locale, key) {
+  /** @type {unknown} */
   var current = messages[locale];
   var parts = String(key || '').split('.');
 
@@ -39,12 +58,17 @@ function messageAt(locale, key) {
       return null;
     }
 
-    current = current[parts[i]];
+    current = /** @type {LocaleMessages} */ (current)[parts[i]];
   }
 
   return typeof current === 'string' ? current : null;
 }
 
+/**
+ * @param {unknown} template
+ * @param {InterpolationParams | null | undefined} params
+ * @returns {string}
+ */
 function interpolate(template, params) {
   params = params || {};
 
@@ -59,10 +83,20 @@ function shouldExposeMissingKeys() {
   return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 }
 
+/**
+ * @param {string} key
+ * @returns {string}
+ */
 function missingKey(key) {
   return shouldExposeMissingKeys() ? '[missing:' + key + ']' : key;
 }
 
+/**
+ * @param {unknown} locale
+ * @param {string} key
+ * @param {InterpolationParams | null | undefined} [params]
+ * @returns {string}
+ */
 function t(locale, key, params) {
   var normalized = normalizeLocale(locale);
   var message = messageAt(normalized, key) || messageAt(DEFAULT_LOCALE, key) || missingKey(key);

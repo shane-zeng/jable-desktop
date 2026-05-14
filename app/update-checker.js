@@ -4,6 +4,27 @@
 var LATEST_RELEASE_API_URL = 'https://api.github.com/repos/shane-zeng/jable-favourites-exporter/releases/latest';
 var USER_AGENT = 'Jable-Desktop';
 
+/**
+ * @typedef {[number, number, number]} ParsedVersion
+ * @typedef {object} GitHubRelease
+ * @property {unknown} [tag_name]
+ * @property {unknown} [name]
+ * @property {unknown} [html_url]
+ * @property {unknown} [draft]
+ * @property {unknown} [prerelease]
+ * @typedef {object} ReleaseResponse
+ * @property {boolean} [ok]
+ * @property {number} [status]
+ * @property {() => Promise<unknown>} json
+ * @typedef {object} CheckLatestReleaseOptions
+ * @property {string} [currentVersion]
+ * @property {(url: string, init: { headers: Record<string, string> }) => Promise<ReleaseResponse>} [fetch]
+ */
+
+/**
+ * @param {unknown} value
+ * @returns {ParsedVersion | null}
+ */
 function parseVersion(value) {
   var match = String(value || '')
     .trim()
@@ -14,6 +35,11 @@ function parseVersion(value) {
   return [parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10)];
 }
 
+/**
+ * @param {ParsedVersion} left
+ * @param {ParsedVersion} right
+ * @returns {number}
+ */
 function compareParsedVersions(left, right) {
   for (var i = 0; i < 3; i++) {
     if (left[i] > right[i]) return 1;
@@ -23,10 +49,18 @@ function compareParsedVersions(left, right) {
   return 0;
 }
 
+/**
+ * @param {ParsedVersion} parsed
+ * @returns {string}
+ */
 function versionLabel(parsed) {
   return parsed.join('.');
 }
 
+/**
+ * @param {GitHubRelease | null | undefined} release
+ * @returns {ParsedVersion | null}
+ */
 function releaseVersion(release) {
   var candidates = [release && release.tag_name, release && release.name];
 
@@ -38,10 +72,18 @@ function releaseVersion(release) {
   return null;
 }
 
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * @param {unknown} currentVersion
+ * @param {unknown} release
+ */
 function evaluateReleaseUpdate(currentVersion, release) {
   var current = parseVersion(currentVersion);
 
@@ -61,7 +103,9 @@ function evaluateReleaseUpdate(currentVersion, release) {
     };
   }
 
-  if (release.draft || release.prerelease) {
+  var releaseInfo = /** @type {GitHubRelease} */ (release);
+
+  if (releaseInfo.draft || releaseInfo.prerelease) {
     return {
       available: false,
       currentVersion: versionLabel(current),
@@ -69,7 +113,7 @@ function evaluateReleaseUpdate(currentVersion, release) {
     };
   }
 
-  var latest = releaseVersion(release);
+  var latest = releaseVersion(releaseInfo);
 
   if (!latest) {
     return {
@@ -79,7 +123,7 @@ function evaluateReleaseUpdate(currentVersion, release) {
     };
   }
 
-  if (!release.html_url) {
+  if (!releaseInfo.html_url) {
     return {
       available: false,
       currentVersion: versionLabel(current),
@@ -101,16 +145,19 @@ function evaluateReleaseUpdate(currentVersion, release) {
     available: true,
     currentVersion: versionLabel(current),
     latestVersion: versionLabel(latest),
-    releaseUrl: String(release.html_url),
+    releaseUrl: String(releaseInfo.html_url),
     reason: 'newer-release'
   };
 }
 
+/**
+ * @param {CheckLatestReleaseOptions | null | undefined} options
+ */
 async function checkLatestRelease(options) {
   options = options || {};
 
   try {
-    var fetchImpl = options.fetch || globalThis.fetch;
+    var fetchImpl = /** @type {CheckLatestReleaseOptions['fetch']} */ (options.fetch || globalThis.fetch);
     if (typeof fetchImpl !== 'function') throw new Error('fetch is not available');
 
     var response = await fetchImpl(LATEST_RELEASE_API_URL, {
