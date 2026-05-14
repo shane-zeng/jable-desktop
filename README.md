@@ -1,250 +1,268 @@
 # Jable Desktop
 
-Unofficial desktop app for syncing, browsing, importing, and exporting your Jable favourites and watch-later lists.
+Unofficial Electron desktop app for syncing, browsing, searching, importing, and exporting Jable favourites and watch-later lists with local-first storage.
 
 - [繁體中文](#繁體中文)
 - [English](#english)
 
 ---
 
-## 繁體中文
+# 繁體中文
 
-Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會在 App 內開啟 Jable，將「影片收藏」與「稍後觀看」同步到你的電腦本機，方便瀏覽、排序、匯入與匯出備份。
+Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。
 
-### 主要功能
+它會在 App 內開啟 Jable，將「影片收藏」與「稍後觀看」同步到你的電腦本機，方便瀏覽、搜尋、排序、匯入與匯出備份。
 
-- 同步 **影片收藏** 與 **稍後觀看**。
-- 使用支援分頁、緊湊浮動模式、可拖曳調整的分頁列與右鍵選單的內嵌瀏覽器登入 Jable，並在本機保存登入所需資料。
-- 將同步資料儲存在你的電腦本機。
-- 依 Jable 網頁順序顯示本機清單。
-- 提供快速同步與完整同步。
-- 支援 JSON 匯入與匯出。
+## 功能特色
 
-### 安裝
+- 同步「影片收藏」與「稍後觀看」
+- 內建多分頁嵌入式瀏覽器
+- 本機 SQLite 儲存
+- 快速同步與完整同步模式
+- SQLite FTS5 本機全文搜尋
+- JSON 匯入與匯出
+- 支援 macOS 與 Windows
 
-1. 到 [GitHub Releases](https://github.com/shane-zeng/jable-desktop/releases) 下載最新版本。
-2. macOS 使用者下載 `.dmg` 或 `.zip`。
-3. Windows 使用者下載 `.exe` 安裝檔或 `.zip`。
-4. 開啟 **Jable Desktop**。
+## 技術亮點
 
-目前發佈檔尚未做正式簽章。macOS 可能出現 Gatekeeper 提示，Windows 可能出現 SmartScreen 提示；請確認檔案來源是本專案的 GitHub Release。
+- Electron 桌面應用架構
+- Vue 3 + TypeScript renderer
+- SQLite 持久化儲存與 FTS5 全文搜尋
+- Incremental sync 與 full reconciliation sync 設計
+- Embedded browser session persistence
+- Shared IPC wire types
+- GitHub Actions 自動化 lint、typecheck、test 與 release packaging
 
-### 第一次使用
+## 架構概覽
 
-1. 在 **瀏覽器** 頁籤登入 Jable。
-2. 切到 **本機資料** 頁籤。
-3. 選擇 **影片收藏** 或 **稍後觀看**。
-4. 點擊 **快速同步**。
-5. 同步完成後，影片會出現在本機清單中。
+Jable Desktop 採用 embedded browser 設計，而非依賴非官方 API。
 
-### 快捷鍵與滑鼠操作
+使用者登入與瀏覽行為仍直接與 Jable 官方網站互動；App 本身負責同步網站清單資料到本機 SQLite，並提供本機搜尋、排序、備份與還原功能。
 
-下列是已支援的鍵盤快捷鍵、滑鼠、觸控板操作與右鍵選單。
+系統主要分為：
 
-#### 瀏覽器
+- Electron main process
+- Embedded browser / webview layer
+- Vue renderer UI
+- SQLite persistence layer
+- Sync / scraping pipeline
 
-| 操作                          | 效果                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------ |
-| macOS：`Cmd` + `T`            | 開啟新的 Jable 分頁並切換到該分頁                                              |
-| macOS：`Cmd` + `W`            | 關閉目前瀏覽器分頁；同步中的分頁不能關閉                                       |
-| macOS：`Cmd` + `S`            | 切換分頁緊湊模式                                                               |
-| Windows / Linux：`Ctrl` + `T` | 開啟新的 Jable 分頁並切換到該分頁                                              |
-| Windows / Linux：`Ctrl` + `W` | 關閉目前瀏覽器分頁；同步中的分頁不能關閉                                       |
-| Windows / Linux：`Ctrl` + `S` | 切換分頁緊湊模式                                                               |
-| 點擊分頁                      | 切換到該分頁                                                                   |
-| 點擊 **+ 新增分頁**           | 開啟新的 Jable 分頁並切換到該分頁                                              |
-| 點擊分頁上的 **×**            | 關閉該分頁；同步中的分頁不能關閉                                               |
-| 右鍵點擊分頁或分頁列          | 開啟分頁選單，可新增分頁、切換分頁、重新整理、複製網址、切換緊湊模式或關閉分頁 |
-| 滑鼠中鍵點擊網頁連結          | 在背景新分頁開啟連結，並留在目前分頁                                           |
-| 右鍵點擊網頁連結              | 可在背景新分頁開啟連結或複製連結網址                                           |
-| 右鍵點擊圖片、影片或音訊      | 可在背景新分頁開啟媒體或複製媒體網址                                           |
-| 右鍵點擊選取文字              | 可複製選取文字                                                                 |
-| 右鍵點擊一般網頁區域          | 可上一頁、下一頁、重新整理、新增分頁或複製目前頁面網址                         |
-| 右鍵點擊輸入框                | 可復原、重做、剪下、複製、貼上或全選                                           |
-| 觸控板左右滑動                | 返回上一頁或前往下一頁                                                         |
-| 拖曳分頁列邊界                | 調整分頁列寬度                                                                 |
-| 雙擊分頁列邊界                | 重設分頁列寬度                                                                 |
-| 緊湊模式下移到左側邊緣        | 顯示浮動分頁列                                                                 |
+## 本機搜尋
 
-#### 本機資料
+本機搜尋使用 SQLite FTS5。
 
-| 操作                                     | 效果                                                   |
-| ---------------------------------------- | ------------------------------------------------------ |
-| 點擊封面或標題                           | 在目前瀏覽器分頁開啟影片                               |
-| 滑鼠中鍵點擊封面或標題                   | 在新分頁開啟影片並切換到瀏覽器新分頁                   |
-| macOS：`Cmd` + 點擊封面或標題            | 在新分頁開啟影片並切換到瀏覽器新分頁                   |
-| Windows / Linux：`Ctrl` + 點擊封面或標題 | 在新分頁開啟影片並切換到瀏覽器新分頁                   |
-| macOS：`Ctrl` + 點擊影片卡片             | 視為右鍵點擊，開啟影片選單                             |
-| 右鍵點擊影片卡片                         | 開啟影片選單，可在目前分頁開啟、在新分頁開啟或複製網址 |
+App 會從影片標題與 URL 建立正規化搜尋索引，支援：
 
-本機搜尋會搜尋標題與 URL，並支援三種搜尋模式：
+- 中文與日文搜尋
+- punctuation-normalized phrase matching
+- URL fragment 搜尋
+- any / all / phrase 搜尋模式
 
-- **任一詞**：預設模式。以空白分隔關鍵字，命中任一關鍵字就會顯示。例如 `絕倫 老師` 會顯示包含 `絕倫` 或 `老師` 的項目。
-- **全部詞**：以空白分隔關鍵字，必須全部命中才會顯示。例如 `絕倫 老師` 只會顯示同時包含 `絕倫` 和 `老師` 的項目。
-- **精確片語**：以整段輸入搜尋連續片段，會正規化標點與空白。例如 `絕倫 老師` 可命中 `絕倫 老師` 或 `絕倫老師`，但不會命中 `絕倫 かわいい 老師`。
+同步完成後，可直接在本機進行快速搜尋與排序，而不需重新載入網站清單。
 
-搜尋只負責篩選結果；結果順序仍由右側的排序欄位與排序方向決定。
+## 同步模式
 
-### 同步模式
+### 快速同步
 
-- **快速同步**：從 Jable 清單第 1 頁開始，遇到整頁都是已知影片後停止。它只會更新本次掃到影片的觀看數、喜歡數與網站排序。
-- **完整同步**：從第 1 頁跑到最後一頁，更新所有仍在網站上的影片，重建完整網站排序，並把網站上已不存在的本機項目標記為隱藏。
-- 同步會在瀏覽器內自動開啟同步分頁。同步分頁執行期間不能關閉，但你可以切換到其他分頁繼續瀏覽。
-- 完整同步每批最多處理 100 頁。若資料很多，App 會暫停並顯示 **繼續完整同步**；已掃到的資料會先寫入，但未完整完成前不會隱藏舊資料。
+- 從第 1 頁開始同步
+- 若整頁資料都已存在則停止
+- 適合日常增量更新
 
-### 匯入與匯出
+### 完整同步
 
-- 點擊 **匯出 JSON** 可將目前清單備份成 JSON。
-- 點擊 **匯入 JSON** 可載入先前匯出的 JSON。
-- 桌面 App 匯出的 JSON 會包含 `site_order`，用來保留 Jable 網頁排序。
-- 舊版 Tampermonkey userscript 匯出的 JSON 也可以匯入。
+- 從第 1 頁同步到最後一頁
+- 重建完整網站排序
+- 更新所有仍存在於網站上的影片
+- 隱藏網站上已不存在的本機資料
 
-### 資料與登入狀態
+完整同步會以批次方式執行，大型清單可中途暫停後繼續。
 
-同步資料會儲存在你的電腦本機。App 不會把你的清單上傳到其他服務；你在內嵌瀏覽器中的登入與瀏覽仍會直接與 Jable 官方網站互動。
+## 安裝
 
-App 會保存 Jable 的本機登入資料，所以一般重開 App 後仍可維持登入。若你在其他瀏覽器或裝置登入，或 Jable 讓伺服器端 session 過期，仍可能需要重新登入。
+1. 到 GitHub Releases 下載最新版本
+2. macOS 使用 `.dmg` 或 `.zip`
+3. Windows 使用 `.exe` 或 `.zip`
+4. 開啟 Jable Desktop
 
-### 常見問題
+目前 release 尚未進行正式簽章：
 
-**同步後沒有資料**
+- macOS 可能出現 Gatekeeper 提示
+- Windows 可能出現 SmartScreen 提示
 
-確認內嵌瀏覽器已登入 Jable，再到 **本機資料** 選擇 **影片收藏** 或 **稍後觀看** 後同步。
+請確認檔案來源為本專案 GitHub Releases。
 
-**重新開啟後需要重新登入**
+## 第一次使用
 
-這通常代表 Jable 官方 session 已失效。請重新登入後再同步；桌面 App 不會繞過 Jable 的官方 session 檢查。
+1. 在內建瀏覽器登入 Jable
+2. 切換到「本機資料」
+3. 選擇「影片收藏」或「稍後觀看」
+4. 點擊「快速同步」
+5. 同步完成後即可在本機瀏覽資料
 
-**我只想用瀏覽器匯出**
+## 匯入與匯出
 
-可以使用 `jable-favourites-exporter.user.js` 搭配 Tampermonkey。桌面 App 則適合需要長期同步、瀏覽與備份的人。
+- 支援 JSON 匯出備份
+- 支援 JSON 匯入還原
+- 保留網站排序資訊 (`site_order`)
+- 相容舊版 Tampermonkey userscript 匯出格式
 
-### 開發文件
+## 資料與登入狀態
 
-開發、測試、打包與 release 流程請看 [docs/development.md](docs/development.md)。
+同步資料儲存在使用者本機電腦。
 
-### 授權
+App 不會將你的清單上傳到其他服務；登入與瀏覽仍直接與 Jable 官方網站互動。
 
-MIT。詳見 [LICENSE](LICENSE)。
+Jable 的登入狀態會保存在隔離的 Electron session partition 中，但若 Jable 官方 session 過期，仍可能需要重新登入。
+
+## 開發文件
+
+詳細開發文件請參考：
+
+- `docs/development.md`
+
+內容包含：
+
+- 系統架構
+- SQLite schema 與 migration
+- 搜尋架構
+- Sync pipeline
+- Electron process 設計
+- Packaging 與 release workflow
+- 測試與 validation checklist
+
+## 授權
+
+MIT License。
+
+詳見 `LICENSE`。
 
 ---
 
-## English
+# English
 
-Jable Desktop is an unofficial desktop tool and is not affiliated with Jable. It opens Jable inside the app and syncs your favourites and watch-later lists to your computer, so you can browse, sort, import, and export backups.
+Jable Desktop is an unofficial desktop tool and is not affiliated with Jable.
 
-### Features
+It opens Jable inside the app and syncs favourites and watch-later lists into local storage for browsing, searching, sorting, importing, and exporting backups.
 
-- Sync **Favourites** and **Watch Later**.
-- Sign in through the tabbed embedded browser with compact floating mode, a resizable tab rail, and context menus, and keep local login data.
-- Store synced data locally on your computer.
-- Display local lists in the same order as Jable.
-- Choose between quick sync and full sync.
-- Import and export JSON backups.
+## Features
 
-### Installation
+- Sync favourites and watch-later lists
+- Embedded multi-tab browser
+- Local SQLite storage
+- Quick sync and full sync modes
+- SQLite FTS5 local search
+- JSON import/export
+- macOS and Windows support
 
-1. Download the latest build from [GitHub Releases](https://github.com/shane-zeng/jable-desktop/releases).
-2. On macOS, download the `.dmg` or `.zip`.
-3. On Windows, download the `.exe` installer or `.zip`.
-4. Open **Jable Desktop**.
+## Technical Highlights
 
-Current release artifacts are not formally signed. macOS may show a Gatekeeper warning, and Windows may show a SmartScreen warning; make sure the file came from this project's GitHub Release.
+- Electron desktop architecture
+- Vue 3 + TypeScript renderer
+- SQLite persistence with FTS5 full-text search
+- Incremental sync and full reconciliation sync workflows
+- Embedded browser session persistence
+- Shared IPC wire types
+- GitHub Actions quality gates for linting, type-checking, testing, and release packaging
 
-### First Use
+## Architecture Overview
 
-1. Sign in to Jable in the **瀏覽器** (Browser) tab.
-2. Switch to the **本機資料** (Local Data) tab.
-3. Choose **Favourites** or **Watch Later**.
-4. Click **快速同步** (Quick Sync).
-5. After syncing finishes, videos appear in the local list.
+Jable Desktop uses an embedded browser architecture instead of unofficial APIs.
 
-### Shortcuts And Mouse Actions
+Sign-in and browsing continue communicating directly with the official Jable website while the app synchronizes list data into a local SQLite database for local browsing, search, sorting, backup, and restore workflows.
 
-The actions below are the supported keyboard shortcuts, mouse actions, trackpad gestures, and context-menu operations.
+The application is mainly separated into:
 
-#### Browser
+- Electron main process
+- Embedded browser / webview layer
+- Vue renderer UI
+- SQLite persistence layer
+- Sync / scraping pipeline
 
-| Action                                        | Result                                                                                           |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| macOS: `Cmd` + `T`                            | Open a new Jable tab and switch to it                                                            |
-| macOS: `Cmd` + `W`                            | Close the current browser tab; sync tabs cannot be closed                                        |
-| macOS: `Cmd` + `S`                            | Toggle compact tab mode                                                                          |
-| Windows / Linux: `Ctrl` + `T`                 | Open a new Jable tab and switch to it                                                            |
-| Windows / Linux: `Ctrl` + `W`                 | Close the current browser tab; sync tabs cannot be closed                                        |
-| Windows / Linux: `Ctrl` + `S`                 | Toggle compact tab mode                                                                          |
-| Click a tab                                   | Switch to that tab                                                                               |
-| Click **+ 新增分頁** (New Tab)                | Open a new Jable tab and switch to it                                                            |
-| Click **×** on a tab                          | Close that tab; sync tabs cannot be closed                                                       |
-| Right-click a tab or the tab rail             | Open the tab menu to create, switch, reload, copy the URL, toggle compact mode, or close the tab |
-| Middle-click a page link                      | Open the link in a background tab and stay on the current tab                                    |
-| Right-click a page link                       | Open the link in a background tab or copy the link URL                                           |
-| Right-click an image, video, or audio item    | Open the media in a background tab or copy the media URL                                         |
-| Right-click selected text                     | Copy the selected text                                                                           |
-| Right-click a regular page area               | Go back, go forward, reload, create a new tab, or copy the current page URL                      |
-| Right-click an input field                    | Undo, redo, cut, copy, paste, or select all                                                      |
-| Swipe left or right on a trackpad             | Go back or forward                                                                               |
-| Drag the tab rail edge                        | Resize the tab rail                                                                              |
-| Double-click the tab rail edge                | Reset the tab rail width                                                                         |
-| In compact mode, move to the left screen edge | Show the floating tab rail                                                                       |
+## Local Search
 
-#### Local Data
+Local search is powered by SQLite FTS5.
 
-| Action                                           | Result                                                                             |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| Click a cover or title                           | Open the video in the current browser tab                                          |
-| Middle-click a cover or title                    | Open the video in a new browser tab and switch to it                               |
-| macOS: `Cmd` + click a cover or title            | Open the video in a new browser tab and switch to it                               |
-| Windows / Linux: `Ctrl` + click a cover or title | Open the video in a new browser tab and switch to it                               |
-| macOS: `Ctrl` + click a video card               | Treat as right-click and open the video menu                                       |
-| Right-click a video card                         | Open the video menu to open in the current tab, open in a new tab, or copy the URL |
+The app generates normalized search indexes from titles and URLs and supports:
 
-Local search checks titles and URLs and supports three modes:
+- CJK-compatible search
+- punctuation-normalized phrase matching
+- URL fragment search
+- any / all / phrase search modes
 
-- **任一詞** (Any Term): the default. Split keywords on spaces and show items that match any keyword. For example, `絕倫 老師` shows items containing `絕倫` or `老師`.
-- **全部詞** (All Terms): split keywords on spaces and only show items that match every keyword. For example, `絕倫 老師` only shows items containing both `絕倫` and `老師`.
-- **精確片語** (Exact Phrase): search the input as one continuous phrase, with punctuation and spaces normalized. For example, `絕倫 老師` can match `絕倫 老師` or `絕倫老師`, but not `絕倫 かわいい 老師`.
+After syncing, videos can be searched and sorted locally without repeatedly loading website pages.
 
-Search only filters the list; result order is still controlled by the sort field and sort direction on the right.
+## Sync Modes
 
-### Sync Modes
+### Quick Sync
 
-- **Quick Sync** starts from page 1 and stops once it reaches a page where every video is already known. It only updates views, likes, and site order for videos scanned in that run.
-- **Full Sync** runs from page 1 to the final page, updates every video still present on Jable, rebuilds the full site order, and hides local items that no longer appear on the site.
-- Syncs run in an automatically opened browser tab. The sync tab cannot be closed while it is running, but you can switch to other tabs and keep browsing.
-- Full sync processes up to 100 pages per batch. For large lists, the app pauses and shows **繼續完整同步** (Continue Full Sync); scanned data is saved immediately, but old items are not hidden until full sync completes.
+- Starts from page 1
+- Stops once an entire page is already known
+- Designed for incremental updates
 
-### Import And Export
+### Full Sync
 
-- Click **匯出 JSON** (Export JSON) to back up the current list as JSON.
-- Click **匯入 JSON** (Import JSON) to load a previously exported JSON file.
-- JSON exported by the desktop app includes `site_order` to preserve the Jable site order.
-- JSON files exported by the older Tampermonkey userscript can also be imported.
+- Runs from page 1 to the final page
+- Rebuilds complete site ordering
+- Updates all visible videos
+- Hides local rows no longer present on the website
 
-### Data And Login State
+Large lists are processed in batches and can be resumed later.
 
-Synced data is stored locally on your computer. The app does not upload your lists to another service; sign-in and browsing inside the embedded browser still communicate directly with Jable's website.
+## Installation
 
-The app keeps Jable's local login data, so reopening the app should normally keep you signed in. If you sign in from another browser or device, or if Jable expires the server-side session, you may still need to sign in again.
+1. Download the latest release from GitHub Releases
+2. macOS users: download `.dmg` or `.zip`
+3. Windows users: download `.exe` or `.zip`
+4. Open Jable Desktop
 
-### Troubleshooting
+Current releases are unsigned:
 
-**No videos appear after syncing**
+- macOS may show a Gatekeeper warning
+- Windows may show a SmartScreen warning
 
-Make sure the embedded browser is signed in to Jable, then choose **Favourites** or **Watch Later** in **本機資料** (Local Data) and sync again.
+Please verify the download source is this project's GitHub Releases.
 
-**The app asks me to sign in again after reopening**
+## First Use
 
-This usually means Jable's official session has expired. Sign in again before syncing; the desktop app does not bypass Jable's official session checks.
+1. Sign in to Jable inside the embedded browser
+2. Open the Local Data tab
+3. Choose Favourites or Watch Later
+4. Click Quick Sync
+5. Synced videos will appear in the local list
 
-**I only want to export from the browser**
+## Import And Export
 
-You can still use `jable-favourites-exporter.user.js` with Tampermonkey. The desktop app is better for ongoing sync, browsing, and backups.
+- Export JSON backups
+- Import JSON backups
+- Preserve `site_order`
+- Compatible with legacy Tampermonkey export files
 
-### Development Docs
+## Data And Login State
 
-For development, testing, packaging, and release details, see [docs/development.md](docs/development.md).
+Synced data is stored locally on the user's computer.
 
-### License
+The app does not upload list data to external services. Browsing and sign-in continue communicating directly with the official Jable website.
 
-MIT. See [LICENSE](LICENSE).
+Login state is stored inside an isolated Electron session partition, but users may still need to sign in again if the official Jable session expires.
+
+## Development Docs
+
+See:
+
+- `docs/development.md`
+
+Development notes include:
+
+- Architecture overview
+- SQLite schema and migrations
+- Search architecture
+- Sync pipeline
+- Electron process design
+- Packaging and release workflow
+- Testing and validation checklist
+
+## License
+
+MIT License.
+
+See `LICENSE`.
