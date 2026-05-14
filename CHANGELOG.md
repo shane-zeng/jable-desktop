@@ -6,7 +6,11 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.7.3] - 2026-05-15
+
 ### Added
+
+
 
 - Add release workflow automation that commits `CHANGELOG.md` after a draft GitHub release is created.
 - Add a changelog update script for release tags.
@@ -155,7 +159,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.3...HEAD
+[v0.7.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.2...v0.7.3
 [v0.7.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.6.2...v0.7.0
 [v0.6.2]: https://github.com/shane-zeng/jable-desktop/compare/v0.6.1...v0.6.2
