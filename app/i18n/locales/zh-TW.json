@@ -117,13 +117,25 @@
   "toast": {
     "close": "關閉通知"
   },
+  "updates": {
+    "availableTitle": "發現新版",
+    "availableMessage": "目前版本 {currentVersion}，最新版本 {latestVersion}。請從 GitHub Releases 下載新版。",
+    "openDownloadPage": "開啟下載頁",
+    "later": "稍後",
+    "noUpdateTitle": "已是最新版",
+    "noUpdateMessage": "目前版本 {currentVersion} 已是最新版。",
+    "failedTitle": "檢查更新失敗",
+    "failedMessage": "無法檢查更新：{error}"
+  },
   "menu": {
     "file": "檔案",
     "edit": "編輯",
     "view": "檢視",
     "window": "視窗",
+    "help": "說明",
     "newTab": "新增分頁",
-    "closeTab": "關閉分頁"
+    "closeTab": "關閉分頁",
+    "checkForUpdates": "檢查更新…"
   },
   "context": {
     "openLinkInBackground": "在背景新分頁開啟連結",

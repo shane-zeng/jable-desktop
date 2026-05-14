@@ -117,13 +117,25 @@
   "toast": {
     "close": "通知を閉じる"
   },
+  "updates": {
+    "availableTitle": "新しいバージョンがあります",
+    "availableMessage": "現在のバージョンは {currentVersion} です。{latestVersion} を GitHub Releases からダウンロードできます。",
+    "openDownloadPage": "ダウンロードページを開く",
+    "later": "後で",
+    "noUpdateTitle": "最新版です",
+    "noUpdateMessage": "現在のバージョン {currentVersion} は最新版です。",
+    "failedTitle": "更新の確認に失敗しました",
+    "failedMessage": "更新を確認できませんでした: {error}"
+  },
   "menu": {
     "file": "ファイル",
     "edit": "編集",
     "view": "表示",
     "window": "ウィンドウ",
+    "help": "ヘルプ",
     "newTab": "新しいタブ",
-    "closeTab": "タブを閉じる"
+    "closeTab": "タブを閉じる",
+    "checkForUpdates": "更新を確認..."
   },
   "context": {
     "openLinkInBackground": "リンクをバックグラウンドタブで開く",

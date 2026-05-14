@@ -5,6 +5,7 @@ var path = require('node:path');
 var browserTabPolicy = require('./browser-tab-policy');
 var databaseModule = require('./database');
 var i18n = require('./i18n');
+var updateChecker = require('./update-checker');
 var JableDatabase = databaseModule.JableDatabase;
 var COLLECTIONS = databaseModule.COLLECTIONS;
 
@@ -15,6 +16,7 @@ var ipcMain = electron.ipcMain;
 var Menu = electron.Menu;
 var clipboard = electron.clipboard;
 var dialog = electron.dialog;
+var shell = electron.shell;
 var browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
 var browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
 var nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
@@ -24,6 +26,7 @@ var serializedMediaState = browserTabPolicy.serializedMediaState;
 var JABLE_HOME_URL = 'https://jable.tv/';
 var JABLE_SESSION_PARTITION = 'persist:jable-session';
 var MAX_BROWSER_TABS = 14;
+var BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 var IS_MACOS = process.platform === 'darwin';
 var NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 var CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -40,9 +43,15 @@ var database = null;
 var databasePath = null;
 var lastShortcutAction = { name: '', at: 0 };
 var currentLocale = i18n.DEFAULT_LOCALE;
+var updateCheckInFlight = null;
+var lastBackgroundUpdateVersion = null;
 
 function t(key, params) {
   return i18n.t(currentLocale, key, params);
+}
+
+function mainErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function setCurrentLocale(locale) {
@@ -296,6 +305,16 @@ function installApplicationMenu() {
     }
   );
 
+  template.push({
+    label: t('menu.help'),
+    submenu: [
+      {
+        label: t('menu.checkForUpdates'),
+        click: checkForUpdatesFromMenu
+      }
+    ]
+  });
+
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
@@ -306,6 +325,107 @@ function loadRenderer() {
   }
 
   mainWindow.loadFile(path.join(__dirname, 'renderer-dist', 'index.html'));
+}
+
+function showAppDialog(options) {
+  if (mainWindow && !mainWindow.isDestroyed()) return dialog.showMessageBox(mainWindow, options);
+  return dialog.showMessageBox(options);
+}
+
+function showUpdateAvailableDialog(result, manual) {
+  if (!manual && result.latestVersion === lastBackgroundUpdateVersion) return Promise.resolve(result);
+  if (!manual) lastBackgroundUpdateVersion = result.latestVersion;
+
+  return showAppDialog({
+    type: 'info',
+    buttons: [t('updates.openDownloadPage'), t('updates.later')],
+    defaultId: 0,
+    cancelId: 1,
+    title: t('updates.availableTitle'),
+    message: t('updates.availableMessage', {
+      currentVersion: result.currentVersion,
+      latestVersion: result.latestVersion
+    })
+  }).then(function (dialogResult) {
+    if (dialogResult.response !== 0 || !result.releaseUrl) return result;
+
+    return shell.openExternal(result.releaseUrl).then(function () {
+      return result;
+    });
+  });
+}
+
+function showNoUpdateDialog(result) {
+  return showAppDialog({
+    type: 'info',
+    buttons: ['OK'],
+    defaultId: 0,
+    title: t('updates.noUpdateTitle'),
+    message: t('updates.noUpdateMessage', {
+      currentVersion: result.currentVersion || app.getVersion()
+    })
+  }).then(function () {
+    return result;
+  });
+}
+
+function showUpdateFailedDialog(result) {
+  return showAppDialog({
+    type: 'warning',
+    buttons: ['OK'],
+    defaultId: 0,
+    title: t('updates.failedTitle'),
+    message: t('updates.failedMessage', {
+      error: result.error || t('status.unknownError')
+    })
+  }).then(function () {
+    return result;
+  });
+}
+
+function displayUpdateCheckResult(result, manual) {
+  if (result.available) return showUpdateAvailableDialog(result, manual);
+  if (!manual) return Promise.resolve(result);
+  if (result.error) return showUpdateFailedDialog(result);
+  return showNoUpdateDialog(result);
+}
+
+function fetchUpdateCheck() {
+  if (updateCheckInFlight) return updateCheckInFlight;
+
+  updateCheckInFlight = updateChecker
+    .checkLatestRelease({
+      currentVersion: app.getVersion()
+    })
+    .finally(function () {
+      updateCheckInFlight = null;
+    });
+
+  return updateCheckInFlight;
+}
+
+function checkForUpdates(options) {
+  options = options || {};
+
+  return fetchUpdateCheck().then(function (result) {
+    return displayUpdateCheckResult(result, !!options.manual);
+  });
+}
+
+function checkForUpdatesFromMenu() {
+  checkForUpdates({ manual: true }).catch(function (error) {
+    showUpdateFailedDialog({
+      error: mainErrorMessage(error)
+    }).catch(function () {});
+  });
+}
+
+function scheduleBackgroundUpdateCheck() {
+  if (!app.isPackaged) return;
+
+  setTimeout(function () {
+    checkForUpdates({ manual: false }).catch(function () {});
+  }, BACKGROUND_UPDATE_CHECK_DELAY_MS);
 }
 
 function createBrowserTab(options) {
@@ -1417,6 +1537,7 @@ app.whenReady().then(function () {
 
   getDatabase();
   createWindow();
+  scheduleBackgroundUpdateCheck();
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

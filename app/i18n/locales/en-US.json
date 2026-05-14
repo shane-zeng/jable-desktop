@@ -117,13 +117,25 @@
   "toast": {
     "close": "Close notification"
   },
+  "updates": {
+    "availableTitle": "Update Available",
+    "availableMessage": "You are running {currentVersion}. Version {latestVersion} is available. Download the new version from GitHub Releases.",
+    "openDownloadPage": "Open Download Page",
+    "later": "Later",
+    "noUpdateTitle": "You're Up to Date",
+    "noUpdateMessage": "Version {currentVersion} is the latest version.",
+    "failedTitle": "Update Check Failed",
+    "failedMessage": "Could not check for updates: {error}"
+  },
   "menu": {
     "file": "File",
     "edit": "Edit",
     "view": "View",
     "window": "Window",
+    "help": "Help",
     "newTab": "New Tab",
-    "closeTab": "Close Tab"
+    "closeTab": "Close Tab",
+    "checkForUpdates": "Check for Updates..."
   },
   "context": {
     "openLinkInBackground": "Open Link in Background Tab",
