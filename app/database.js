@@ -1,8 +1,38 @@
+// @ts-check
 'use strict';
+
+/**
+ * @typedef {import('node:sqlite').DatabaseSync} DatabaseSyncInstance
+ * @typedef {import('node:sqlite').SQLInputValue} SQLInputValue
+ * @typedef {import('./types/jable').CollectionKey} CollectionKey
+ * @typedef {import('./types/jable').ExportPage} ExportPage
+ * @typedef {import('./types/jable').ExportResource} ExportResource
+ * @typedef {import('./types/jable').ExportVideoRow} ExportVideoRow
+ * @typedef {import('./types/jable').ListVideosOptions} ListVideosOptions
+ * @typedef {import('./types/jable').SearchMode} SearchMode
+ * @typedef {import('./types/jable').SyncState} SyncState
+ * @typedef {import('./types/jable').VideoRow} VideoRow
+ * @typedef {{ key: CollectionKey, name: string, sourcePath: string }} DatabaseCollection
+ * @typedef {{ [key: string]: unknown, url?: unknown, title?: unknown, views?: unknown, likes?: unknown, img?: unknown, preview?: unknown, siteOrder?: unknown, site_order?: unknown, sort_order?: unknown }} VideoInput
+ * @typedef {{ url: string, title: string | null, views: number | null, likes: number | null, img: string | null, preview: string | null, siteOrder: number | null, searchText: string }} NormalizedVideo
+ * @typedef {{ data?: unknown[], meta?: { completed?: unknown, last_scraped_page?: unknown } }} ImportResource
+ * @typedef {{ collectionKey: CollectionKey, page?: unknown, syncRunId?: unknown, rows?: unknown[] }} SaveSyncPagePayload
+ * @typedef {VideoInput & { collectionKey?: CollectionKey, action?: unknown, video?: VideoInput }} CollectionTogglePayload
+ * @typedef {{ completed?: unknown, lastScrapedPage?: unknown, lastKnownUrl?: unknown, mode?: unknown, syncRunId?: unknown }} SyncResultInput
+ * @typedef {{ collectionKey: CollectionKey, mode?: unknown, syncRunId?: unknown, result?: SyncResultInput }} FinishSyncInput
+ * @typedef {Partial<ListVideosOptions> & { sort?: ListVideosOptions['sort'] | 'updated_at' | 'last_seen_at' }} DatabaseListOptions
+ * @typedef {{ joins: string[], params: SQLInputValue[], where: string, orderBy: string }} VideoListQuery
+ * @typedef {{ name: string }} NameRow
+ * @typedef {{ total: number }} CountRow
+ * @typedef {{ video_url: string }} VideoUrlRow
+ * @typedef {{ title: string | null, url: string, search_text?: string | null }} VideoSearchRow
+ * @typedef {{ name: string }} TableColumnRow
+ */
 
 var fs = require('node:fs');
 var path = require('node:path');
 
+/** @type {typeof import('node:sqlite').DatabaseSync} */
 var DatabaseSync;
 try {
   DatabaseSync = require('node:sqlite').DatabaseSync;
@@ -14,6 +44,7 @@ var PAGE_SIZE = 24;
 var EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
 var SEARCH_NGRAM_MAX = 3;
 
+/** @type {DatabaseCollection[]} */
 var COLLECTIONS = [
   { key: 'favourites', name: '影片收藏', sourcePath: '/my/favourites/videos/' },
   { key: 'watch_later', name: '稍後觀看', sourcePath: '/my/favourites/videos-watch-later/' }
@@ -23,6 +54,10 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/**
+ * @param {unknown} key
+ * @returns {DatabaseCollection | null}
+ */
 function collectionByKey(key) {
   for (var i = 0; i < COLLECTIONS.length; i++) {
     if (COLLECTIONS[i].key === key) return COLLECTIONS[i];
@@ -31,18 +66,30 @@ function collectionByKey(key) {
   return null;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function normalizeNumber(value) {
   if (value === null || typeof value === 'undefined' || value === '') return null;
   var number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string | null}
+ */
 function normalizeText(value) {
   if (value === null || typeof value === 'undefined') return null;
   var text = String(value).trim();
   return text || null;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string | null}
+ */
 function normalizeVideoUrl(value) {
   var text = normalizeText(value);
   if (!text) return null;
@@ -58,17 +105,25 @@ function normalizeVideoUrl(value) {
   }
 }
 
+/**
+ * @param {VideoInput | null | undefined} row
+ * @returns {NormalizedVideo | null}
+ */
 function normalizeVideo(row) {
   if (!row || !row.url) return null;
+  var url = normalizeVideoUrl(row.url);
+  if (!url) return null;
 
+  /** @type {NormalizedVideo} */
   var video = {
-    url: normalizeVideoUrl(row.url),
+    url: url,
     title: normalizeText(row.title),
     views: normalizeNumber(row.views),
     likes: normalizeNumber(row.likes),
     img: normalizeText(row.img),
     preview: normalizeText(row.preview),
-    siteOrder: normalizeNumber(readSiteOrder(row))
+    siteOrder: normalizeNumber(readSiteOrder(row)),
+    searchText: ''
   };
 
   video.searchText = buildVideoSearchText(video.title, video.url);
@@ -76,6 +131,10 @@ function normalizeVideo(row) {
   return video;
 }
 
+/**
+ * @param {VideoInput | null | undefined} row
+ * @returns {unknown}
+ */
 function readSiteOrder(row) {
   if (!row) return null;
   if (typeof row.siteOrder !== 'undefined') return row.siteOrder;
@@ -83,6 +142,10 @@ function readSiteOrder(row) {
   return row.sort_order;
 }
 
+/**
+ * @param {VideoRow} row
+ * @returns {ExportVideoRow}
+ */
 function exportVideo(row) {
   return {
     title: row.title,
@@ -91,10 +154,16 @@ function exportVideo(row) {
     likes: row.likes,
     img: row.img,
     preview: row.preview,
-    site_order: row.site_order
+    site_order: row.site_order ?? null
   };
 }
 
+/**
+ * @param {VideoRow[]} rows
+ * @param {number} pageNumber
+ * @param {string} exportedAt
+ * @returns {ExportPage}
+ */
 function exportPage(rows, pageNumber, exportedAt) {
   var data = rows.map(exportVideo);
 
@@ -111,6 +180,14 @@ function exportPage(rows, pageNumber, exportedAt) {
   };
 }
 
+/**
+ * @param {DatabaseCollection} collection
+ * @param {SyncState | null} state
+ * @param {string} exportedAt
+ * @param {number} total
+ * @param {number} pageCount
+ * @returns {ExportResource['meta']}
+ */
 function exportMeta(collection, state, exportedAt, total, pageCount) {
   return {
     format_version: 2,
@@ -126,7 +203,12 @@ function exportMeta(collection, state, exportedAt, total, pageCount) {
   };
 }
 
+/**
+ * @param {ImportResource | null | undefined} resource
+ * @returns {VideoInput[]}
+ */
 function flattenResource(resource) {
+  /** @type {VideoInput[]} */
   var rows = [];
   if (!resource || !Array.isArray(resource.data)) return rows;
 
@@ -134,14 +216,20 @@ function flattenResource(resource) {
     var item = resource.data[i];
     if (!item) continue;
 
-    if (Array.isArray(item.data)) rows = rows.concat(item.data);
-    else if (item.url) rows.push(item);
+    var resourceItem = /** @type {VideoInput & { data?: VideoInput[] }} */ (item);
+    if (Array.isArray(resourceItem.data)) rows = rows.concat(resourceItem.data);
+    else if (resourceItem.url) rows.push(resourceItem);
   }
 
   return rows;
 }
 
+/**
+ * @param {VideoRow[]} rows
+ * @returns {ExportPage[]}
+ */
 function rowsByPage(rows) {
+  /** @type {ExportPage[]} */
   var pages = [];
   var exportedAt = nowIso();
 
@@ -152,21 +240,36 @@ function rowsByPage(rows) {
   return pages;
 }
 
+/**
+ * @param {string} char
+ * @returns {boolean}
+ */
 function isCjkSearchChar(char) {
   return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(char);
 }
 
+/**
+ * @param {string} char
+ * @returns {boolean}
+ */
 function isSearchWordChar(char) {
   return /[\p{Letter}\p{Number}]/u.test(char);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string[]}
+ */
 function searchRuns(value) {
   var text = value ? String(value).normalize('NFKC').toLowerCase() : '';
+  /** @type {string[]} */
   var runs = [];
   var current = '';
+  /** @type {'cjk' | 'word' | null} */
   var currentType = null;
 
   for (var char of text) {
+    /** @type {'cjk' | 'word' | null} */
     var charType = null;
     if (isCjkSearchChar(char)) charType = 'cjk';
     else if (isSearchWordChar(char)) charType = 'word';
@@ -191,10 +294,18 @@ function searchRuns(value) {
   return runs;
 }
 
+/**
+ * @param {Record<string, boolean>} tokens
+ * @param {string | null | undefined} token
+ */
 function addSearchToken(tokens, token) {
   if (token) tokens[token] = true;
 }
 
+/**
+ * @param {Record<string, boolean>} tokens
+ * @param {string} run
+ */
 function addSearchNgrams(tokens, run) {
   var chars = Array.from(run);
   var maxSize = Math.min(SEARCH_NGRAM_MAX, chars.length);
@@ -206,7 +317,12 @@ function addSearchNgrams(tokens, run) {
   }
 }
 
+/**
+ * @param {unknown[]} values
+ * @returns {string[]}
+ */
 function collectSearchTokens(values) {
+  /** @type {Record<string, boolean>} */
   var tokens = {};
 
   for (var i = 0; i < values.length; i++) {
@@ -219,6 +335,10 @@ function collectSearchTokens(values) {
   return Object.keys(tokens);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function compactSearchValue(value) {
   var text = value ? String(value).normalize('NFKC').toLowerCase() : '';
   var compact = '';
@@ -230,7 +350,12 @@ function compactSearchValue(value) {
   return compact;
 }
 
+/**
+ * @param {unknown[]} values
+ * @returns {string[]}
+ */
 function collectPhraseTokens(values) {
+  /** @type {Record<string, boolean>} */
   var tokens = {};
 
   for (var i = 0; i < values.length; i++) {
@@ -241,7 +366,13 @@ function collectPhraseTokens(values) {
   return Object.keys(tokens);
 }
 
+/**
+ * @param {unknown} title
+ * @param {unknown} url
+ * @returns {string}
+ */
 function buildVideoSearchText(title, url) {
+  /** @type {Record<string, boolean>} */
   var tokens = {};
   var searchTokens = collectSearchTokens([title, url]);
   var phraseTokens = collectPhraseTokens([title, url]);
@@ -257,10 +388,15 @@ function buildVideoSearchText(title, url) {
   return Object.keys(tokens).join(' ');
 }
 
+/**
+ * @param {string} run
+ * @returns {string[]}
+ */
 function searchQueryTokensForRun(run) {
   var chars = Array.from(run);
   if (chars.length <= SEARCH_NGRAM_MAX) return [run];
 
+  /** @type {string[]} */
   var tokens = [];
   for (var i = 0; i <= chars.length - SEARCH_NGRAM_MAX; i++) {
     tokens.push(chars.slice(i, i + SEARCH_NGRAM_MAX).join(''));
@@ -269,16 +405,29 @@ function searchQueryTokensForRun(run) {
   return tokens;
 }
 
+/**
+ * @param {string} token
+ * @returns {string}
+ */
 function quoteFtsToken(token) {
   return '"' + String(token).replace(/"/g, '""') + '"';
 }
 
+/**
+ * @param {string} run
+ * @returns {string}
+ */
 function buildSearchRunQuery(run) {
   return searchQueryTokensForRun(run).map(quoteFtsToken).join(' AND ');
 }
 
+/**
+ * @param {string} term
+ * @returns {string | null}
+ */
 function buildSearchTermQuery(term) {
   var runs = searchRuns(term);
+  /** @type {string[]} */
   var runQueries = [];
 
   for (var i = 0; i < runs.length; i++) {
@@ -288,6 +437,10 @@ function buildSearchTermQuery(term) {
   return runQueries.length ? '(' + runQueries.join(' AND ') + ')' : null;
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string | null}
+ */
 function buildSearchPhraseQuery(value) {
   var compact = compactSearchValue(value);
   if (!compact) return null;
@@ -295,10 +448,16 @@ function buildSearchPhraseQuery(value) {
   return '(' + searchQueryTokensForRun(compact).map(quoteFtsToken).join(' AND ') + ')';
 }
 
+/**
+ * @param {unknown} value
+ * @param {SearchMode} mode
+ * @returns {string | null}
+ */
 function buildSearchMatchQuery(value, mode) {
   if (mode === 'phrase') return buildSearchPhraseQuery(value);
 
   var terms = value ? String(value).trim().split(/\s+/) : [];
+  /** @type {string[]} */
   var termQueries = [];
 
   for (var i = 0; i < terms.length; i++) {
@@ -311,9 +470,15 @@ function buildSearchMatchQuery(value, mode) {
   return termQueries.join(mode === 'all' ? ' AND ' : ' OR ');
 }
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @param {DatabaseListOptions | null | undefined} options
+ * @returns {VideoListQuery}
+ */
 function buildVideoListQuery(collectionKey, options) {
-  options = options || {};
+  var normalizedOptions = options || {};
 
+  /** @type {Record<string, string>} */
   var sortMap = {
     site_order: 'site_order',
     title: 'v.title',
@@ -322,22 +487,29 @@ function buildVideoListQuery(collectionKey, options) {
     updated_at: 'v.updated_at',
     last_seen_at: 'ci.last_seen_at'
   };
-  var sortKey = sortMap[options.sort] ? options.sort : 'site_order';
+  var requestedSort = normalizedOptions.sort || '';
+  var sortKey = sortMap[requestedSort] ? requestedSort : 'site_order';
   var sort = sortMap[sortKey];
-  var direction = options.direction
-    ? options.direction === 'asc'
+  var direction = normalizedOptions.direction
+    ? normalizedOptions.direction === 'asc'
       ? 'ASC'
       : 'DESC'
     : sortKey === 'site_order'
       ? 'ASC'
       : 'DESC';
-  var searchMode = options.searchMode === 'all' || options.searchMode === 'phrase' ? options.searchMode : 'any';
-  var matchQuery = options.search ? buildSearchMatchQuery(options.search, searchMode) : null;
+  /** @type {SearchMode} */
+  var searchMode =
+    normalizedOptions.searchMode === 'all' || normalizedOptions.searchMode === 'phrase'
+      ? normalizedOptions.searchMode
+      : 'any';
+  var matchQuery = normalizedOptions.search ? buildSearchMatchQuery(normalizedOptions.search, searchMode) : null;
+  /** @type {SQLInputValue[]} */
   var params = [collectionKey];
+  /** @type {string[]} */
   var joins = [];
   var where = 'WHERE ci.collection_key = ?';
 
-  if (!options.includeHidden) {
+  if (!normalizedOptions.includeHidden) {
     where += ' AND ci.is_visible = 1';
   }
 
@@ -360,35 +532,59 @@ function buildVideoListQuery(collectionKey, options) {
   };
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number | null}
+ */
 function normalizeLimit(value) {
   var number = normalizeNumber(value);
   if (number === null || number <= 0) return null;
   return Math.floor(number);
 }
 
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
 function normalizeOffset(value) {
   var number = normalizeNumber(value);
   if (number === null || number <= 0) return 0;
   return Math.floor(number);
 }
 
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
 function exportTempPath(filePath) {
   return filePath + '.tmp-' + process.pid + '-' + Date.now() + '-' + Math.random().toString(36).slice(2);
 }
 
+/**
+ * @returns {Promise<void>}
+ */
 function nextTick() {
   return new Promise(function (resolve) {
     setImmediate(resolve);
   });
 }
 
+/**
+ * @param {string} filePath
+ */
 function ensureDirectory(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+/**
+ * @constructor
+ * @param {string} filePath
+ */
 function JableDatabase(filePath) {
   ensureDirectory(filePath);
+  /** @type {string} */
   this.filePath = filePath;
+  /** @type {DatabaseSyncInstance} */
   this.db = new DatabaseSync(filePath);
   this.db.exec('PRAGMA foreign_keys = ON');
   this.db.exec('PRAGMA journal_mode = WAL');
@@ -446,7 +642,9 @@ JableDatabase.prototype.migrate = function () {
 };
 
 JableDatabase.prototype.backfillVideoSearchText = function () {
-  var rows = this.db.prepare('SELECT url, title FROM videos WHERE search_text IS NULL').all();
+  var rows = /** @type {VideoSearchRow[]} */ (
+    this.db.prepare('SELECT url, title FROM videos WHERE search_text IS NULL').all()
+  );
   if (!rows.length) return false;
 
   var update = this.db.prepare('UPDATE videos SET search_text = ? WHERE url = ?');
@@ -459,7 +657,8 @@ JableDatabase.prototype.backfillVideoSearchText = function () {
 };
 
 JableDatabase.prototype.videoSearchIndexHasExpectedColumns = function () {
-  var columns = this.db.prepare('PRAGMA table_info(video_search)').all();
+  var columns = /** @type {TableColumnRow[]} */ (this.db.prepare('PRAGMA table_info(video_search)').all());
+  /** @type {Record<string, boolean>} */
   var names = {};
 
   for (var i = 0; i < columns.length; i++) {
@@ -479,19 +678,22 @@ JableDatabase.prototype.dropVideoSearchTriggers = function () {
   );
 };
 
+/**
+ * @param {boolean} searchTextChanged
+ */
 JableDatabase.prototype.ensureVideoSearchIndex = function (searchTextChanged) {
-  var indexExists = this.db
-    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
-    .get('table', 'video_search');
-  var insertTriggerExists = this.db
-    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
-    .get('trigger', 'videos_ai');
-  var deleteTriggerExists = this.db
-    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
-    .get('trigger', 'videos_ad');
-  var updateTriggerExists = this.db
-    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
-    .get('trigger', 'videos_au');
+  var indexExists = /** @type {NameRow | null | undefined} */ (
+    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'video_search')
+  );
+  var insertTriggerExists = /** @type {NameRow | undefined} */ (
+    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('trigger', 'videos_ai')
+  );
+  var deleteTriggerExists = /** @type {NameRow | undefined} */ (
+    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('trigger', 'videos_ad')
+  );
+  var updateTriggerExists = /** @type {NameRow | undefined} */ (
+    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('trigger', 'videos_au')
+  );
   var shouldRebuild =
     searchTextChanged || !indexExists || !insertTriggerExists || !deleteTriggerExists || !updateTriggerExists;
 
@@ -524,8 +726,13 @@ JableDatabase.prototype.ensureVideoSearchIndex = function (searchTextChanged) {
   }
 };
 
+/**
+ * @param {string} tableName
+ * @param {string} columnName
+ * @param {string} definition
+ */
 JableDatabase.prototype.ensureColumn = function (tableName, columnName, definition) {
-  var columns = this.db.prepare('PRAGMA table_info(' + tableName + ')').all();
+  var columns = /** @type {TableColumnRow[]} */ (this.db.prepare('PRAGMA table_info(' + tableName + ')').all());
 
   for (var i = 0; i < columns.length; i++) {
     if (columns[i].name === columnName) return;
@@ -542,38 +749,57 @@ JableDatabase.prototype.seedCollections = function () {
   }
 };
 
+/**
+ * @param {unknown} collectionKey
+ */
 JableDatabase.prototype.ensureCollection = function (collectionKey) {
   if (!collectionByKey(collectionKey)) throw new Error('Unknown collection: ' + collectionKey);
 };
 
+/**
+ * @returns {{ key: string, name: string }[]}
+ */
 JableDatabase.prototype.listCollections = function () {
-  return this.db.prepare('SELECT key, name FROM collections ORDER BY key').all();
+  return /** @type {{ key: string, name: string }[]} */ (
+    this.db.prepare('SELECT key, name FROM collections ORDER BY key').all()
+  );
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @returns {SyncState | null}
+ */
 JableDatabase.prototype.getSyncState = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
-  var row = this.db
-    .prepare(
-      [
-        'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
-        'FROM sync_states',
-        'WHERE collection_key = ?'
-      ].join(' ')
-    )
-    .get(collectionKey);
+  var row = /** @type {(Omit<SyncState, 'completed'> & { completed: number | boolean }) | undefined} */ (
+    this.db
+      .prepare(
+        [
+          'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
+          'FROM sync_states',
+          'WHERE collection_key = ?'
+        ].join(' ')
+      )
+      .get(collectionKey)
+  );
 
   if (!row) return null;
   row.completed = !!row.completed;
-  return row;
+  return /** @type {SyncState} */ (row);
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @param {DatabaseListOptions | null | undefined} [options]
+ * @returns {VideoRow[]}
+ */
 JableDatabase.prototype.listVideos = function (collectionKey, options) {
   this.ensureCollection(collectionKey);
-  options = options || {};
+  var normalizedOptions = options || {};
 
-  var query = buildVideoListQuery(collectionKey, options);
-  var limit = normalizeLimit(options.limit);
+  var query = buildVideoListQuery(collectionKey, normalizedOptions);
+  var limit = normalizeLimit(normalizedOptions.limit);
   var sql = [
     'SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,',
     '       v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,',
@@ -587,14 +813,19 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
 
   if (limit !== null) {
     sql += ' LIMIT ? OFFSET ?';
-    query.params.push(limit, normalizeOffset(options.offset));
+    query.params.push(limit, normalizeOffset(normalizedOptions.offset));
   }
 
   var stmt = this.db.prepare(sql);
 
-  return stmt.all.apply(stmt, query.params);
+  return /** @type {VideoRow[]} */ (/** @type {unknown} */ (stmt.all(...query.params)));
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @param {DatabaseListOptions | null | undefined} [options]
+ * @returns {number}
+ */
 JableDatabase.prototype.countVideos = function (collectionKey, options) {
   this.ensureCollection(collectionKey);
 
@@ -608,31 +839,46 @@ JableDatabase.prototype.countVideos = function (collectionKey, options) {
       query.where
     ].join(' ')
   );
-  var row = stmt.get.apply(stmt, query.params);
+  var row = /** @type {CountRow | undefined} */ (stmt.get(...query.params));
 
   return row ? row.total : 0;
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @returns {string[]}
+ */
 JableDatabase.prototype.getCollectionUrls = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
-  var rows = this.db
-    .prepare(
-      ['SELECT video_url', 'FROM collection_items', 'WHERE collection_key = ?', 'ORDER BY last_seen_at DESC'].join(' ')
-    )
-    .all(collectionKey);
+  var rows = /** @type {VideoUrlRow[]} */ (
+    this.db
+      .prepare(
+        ['SELECT video_url', 'FROM collection_items', 'WHERE collection_key = ?', 'ORDER BY last_seen_at DESC'].join(
+          ' '
+        )
+      )
+      .all(collectionKey)
+  );
 
   return rows.map(function (row) {
     return row.video_url;
   });
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @param {unknown[] | null | undefined} urls
+ * @returns {boolean}
+ */
 JableDatabase.prototype.allCollectionUrlsKnown = function (collectionKey, urls) {
   this.ensureCollection(collectionKey);
 
   if (!Array.isArray(urls) || !urls.length) return false;
 
+  /** @type {Record<string, boolean>} */
   var seen = {};
+  /** @type {string[]} */
   var normalizedUrls = [];
 
   for (var i = 0; i < urls.length; i++) {
@@ -660,12 +906,20 @@ JableDatabase.prototype.allCollectionUrlsKnown = function (collectionKey, urls) 
       '  AND video_url IN (' + placeholders.join(', ') + ')'
     ].join(' ')
   );
-  var params = [collectionKey].concat(normalizedUrls);
-  var row = stmt.get.apply(stmt, params);
+  /** @type {SQLInputValue[]} */
+  var params = [collectionKey];
+  for (var p = 0; p < normalizedUrls.length; p++) {
+    params.push(normalizedUrls[p]);
+  }
+  var row = /** @type {CountRow | undefined} */ (stmt.get(...params));
 
   return !!row && row.total === normalizedUrls.length;
 };
 
+/**
+ * @param {SaveSyncPagePayload} payload
+ * @returns {{ saved: number, collectionKey: CollectionKey, page: number | null }}
+ */
 JableDatabase.prototype.saveSyncPage = function (payload) {
   var collectionKey = payload.collectionKey;
   this.ensureCollection(collectionKey);
@@ -673,10 +927,11 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   var page = normalizeNumber(payload.page) || null;
   var syncRunId = normalizeText(payload.syncRunId);
   var rows = Array.isArray(payload.rows) ? payload.rows : [];
+  /** @type {NormalizedVideo[]} */
   var normalizedRows = [];
 
   for (var i = 0; i < rows.length; i++) {
-    var row = normalizeVideo(rows[i]);
+    var row = normalizeVideo(/** @type {VideoInput} */ (rows[i]));
     if (row) normalizedRows.push(row);
   }
 
@@ -759,12 +1014,18 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   };
 };
 
+/**
+ * @param {CollectionTogglePayload | null | undefined} payload
+ * @returns {{ action: 'add' | 'remove', changed: boolean, collectionKey: CollectionKey, url: string, visible: boolean }}
+ */
 JableDatabase.prototype.applyCollectionToggle = function (payload) {
   payload = payload || {};
 
   var collectionKey = payload.collectionKey;
+  if (!collectionKey) throw new Error('Collection toggle requires a collection key');
   this.ensureCollection(collectionKey);
 
+  /** @type {'add' | 'remove'} */
   var action = payload.action === 'remove' ? 'remove' : 'add';
   var video = normalizeVideo(payload.video || payload);
   if (!video || !video.url) throw new Error('Collection toggle requires a video URL');
@@ -857,6 +1118,10 @@ JableDatabase.prototype.applyCollectionToggle = function (payload) {
   };
 };
 
+/**
+ * @param {FinishSyncInput} payload
+ * @returns {SyncState}
+ */
 JableDatabase.prototype.finishSync = function (payload) {
   var collectionKey = payload.collectionKey;
   this.ensureCollection(collectionKey);
@@ -896,14 +1161,19 @@ JableDatabase.prototype.finishSync = function (payload) {
         ].join(' ')
       )
       .run(timestamp, collectionKey, syncRunId);
-    hidden = update.changes || 0;
+    hidden = Number(update.changes || 0);
   }
 
   var state = this.getSyncState(collectionKey);
+  if (!state) throw new Error('Sync state was not saved for collection: ' + collectionKey);
   state.hidden = hidden;
   return state;
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @returns {{ collectionKey: CollectionKey, cleared: boolean }}
+ */
 JableDatabase.prototype.clearSyncState = function (collectionKey) {
   this.ensureCollection(collectionKey);
   this.db.prepare('DELETE FROM sync_states WHERE collection_key = ?').run(collectionKey);
@@ -911,6 +1181,11 @@ JableDatabase.prototype.clearSyncState = function (collectionKey) {
   return { collectionKey: collectionKey, cleared: true };
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @param {ImportResource} resource
+ * @returns {{ imported: number, collectionKey: CollectionKey }}
+ */
 JableDatabase.prototype.importResource = function (collectionKey, resource) {
   this.ensureCollection(collectionKey);
 
@@ -941,10 +1216,15 @@ JableDatabase.prototype.importResource = function (collectionKey, resource) {
   };
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @returns {ExportResource}
+ */
 JableDatabase.prototype.exportResource = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
   var collection = collectionByKey(collectionKey);
+  if (!collection) throw new Error('Unknown collection: ' + collectionKey);
   var rows = this.listVideos(collectionKey, { sort: 'site_order', direction: 'asc' });
   var state = this.getSyncState(collectionKey);
   var pages = rowsByPage(rows);
@@ -956,6 +1236,11 @@ JableDatabase.prototype.exportResource = function (collectionKey) {
   };
 };
 
+/**
+ * @param {CollectionKey} collectionKey
+ * @param {string} filePath
+ * @returns {Promise<{ filePath: string, total: number }>}
+ */
 JableDatabase.prototype.exportResourceToFile = async function (collectionKey, filePath) {
   this.ensureCollection(collectionKey);
   if (!filePath) throw new Error('Export file path is required');
@@ -963,12 +1248,14 @@ JableDatabase.prototype.exportResourceToFile = async function (collectionKey, fi
   ensureDirectory(filePath);
 
   var collection = collectionByKey(collectionKey);
+  if (!collection) throw new Error('Unknown collection: ' + collectionKey);
   var state = this.getSyncState(collectionKey);
   var exportedAt = nowIso();
   var total = this.countVideos(collectionKey);
   var pageCount = Math.ceil(total / PAGE_SIZE);
   var meta = exportMeta(collection, state, exportedAt, total, pageCount);
   var tempPath = exportTempPath(filePath);
+  /** @type {import('node:fs/promises').FileHandle | null} */
   var handle = null;
   var offset = 0;
   var pageNumber = 1;
