@@ -256,6 +256,10 @@ function handleBrowserMessage(message: BrowserMessage) {
     setBrowserTabsCompact(!!compactPayload.compact);
   }
 
+  if (message.channel === 'browser-tabs-compact-toggle-shortcut' && activeView.value === 'browser') {
+    setBrowserTabsCompact(!browserTabsCompact.value);
+  }
+
   if (message.channel === 'browser-tab-shortcut') {
     setActiveView('browser');
   }

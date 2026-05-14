@@ -108,6 +108,10 @@ function isCloseTabShortcut(input) {
   return isPrimaryShortcut(input, 'w');
 }
 
+function isToggleCompactTabsShortcut(input) {
+  return isPrimaryShortcut(input, 's');
+}
+
 function runShortcutAction(name, action) {
   var now = Date.now();
 
@@ -146,6 +150,12 @@ function closeActiveTabFromShortcut() {
   });
 }
 
+function toggleCompactTabsFromShortcut() {
+  runShortcutAction('toggle-compact-tabs', function () {
+    forwardBrowserMessage('browser-tabs-compact-toggle-shortcut', {});
+  });
+}
+
 function registerAppShortcuts(webContents) {
   webContents.on('before-input-event', function (event, input) {
     if (isNewTabShortcut(input)) {
@@ -157,6 +167,12 @@ function registerAppShortcuts(webContents) {
     if (isCloseTabShortcut(input)) {
       event.preventDefault();
       closeActiveTabFromShortcut();
+      return;
+    }
+
+    if (isToggleCompactTabsShortcut(input)) {
+      event.preventDefault();
+      toggleCompactTabsFromShortcut();
     }
   });
 }

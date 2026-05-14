@@ -47,8 +47,10 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。它會�
 | ----------------------------- | ------------------------------------------------------------------------------ |
 | macOS：`Cmd` + `T`            | 開啟新的 Jable 分頁並切換到該分頁                                              |
 | macOS：`Cmd` + `W`            | 關閉目前瀏覽器分頁；同步中的分頁不能關閉                                       |
+| macOS：`Cmd` + `S`            | 切換分頁緊湊模式                                                               |
 | Windows / Linux：`Ctrl` + `T` | 開啟新的 Jable 分頁並切換到該分頁                                              |
 | Windows / Linux：`Ctrl` + `W` | 關閉目前瀏覽器分頁；同步中的分頁不能關閉                                       |
+| Windows / Linux：`Ctrl` + `S` | 切換分頁緊湊模式                                                               |
 | 點擊分頁                      | 切換到該分頁                                                                   |
 | 點擊 **+ 新增分頁**           | 開啟新的 Jable 分頁並切換到該分頁                                              |
 | 點擊分頁上的 **×**            | 關閉該分頁；同步中的分頁不能關閉                                               |
@@ -167,8 +169,10 @@ The actions below are the supported keyboard shortcuts, mouse actions, trackpad 
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | macOS: `Cmd` + `T`                            | Open a new Jable tab and switch to it                                                            |
 | macOS: `Cmd` + `W`                            | Close the current browser tab; sync tabs cannot be closed                                        |
+| macOS: `Cmd` + `S`                            | Toggle compact tab mode                                                                          |
 | Windows / Linux: `Ctrl` + `T`                 | Open a new Jable tab and switch to it                                                            |
 | Windows / Linux: `Ctrl` + `W`                 | Close the current browser tab; sync tabs cannot be closed                                        |
+| Windows / Linux: `Ctrl` + `S`                 | Toggle compact tab mode                                                                          |
 | Click a tab                                   | Switch to that tab                                                                               |
 | Click **+ 新增分頁** (New Tab)                | Open a new Jable tab and switch to it                                                            |
 | Click **×** on a tab                          | Close that tab; sync tabs cannot be closed                                                       |
