@@ -6,10 +6,16 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.7.1] - 2026-05-15
+
 ### Added
 
 - Add the project changelog and reconstruct release notes for all existing git tags.
 - Document that every future version tag must include an updated `CHANGELOG.md` entry before the tag is pushed.
+
+### Changed
+
+- Bump the desktop package version to `0.7.1`.
 
 ## [v0.7.0] - 2026-05-15
 
@@ -139,7 +145,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.1...HEAD
+[v0.7.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.6.2...v0.7.0
 [v0.6.2]: https://github.com/shane-zeng/jable-desktop/compare/v0.6.1...v0.6.2
 [v0.6.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.6.0...v0.6.1
