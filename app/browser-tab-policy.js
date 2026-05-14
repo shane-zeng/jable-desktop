@@ -67,6 +67,80 @@ function serializedMediaState(tab) {
 }
 
 /**
+ * @param {Partial<BrowserTabLike>[]} tabs
+ * @param {string | null | undefined} activeTabId
+ * @param {number} offset
+ * @returns {string | null}
+ */
+function nextActiveTabIdByOffset(tabs, activeTabId, offset) {
+  tabs = Array.isArray(tabs) ? tabs : [];
+
+  if (!activeTabId || !tabs.length) return null;
+
+  var activeIndex = -1;
+
+  for (var i = 0; i < tabs.length; i++) {
+    if (!tabs[i] || tabs[i].id !== activeTabId) continue;
+    activeIndex = i;
+    break;
+  }
+
+  if (activeIndex === -1) return null;
+  if (tabs.length === 1 || !offset) return activeTabId;
+
+  var nextIndex = (activeIndex + offset) % tabs.length;
+  if (nextIndex < 0) nextIndex += tabs.length;
+
+  return tabs[nextIndex] ? tabs[nextIndex].id : null;
+}
+
+/**
+ * @param {{
+ *   type?: string,
+ *   key?: string,
+ *   code?: string,
+ *   isAutoRepeat?: boolean,
+ *   control?: boolean,
+ *   meta?: boolean,
+ *   alt?: boolean,
+ *   shift?: boolean
+ * } | null | undefined} input
+ * @param {boolean} isMacos
+ * @returns {number}
+ */
+function browserTabShortcutOffset(input, isMacos) {
+  if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return 0;
+
+  var key = String(input.key || '').toLowerCase();
+  var code = String(input.code || '').toLowerCase();
+
+  if (key === 'tab' || code === 'tab') {
+    if (!input.control || input.meta || input.alt) return 0;
+    return input.shift ? -1 : 1;
+  }
+
+  if (!isMacos) {
+    if (!input.control || input.meta || input.alt || input.shift) return 0;
+    if (key === 'pagedown' || code === 'pagedown') return 1;
+    if (key === 'pageup' || code === 'pageup') return -1;
+    return 0;
+  }
+
+  if (input.meta && input.alt && !input.control && !input.shift) {
+    if (key === 'arrowright' || key === 'right' || code === 'arrowright') return 1;
+    if (key === 'arrowleft' || key === 'left' || code === 'arrowleft') return -1;
+    return 0;
+  }
+
+  if (input.meta && input.shift && !input.control && !input.alt) {
+    if (key === ']' || key === '}' || code === 'bracketright') return 1;
+    if (key === '[' || key === '{' || code === 'bracketleft') return -1;
+  }
+
+  return 0;
+}
+
+/**
  * @param {BrowserTabLike[]} tabs
  * @param {string | null | undefined} activeTabId
  * @param {string | null | undefined} closingTabId
@@ -88,7 +162,9 @@ function nextActiveTabIdAfterClose(tabs, activeTabId, closingTabId) {
 }
 
 module.exports = {
+  browserTabShortcutOffset: browserTabShortcutOffset,
   browserTabWebPreferences: browserTabWebPreferences,
+  nextActiveTabIdByOffset: nextActiveTabIdByOffset,
   nextActiveTabIdAfterClose: nextActiveTabIdAfterClose,
   serializedMediaState: serializedMediaState,
   shouldThrottleBackground: shouldThrottleBackground

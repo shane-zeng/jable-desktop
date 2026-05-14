@@ -14,7 +14,9 @@ var ipcMain = electron.ipcMain;
 var Menu = electron.Menu;
 var clipboard = electron.clipboard;
 var dialog = electron.dialog;
+var browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
 var browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
+var nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
 var nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
 var serializedMediaState = browserTabPolicy.serializedMediaState;
 
@@ -150,6 +152,22 @@ function closeActiveTabFromShortcut() {
   });
 }
 
+function activateRelativeBrowserTabFromShortcut(offset) {
+  runShortcutAction(offset > 0 ? 'next-tab' : 'previous-tab', function () {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    try {
+      var tabId = nextActiveTabIdByOffset(browserTabs, activeBrowserTabId, offset);
+      if (!tabId || tabId === activeBrowserTabId) return;
+
+      activateBrowserTab(tabId);
+      forwardBrowserMessage('browser-tab-shortcut', {});
+    } catch (error) {
+      forwardBrowserMessage('browser-error', { message: error.message });
+    }
+  });
+}
+
 function toggleCompactTabsFromShortcut() {
   runShortcutAction('toggle-compact-tabs', function () {
     forwardBrowserMessage('browser-tabs-compact-toggle-shortcut', {});
@@ -167,6 +185,13 @@ function registerAppShortcuts(webContents) {
     if (isCloseTabShortcut(input)) {
       event.preventDefault();
       closeActiveTabFromShortcut();
+      return;
+    }
+
+    var tabSwitchOffset = browserTabShortcutOffset(input, IS_MACOS);
+    if (tabSwitchOffset) {
+      event.preventDefault();
+      activateRelativeBrowserTabFromShortcut(tabSwitchOffset);
       return;
     }
 
@@ -308,6 +333,7 @@ function createBrowserTab(options) {
 
   if (options.url) loadTabUrl(tab, options.url, !!options.forceReload);
   attachActiveBrowserTab();
+  if (activeBrowserTabId === tab.id) focusBrowserTab(tab);
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
@@ -537,6 +563,19 @@ function detachAllBrowserTabs() {
   }
 }
 
+function focusBrowserTab(tab) {
+  if (!tab || !browserBounds.visible || !mainWindow || mainWindow.isDestroyed()) return;
+
+  setImmediate(function () {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!browserBounds.visible || activeBrowserTabId !== tab.id || !tab.attached) return;
+    if (tab.view.webContents.isDestroyed()) return;
+
+    mainWindow.focus();
+    tab.view.webContents.focus();
+  });
+}
+
 function attachActiveBrowserTab() {
   var activeTab = null;
 
@@ -587,9 +626,10 @@ function setBrowserBounds(bounds) {
 }
 
 function activateBrowserTab(tabId) {
-  getBrowserTab(tabId);
-  activeBrowserTabId = tabId;
+  var tab = getBrowserTab(tabId);
+  activeBrowserTabId = tab.id;
   attachActiveBrowserTab();
+  focusBrowserTab(tab);
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
@@ -598,6 +638,7 @@ function closeBrowserTab(tabId) {
   var tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error('同步中的分頁不能關閉');
 
+  var shouldFocusNextTab = activeBrowserTabId === tab.id;
   var nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
   detachBrowserTab(tab);
   delete browserTabsById[tab.id];
@@ -618,6 +659,7 @@ function closeBrowserTab(tabId) {
   }
 
   attachActiveBrowserTab();
+  if (shouldFocusNextTab) focusBrowserTab(getBrowserTab());
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
