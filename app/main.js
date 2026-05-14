@@ -1119,6 +1119,17 @@ function registerIpcHandlers() {
     return getDatabase().saveSyncPage(payload);
   });
 
+  ipcMain.handle('db:apply-collection-toggle', function (event, payload) {
+    try {
+      var result = getDatabase().applyCollectionToggle(payload);
+      forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));
+      return result;
+    } catch (error) {
+      forwardBrowserMessage('browser-error', { message: error.message });
+      throw error;
+    }
+  });
+
   ipcMain.handle('db:finish-sync', function (_event, payload) {
     return getDatabase().finishSync(payload);
   });

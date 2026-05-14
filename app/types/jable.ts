@@ -209,6 +209,15 @@ export interface SyncProgressPayload {
   message?: string;
 }
 
+export interface CollectionToggleResult {
+  tabId?: string | null;
+  collectionKey: CollectionKey;
+  action: 'add' | 'remove';
+  changed: boolean;
+  url: string;
+  visible: boolean;
+}
+
 export interface SyncResult {
   completed: boolean;
   mode: SyncMode;

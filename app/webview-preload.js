@@ -14,6 +14,8 @@ var SITE_PAGE_SIZE = 24;
 var TRACKPAD_HISTORY_THRESHOLD = 180;
 var TRACKPAD_HISTORY_COOLDOWN_MS = 700;
 var TRACKPAD_HISTORY_RESET_MS = 180;
+var COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS = 4000;
+var COLLECTION_TOGGLE_CONFIRM_POLL_MS = 120;
 var trackpadHistoryDeltaX = 0;
 var trackpadHistoryLastSentAt = 0;
 var trackpadHistoryResetTimer = null;
@@ -39,47 +41,87 @@ function uniqByUrl(rows) {
   return out;
 }
 
+function parseMetricNumber(value) {
+  var number = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
+  return isFinite(number) && number > 0 ? number : null;
+}
+
+function inferPreviewFromImageUrl(value) {
+  if (!value) return null;
+
+  var url = absUrl(value);
+  var match = url.match(
+    /^(https?:\/\/[^?#]+\/contents\/videos_screenshots\/\d+\/(\d+)\/)(?:preview\.jpg|320x180\/1\.jpg|[^?#]+)(?:[?#].*)?$/
+  );
+
+  return match ? match[1] + match[2] + '_preview.mp4' : null;
+}
+
+function canonicalVideoHrefFromBox(box, fallbackAnchor) {
+  var anchors = box ? box.querySelectorAll('div.img-box a[href], div.detail h6.title a[href]') : [];
+
+  for (var i = 0; i < anchors.length; i++) {
+    var href = anchors[i].getAttribute('href') || '';
+
+    try {
+      var parsed = new URL(href, anchors[i].baseURI || location.href);
+      if (/^\/videos\/[^/]+\/?$/.test(parsed.pathname)) return parsed.href;
+    } catch (error) {}
+  }
+
+  return fallbackAnchor
+    ? absUrl(fallbackAnchor.getAttribute('href') || '', fallbackAnchor.baseURI || location.href)
+    : '';
+}
+
+function scrapeVideoBox(box) {
+  if (!box) return null;
+
+  var a = box.querySelector('div.detail h6.title a');
+  if (!a) return null;
+
+  var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
+  var href = canonicalVideoHrefFromBox(box, a);
+  var img = box.querySelector('div.img-box img');
+  var imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
+  var previewSrc = img ? img.getAttribute('data-preview') || '' : '';
+  var views = null;
+  var likes = null;
+  var sub = box.querySelector('div.detail p.sub-title');
+
+  if (sub) {
+    var texts = [];
+    for (var n = 0; n < sub.childNodes.length; n++) {
+      var node = sub.childNodes[n];
+      if (node.nodeType === Node.TEXT_NODE) {
+        var text = node.textContent.replace(/\s+/g, ' ').trim();
+        if (text) texts.push(text);
+      }
+    }
+
+    if (texts.length >= 1) views = parseMetricNumber(texts[0]);
+    if (texts.length >= 2) likes = parseMetricNumber(texts[1]);
+  }
+
+  if (!href) return null;
+
+  return {
+    title: title,
+    url: absUrl(href),
+    views: views,
+    likes: likes,
+    img: imgSrc ? absUrl(imgSrc) : null,
+    preview: previewSrc ? absUrl(previewSrc) : inferPreviewFromImageUrl(imgSrc)
+  };
+}
+
 function scrapeCurrentPage() {
   var out = [];
   var boxes = document.querySelectorAll('div.video-img-box');
 
   for (var i = 0; i < boxes.length; i++) {
-    var box = boxes[i];
-    var a = box.querySelector('div.detail h6.title a');
-    if (!a) continue;
-
-    var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
-    var href = a.getAttribute('href') || '';
-    var img = box.querySelector('div.img-box img');
-    var imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
-    var previewSrc = img ? img.getAttribute('data-preview') || '' : '';
-    var views = null;
-    var likes = null;
-    var sub = box.querySelector('div.detail p.sub-title');
-
-    if (sub) {
-      var texts = [];
-      for (var n = 0; n < sub.childNodes.length; n++) {
-        var node = sub.childNodes[n];
-        if (node.nodeType === Node.TEXT_NODE) {
-          var text = node.textContent.replace(/\s+/g, ' ').trim();
-          if (text) texts.push(text);
-        }
-      }
-
-      if (texts.length >= 1) views = parseInt(texts[0].replace(/[^\d]/g, ''), 10) || null;
-      if (texts.length >= 2) likes = parseInt(texts[1].replace(/[^\d]/g, ''), 10) || null;
-    }
-
-    if (!href) continue;
-    out.push({
-      title: title,
-      url: absUrl(href),
-      views: views,
-      likes: likes,
-      img: imgSrc ? absUrl(imgSrc) : null,
-      preview: previewSrc ? absUrl(previewSrc) : null
-    });
+    var row = scrapeVideoBox(boxes[i]);
+    if (row) out.push(row);
   }
 
   return out;
@@ -280,6 +322,269 @@ if (IS_MACOS) {
 }
 
 window.addEventListener('auxclick', handleMiddleClickNewTab, { capture: true });
+
+function closestCollectionActionElement(target) {
+  var el = null;
+
+  if (target && target.nodeType === Node.ELEMENT_NODE) el = target;
+  else if (target && target.parentElement) el = target.parentElement;
+
+  while (el && el !== document.documentElement) {
+    if (el.tagName === 'BUTTON' && el.classList && el.classList.contains('btn-action')) return el;
+    if (el.classList && el.classList.contains('action') && el.hasAttribute('data-fav-video-id')) return el;
+    el = el.parentElement;
+  }
+
+  return null;
+}
+
+function buttonHasIcon(button, iconId) {
+  if (!button) return false;
+
+  var uses = button.querySelectorAll('use');
+
+  for (var i = 0; i < uses.length; i++) {
+    var href =
+      uses[i].getAttribute('href') ||
+      uses[i].getAttribute('xlink:href') ||
+      (uses[i].href && uses[i].href.baseVal) ||
+      '';
+    if (href === iconId) return true;
+  }
+
+  return false;
+}
+
+function collectionKeyForActionElement(el) {
+  if (!el || !el.classList) return null;
+
+  var favType = el.getAttribute('data-fav-type');
+  if (favType === '0') return 'favourites';
+  if (favType === '1') return 'watch_later';
+
+  if (el.classList.contains('fav') || buttonHasIcon(el, '#icon-heart')) return 'favourites';
+  if (buttonHasIcon(el, '#icon-bookmark-inline')) return 'watch_later';
+
+  return null;
+}
+
+function actionRequiresLogin(el) {
+  var actionUrl = el ? el.getAttribute('data-href') || el.getAttribute('href') || '' : '';
+  return /\/login-required\/?/.test(actionUrl);
+}
+
+function isJablePage() {
+  return /(^|\.)jable\.tv$/i.test(location.hostname || '');
+}
+
+function currentVideoUrl() {
+  if (!isJablePage()) return null;
+
+  try {
+    var parsed = new URL(location.href);
+    if (!/^\/videos\/[^/]+\/?$/.test(parsed.pathname)) return null;
+    if (!/\/$/.test(parsed.pathname)) parsed.pathname += '/';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.href;
+  } catch (error) {
+    return null;
+  }
+}
+
+function normalizePageText(value) {
+  var text = value == null ? '' : String(value);
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function readMetaContent(selector) {
+  var el = document.querySelector(selector);
+  return el ? normalizePageText(el.getAttribute('content')) : '';
+}
+
+function readFirstText(selectors) {
+  for (var i = 0; i < selectors.length; i++) {
+    var el = document.querySelector(selectors[i]);
+    var text = el ? normalizePageText(el.textContent) : '';
+    if (text) return text;
+  }
+
+  return '';
+}
+
+function cleanVideoTitle(value) {
+  var text = normalizePageText(value);
+  if (!text) return null;
+
+  text = text.replace(/\s*[-|]\s*Jable\.TV\s*$/i, '').trim();
+  return text || null;
+}
+
+function readNumberAfterIcon(container, iconId) {
+  if (!container) return null;
+
+  var svgs = container.querySelectorAll('svg');
+
+  for (var i = 0; i < svgs.length; i++) {
+    if (!buttonHasIcon(svgs[i], iconId)) continue;
+
+    var node = svgs[i].nextSibling;
+
+    while (node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        var textNumber = parseMetricNumber(node.textContent);
+        if (textNumber !== null) return textNumber;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        var elementNumber = parseMetricNumber(node.textContent);
+        if (elementNumber !== null) return elementNumber;
+      }
+
+      node = node.nextSibling;
+    }
+  }
+
+  return null;
+}
+
+function readCurrentVideoViews() {
+  return readNumberAfterIcon(document.querySelector('.video-info .info-header h6'), '#icon-eye');
+}
+
+function readCurrentVideoLikes() {
+  var count = document.querySelector('button[data-fav-type="0"] .count, button.fav .count');
+  return count ? parseMetricNumber(count.textContent) : null;
+}
+
+function readCurrentVideoDetails() {
+  var url = currentVideoUrl();
+  if (!url) return null;
+
+  var title =
+    readMetaContent('meta[property="og:title"]') ||
+    readMetaContent('meta[name="twitter:title"]') ||
+    readFirstText(['.video-info .info-header h4', 'section.video-info h4', 'h1', 'h4', '.video-title', '.title']) ||
+    document.title;
+  var img =
+    readMetaContent('meta[property="og:image"]') ||
+    readMetaContent('meta[name="twitter:image"]') ||
+    (document.querySelector('video[poster]') || {}).poster ||
+    '';
+
+  return {
+    title: cleanVideoTitle(title),
+    url: url,
+    views: readCurrentVideoViews(),
+    likes: readCurrentVideoLikes(),
+    img: img ? absUrl(img) : null,
+    preview: inferPreviewFromImageUrl(img)
+  };
+}
+
+function readVideoDetailsForActionElement(el) {
+  var box = el && typeof el.closest === 'function' ? el.closest('div.video-img-box') : null;
+  var row = scrapeVideoBox(box);
+
+  return row || readCurrentVideoDetails();
+}
+
+function findCollectionActionElement(collectionKey) {
+  var elements = document.querySelectorAll('button.btn-action, .action[data-fav-video-id]');
+
+  for (var i = 0; i < elements.length; i++) {
+    if (collectionKeyForActionElement(elements[i]) === collectionKey) return elements[i];
+  }
+
+  return null;
+}
+
+function collectionActionActiveState(collectionKey, originalElement) {
+  var el =
+    originalElement && document.documentElement.contains(originalElement)
+      ? originalElement
+      : findCollectionActionElement(collectionKey);
+
+  return el ? el.classList.contains('active') : null;
+}
+
+function waitForCollectionActionState(collectionKey, originalElement, expectedActive) {
+  return new Promise(function (resolve) {
+    var target = document.body || document.documentElement;
+    var deadline = Date.now() + COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS;
+    var observer = null;
+    var pollTimer = null;
+    var done = false;
+
+    function finish(ok) {
+      if (done) return;
+      done = true;
+      if (observer) observer.disconnect();
+      if (pollTimer) clearTimeout(pollTimer);
+      resolve(ok);
+    }
+
+    function check() {
+      if (done) return;
+
+      var active = collectionActionActiveState(collectionKey, originalElement);
+
+      if (active === expectedActive) {
+        finish(true);
+        return;
+      }
+
+      if (Date.now() > deadline) {
+        finish(false);
+        return;
+      }
+
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = setTimeout(check, COLLECTION_TOGGLE_CONFIRM_POLL_MS);
+    }
+
+    observer = new MutationObserver(check);
+    observer.observe(target, {
+      attributes: true,
+      attributeFilter: ['class'],
+      childList: true,
+      subtree: true
+    });
+    setTimeout(check, 0);
+  });
+}
+
+async function applyCollectionToggle(collectionKey, action, video) {
+  try {
+    await ipcRenderer.invoke('db:apply-collection-toggle', {
+      collectionKey: collectionKey,
+      action: action,
+      video: video,
+      sourceUrl: location.href
+    });
+  } catch (error) {
+    console.warn('[JableDesktopScraper] collection toggle sync failed', error);
+  }
+}
+
+async function handleCollectionButtonClick(event) {
+  if (!event.isTrusted || event.defaultPrevented) return;
+
+  var actionElement = closestCollectionActionElement(event.target);
+  var collectionKey = collectionKeyForActionElement(actionElement);
+  if (!collectionKey || actionRequiresLogin(actionElement)) return;
+
+  var video = readVideoDetailsForActionElement(actionElement);
+  if (!video) return;
+
+  var wasActive = actionElement.classList.contains('active');
+  var expectedActive = !wasActive;
+  var action = wasActive ? 'remove' : 'add';
+
+  if (await waitForCollectionActionState(collectionKey, actionElement, expectedActive)) {
+    await applyCollectionToggle(collectionKey, action, readVideoDetailsForActionElement(actionElement) || video);
+  }
+}
+
+document.addEventListener('click', handleCollectionButtonClick, { capture: true });
 
 async function syncCollection(options) {
   options = options || {};

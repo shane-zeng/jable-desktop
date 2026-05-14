@@ -403,6 +403,75 @@ test('countVideos uses the same search and visibility filters as listVideos', fu
   );
 });
 
+test('applyCollectionToggle adds, hides, and restores a local collection item', function (t) {
+  var db = createTestDatabase(t);
+
+  var missingRemove = db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    video: {
+      url: 'https://jable.tv/videos/not-local/'
+    }
+  });
+
+  assert.equal(missingRemove.changed, false);
+  assert.equal(missingRemove.visible, false);
+  assert.equal(db.countVideos('favourites', { includeHidden: true }), 0);
+
+  var add = db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    video: {
+      title: 'Clicked title',
+      url: 'https://jable.tv/videos/clicked',
+      img: 'https://example.test/clicked.jpg'
+    }
+  });
+
+  assert.equal(add.changed, true);
+  assert.equal(add.visible, true);
+  assert.equal(add.url, 'https://jable.tv/videos/clicked/');
+  assert.equal(db.getSyncState('favourites'), null);
+
+  var rows = db.listVideos('favourites');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].title, 'Clicked title');
+  assert.equal(rows[0].img, 'https://example.test/clicked.jpg');
+  assert.ok(rows[0].site_order < 0);
+
+  var remove = db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    video: {
+      url: 'https://jable.tv/videos/clicked/'
+    }
+  });
+
+  assert.equal(remove.changed, true);
+  assert.equal(remove.visible, false);
+  assert.equal(db.countVideos('favourites'), 0);
+
+  var hiddenRows = db.listVideos('favourites', { includeHidden: true });
+  assert.equal(hiddenRows.length, 1);
+  assert.equal(hiddenRows[0].is_visible, 0);
+  assert.ok(hiddenRows[0].missing_at);
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    video: {
+      title: 'Restored title',
+      url: 'https://jable.tv/videos/clicked/'
+    }
+  });
+
+  rows = db.listVideos('favourites');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].title, 'Restored title');
+  assert.equal(rows[0].is_visible, 1);
+  assert.equal(rows[0].missing_at, null);
+});
+
 test('migration rebuilds the local full text index for existing videos', function (t) {
   var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   var dbPath = path.join(dir, 'test.sqlite');

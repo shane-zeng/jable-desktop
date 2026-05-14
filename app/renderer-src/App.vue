@@ -25,6 +25,7 @@ import type {
   BrowserTabsState,
   CollectionDefinition,
   CollectionKey,
+  CollectionToggleResult,
   ExportResource,
   FullSyncContinuation,
   LibraryVideoMenuAction,
@@ -191,6 +192,17 @@ function handleLibraryVideoMenuAction(payload: LibraryVideoMenuAction | null | u
   }
 }
 
+function collectionToggleStatus(payload: CollectionToggleResult) {
+  var collection = COLLECTIONS[payload.collectionKey];
+  var name = collection ? collection.name : payload.collectionKey;
+
+  if (payload.action === 'remove') {
+    return payload.changed ? '已從' + name + '移除本機資料' : '已從' + name + '取消；本機原本沒有這筆資料';
+  }
+
+  return '已加入' + name + '並同步到本機';
+}
+
 function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'browser-tabs-changed') {
     browser.applyTabsState(message.args[0] as BrowserTabsState);
@@ -221,6 +233,18 @@ function handleBrowserMessage(message: BrowserMessage) {
     var progress = message.args[0] as SyncProgressPayload;
     if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
     setStatus('已載入第 ' + progress.page + ' 頁');
+  }
+
+  if (message.channel === 'collection-toggle') {
+    var togglePayload = message.args[0] as CollectionToggleResult;
+    if (togglePayload.collectionKey === library.activeCollection.value) {
+      if (togglePayload.action === 'add') library.currentPage.value = 1;
+      library.refreshVideos().catch(function (error) {
+        console.error(error);
+        setStatus('更新本機列表失敗：' + errorMessage(error));
+      });
+    }
+    setStatus(collectionToggleStatus(togglePayload));
   }
 
   if (message.channel === 'browser-navigation-state') {

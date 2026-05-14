@@ -759,6 +759,104 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   };
 };
 
+JableDatabase.prototype.applyCollectionToggle = function (payload) {
+  payload = payload || {};
+
+  var collectionKey = payload.collectionKey;
+  this.ensureCollection(collectionKey);
+
+  var action = payload.action === 'remove' ? 'remove' : 'add';
+  var video = normalizeVideo(payload.video || payload);
+  if (!video || !video.url) throw new Error('Collection toggle requires a video URL');
+
+  var timestamp = nowIso();
+
+  if (action === 'remove') {
+    var removeResult = this.db
+      .prepare(
+        [
+          'UPDATE collection_items',
+          'SET is_visible = 0, missing_at = ?, last_seen_at = ?',
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND is_visible = 1'
+        ].join(' ')
+      )
+      .run(timestamp, timestamp, collectionKey, video.url);
+
+    return {
+      action: action,
+      changed: !!(removeResult && removeResult.changes),
+      collectionKey: collectionKey,
+      url: video.url,
+      visible: false
+    };
+  }
+
+  var upsertVideo = this.db.prepare(
+    [
+      'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'ON CONFLICT(url) DO UPDATE SET',
+      '  title = COALESCE(excluded.title, videos.title),',
+      '  views = COALESCE(excluded.views, videos.views),',
+      '  likes = COALESCE(excluded.likes, videos.likes),',
+      '  img = COALESCE(excluded.img, videos.img),',
+      '  preview = COALESCE(excluded.preview, videos.preview),',
+      '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
+      '  updated_at = excluded.updated_at'
+    ].join(' ')
+  );
+  var upsertItem = this.db.prepare(
+    [
+      'INSERT INTO collection_items (',
+      '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+      ')',
+      'VALUES (?, ?, ?, ?, ?, 1, NULL, NULL)',
+      'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+      '  last_seen_at = excluded.last_seen_at,',
+      '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+      '  is_visible = 1,',
+      '  missing_at = NULL'
+    ].join(' ')
+  );
+
+  this.db.exec('BEGIN IMMEDIATE');
+
+  try {
+    upsertVideo.run(
+      video.url,
+      video.title,
+      video.views,
+      video.likes,
+      video.img,
+      video.preview,
+      video.searchText,
+      timestamp,
+      timestamp
+    );
+    upsertItem.run(
+      collectionKey,
+      video.url,
+      timestamp,
+      timestamp,
+      video.siteOrder === null ? -Date.now() : video.siteOrder
+    );
+    this.db.exec('COMMIT');
+  } catch (error) {
+    this.db.exec('ROLLBACK');
+    throw error;
+  }
+
+  return {
+    action: action,
+    changed: true,
+    collectionKey: collectionKey,
+    url: video.url,
+    visible: true
+  };
+};
+
 JableDatabase.prototype.finishSync = function (payload) {
   var collectionKey = payload.collectionKey;
   this.ensureCollection(collectionKey);
