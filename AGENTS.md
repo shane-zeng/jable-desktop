@@ -16,6 +16,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/`: Node test files for database behavior, import/export, sync utilities, i18n, and browser tab policy.
+- `scripts/update-release-changelog.js`: release helper that updates `CHANGELOG.md` for a completed version tag.
 - `docs/`: user guides, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
 - `CHANGELOG.md`: tracked release history for every version tag.
 - `AGENTS.md`: contributor guidance for future maintenance.
@@ -115,7 +116,7 @@ Verify relevant behavior after changes:
 
 Recent commits use short, imperative summaries, for example `Add Jable Favourites Exporter user script`.
 
-Every version tag must have a matching `CHANGELOG.md` entry before the tag is pushed. Move relevant `Unreleased` notes into a dated version section, add compare links at the bottom, and keep the changelog update in the release commit or an earlier commit that is already reachable from the tag.
+Version tags are released first, then `.github/workflows/release.yml` commits the matching `CHANGELOG.md` entry back to the default branch after the draft GitHub release is created. Keep release-worthy notes under `Unreleased` when useful; the workflow moves them into the released version section. If the workflow cannot push the changelog update, run `RELEASE_TAG=vX.Y.Z fnm exec --using 24 node scripts/update-release-changelog.js`, commit `CHANGELOG.md`, and push the branch manually.
 
 Pull requests should include:
 

@@ -258,16 +258,25 @@ Unsigned artifacts are currently the default release output. The desktop app use
 
 Pushing a version tag runs `.github/workflows/release.yml`:
 
-Before creating or pushing a version tag, update `CHANGELOG.md`. Every tag must have a dated version section with the release changes, and the changelog update must be committed before the tag points at that release commit. Keep `[Unreleased]` for future work and refresh the compare links at the bottom of the file.
-
 ```sh
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow checks formatting, runs linting and tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. Review and smoke test the draft assets before publishing the release.
+The workflow checks formatting, runs linting and tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch as `github-actions[bot]`. Review and smoke test the draft assets before publishing the release.
 
-No GitHub Actions repository secrets or variables are required for the unsigned release workflow. GitHub provides `GITHUB_TOKEN` automatically, and the workflow sets `permissions: contents: write` so it can create the draft release.
+The post-release changelog step uses `scripts/update-release-changelog.js`. If `Unreleased` contains notes, the script moves them into the new version section. If `Unreleased` is empty, it creates a `Changed` section from first-parent commit subjects between the previous version tag and the released tag, excluding previous automated changelog commits. The script refreshes the compare links at the bottom of `CHANGELOG.md`.
+
+Because this changelog commit happens after the tag-triggered release succeeds, the tag archive itself does not include that generated changelog entry. The default branch does. If the default branch advances before the release job reaches the changelog step, branch protection blocks the bot push, or a manual release needs the same update, run:
+
+```sh
+RELEASE_TAG=v0.2.0 fnm exec --using 24 node scripts/update-release-changelog.js
+git add CHANGELOG.md
+git commit -m "Update changelog for v0.2.0"
+git push
+```
+
+No GitHub Actions repository secrets or variables are required for the unsigned release workflow. GitHub provides `GITHUB_TOKEN` automatically, and the workflow sets `permissions: contents: write` so it can create the draft release and push the post-release changelog commit.
 
 Expected draft release artifacts:
 

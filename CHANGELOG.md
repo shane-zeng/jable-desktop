@@ -6,6 +6,16 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+### Added
+
+- Add release workflow automation that commits `CHANGELOG.md` after a draft GitHub release is created.
+- Add a changelog update script for release tags.
+
+### Changed
+
+- Update release documentation to describe the post-release changelog commit flow.
+- Guard automated changelog commits so they only run when the released tag points at the current default branch head.
+
 ## [v0.7.1] - 2026-05-15
 
 ### Added
