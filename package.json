@@ -23,7 +23,7 @@
     "prestart:dev": "npm run check:node",
     "start:dev": "JABLE_RENDERER_DEV_URL=http://127.0.0.1:5173 electron .",
     "pretest": "npm run check:node",
-    "test": "node --test test/*.test.js",
+    "test": "node --test test/node/*.test.js",
     "pretest:renderer": "npm run check:node",
     "test:renderer": "vitest run --config vitest.renderer.config.mjs",
     "test:all": "npm test && npm run test:renderer",

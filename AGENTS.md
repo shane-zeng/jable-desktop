@@ -15,13 +15,14 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
-- `test/`: Node test files for database behavior, import/export, sync utilities, i18n, and browser tab policy.
+- `test/node/`: Node test files for database behavior, import/export, sync utilities, i18n, userscript i18n, update checks, and browser tab policy.
+- `test/renderer/`: Vitest renderer, component, composable, and renderer i18n tests.
 - `scripts/update-release-changelog.js`: release helper that updates `CHANGELOG.md` for a completed version tag.
 - `docs/`: user guides, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
 - `CHANGELOG.md`: tracked release history for every version tag.
 - `AGENTS.md`: contributor guidance for future maintenance.
 
-Keep the userscript self-contained. Put desktop-only code under `app/`, renderer tests beside renderer source, and Node tests under `test/`.
+Keep the userscript self-contained. Put desktop-only code under `app/`, Node tests under `test/node/`, and renderer tests under `test/renderer/`.
 
 ## Build, Test, and Development Commands
 
@@ -74,7 +75,7 @@ For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep 
 
 Local lists are loaded through paginated `listVideos` calls plus matching `countVideos` queries. When adding filters, search options, sort options, or pagination behavior, keep both query paths in sync.
 
-Local search uses SQLite FTS5. Changes to search tokenization, migrations, filters, sort behavior, or visibility rules should be covered in `test/database.test.js`.
+Local search uses SQLite FTS5. Changes to search tokenization, migrations, filters, sort behavior, or visibility rules should be covered in `test/node/database.test.js`.
 
 Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, and `docs/development.md`.
 
@@ -86,7 +87,7 @@ Desktop UI supports `zh-TW`, `en-US`, and `ja-JP`. User-facing renderer copy, ar
 
 The userscript remains self-contained and keeps its own small i18n dictionary inside `jable-favourites-exporter.user.js`; do not import desktop locale helpers into the userscript.
 
-When adding or changing user-facing messages, update all desktop locale JSON files, update the userscript dictionary when the message appears there, and adjust `test/i18n.test.js` or `test/userscript-i18n.test.js` when key parity or fallback behavior changes.
+When adding or changing user-facing messages, update all desktop locale JSON files, update the userscript dictionary when the message appears there, and adjust `test/node/i18n.test.js` or `test/node/userscript-i18n.test.js` when key parity or fallback behavior changes.
 
 Keep documentation split by audience:
 

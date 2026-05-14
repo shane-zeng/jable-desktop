@@ -113,7 +113,7 @@ Desktop data and search behavior:
 Browser and tab behavior:
 
 - Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.js`, main-process serialization, renderer state, and tests aligned.
-- `app/browser-tab-policy.js` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/browser-tab-policy.test.js` when changing any of those rules.
+- `app/browser-tab-policy.js` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.js` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
@@ -137,7 +137,7 @@ Localization behavior:
 - Locale selection precedence is: user preference in renderer `localStorage` (`jable-desktop:locale`), then detected system/browser locale, then `zh-TW`.
 - Renderer locale changes are sent through `window.jableApp.setLocale()`, so native application menus, context menus, dialog titles, and renderer copy stay aligned.
 - Keep visible renderer copy, aria labels, placeholders, toast messages, select option labels, and menu/dialog labels in the locale dictionaries. Avoid putting user-facing fallback labels in `app/renderer-src/constants.ts`.
-- Dictionary key parity between `zh-TW`, `en-US`, and `ja-JP` is covered by `test/i18n.test.js`. Missing keys are exposed as `[missing:key.path]` in development/test and fall back to the raw key in production.
+- Dictionary key parity between `zh-TW`, `en-US`, and `ja-JP` is covered by `test/node/i18n.test.js`. Missing keys are exposed as `[missing:key.path]` in development/test and fall back to the raw key in production.
 - The userscript remains self-contained, so it has a small local i18n dictionary inside `jable-favourites-exporter.user.js` rather than importing the desktop dictionaries. Its language preference is stored in `localStorage` as `jable-favourites-exporter:locale`.
 - When adding a new user-facing message, update all desktop locale JSON files, update the userscript dictionary separately if the message appears there, and add or adjust tests for any new translation behavior.
 
@@ -159,8 +159,8 @@ Desktop app files:
 - `app/renderer-src/composables/`: renderer state modules for IPC access, BrowserView bounds/tabs/navigation, and local library state.
 - `app/renderer-src/components/`: presentational Vue components for top navigation, browser tabs, local data controls, pagination, and video cards.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
-- `test/`: Node tests for database behavior, sync utilities, and browser tab policy.
-- `app/renderer-src/**/*.test.ts`: Vitest renderer/component/composable tests.
+- `test/node/`: Node tests for database behavior, sync utilities, i18n, update checks, and browser tab policy.
+- `test/renderer/`: Vitest renderer/component/composable tests.
 - `scripts/check-node-version.js`: local guard that enforces the supported Node.js version range before scripts run.
 
 ### Quality Checks
@@ -189,12 +189,12 @@ TypeScript is intentionally scoped to the renderer and shared IPC/wire types. El
 
 Test coverage map:
 
-- `test/database.test.js`: SQLite schema migrations, sync visibility, search, import/export, streamed file export, and collection toggle persistence.
-- `test/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
-- `test/sync-utils.test.js`: numeric pager selection.
-- `test/i18n.test.js` and `test/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
-- `app/renderer-src/components/*.test.ts`: component rendering and emitted UI actions.
-- `app/renderer-src/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
+- `test/node/database.test.js`: SQLite schema migrations, sync visibility, search, import/export, streamed file export, and collection toggle persistence.
+- `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
+- `test/node/sync-utils.test.js`: numeric pager selection.
+- `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
+- `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
+- `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
 
 GitHub Actions run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs formatting, linting, and tests before building unsigned macOS and Windows artifacts.
 

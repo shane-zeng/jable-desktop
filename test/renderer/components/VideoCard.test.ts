@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { setLocale } from '../i18n';
-import VideoCard from './VideoCard.vue';
-import type { VideoRow } from '../../types/jable';
+import VideoCard from '@/components/VideoCard.vue';
+import { setLocale } from '@/i18n';
+import type { VideoRow } from '../../../app/types/jable';
 
 var originalPlatform = window.navigator.platform;
 

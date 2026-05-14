@@ -1,8 +1,8 @@
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLocale } from '../i18n';
-import BrowserPanel from './BrowserPanel.vue';
-import type { BrowserTabState } from '../../types/jable';
+import BrowserPanel from '@/components/BrowserPanel.vue';
+import { setLocale } from '@/i18n';
+import type { BrowserTabState } from '../../../app/types/jable';
 
 function makeTabs(): BrowserTabState[] {
   return [

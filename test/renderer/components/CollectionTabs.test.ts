@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLocale } from '../i18n';
-import CollectionTabs from './CollectionTabs.vue';
+import CollectionTabs from '@/components/CollectionTabs.vue';
+import { setLocale } from '@/i18n';
 
 describe('CollectionTabs', function () {
   beforeEach(function () {

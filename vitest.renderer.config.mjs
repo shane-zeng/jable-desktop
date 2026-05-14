@@ -4,9 +4,10 @@ import viteConfig from './vite.renderer.config.mjs';
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    root: '.',
     test: {
       environment: 'happy-dom',
-      include: ['**/*.{test,spec}.{js,ts}']
+      include: ['test/renderer/**/*.{test,spec}.{js,ts}']
     }
   })
 );

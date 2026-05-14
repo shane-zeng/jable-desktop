@@ -2,7 +2,7 @@
 
 var test = require('node:test');
 var assert = require('node:assert/strict');
-var chooseNextPagerLink = require('../app/sync-utils').chooseNextPagerLink;
+var chooseNextPagerLink = require('../../app/sync-utils').chooseNextPagerLink;
 
 test('chooseNextPagerLink selects the smallest page after the current page', function () {
   var links = [

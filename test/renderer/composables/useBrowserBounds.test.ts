@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { effectScope, ref } from 'vue';
-import { useBrowserBounds } from './useBrowserBounds';
-import type { AppView, BrowserTabKind, BrowserTabsState, JableAppApi } from '../../types/jable';
+import { useBrowserBounds } from '@/composables/useBrowserBounds';
+import type { AppView, BrowserTabKind, BrowserTabsState, JableAppApi } from '../../../app/types/jable';
 
 function createState(api: Partial<JableAppApi>) {
   var scope = effectScope();

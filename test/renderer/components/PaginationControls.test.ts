@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLocale } from '../i18n';
-import PaginationControls from './PaginationControls.vue';
+import PaginationControls from '@/components/PaginationControls.vue';
+import { setLocale } from '@/i18n';
 
 describe('PaginationControls', function () {
   beforeEach(function () {

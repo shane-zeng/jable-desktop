@@ -1,10 +1,10 @@
 import { flushPromises } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick } from 'vue';
-import { PAGE_SIZE } from '../constants';
-import { setLocale } from '../i18n';
-import { useLibraryState } from './useLibraryState';
-import type { JableAppApi, ListVideosOptions, SortKey, VideoRow } from '../../types/jable';
+import { PAGE_SIZE } from '@/constants';
+import { setLocale } from '@/i18n';
+import { useLibraryState } from '@/composables/useLibraryState';
+import type { JableAppApi, ListVideosOptions, SortKey, VideoRow } from '../../../app/types/jable';
 
 function makeRows(count: number): VideoRow[] {
   return Array.from({ length: count }, function (_, index) {

@@ -5,7 +5,7 @@ var path = require('node:path');
 var test = require('node:test');
 var assert = require('node:assert/strict');
 
-var USERSCRIPT_PATH = path.join(__dirname, '..', 'jable-favourites-exporter.user.js');
+var USERSCRIPT_PATH = path.join(__dirname, '..', '..', 'jable-favourites-exporter.user.js');
 
 function readUserscript() {
   return fs.readFileSync(USERSCRIPT_PATH, 'utf8');

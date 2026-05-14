@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLocale } from '../i18n';
-import LibraryPanel from './LibraryPanel.vue';
+import LibraryPanel from '@/components/LibraryPanel.vue';
+import { setLocale } from '@/i18n';
 
 describe('LibraryPanel', function () {
   beforeEach(function () {

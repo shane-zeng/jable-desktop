@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LOCALE_STORAGE_KEY, detectLocale, localeOptions, normalizeLocale, setLocale, t } from '.';
+import { LOCALE_STORAGE_KEY, detectLocale, localeOptions, normalizeLocale, setLocale, t } from '@/i18n';
 
 describe('renderer i18n', function () {
   beforeEach(function () {

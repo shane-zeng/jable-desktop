@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setLocale } from '../i18n';
-import TopBar from './TopBar.vue';
+import TopBar from '@/components/TopBar.vue';
+import { setLocale } from '@/i18n';
 
 describe('TopBar', function () {
   beforeEach(function () {

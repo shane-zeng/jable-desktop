@@ -45,14 +45,14 @@ export default [
     rules: commonRules
   },
   {
-    files: ['app/**/*.js', 'scripts/**/*.js', 'test/**/*.js'],
+    files: ['app/**/*.js', 'scripts/**/*.js', 'test/node/**/*.js'],
     languageOptions: {
       globals: nodeGlobals,
       sourceType: 'commonjs'
     }
   },
   {
-    files: ['**/*.mjs', 'app/renderer-src/**/*.{js,ts,vue}', 'app/types/**/*.ts'],
+    files: ['**/*.mjs', 'app/renderer-src/**/*.{js,ts,vue}', 'app/types/**/*.ts', 'test/renderer/**/*.{js,ts}'],
     languageOptions: {
       sourceType: 'module'
     }
@@ -127,7 +127,7 @@ export default [
     }
   },
   {
-    files: ['app/renderer-src/**/*.{test,spec}.{js,ts}'],
+    files: ['test/renderer/**/*.{test,spec}.{js,ts}'],
     languageOptions: {
       globals: {
         ...browserGlobals,
