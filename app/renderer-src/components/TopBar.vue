@@ -54,14 +54,14 @@ var emit = defineEmits<{
     </div>
 
     <div
-      class="flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px] max-[1180px]:justify-self-start"
+      class="segmented-tabs flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px] max-[1180px]:justify-self-start"
       role="tablist"
       aria-label="Main views"
     >
       <button
-        class="min-h-[30px] border-0 bg-transparent text-[var(--muted)]"
+        class="segmented-tab min-h-[30px]"
         :class="{
-          '!bg-[var(--control)] !font-bold !text-[var(--text)] shadow-[var(--shadow)]': activeView === 'browser'
+          'is-active': activeView === 'browser'
         }"
         type="button"
         role="tab"
@@ -71,9 +71,9 @@ var emit = defineEmits<{
         瀏覽器
       </button>
       <button
-        class="min-h-[30px] border-0 bg-transparent text-[var(--muted)]"
+        class="segmented-tab min-h-[30px]"
         :class="{
-          '!bg-[var(--control)] !font-bold !text-[var(--text)] shadow-[var(--shadow)]': activeView === 'library'
+          'is-active': activeView === 'library'
         }"
         type="button"
         role="tab"

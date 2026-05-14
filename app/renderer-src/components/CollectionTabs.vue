@@ -23,17 +23,16 @@ var collectionEntries = computed(function () {
 
 <template>
   <div
-    class="flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+    class="segmented-tabs flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
     role="tablist"
     aria-label="Collections"
   >
     <button
       v-for="collection in collectionEntries"
       :key="collection.key"
-      class="min-h-8 border-0 bg-transparent text-[var(--muted)]"
+      class="segmented-tab min-h-8"
       :class="{
-        '!bg-[var(--control)] !font-bold !text-[var(--text)] shadow-[var(--shadow)]':
-          props.activeCollection === collection.key
+        'is-active': props.activeCollection === collection.key
       }"
       type="button"
       role="tab"
