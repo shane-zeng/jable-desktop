@@ -3,7 +3,7 @@
     "target": "ES2024",
     "module": "Node16",
     "moduleResolution": "Node16",
-    "strict": false,
+    "strict": true,
     "noEmitOnError": true,
     "rootDir": "app",
     "outDir": "app/runtime-dist",

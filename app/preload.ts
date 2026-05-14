@@ -1,8 +1,9 @@
 'use strict';
 
-import type { JableAppApi } from './types/jable';
+import type { IpcRendererEvent } from 'electron';
+import type { BrowserMessage, JableAppApi } from './types/jable';
 
-var electron = require('electron');
+var electron = require('electron') as typeof import('electron');
 var contextBridge = electron.contextBridge;
 var ipcRenderer = electron.ipcRenderer;
 
@@ -92,7 +93,7 @@ var jableApp: JableAppApi = {
     return ipcRenderer.invoke('browser:diagnose', payload);
   },
   onBrowserMessage: function (callback) {
-    ipcRenderer.on('browser-message', function (_event, message) {
+    ipcRenderer.on('browser-message', function (_event: IpcRendererEvent, message: BrowserMessage) {
       callback(message);
     });
   }

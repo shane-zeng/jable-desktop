@@ -1,11 +1,139 @@
 'use strict';
 
-var electron = require('electron');
-var path = require('node:path');
-var browserTabPolicy = require('./browser-tab-policy');
-var databaseModule = require('./database');
-var i18n = require('./i18n');
-var updateChecker = require('./update-checker');
+import type * as Electron from 'electron';
+import type {
+  BrowserBounds,
+  BrowserNavigatePayload,
+  BrowserNavigationState,
+  BrowserTabKind,
+  BrowserTabLockedPayload,
+  BrowserTabMenuPayload,
+  BrowserTabMutedPayload,
+  BrowserTabsState,
+  CollectionKey,
+  CreateBrowserTabPayload,
+  ExportJsonFileResult,
+  ExportResource,
+  FinishSyncPayload,
+  LibraryVideoMenuPayload,
+  ListVideosOptions,
+  SupportedLocale,
+  SyncPagePayload,
+  VideoRow
+} from './types/jable';
+
+type TranslationParams = Record<string, string | number | boolean | null | undefined>;
+type BrowserBoundsState = { visible: boolean; x: number; y: number; width: number; height: number };
+type BrowserTab = {
+  id: string;
+  kind: BrowserTabKind;
+  view: Electron.WebContentsView;
+  attached: boolean;
+  locked: boolean;
+  title: string;
+  url: string;
+  favicon: string;
+  loading: boolean;
+  muted: boolean;
+  audible: boolean;
+  mediaPlaying: boolean;
+  pictureInPicture: boolean;
+  discarded: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+};
+type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
+type DatabaseListOptions = Partial<ListVideosOptions> & {
+  sort?: ListVideosOptions['sort'] | 'updated_at' | 'last_seen_at';
+};
+type CollectionTogglePayload = {
+  collectionKey?: CollectionKey;
+  action?: unknown;
+  video?: unknown;
+  url?: unknown;
+  title?: unknown;
+  views?: unknown;
+  likes?: unknown;
+  img?: unknown;
+  preview?: unknown;
+  siteOrder?: unknown;
+  site_order?: unknown;
+  sort_order?: unknown;
+};
+type CollectionToggleResult = {
+  action: 'add' | 'remove';
+  changed: boolean;
+  collectionKey: CollectionKey;
+  url: string;
+  visible: boolean;
+};
+type JableDatabaseInstance = {
+  close(): void;
+  listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[];
+  countVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): number;
+  getCollectionUrls(collectionKey: CollectionKey): string[];
+  allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean;
+  saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null };
+  applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult;
+  finishSync(payload: FinishSyncPayload): import('./types/jable').SyncState;
+  clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
+  importResource(
+    collectionKey: CollectionKey,
+    resource: ExportResource
+  ): { imported: number; collectionKey: CollectionKey };
+  exportResource(collectionKey: CollectionKey): ExportResource;
+  exportResourceToFile(collectionKey: CollectionKey, filePath: string): Promise<{ filePath: string; total: number }>;
+};
+type JableDatabaseConstructor = new (filePath: string) => JableDatabaseInstance;
+type DatabaseModule = {
+  COLLECTIONS: DatabaseCollection[];
+  JableDatabase: JableDatabaseConstructor;
+};
+type BrowserTabShortcutInput = Electron.Input & {
+  control?: boolean;
+  meta?: boolean;
+  alt?: boolean;
+  shift?: boolean;
+};
+type SerializedMediaState = {
+  muted: boolean;
+  audible: boolean;
+  mediaPlaying: boolean;
+  pictureInPicture: boolean;
+  discarded: boolean;
+};
+type BrowserTabPolicyModule = {
+  browserTabShortcutOffset(input: BrowserTabShortcutInput | null | undefined, isMacos: boolean): number;
+  browserTabWebPreferences(kind: BrowserTabKind, preloadPath: string, partition: string): Electron.WebPreferences;
+  nextActiveTabIdByOffset(tabs: BrowserTab[], activeTabId: string | null, offset: number): string | null;
+  nextActiveTabIdAfterClose(tabs: BrowserTab[], activeTabId: string | null, closingTabId: string): string | null;
+  serializedMediaState(tab: BrowserTab): SerializedMediaState;
+};
+type I18nModule = {
+  DEFAULT_LOCALE: SupportedLocale;
+  normalizeLocale(value: unknown): SupportedLocale;
+  t(locale: SupportedLocale, key: string, params?: TranslationParams | null): string;
+};
+type UpdateCheckResult = {
+  available?: boolean;
+  currentVersion?: string;
+  latestVersion?: string;
+  releaseUrl?: string;
+  error?: string;
+  reason?: string;
+};
+type UpdateCheckerModule = {
+  checkLatestRelease(options: { currentVersion?: string }): Promise<UpdateCheckResult>;
+};
+type UpdateCheckOptions = { manual?: boolean };
+type PopupOptions = Parameters<Electron.Menu['popup']>[0];
+
+var electron = require('electron') as typeof import('electron');
+var path = require('node:path') as typeof import('node:path');
+var browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
+var databaseModule = require('./database') as DatabaseModule;
+var i18n = require('./i18n') as I18nModule;
+var updateChecker = require('./update-checker') as UpdateCheckerModule;
 var JableDatabase = databaseModule.JableDatabase;
 var COLLECTIONS = databaseModule.COLLECTIONS;
 
@@ -31,36 +159,36 @@ var IS_MACOS = process.platform === 'darwin';
 var NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 var CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
 
-var mainWindow = null;
-var browserTabs = [];
-var browserTabsById = {};
-var webContentsTabIds = {};
-var activeBrowserTabId = null;
+var mainWindow: Electron.BrowserWindow | null = null;
+var browserTabs: BrowserTab[] = [];
+var browserTabsById: Record<string, BrowserTab> = {};
+var webContentsTabIds: Record<string, string> = {};
+var activeBrowserTabId: string | null = null;
 var nextBrowserTabId = 1;
-var browserBounds = { visible: true, x: 0, y: 52, width: 900, height: 600 };
-var browserHtmlFullScreenTabId = null;
-var database = null;
-var databasePath = null;
+var browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
+var browserHtmlFullScreenTabId: string | null = null;
+var database: JableDatabaseInstance | null = null;
+var databasePath: string | null = null;
 var lastShortcutAction = { name: '', at: 0 };
-var currentLocale = i18n.DEFAULT_LOCALE;
-var updateCheckInFlight = null;
-var lastBackgroundUpdateVersion = null;
+var currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
+var updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
+var lastBackgroundUpdateVersion: string | null = null;
 
-function t(key, params?) {
+function t(key: string, params?: TranslationParams | null): string {
   return i18n.t(currentLocale, key, params);
 }
 
-function mainErrorMessage(error) {
+function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function setCurrentLocale(locale) {
+function setCurrentLocale(locale: unknown): SupportedLocale {
   currentLocale = i18n.normalizeLocale(locale);
   if (app.isReady()) installApplicationMenu();
   return currentLocale;
 }
 
-function getDatabase() {
+function getDatabase(): JableDatabaseInstance {
   if (!database) {
     databasePath = path.join(app.getPath('userData'), 'jable-favourites.sqlite');
     database = new JableDatabase(databasePath);
@@ -87,7 +215,7 @@ function createWindow() {
 
   registerAppShortcuts(mainWindow.webContents);
 
-  mainWindow.webContents.setWindowOpenHandler(function (details) {
+  mainWindow.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
       try {
         createBrowserTab({
@@ -95,14 +223,14 @@ function createWindow() {
           active: true
         });
       } catch (error) {
-        forwardBrowserMessage('browser-error', { message: error.message });
+        forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
       }
     }
 
     return { action: 'deny' };
   });
 
-  mainWindow.on('swipe', function (_event, direction) {
+  mainWindow.on('swipe', function (_event: Electron.Event, direction: string) {
     if (direction === 'right') goBrowserBack();
     else if (direction === 'left') goBrowserForward();
   });
@@ -115,11 +243,11 @@ function createWindow() {
   createBrowserTab({ url: JABLE_HOME_URL, active: true });
 }
 
-function shouldActivateWindowOpen(details) {
+function shouldActivateWindowOpen(details: Electron.HandlerDetails | null | undefined) {
   return !details || details.disposition !== 'background-tab';
 }
 
-function isPrimaryShortcut(input, key) {
+function isPrimaryShortcut(input: BrowserTabShortcutInput | null | undefined, key: string) {
   if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return false;
   if (String(input.key || '').toLowerCase() !== key) return false;
   if (input.alt || input.shift) return false;
@@ -128,19 +256,19 @@ function isPrimaryShortcut(input, key) {
   return !!input.control && !input.meta;
 }
 
-function isNewTabShortcut(input) {
+function isNewTabShortcut(input: BrowserTabShortcutInput | null | undefined) {
   return isPrimaryShortcut(input, 't');
 }
 
-function isCloseTabShortcut(input) {
+function isCloseTabShortcut(input: BrowserTabShortcutInput | null | undefined) {
   return isPrimaryShortcut(input, 'w');
 }
 
-function isToggleCompactTabsShortcut(input) {
+function isToggleCompactTabsShortcut(input: BrowserTabShortcutInput | null | undefined) {
   return isPrimaryShortcut(input, 's');
 }
 
-function runShortcutAction(name, action) {
+function runShortcutAction(name: string, action: () => void) {
   var now = Date.now();
 
   if (lastShortcutAction.name === name && now - lastShortcutAction.at < 150) return;
@@ -160,7 +288,7 @@ function openHomeTabFromShortcut() {
       createBrowserTab({ url: JABLE_HOME_URL, active: true });
       forwardBrowserMessage('browser-tab-shortcut', {});
     } catch (error) {
-      forwardBrowserMessage('browser-error', { message: error.message });
+      forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
     }
   });
 }
@@ -173,12 +301,12 @@ function closeActiveTabFromShortcut() {
       closeBrowserTab(activeBrowserTabId);
       forwardBrowserMessage('browser-tab-shortcut', {});
     } catch (error) {
-      forwardBrowserMessage('browser-error', { message: error.message });
+      forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
     }
   });
 }
 
-function activateRelativeBrowserTabFromShortcut(offset) {
+function activateRelativeBrowserTabFromShortcut(offset: number) {
   runShortcutAction(offset > 0 ? 'next-tab' : 'previous-tab', function () {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
@@ -189,7 +317,7 @@ function activateRelativeBrowserTabFromShortcut(offset) {
       activateBrowserTab(tabId);
       forwardBrowserMessage('browser-tab-shortcut', {});
     } catch (error) {
-      forwardBrowserMessage('browser-error', { message: error.message });
+      forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
     }
   });
 }
@@ -200,7 +328,7 @@ function toggleCompactTabsFromShortcut() {
   });
 }
 
-function registerAppShortcuts(webContents) {
+function registerAppShortcuts(webContents: Electron.WebContents) {
   webContents.on('before-input-event', function (event, input) {
     if (isNewTabShortcut(input)) {
       event.preventDefault();
@@ -229,8 +357,8 @@ function registerAppShortcuts(webContents) {
 }
 
 function installApplicationMenu() {
-  var template: any[] = [];
-  var fileSubmenu: any[] = [
+  var template: Electron.MenuItemConstructorOptions[] = [];
+  var fileSubmenu: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('menu.newTab'),
       accelerator: NEW_TAB_ACCELERATOR,
@@ -319,6 +447,8 @@ function installApplicationMenu() {
 }
 
 function loadRenderer() {
+  if (!mainWindow) throw new Error('Main window is not available');
+
   if (process.env.JABLE_RENDERER_DEV_URL) {
     mainWindow.loadURL(process.env.JABLE_RENDERER_DEV_URL);
     return;
@@ -327,14 +457,14 @@ function loadRenderer() {
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer-dist', 'index.html'));
 }
 
-function showAppDialog(options) {
+function showAppDialog(options: Electron.MessageBoxOptions) {
   if (mainWindow && !mainWindow.isDestroyed()) return dialog.showMessageBox(mainWindow, options);
   return dialog.showMessageBox(options);
 }
 
-function showUpdateAvailableDialog(result, manual) {
+function showUpdateAvailableDialog(result: UpdateCheckResult, manual: boolean): Promise<UpdateCheckResult> {
   if (!manual && result.latestVersion === lastBackgroundUpdateVersion) return Promise.resolve(result);
-  if (!manual) lastBackgroundUpdateVersion = result.latestVersion;
+  if (!manual) lastBackgroundUpdateVersion = result.latestVersion || null;
 
   return showAppDialog({
     type: 'info',
@@ -346,7 +476,7 @@ function showUpdateAvailableDialog(result, manual) {
       currentVersion: result.currentVersion,
       latestVersion: result.latestVersion
     })
-  }).then(function (dialogResult) {
+  }).then(function (dialogResult: Electron.MessageBoxReturnValue) {
     if (dialogResult.response !== 0 || !result.releaseUrl) return result;
 
     return shell.openExternal(result.releaseUrl).then(function () {
@@ -355,7 +485,7 @@ function showUpdateAvailableDialog(result, manual) {
   });
 }
 
-function showNoUpdateDialog(result) {
+function showNoUpdateDialog(result: UpdateCheckResult): Promise<UpdateCheckResult> {
   return showAppDialog({
     type: 'info',
     buttons: ['OK'],
@@ -369,7 +499,7 @@ function showNoUpdateDialog(result) {
   });
 }
 
-function showUpdateFailedDialog(result) {
+function showUpdateFailedDialog(result: UpdateCheckResult): Promise<UpdateCheckResult> {
   return showAppDialog({
     type: 'warning',
     buttons: ['OK'],
@@ -383,14 +513,14 @@ function showUpdateFailedDialog(result) {
   });
 }
 
-function displayUpdateCheckResult(result, manual) {
+function displayUpdateCheckResult(result: UpdateCheckResult, manual: boolean): Promise<UpdateCheckResult> {
   if (result.available) return showUpdateAvailableDialog(result, manual);
   if (!manual) return Promise.resolve(result);
   if (result.error) return showUpdateFailedDialog(result);
   return showNoUpdateDialog(result);
 }
 
-function fetchUpdateCheck() {
+function fetchUpdateCheck(): Promise<UpdateCheckResult> {
   if (updateCheckInFlight) return updateCheckInFlight;
 
   updateCheckInFlight = updateChecker
@@ -404,11 +534,11 @@ function fetchUpdateCheck() {
   return updateCheckInFlight;
 }
 
-function checkForUpdates(options) {
-  options = options || {};
+function checkForUpdates(options?: UpdateCheckOptions | null): Promise<UpdateCheckResult> {
+  var normalizedOptions = options || {};
 
   return fetchUpdateCheck().then(function (result) {
-    return displayUpdateCheckResult(result, !!options.manual);
+    return displayUpdateCheckResult(result, !!normalizedOptions.manual);
   });
 }
 
@@ -428,29 +558,29 @@ function scheduleBackgroundUpdateCheck() {
   }, BACKGROUND_UPDATE_CHECK_DELAY_MS);
 }
 
-function createBrowserTab(options?) {
-  options = options || {};
+function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
+  var normalizedOptions = options || {};
 
   if (browserTabs.length >= MAX_BROWSER_TABS) {
     throw new Error(t('errors.maxTabs', { count: MAX_BROWSER_TABS }));
   }
 
-  var kind = options.kind === 'sync' ? 'sync' : 'normal';
+  var kind: BrowserTabKind = normalizedOptions.kind === 'sync' ? 'sync' : 'normal';
   var id = 'tab-' + nextBrowserTabId++;
   var preloadPath = path.join(__dirname, 'webview-preload.js');
-  var tab = {
+  var tab: BrowserTab = {
     id: id,
     kind: kind,
     view: new WebContentsView({
       webPreferences: browserTabWebPreferences(kind, preloadPath, JABLE_SESSION_PARTITION)
     }),
     attached: false,
-    locked: !!options.locked,
-    title: options.title || (kind === 'sync' ? t('browser.sync') : 'Jable'),
-    url: options.url || '',
-    favicon: options.favicon || '',
+    locked: !!normalizedOptions.locked,
+    title: normalizedOptions.title || (kind === 'sync' ? t('browser.sync') : 'Jable'),
+    url: normalizedOptions.url || '',
+    favicon: normalizedOptions.favicon || '',
     loading: false,
-    muted: !!options.muted,
+    muted: !!normalizedOptions.muted,
     audible: false,
     mediaPlaying: false,
     pictureInPicture: false,
@@ -464,25 +594,25 @@ function createBrowserTab(options?) {
   webContentsTabIds[String(tab.view.webContents.id)] = id;
   wireBrowserTab(tab);
 
-  if (!activeBrowserTabId || options.active !== false) {
+  if (!activeBrowserTabId || normalizedOptions.active !== false) {
     activeBrowserTabId = id;
   }
 
-  if (options.url) loadTabUrl(tab, options.url, !!options.forceReload);
+  if (normalizedOptions.url) loadTabUrl(tab, normalizedOptions.url, !!normalizedOptions.forceReload);
   attachActiveBrowserTab();
   if (activeBrowserTabId === tab.id) focusBrowserTab(tab);
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
 
-function wireBrowserTab(tab) {
+function wireBrowserTab(tab: BrowserTab) {
   registerAppShortcuts(tab.view.webContents);
 
   if (tab.muted) {
     tab.view.webContents.setAudioMuted(true);
   }
 
-  tab.view.webContents.setWindowOpenHandler(function (details) {
+  tab.view.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
       try {
         createBrowserTab({
@@ -490,19 +620,19 @@ function wireBrowserTab(tab) {
           active: shouldActivateWindowOpen(details)
         });
       } catch (error) {
-        forwardBrowserMessage('browser-error', { message: error.message });
+        forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
       }
     }
 
     return { action: 'deny' };
   });
 
-  tab.view.webContents.on('page-title-updated', function (_event, title) {
+  tab.view.webContents.on('page-title-updated', function (_event: Electron.Event, title: string) {
     tab.title = cleanTitle(title) || tab.title;
     notifyBrowserTabsChanged();
   });
 
-  tab.view.webContents.on('page-favicon-updated', function (_event, favicons) {
+  tab.view.webContents.on('page-favicon-updated', function (_event: Electron.Event, favicons: string[]) {
     if (Array.isArray(favicons) && favicons[0]) {
       tab.favicon = favicons[0];
       notifyBrowserTabsChanged();
@@ -534,13 +664,13 @@ function wireBrowserTab(tab) {
     notifyBrowserTabsChanged();
   });
 
-  tab.view.webContents.on('did-navigate', function (_event, url) {
+  tab.view.webContents.on('did-navigate', function (_event: Electron.Event, url: string) {
     tab.url = url || tab.view.webContents.getURL() || tab.url;
     updateTabNavigationState(tab);
     notifyBrowserTabsChanged();
   });
 
-  tab.view.webContents.on('did-navigate-in-page', function (_event, url) {
+  tab.view.webContents.on('did-navigate-in-page', function (_event: Electron.Event, url: string) {
     tab.url = url || tab.view.webContents.getURL() || tab.url;
     updateTabNavigationState(tab);
     notifyBrowserTabsChanged();
@@ -558,7 +688,7 @@ function wireBrowserTab(tab) {
     notifyBrowserTabsChanged();
   });
 
-  tab.view.webContents.on('audio-state-changed', function (event) {
+  tab.view.webContents.on('audio-state-changed', function (event: { audible?: boolean }) {
     tab.audible = !!(event && event.audible);
     syncBrowserTabMediaState(tab);
     notifyBrowserTabsChanged();
@@ -572,18 +702,18 @@ function wireBrowserTab(tab) {
     leaveBrowserHtmlFullScreen(tab);
   });
 
-  tab.view.webContents.on('context-menu', function (_event, params) {
+  tab.view.webContents.on('context-menu', function (_event: Electron.Event, params: Electron.ContextMenuParams) {
     showBrowserContextMenu(tab, params);
   });
 }
 
-function cleanTitle(title) {
+function cleanTitle(title: unknown): string {
   return String(title || '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function getBrowserTab(tabId?) {
+function getBrowserTab(tabId?: string | null): BrowserTab {
   var id = tabId || activeBrowserTabId;
   var tab = id ? browserTabsById[id] : null;
   var webContents = tab && tab.view ? tab.view.webContents : null;
@@ -595,13 +725,13 @@ function getBrowserTab(tabId?) {
   return tab;
 }
 
-function getBrowserTabByWebContents(webContents) {
+function getBrowserTabByWebContents(webContents: Electron.WebContents | null | undefined): BrowserTab | null {
   if (!webContents) return null;
   var tabId = webContentsTabIds[String(webContents.id)];
   return tabId ? browserTabsById[tabId] : null;
 }
 
-function resetBrowserTabMediaState(tab) {
+function resetBrowserTabMediaState(tab: BrowserTab | null | undefined) {
   if (!tab) return;
 
   tab.audible = false;
@@ -609,8 +739,10 @@ function resetBrowserTabMediaState(tab) {
   tab.pictureInPicture = false;
 }
 
-function syncBrowserTabMediaState(tab) {
-  var webContents = tab && tab.view ? tab.view.webContents : null;
+function syncBrowserTabMediaState(tab: BrowserTab | null | undefined) {
+  if (!tab) return;
+
+  var webContents = tab.view.webContents;
 
   if (!webContents || webContents.isDestroyed()) return;
 
@@ -623,7 +755,7 @@ function syncBrowserTabMediaState(tab) {
   } catch (error) {}
 }
 
-function serializeBrowserTab(tab) {
+function serializeBrowserTab(tab: BrowserTab) {
   updateTabNavigationState(tab);
   syncBrowserTabMediaState(tab);
 
@@ -647,7 +779,7 @@ function serializeBrowserTab(tab) {
   };
 }
 
-function browserTabsState() {
+function browserTabsState(): BrowserTabsState {
   return {
     activeTabId: activeBrowserTabId,
     maxTabs: MAX_BROWSER_TABS,
@@ -655,7 +787,7 @@ function browserTabsState() {
   };
 }
 
-function updateTabNavigationState(tab) {
+function updateTabNavigationState(tab: BrowserTab | null | undefined) {
   var webContents = tab && tab.view ? tab.view.webContents : null;
 
   if (!tab || !webContents || webContents.isDestroyed()) {
@@ -677,8 +809,8 @@ function notifyBrowserTabsChanged() {
   forwardBrowserMessage('browser-navigation-state', browserNavigationState());
 }
 
-function browserNavigationState(tabId?) {
-  var tab = null;
+function browserNavigationState(tabId?: string | null): BrowserNavigationState {
+  var tab: BrowserTab | null = null;
 
   try {
     tab = getBrowserTab(tabId);
@@ -696,7 +828,7 @@ function browserNavigationState(tabId?) {
   };
 }
 
-function detachBrowserTab(tab) {
+function detachBrowserTab(tab: BrowserTab | null | undefined) {
   if (!mainWindow || mainWindow.isDestroyed() || !tab || !tab.attached) return;
   mainWindow.contentView.removeChildView(tab.view);
   tab.attached = false;
@@ -708,7 +840,7 @@ function detachAllBrowserTabs() {
   }
 }
 
-function focusBrowserTab(tab) {
+function focusBrowserTab(tab: BrowserTab | null | undefined) {
   if (!tab || !browserBounds.visible || !mainWindow || mainWindow.isDestroyed()) return;
 
   setImmediate(function () {
@@ -722,8 +854,8 @@ function focusBrowserTab(tab) {
 }
 
 function attachActiveBrowserTab() {
-  var activeTab = null;
-  var bounds = null;
+  var activeTab: BrowserTab | null = null;
+  var bounds: BrowserBoundsState | null = null;
 
   try {
     activeTab = getBrowserTab();
@@ -751,12 +883,13 @@ function attachActiveBrowserTab() {
   });
 }
 
-function browserTabBounds(tab) {
+function browserTabBounds(tab: BrowserTab): BrowserBoundsState {
   // HTML fullscreen expands only within WebContentsView bounds, so stretch the view over the app chrome.
   if (browserHtmlFullScreenTabId === tab.id && mainWindow && !mainWindow.isDestroyed()) {
     var size = mainWindow.getContentSize();
 
     return {
+      visible: true,
       x: 0,
       y: 0,
       width: Math.max(320, Math.floor(size[0] || 0)),
@@ -776,7 +909,7 @@ function scheduleBrowserHtmlFullScreenResize() {
   });
 }
 
-function enterBrowserHtmlFullScreen(tab) {
+function enterBrowserHtmlFullScreen(tab: BrowserTab | null | undefined) {
   if (!tab || !mainWindow || mainWindow.isDestroyed()) return;
 
   browserHtmlFullScreenTabId = tab.id;
@@ -785,7 +918,7 @@ function enterBrowserHtmlFullScreen(tab) {
   focusBrowserTab(tab);
 }
 
-function leaveBrowserHtmlFullScreen(tab) {
+function leaveBrowserHtmlFullScreen(tab: BrowserTab | null | undefined) {
   if (!tab || browserHtmlFullScreenTabId !== tab.id) return;
 
   browserHtmlFullScreenTabId = null;
@@ -793,7 +926,7 @@ function leaveBrowserHtmlFullScreen(tab) {
   focusBrowserTab(tab);
 }
 
-function setBrowserBounds(bounds) {
+function setBrowserBounds(bounds: BrowserBounds | null | undefined): BrowserBounds | null {
   if (!bounds) return null;
 
   if (bounds.visible === false) {
@@ -814,7 +947,7 @@ function setBrowserBounds(bounds) {
   return Object.assign({}, browserBounds);
 }
 
-function activateBrowserTab(tabId) {
+function activateBrowserTab(tabId: string | null): BrowserTabsState {
   var tab = getBrowserTab(tabId);
   if (browserHtmlFullScreenTabId && browserHtmlFullScreenTabId !== tab.id) {
     browserHtmlFullScreenTabId = null;
@@ -826,7 +959,7 @@ function activateBrowserTab(tabId) {
   return browserTabsState();
 }
 
-function closeBrowserTab(tabId) {
+function closeBrowserTab(tabId: string | null): BrowserTabsState {
   var tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error(t('errors.lockedClose'));
 
@@ -857,25 +990,25 @@ function closeBrowserTab(tabId) {
   return browserTabsState();
 }
 
-function setBrowserTabLocked(payload) {
-  payload = payload || {};
-  var tab = getBrowserTab(payload.tabId);
-  tab.locked = !!payload.locked;
+function setBrowserTabLocked(payload?: BrowserTabLockedPayload | null): BrowserTabsState {
+  var normalizedPayload: BrowserTabLockedPayload = payload || { locked: false };
+  var tab = getBrowserTab(normalizedPayload.tabId);
+  tab.locked = !!normalizedPayload.locked;
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
 
-function setBrowserTabMuted(payload) {
-  payload = payload || {};
-  var tab = getBrowserTab(payload.tabId);
+function setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState {
+  var normalizedPayload: BrowserTabMutedPayload = payload || { muted: false };
+  var tab = getBrowserTab(normalizedPayload.tabId);
 
-  tab.view.webContents.setAudioMuted(!!payload.muted);
+  tab.view.webContents.setAudioMuted(!!normalizedPayload.muted);
   syncBrowserTabMediaState(tab);
   notifyBrowserTabsChanged();
   return browserTabsState();
 }
 
-function waitForBrowserStop(tab, timeoutMs?) {
+function waitForBrowserStop(tab: BrowserTab, timeoutMs?: number): Promise<string> {
   return new Promise(function (resolve) {
     var done = false;
     var timer = setTimeout(finish, timeoutMs || 25000);
@@ -893,7 +1026,7 @@ function waitForBrowserStop(tab, timeoutMs?) {
   });
 }
 
-function loadTabUrl(tab, targetUrl, forceReload) {
+function loadTabUrl(tab: BrowserTab, targetUrl: string, forceReload: boolean) {
   var currentUrl = tab.view.webContents.getURL();
   tab.url = targetUrl || tab.url;
   tab.loading = true;
@@ -905,22 +1038,22 @@ function loadTabUrl(tab, targetUrl, forceReload) {
   notifyBrowserTabsChanged();
 }
 
-async function navigateBrowser(payload) {
-  payload = payload || {};
-  var tab = getBrowserTab(payload.tabId);
-  var targetUrl = payload.url;
+async function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string> {
+  var normalizedPayload: BrowserNavigatePayload = payload || { url: '' };
+  var tab = getBrowserTab(normalizedPayload.tabId);
+  var targetUrl = normalizedPayload.url;
 
   if (!targetUrl) return tab.view.webContents.getURL();
   if (tab.locked) throw new Error(t('errors.lockedNavigate'));
 
   var wait = waitForBrowserStop(tab);
-  loadTabUrl(tab, targetUrl, !!payload.forceReload);
+  loadTabUrl(tab, targetUrl, !!normalizedPayload.forceReload);
   var loadedUrl = await wait;
   notifyBrowserTabsChanged();
   return loadedUrl;
 }
 
-async function reloadBrowser(tabId) {
+async function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {
   var tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error(t('errors.lockedReload'));
 
@@ -930,8 +1063,8 @@ async function reloadBrowser(tabId) {
   return Object.assign({ reloaded: true }, browserNavigationState(tab.id));
 }
 
-async function goBrowserBack(tabId?) {
-  var tab = null;
+async function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState> {
+  var tab: BrowserTab | null = null;
 
   try {
     tab = getBrowserTab(tabId);
@@ -957,8 +1090,8 @@ async function goBrowserBack(tabId?) {
   return browserNavigationState(tab.id);
 }
 
-async function goBrowserForward(tabId?) {
-  var tab = null;
+async function goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState> {
+  var tab: BrowserTab | null = null;
 
   try {
     tab = getBrowserTab(tabId);
@@ -984,21 +1117,21 @@ async function goBrowserForward(tabId?) {
   return browserNavigationState(tab.id);
 }
 
-function safeCreateBrowserTab(options?) {
+function safeCreateBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
   try {
     return createBrowserTab(options);
   } catch (error) {
-    forwardBrowserMessage('browser-error', { message: error.message });
+    forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
     return browserTabsState();
   }
 }
 
-function copyText(value) {
+function copyText(value: unknown) {
   if (!value) return;
   clipboard.writeText(String(value));
 }
 
-function exportFilenameForCollection(collectionKey) {
+function exportFilenameForCollection(collectionKey: CollectionKey): string {
   for (var i = 0; i < COLLECTIONS.length; i++) {
     if (COLLECTIONS[i].key === collectionKey) {
       return collectionKey === 'watch_later' ? 'watch_later_list.json' : 'favourites_list.json';
@@ -1008,7 +1141,7 @@ function exportFilenameForCollection(collectionKey) {
   throw new Error('Unknown collection: ' + collectionKey);
 }
 
-async function exportJsonFile(collectionKey) {
+async function exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult> {
   var filename = exportFilenameForCollection(collectionKey);
   var dialogOptions = {
     title: t('dialog.exportJson'),
@@ -1031,32 +1164,32 @@ async function exportJsonFile(collectionKey) {
   };
 }
 
-function contextMediaLabel(mediaType) {
+function contextMediaLabel(mediaType: string): string {
   if (mediaType === 'image') return t('media.image');
   if (mediaType === 'video') return t('media.video');
   if (mediaType === 'audio') return t('media.audio');
   return t('media.media');
 }
 
-function pushSeparator(items) {
+function pushSeparator(items: Electron.MenuItemConstructorOptions[]) {
   if (!items.length || items[items.length - 1].type === 'separator') return;
   items.push({ type: 'separator' });
 }
 
-function showBrowserContextMenu(tab, params) {
+function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuParams) {
   if (!mainWindow || mainWindow.isDestroyed() || !tab) return;
 
-  params = params || {};
+  var contextParams = params || ({} as Electron.ContextMenuParams);
 
-  if (params.isEditable) {
-    showEditableContextMenu(tab, params);
+  if (contextParams.isEditable) {
+    showEditableContextMenu(tab, contextParams);
     return;
   }
 
-  var items: any[] = [];
-  var linkUrl = params.linkURL || '';
-  var srcUrl = params.srcURL || '';
-  var selectionText = String(params.selectionText || '').trim();
+  var items: Electron.MenuItemConstructorOptions[] = [];
+  var linkUrl = contextParams.linkURL || '';
+  var srcUrl = contextParams.srcURL || '';
+  var selectionText = String(contextParams.selectionText || '').trim();
 
   if (linkUrl) {
     items.push({
@@ -1076,7 +1209,7 @@ function showBrowserContextMenu(tab, params) {
   if (srcUrl) {
     if (items.length) pushSeparator(items);
 
-    var mediaLabel = contextMediaLabel(params.mediaType);
+    var mediaLabel = contextMediaLabel(contextParams.mediaType);
     items.push({
       label: t('context.openMediaInBackground', { media: mediaLabel }),
       click: function () {
@@ -1136,23 +1269,23 @@ function showBrowserContextMenu(tab, params) {
   });
   items.push({
     label: t('context.copyCurrentPageUrl'),
-    enabled: !!(tab.url || params.pageURL),
+    enabled: !!(tab.url || contextParams.pageURL),
     click: function () {
-      copyText(tab.url || params.pageURL);
+      copyText(tab.url || contextParams.pageURL);
     }
   });
 
   Menu.buildFromTemplate(items).popup({ window: mainWindow });
 }
 
-function showBrowserTabMenu(payload) {
+function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: boolean } {
   if (!mainWindow || mainWindow.isDestroyed()) return { shown: false };
 
-  payload = payload || {};
-  var tab = getBrowserTab(payload.tabId);
+  var normalizedPayload: BrowserTabMenuPayload = payload || {};
+  var tab = getBrowserTab(normalizedPayload.tabId);
   syncBrowserTabMediaState(tab);
 
-  var items: any[] = [
+  var items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.newTab'),
       enabled: browserTabs.length < MAX_BROWSER_TABS,
@@ -1191,8 +1324,8 @@ function showBrowserTabMenu(payload) {
     {
       label: t('context.compactMode'),
       type: 'checkbox',
-      checked: !!payload.compactMode,
-      click: function (menuItem) {
+      checked: !!normalizedPayload.compactMode,
+      click: function (menuItem: Electron.MenuItem) {
         forwardBrowserMessage('browser-tabs-compact-mode', { compact: !!menuItem.checked });
       }
     },
@@ -1205,26 +1338,26 @@ function showBrowserTabMenu(payload) {
       }
     }
   ];
-  var popupOptions: any = { window: mainWindow };
+  var popupOptions: PopupOptions = { window: mainWindow };
 
-  if (typeof payload.x === 'number' && typeof payload.y === 'number') {
-    popupOptions.x = Math.round(payload.x);
-    popupOptions.y = Math.round(payload.y);
+  if (typeof normalizedPayload.x === 'number' && typeof normalizedPayload.y === 'number') {
+    popupOptions.x = Math.round(normalizedPayload.x);
+    popupOptions.y = Math.round(normalizedPayload.y);
   }
 
   Menu.buildFromTemplate(items).popup(popupOptions);
   return { shown: true };
 }
 
-function showLibraryVideoMenu(payload) {
+function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown: boolean } {
   if (!mainWindow || mainWindow.isDestroyed()) return { shown: false };
 
-  payload = payload || {};
-  var url = payload.url || '';
+  var normalizedPayload: LibraryVideoMenuPayload = payload || { url: '' };
+  var url = normalizedPayload.url || '';
 
   if (!url) return { shown: false };
 
-  var activeTab = null;
+  var activeTab: BrowserTab | null = null;
 
   try {
     activeTab = getBrowserTab(activeBrowserTabId);
@@ -1232,7 +1365,7 @@ function showLibraryVideoMenu(payload) {
     activeTab = null;
   }
 
-  var items: any[] = [
+  var items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.openCurrentTab'),
       enabled: !!(activeTab && !activeTab.locked),
@@ -1261,21 +1394,24 @@ function showLibraryVideoMenu(payload) {
       }
     }
   ];
-  var popupOptions: any = { window: mainWindow };
+  var popupOptions: PopupOptions = { window: mainWindow };
 
-  if (typeof payload.x === 'number' && typeof payload.y === 'number') {
-    popupOptions.x = Math.round(payload.x);
-    popupOptions.y = Math.round(payload.y);
+  if (typeof normalizedPayload.x === 'number' && typeof normalizedPayload.y === 'number') {
+    popupOptions.x = Math.round(normalizedPayload.x);
+    popupOptions.y = Math.round(normalizedPayload.y);
   }
 
   Menu.buildFromTemplate(items).popup(popupOptions);
   return { shown: true };
 }
 
-function showEditableContextMenu(tab, params) {
-  params = params || {};
-  var editFlags = params.editFlags || {};
-  var items: any[] = [
+function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuParams) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  var browserWindow = mainWindow;
+  var contextParams = params || ({} as Electron.ContextMenuParams);
+  var editFlags = contextParams.editFlags || {};
+  var items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.undo'),
       enabled: !!editFlags.canUndo,
@@ -1322,10 +1458,10 @@ function showEditableContextMenu(tab, params) {
     }
   ];
 
-  Menu.buildFromTemplate(items).popup({ window: mainWindow });
+  Menu.buildFromTemplate(items).popup({ window: browserWindow });
 }
 
-function forwardBrowserMessage(channel, payload) {
+function forwardBrowserMessage(channel: string, payload: unknown) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('browser-message', {
     channel: channel,
@@ -1333,9 +1469,10 @@ function forwardBrowserMessage(channel, payload) {
   });
 }
 
-function syncPayloadForEvent(event, payload) {
+function syncPayloadForEvent(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent, payload: unknown) {
   var tab = getBrowserTabByWebContents(event.sender);
-  return Object.assign({}, payload || {}, {
+  var normalizedPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  return Object.assign({}, normalizedPayload, {
     tabId: tab ? tab.id : null
   });
 }
@@ -1384,7 +1521,7 @@ function registerIpcHandlers() {
       forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));
       return result;
     } catch (error) {
-      forwardBrowserMessage('browser-error', { message: error.message });
+      forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
       throw error;
     }
   });

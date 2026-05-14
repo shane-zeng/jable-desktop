@@ -1,9 +1,28 @@
 'use strict';
 
-var electron = require('electron');
+import type * as Electron from 'electron';
+import type { CollectionKey, ScrapedVideoRow, SyncBrowserCollectionOptions, SyncMode, SyncResult } from './types/jable';
+
+type CollectionAction = 'add' | 'remove';
+type TrackpadHistoryDirection = 'back' | 'forward';
+type PagerLink = {
+  el: HTMLAnchorElement;
+  id: string;
+  label: string;
+  pageNumber: number | null;
+};
+type SendToHostIpcRenderer = Electron.IpcRenderer & {
+  sendToHost?: (channel: string, ...args: unknown[]) => void;
+};
+type ChooseNextPagerLink = (links: PagerLink[], currentPage: number | null) => PagerLink | null;
+type JableDesktopScraperApi = {
+  syncCollection(options?: Partial<SyncBrowserCollectionOptions> | null): Promise<SyncResult>;
+};
+
+var electron = require('electron') as typeof import('electron');
 var contextBridge = electron.contextBridge;
-var ipcRenderer = electron.ipcRenderer;
-var chooseNextPagerLink = require('./sync-utils').chooseNextPagerLink;
+var ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
+var chooseNextPagerLink = (require('./sync-utils') as { chooseNextPagerLink: ChooseNextPagerLink }).chooseNextPagerLink;
 
 var IS_MACOS = process.platform === 'darwin';
 var SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';
@@ -18,9 +37,15 @@ var COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS = 4000;
 var COLLECTION_TOGGLE_CONFIRM_POLL_MS = 120;
 var trackpadHistoryDeltaX = 0;
 var trackpadHistoryLastSentAt = 0;
-var trackpadHistoryResetTimer = null;
+var trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
 
-function absUrl(href, base?) {
+function elementFromTarget(target: EventTarget | null): Element | null {
+  if (target instanceof Element) return target;
+  if (target instanceof Node && target.parentElement) return target.parentElement;
+  return null;
+}
+
+function absUrl(href: string, base?: string) {
   try {
     return new URL(href, base || location.href).href;
   } catch (error) {
@@ -28,9 +53,9 @@ function absUrl(href, base?) {
   }
 }
 
-function uniqByUrl(rows) {
-  var seen = {};
-  var out = [];
+function uniqByUrl(rows: ScrapedVideoRow[]) {
+  var seen: Record<string, boolean> = {};
+  var out: ScrapedVideoRow[] = [];
 
   for (var i = 0; i < rows.length; i++) {
     if (!rows[i].url || seen[rows[i].url]) continue;
@@ -41,12 +66,12 @@ function uniqByUrl(rows) {
   return out;
 }
 
-function parseMetricNumber(value) {
+function parseMetricNumber(value: unknown) {
   var number = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
   return isFinite(number) && number > 0 ? number : null;
 }
 
-function inferPreviewFromImageUrl(value) {
+function inferPreviewFromImageUrl(value: string | null | undefined) {
   if (!value) return null;
 
   var url = absUrl(value);
@@ -57,8 +82,8 @@ function inferPreviewFromImageUrl(value) {
   return match ? match[1] + match[2] + '_preview.mp4' : null;
 }
 
-function canonicalVideoHrefFromBox(box, fallbackAnchor) {
-  var anchors = box ? box.querySelectorAll('div.img-box a[href], div.detail h6.title a[href]') : [];
+function canonicalVideoHrefFromBox(box: Element | null, fallbackAnchor: HTMLAnchorElement | null) {
+  var anchors = box ? box.querySelectorAll<HTMLAnchorElement>('div.img-box a[href], div.detail h6.title a[href]') : [];
 
   for (var i = 0; i < anchors.length; i++) {
     var href = anchors[i].getAttribute('href') || '';
@@ -74,19 +99,19 @@ function canonicalVideoHrefFromBox(box, fallbackAnchor) {
     : '';
 }
 
-function scrapeVideoBox(box) {
+function scrapeVideoBox(box: Element | null): ScrapedVideoRow | null {
   if (!box) return null;
 
-  var a = box.querySelector('div.detail h6.title a');
+  var a = box.querySelector<HTMLAnchorElement>('div.detail h6.title a');
   if (!a) return null;
 
   var title = (a.textContent || '').replace(/\s+/g, ' ').trim();
   var href = canonicalVideoHrefFromBox(box, a);
-  var img = box.querySelector('div.img-box img');
+  var img = box.querySelector<HTMLImageElement>('div.img-box img');
   var imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
   var previewSrc = img ? img.getAttribute('data-preview') || '' : '';
-  var views = null;
-  var likes = null;
+  var views: number | null = null;
+  var likes: number | null = null;
   var sub = box.querySelector('div.detail p.sub-title');
 
   if (sub) {
@@ -94,7 +119,7 @@ function scrapeVideoBox(box) {
     for (var n = 0; n < sub.childNodes.length; n++) {
       var node = sub.childNodes[n];
       if (node.nodeType === Node.TEXT_NODE) {
-        var text = node.textContent.replace(/\s+/g, ' ').trim();
+        var text = (node.textContent || '').replace(/\s+/g, ' ').trim();
         if (text) texts.push(text);
       }
     }
@@ -116,7 +141,7 @@ function scrapeVideoBox(box) {
 }
 
 function scrapeCurrentPage() {
-  var out = [];
+  var out: ScrapedVideoRow[] = [];
   var boxes = document.querySelectorAll('div.video-img-box');
 
   for (var i = 0; i < boxes.length; i++) {
@@ -127,13 +152,13 @@ function scrapeCurrentPage() {
   return out;
 }
 
-function normalizePageNumber(value) {
+function normalizePageNumber(value: unknown) {
   var n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
   return isFinite(n) && n > 0 ? n : 1;
 }
 
 function currentPageNumber() {
-  var active = document.querySelector(
+  var active = document.querySelector<Element>(
     [
       'ul.pagination span.page-link.active',
       'ul.pagination a.page-link.active',
@@ -145,13 +170,13 @@ function currentPageNumber() {
 }
 
 function signature() {
-  var list = document.querySelectorAll(SEL_TITLES);
+  var list = document.querySelectorAll<HTMLAnchorElement>(SEL_TITLES);
   var count = list.length;
   var first = count ? list[0].getAttribute('href') || '' : '';
   return count + '|' + first;
 }
 
-function waitForContainerChange(oldSig, timeoutMs) {
+function waitForContainerChange(oldSig: string, timeoutMs: number): Promise<boolean> {
   var timeout = timeoutMs || 12000;
   var target = document.querySelector(SEL_LIST_CONTAINER) || document.body;
   var deadline = Date.now() + timeout;
@@ -162,7 +187,7 @@ function waitForContainerChange(oldSig, timeoutMs) {
       check();
     });
 
-    function finish(changed) {
+    function finish(changed: boolean) {
       if (done) return;
       done = true;
       observer.disconnect();
@@ -189,8 +214,8 @@ function readPagerLinks() {
   var pager = document.querySelector(SEL_PAGER);
   if (!pager) return [];
 
-  var anchors = pager.querySelectorAll(SEL_PAGER_LINKS);
-  var out = [];
+  var anchors = pager.querySelectorAll<HTMLAnchorElement>(SEL_PAGER_LINKS);
+  var out: PagerLink[] = [];
 
   for (var i = 0; i < anchors.length; i++) {
     var anchor = anchors[i];
@@ -198,7 +223,7 @@ function readPagerLinks() {
     var pageNumber = /^\d+$/.test(text) ? normalizePageNumber(text) : null;
     var params = anchor.getAttribute('data-parameters') || '';
     var match = params.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
-    var id = null;
+    var id: string;
 
     if (match) id = match[1];
     else if (/^\d+$/.test(text)) id = text;
@@ -214,7 +239,7 @@ function readPagerLinks() {
   return out;
 }
 
-function sendProgress(channel, payload) {
+function sendProgress(channel: string, payload: unknown) {
   try {
     if (typeof ipcRenderer.sendToHost === 'function') {
       ipcRenderer.sendToHost(channel, payload);
@@ -224,8 +249,9 @@ function sendProgress(channel, payload) {
   ipcRenderer.send('browser:' + channel, payload);
 }
 
-function canElementScrollHorizontally(el) {
-  if (!el || el === document || el === window) return false;
+function canElementScrollHorizontally(el: Element | null): el is HTMLElement {
+  if (!el) return false;
+  if (!(el instanceof HTMLElement)) return false;
 
   var style = window.getComputedStyle(el);
   var overflowX = style ? style.overflowX : '';
@@ -234,11 +260,8 @@ function canElementScrollHorizontally(el) {
   return scrollableOverflow && el.scrollWidth > el.clientWidth + 1;
 }
 
-function canTargetContinueHorizontalScroll(target, direction) {
-  var el = null;
-
-  if (target && target.nodeType === Node.ELEMENT_NODE) el = target;
-  else if (target && target.parentElement) el = target.parentElement;
+function canTargetContinueHorizontalScroll(target: EventTarget | null, direction: TrackpadHistoryDirection) {
+  var el = elementFromTarget(target);
 
   while (el && el !== document.body && el !== document.documentElement) {
     if (canElementScrollHorizontally(el)) {
@@ -257,7 +280,7 @@ function resetTrackpadHistoryDelta() {
   trackpadHistoryResetTimer = null;
 }
 
-function handleTrackpadHistoryWheel(event) {
+function handleTrackpadHistoryWheel(event: WheelEvent) {
   var deltaX = Number(event.deltaX) || 0;
   var deltaY = Number(event.deltaY) || 0;
   var absX = Math.abs(deltaX);
@@ -274,7 +297,7 @@ function handleTrackpadHistoryWheel(event) {
   if (Math.abs(trackpadHistoryDeltaX) < TRACKPAD_HISTORY_THRESHOLD) return;
 
   // macOS natural horizontal scrolling reports negative deltaX for the back gesture.
-  var direction = trackpadHistoryDeltaX < 0 ? 'back' : 'forward';
+  var direction: TrackpadHistoryDirection = trackpadHistoryDeltaX < 0 ? 'back' : 'forward';
 
   if (canTargetContinueHorizontalScroll(event.target, direction)) {
     resetTrackpadHistoryDelta();
@@ -287,21 +310,18 @@ function handleTrackpadHistoryWheel(event) {
   ipcRenderer.send('browser:trackpad-history', direction);
 }
 
-function closestAnchor(target) {
-  var el = null;
-
-  if (target && target.nodeType === Node.ELEMENT_NODE) el = target;
-  else if (target && target.parentElement) el = target.parentElement;
+function closestAnchor(target: EventTarget | null) {
+  var el = elementFromTarget(target);
 
   while (el && el !== document.documentElement) {
-    if (el.tagName === 'A' && el.href) return el;
+    if (el instanceof HTMLAnchorElement && el.href) return el;
     el = el.parentElement;
   }
 
   return null;
 }
 
-function handleMiddleClickNewTab(event) {
+function handleMiddleClickNewTab(event: MouseEvent) {
   if (!event.isTrusted || event.defaultPrevented || event.button !== 1) return;
 
   var anchor = closestAnchor(event.target);
@@ -323,11 +343,8 @@ if (IS_MACOS) {
 
 window.addEventListener('auxclick', handleMiddleClickNewTab, { capture: true });
 
-function closestCollectionActionElement(target) {
-  var el = null;
-
-  if (target && target.nodeType === Node.ELEMENT_NODE) el = target;
-  else if (target && target.parentElement) el = target.parentElement;
+function closestCollectionActionElement(target: EventTarget | null) {
+  var el = elementFromTarget(target);
 
   while (el && el !== document.documentElement) {
     if (el.tagName === 'BUTTON' && el.classList && el.classList.contains('btn-action')) return el;
@@ -338,10 +355,10 @@ function closestCollectionActionElement(target) {
   return null;
 }
 
-function buttonHasIcon(button, iconId) {
+function buttonHasIcon(button: Element | null, iconId: string) {
   if (!button) return false;
 
-  var uses = button.querySelectorAll('use');
+  var uses = button.querySelectorAll<SVGUseElement>('use');
 
   for (var i = 0; i < uses.length; i++) {
     var href =
@@ -355,7 +372,7 @@ function buttonHasIcon(button, iconId) {
   return false;
 }
 
-function collectionKeyForActionElement(el) {
+function collectionKeyForActionElement(el: Element | null): CollectionKey | null {
   if (!el || !el.classList) return null;
 
   var favType = el.getAttribute('data-fav-type');
@@ -368,7 +385,7 @@ function collectionKeyForActionElement(el) {
   return null;
 }
 
-function collectionListActionForElement(el) {
+function collectionListActionForElement(el: Element | null): CollectionAction | null {
   if (!el || !el.classList) return null;
 
   if (el.classList.contains('fav-remove') || buttonHasIcon(el, '#icon-close')) return 'remove';
@@ -377,14 +394,14 @@ function collectionListActionForElement(el) {
   return null;
 }
 
-function collectionActionForElement(el) {
+function collectionActionForElement(el: Element | null): CollectionAction {
   var listAction = collectionListActionForElement(el);
   if (listAction) return listAction;
 
   return el && el.classList && el.classList.contains('active') ? 'remove' : 'add';
 }
 
-function actionRequiresLogin(el) {
+function actionRequiresLogin(el: Element | null) {
   var actionUrl = el ? el.getAttribute('data-href') || el.getAttribute('href') || '' : '';
   return /\/login-required\/?/.test(actionUrl);
 }
@@ -408,17 +425,17 @@ function currentVideoUrl() {
   }
 }
 
-function normalizePageText(value) {
+function normalizePageText(value: unknown) {
   var text = value == null ? '' : String(value);
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function readMetaContent(selector) {
-  var el = document.querySelector(selector);
+function readMetaContent(selector: string) {
+  var el = document.querySelector<HTMLMetaElement>(selector);
   return el ? normalizePageText(el.getAttribute('content')) : '';
 }
 
-function readFirstText(selectors) {
+function readFirstText(selectors: string[]) {
   for (var i = 0; i < selectors.length; i++) {
     var el = document.querySelector(selectors[i]);
     var text = el ? normalizePageText(el.textContent) : '';
@@ -428,7 +445,7 @@ function readFirstText(selectors) {
   return '';
 }
 
-function cleanVideoTitle(value) {
+function cleanVideoTitle(value: unknown) {
   var text = normalizePageText(value);
   if (!text) return null;
 
@@ -436,7 +453,7 @@ function cleanVideoTitle(value) {
   return text || null;
 }
 
-function readNumberAfterIcon(container, iconId) {
+function readNumberAfterIcon(container: Element | null, iconId: string) {
   if (!container) return null;
 
   var svgs = container.querySelectorAll('svg');
@@ -471,7 +488,7 @@ function readCurrentVideoLikes() {
   return count ? parseMetricNumber(count.textContent) : null;
 }
 
-function readCurrentVideoDetails() {
+function readCurrentVideoDetails(): ScrapedVideoRow | null {
   var url = currentVideoUrl();
   if (!url) return null;
 
@@ -497,15 +514,15 @@ function readCurrentVideoDetails() {
   };
 }
 
-function readVideoDetailsForActionElement(el) {
+function readVideoDetailsForActionElement(el: Element | null): ScrapedVideoRow | null {
   var box = el && typeof el.closest === 'function' ? el.closest('div.video-img-box') : null;
   var row = scrapeVideoBox(box);
 
   return row || readCurrentVideoDetails();
 }
 
-function findCollectionActionElement(collectionKey) {
-  var elements = document.querySelectorAll('button.btn-action, .action[data-fav-video-id]');
+function findCollectionActionElement(collectionKey: CollectionKey) {
+  var elements = document.querySelectorAll<Element>('button.btn-action, .action[data-fav-video-id]');
 
   for (var i = 0; i < elements.length; i++) {
     if (collectionKeyForActionElement(elements[i]) === collectionKey) return elements[i];
@@ -514,7 +531,7 @@ function findCollectionActionElement(collectionKey) {
   return null;
 }
 
-function collectionActionActiveState(collectionKey, originalElement) {
+function collectionActionActiveState(collectionKey: CollectionKey, originalElement: Element | null) {
   var el =
     originalElement && document.documentElement.contains(originalElement)
       ? originalElement
@@ -523,14 +540,14 @@ function collectionActionActiveState(collectionKey, originalElement) {
   return el ? el.classList.contains('active') : null;
 }
 
-function findMatchingCollectionActionElement(originalElement) {
+function findMatchingCollectionActionElement(originalElement: Element | null) {
   if (!originalElement) return null;
 
   var videoId = originalElement.getAttribute('data-fav-video-id') || '';
   var favType = originalElement.getAttribute('data-fav-type') || '';
   if (!videoId) return null;
 
-  var elements = document.querySelectorAll('.action[data-fav-video-id]');
+  var elements = document.querySelectorAll<Element>('.action[data-fav-video-id]');
 
   for (var i = 0; i < elements.length; i++) {
     if (elements[i].getAttribute('data-fav-video-id') !== videoId) continue;
@@ -541,7 +558,7 @@ function findMatchingCollectionActionElement(originalElement) {
   return null;
 }
 
-function collectionListRemovedState(originalElement) {
+function collectionListRemovedState(originalElement: Element | null) {
   var el =
     originalElement && document.documentElement.contains(originalElement)
       ? originalElement
@@ -551,7 +568,11 @@ function collectionListRemovedState(originalElement) {
   return imgBox ? imgBox.classList.contains('removed') : null;
 }
 
-function collectionActionMatchesState(collectionKey, originalElement, action) {
+function collectionActionMatchesState(
+  collectionKey: CollectionKey,
+  originalElement: Element | null,
+  action: CollectionAction
+) {
   if (collectionListActionForElement(originalElement)) {
     return collectionListRemovedState(originalElement) === (action === 'remove');
   }
@@ -559,15 +580,19 @@ function collectionActionMatchesState(collectionKey, originalElement, action) {
   return collectionActionActiveState(collectionKey, originalElement) === (action === 'add');
 }
 
-function waitForCollectionActionState(collectionKey, originalElement, action) {
-  return new Promise(function (resolve) {
+function waitForCollectionActionState(
+  collectionKey: CollectionKey,
+  originalElement: Element | null,
+  action: CollectionAction
+) {
+  return new Promise<boolean>(function (resolve) {
     var target = document.body || document.documentElement;
     var deadline = Date.now() + COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS;
-    var observer = null;
-    var pollTimer = null;
+    var observer: MutationObserver | null = null;
+    var pollTimer: ReturnType<typeof setTimeout> | null = null;
     var done = false;
 
-    function finish(ok) {
+    function finish(ok: boolean) {
       if (done) return;
       done = true;
       if (observer) observer.disconnect();
@@ -603,7 +628,7 @@ function waitForCollectionActionState(collectionKey, originalElement, action) {
   });
 }
 
-async function applyCollectionToggle(collectionKey, action, video) {
+async function applyCollectionToggle(collectionKey: CollectionKey, action: CollectionAction, video: ScrapedVideoRow) {
   try {
     await ipcRenderer.invoke('db:apply-collection-toggle', {
       collectionKey: collectionKey,
@@ -616,7 +641,7 @@ async function applyCollectionToggle(collectionKey, action, video) {
   }
 }
 
-async function handleCollectionButtonClick(event) {
+async function handleCollectionButtonClick(event: MouseEvent) {
   if (!event.isTrusted || event.defaultPrevented) return;
 
   var actionElement = closestCollectionActionElement(event.target);
@@ -635,24 +660,24 @@ async function handleCollectionButtonClick(event) {
 
 document.addEventListener('click', handleCollectionButtonClick, { capture: true });
 
-async function syncCollection(options) {
-  options = options || {};
+async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | null): Promise<SyncResult> {
+  var syncOptions = options || {};
 
-  var collectionKey = options.collectionKey;
-  var mode = options.mode || 'quick';
-  var syncRunId = options.syncRunId || null;
-  var siteOrderOffset = Number(options.siteOrderOffset) || 0;
-  var startPage = Number(options.startPage) || null;
-  var batchLimit = Number(options.batchLimit) || null;
+  var collectionKey = syncOptions.collectionKey as CollectionKey;
+  var mode: SyncMode = syncOptions.mode || 'quick';
+  var syncRunId = syncOptions.syncRunId || '';
+  var siteOrderOffset = Number(syncOptions.siteOrderOffset) || 0;
+  var startPage = Number(syncOptions.startPage) || null;
+  var batchLimit = Number(syncOptions.batchLimit) || null;
   var totalRows = 0;
   var totalPages = 0;
   var logicalPage = startPage || currentPageNumber();
-  var lastScrapedPage = null;
-  var lastKnownUrl = null;
+  var lastScrapedPage: number | null = null;
+  var lastKnownUrl: string | null = null;
   var stoppedByKnownPage = false;
-  var incompleteReason = null;
+  var incompleteReason: string | null = null;
 
-  function result(completed) {
+  function result(completed: boolean): SyncResult {
     return {
       completed: completed,
       mode: mode,
@@ -666,10 +691,10 @@ async function syncCollection(options) {
     };
   }
 
-  async function checkRowsKnown(rows) {
-    if (!options.stopOnKnownPage || !rows.length) return false;
+  async function checkRowsKnown(rows: ScrapedVideoRow[]) {
+    if (!syncOptions.stopOnKnownPage || !rows.length) return false;
 
-    var urls = [];
+    var urls: string[] = [];
     for (var i = 0; i < rows.length; i++) {
       urls.push(rows[i].url);
     }
@@ -685,7 +710,7 @@ async function syncCollection(options) {
     }
   }
 
-  async function recordCurrentPage(pageNumber?) {
+  async function recordCurrentPage(pageNumber?: number | null) {
     var rows = uniqByUrl(scrapeCurrentPage());
     lastScrapedPage = pageNumber || logicalPage || currentPageNumber();
     logicalPage = lastScrapedPage;
@@ -783,4 +808,4 @@ async function syncCollection(options) {
 
 contextBridge.exposeInMainWorld('jableDesktopScraper', {
   syncCollection: syncCollection
-});
+} satisfies JableDesktopScraperApi);
