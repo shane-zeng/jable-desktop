@@ -368,6 +368,22 @@ function collectionKeyForActionElement(el) {
   return null;
 }
 
+function collectionListActionForElement(el) {
+  if (!el || !el.classList) return null;
+
+  if (el.classList.contains('fav-remove') || buttonHasIcon(el, '#icon-close')) return 'remove';
+  if (el.classList.contains('fav-restore') || buttonHasIcon(el, '#icon-rotate-back')) return 'add';
+
+  return null;
+}
+
+function collectionActionForElement(el) {
+  var listAction = collectionListActionForElement(el);
+  if (listAction) return listAction;
+
+  return el && el.classList && el.classList.contains('active') ? 'remove' : 'add';
+}
+
 function actionRequiresLogin(el) {
   var actionUrl = el ? el.getAttribute('data-href') || el.getAttribute('href') || '' : '';
   return /\/login-required\/?/.test(actionUrl);
@@ -506,7 +522,43 @@ function collectionActionActiveState(collectionKey, originalElement) {
   return el ? el.classList.contains('active') : null;
 }
 
-function waitForCollectionActionState(collectionKey, originalElement, expectedActive) {
+function findMatchingCollectionActionElement(originalElement) {
+  if (!originalElement) return null;
+
+  var videoId = originalElement.getAttribute('data-fav-video-id') || '';
+  var favType = originalElement.getAttribute('data-fav-type') || '';
+  if (!videoId) return null;
+
+  var elements = document.querySelectorAll('.action[data-fav-video-id]');
+
+  for (var i = 0; i < elements.length; i++) {
+    if (elements[i].getAttribute('data-fav-video-id') !== videoId) continue;
+    if (favType && elements[i].getAttribute('data-fav-type') !== favType) continue;
+    return elements[i];
+  }
+
+  return null;
+}
+
+function collectionListRemovedState(originalElement) {
+  var el =
+    originalElement && document.documentElement.contains(originalElement)
+      ? originalElement
+      : findMatchingCollectionActionElement(originalElement);
+  var imgBox = el && typeof el.closest === 'function' ? el.closest('div.img-box') : null;
+
+  return imgBox ? imgBox.classList.contains('removed') : null;
+}
+
+function collectionActionMatchesState(collectionKey, originalElement, action) {
+  if (collectionListActionForElement(originalElement)) {
+    return collectionListRemovedState(originalElement) === (action === 'remove');
+  }
+
+  return collectionActionActiveState(collectionKey, originalElement) === (action === 'add');
+}
+
+function waitForCollectionActionState(collectionKey, originalElement, action) {
   return new Promise(function (resolve) {
     var target = document.body || document.documentElement;
     var deadline = Date.now() + COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS;
@@ -525,9 +577,7 @@ function waitForCollectionActionState(collectionKey, originalElement, expectedAc
     function check() {
       if (done) return;
 
-      var active = collectionActionActiveState(collectionKey, originalElement);
-
-      if (active === expectedActive) {
+      if (collectionActionMatchesState(collectionKey, originalElement, action)) {
         finish(true);
         return;
       }
@@ -575,11 +625,9 @@ async function handleCollectionButtonClick(event) {
   var video = readVideoDetailsForActionElement(actionElement);
   if (!video) return;
 
-  var wasActive = actionElement.classList.contains('active');
-  var expectedActive = !wasActive;
-  var action = wasActive ? 'remove' : 'add';
+  var action = collectionActionForElement(actionElement);
 
-  if (await waitForCollectionActionState(collectionKey, actionElement, expectedActive)) {
+  if (await waitForCollectionActionState(collectionKey, actionElement, action)) {
     await applyCollectionToggle(collectionKey, action, readVideoDetailsForActionElement(actionElement) || video);
   }
 }
