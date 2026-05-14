@@ -2,6 +2,14 @@
 
 Unofficial Electron desktop app for syncing, browsing, searching, importing, and exporting Jable favourites and watch-later lists with local-first storage.
 
+<p align="center">
+  <img src="docs/images/local-data.png" width="900" alt="Jable Desktop local data view" />
+</p>
+
+<p align="center">
+  <em>Local-first video library with full-text search, sorting, filtering, and incremental synchronization.</em>
+</p>
+
 - [繁體中文](#繁體中文)
 - [English](#english)
 
