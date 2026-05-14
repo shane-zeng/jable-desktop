@@ -216,7 +216,7 @@ function flattenResource(resource) {
     var item = resource.data[i];
     if (!item) continue;
 
-    var resourceItem = /** @type {VideoInput & { data?: VideoInput[] }} */ (item);
+    var resourceItem = /** @type {VideoInput & { data?: VideoInput[] }} */ item;
     if (Array.isArray(resourceItem.data)) rows = rows.concat(resourceItem.data);
     else if (resourceItem.url) rows.push(resourceItem);
   }
@@ -642,9 +642,9 @@ JableDatabase.prototype.migrate = function () {
 };
 
 JableDatabase.prototype.backfillVideoSearchText = function () {
-  var rows = /** @type {VideoSearchRow[]} */ (
-    this.db.prepare('SELECT url, title FROM videos WHERE search_text IS NULL').all()
-  );
+  var rows = /** @type {VideoSearchRow[]} */ this.db
+    .prepare('SELECT url, title FROM videos WHERE search_text IS NULL')
+    .all();
   if (!rows.length) return false;
 
   var update = this.db.prepare('UPDATE videos SET search_text = ? WHERE url = ?');
@@ -657,9 +657,8 @@ JableDatabase.prototype.backfillVideoSearchText = function () {
 };
 
 JableDatabase.prototype.videoSearchIndexHasExpectedColumns = function () {
-  var columns = /** @type {TableColumnRow[]} */ (this.db.prepare('PRAGMA table_info(video_search)').all());
-  /** @type {Record<string, boolean>} */
-  var names = {};
+  var columns = /** @type {TableColumnRow[]} */ this.db.prepare('PRAGMA table_info(video_search)').all();
+  var names: Record<string, boolean> = {};
 
   for (var i = 0; i < columns.length; i++) {
     names[columns[i].name] = true;
@@ -682,18 +681,18 @@ JableDatabase.prototype.dropVideoSearchTriggers = function () {
  * @param {boolean} searchTextChanged
  */
 JableDatabase.prototype.ensureVideoSearchIndex = function (searchTextChanged) {
-  var indexExists = /** @type {NameRow | null | undefined} */ (
-    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'video_search')
-  );
-  var insertTriggerExists = /** @type {NameRow | undefined} */ (
-    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('trigger', 'videos_ai')
-  );
-  var deleteTriggerExists = /** @type {NameRow | undefined} */ (
-    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('trigger', 'videos_ad')
-  );
-  var updateTriggerExists = /** @type {NameRow | undefined} */ (
-    this.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('trigger', 'videos_au')
-  );
+  var indexExists = /** @type {NameRow | null | undefined} */ this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('table', 'video_search');
+  var insertTriggerExists = /** @type {NameRow | undefined} */ this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('trigger', 'videos_ai');
+  var deleteTriggerExists = /** @type {NameRow | undefined} */ this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('trigger', 'videos_ad');
+  var updateTriggerExists = /** @type {NameRow | undefined} */ this.db
+    .prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?')
+    .get('trigger', 'videos_au');
   var shouldRebuild =
     searchTextChanged || !indexExists || !insertTriggerExists || !deleteTriggerExists || !updateTriggerExists;
 
@@ -732,7 +731,7 @@ JableDatabase.prototype.ensureVideoSearchIndex = function (searchTextChanged) {
  * @param {string} definition
  */
 JableDatabase.prototype.ensureColumn = function (tableName, columnName, definition) {
-  var columns = /** @type {TableColumnRow[]} */ (this.db.prepare('PRAGMA table_info(' + tableName + ')').all());
+  var columns = /** @type {TableColumnRow[]} */ this.db.prepare('PRAGMA table_info(' + tableName + ')').all();
 
   for (var i = 0; i < columns.length; i++) {
     if (columns[i].name === columnName) return;
@@ -760,9 +759,9 @@ JableDatabase.prototype.ensureCollection = function (collectionKey) {
  * @returns {{ key: string, name: string }[]}
  */
 JableDatabase.prototype.listCollections = function () {
-  return /** @type {{ key: string, name: string }[]} */ (
-    this.db.prepare('SELECT key, name FROM collections ORDER BY key').all()
-  );
+  return /** @type {{ key: string, name: string }[]} */ this.db
+    .prepare('SELECT key, name FROM collections ORDER BY key')
+    .all();
 };
 
 /**
@@ -772,21 +771,19 @@ JableDatabase.prototype.listCollections = function () {
 JableDatabase.prototype.getSyncState = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
-  var row = /** @type {(Omit<SyncState, 'completed'> & { completed: number | boolean }) | undefined} */ (
-    this.db
-      .prepare(
-        [
-          'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
-          'FROM sync_states',
-          'WHERE collection_key = ?'
-        ].join(' ')
-      )
-      .get(collectionKey)
-  );
+  var row = /** @type {(Omit<SyncState, 'completed'> & { completed: number | boolean }) | undefined} */ this.db
+    .prepare(
+      [
+        'SELECT collection_key, completed, last_scraped_page, last_known_url, updated_at',
+        'FROM sync_states',
+        'WHERE collection_key = ?'
+      ].join(' ')
+    )
+    .get(collectionKey);
 
   if (!row) return null;
   row.completed = !!row.completed;
-  return /** @type {SyncState} */ (row);
+  return /** @type {SyncState} */ row;
 };
 
 /**
@@ -818,7 +815,7 @@ JableDatabase.prototype.listVideos = function (collectionKey, options) {
 
   var stmt = this.db.prepare(sql);
 
-  return /** @type {VideoRow[]} */ (/** @type {unknown} */ (stmt.all(...query.params)));
+  return /** @type {VideoRow[]} */ /** @type {unknown} */ stmt.all(...query.params);
 };
 
 /**
@@ -839,7 +836,7 @@ JableDatabase.prototype.countVideos = function (collectionKey, options) {
       query.where
     ].join(' ')
   );
-  var row = /** @type {CountRow | undefined} */ (stmt.get(...query.params));
+  var row = /** @type {CountRow | undefined} */ stmt.get(...query.params);
 
   return row ? row.total : 0;
 };
@@ -851,15 +848,11 @@ JableDatabase.prototype.countVideos = function (collectionKey, options) {
 JableDatabase.prototype.getCollectionUrls = function (collectionKey) {
   this.ensureCollection(collectionKey);
 
-  var rows = /** @type {VideoUrlRow[]} */ (
-    this.db
-      .prepare(
-        ['SELECT video_url', 'FROM collection_items', 'WHERE collection_key = ?', 'ORDER BY last_seen_at DESC'].join(
-          ' '
-        )
-      )
-      .all(collectionKey)
-  );
+  var rows = /** @type {VideoUrlRow[]} */ this.db
+    .prepare(
+      ['SELECT video_url', 'FROM collection_items', 'WHERE collection_key = ?', 'ORDER BY last_seen_at DESC'].join(' ')
+    )
+    .all(collectionKey);
 
   return rows.map(function (row) {
     return row.video_url;
@@ -911,7 +904,7 @@ JableDatabase.prototype.allCollectionUrlsKnown = function (collectionKey, urls) 
   for (var p = 0; p < normalizedUrls.length; p++) {
     params.push(normalizedUrls[p]);
   }
-  var row = /** @type {CountRow | undefined} */ (stmt.get(...params));
+  var row = /** @type {CountRow | undefined} */ stmt.get(...params);
 
   return !!row && row.total === normalizedUrls.length;
 };
@@ -931,7 +924,7 @@ JableDatabase.prototype.saveSyncPage = function (payload) {
   var normalizedRows = [];
 
   for (var i = 0; i < rows.length; i++) {
-    var row = normalizeVideo(/** @type {VideoInput} */ (rows[i]));
+    var row = normalizeVideo(/** @type {VideoInput} */ rows[i]);
     if (row) normalizedRows.push(row);
   }
 

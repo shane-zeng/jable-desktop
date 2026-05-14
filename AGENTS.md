@@ -5,14 +5,15 @@
 This repository contains a self-contained Tampermonkey userscript and an Electron desktop app for syncing, browsing, importing, and exporting Jable favourites and watch-later entries.
 
 - `jable-favourites-exporter.user.js`: main userscript with metadata, configuration, scraping helpers, pagination, cache, download logic, and its own small i18n dictionary.
-- `app/main.js`: Electron main process, window creation, persistent Jable session management, `WebContentsView` tab orchestration, native menus, dialogs, and IPC handlers.
-- `app/preload.js`: context-isolated bridge that exposes the only renderer-to-main API as `window.jableApp`.
-- `app/webview-preload.js`: scraper and collection action observer injected into embedded Jable `WebContentsView` instances.
-- `app/browser-tab-policy.js`: pure tab policy helpers for web preferences, media state serialization, close target selection, shortcut detection, and visual-order tab cycling.
-- `app/sync-utils.js`: shared pagination helper logic for sync flows.
-- `app/database.js`: SQLite schema, migrations, FTS5 search, upsert logic, sync state, visibility state, and JSON import/export.
+- `app/main.ts`: Electron main process, window creation, persistent Jable session management, `WebContentsView` tab orchestration, native menus, dialogs, and IPC handlers.
+- `app/preload.ts`: context-isolated bridge that exposes the only renderer-to-main API as `window.jableApp`.
+- `app/webview-preload.ts`: scraper and collection action observer injected into embedded Jable `WebContentsView` instances.
+- `app/browser-tab-policy.ts`: pure tab policy helpers for web preferences, media state serialization, close target selection, shortcut detection, and visual-order tab cycling.
+- `app/sync-utils.ts`: shared pagination helper logic for sync flows.
+- `app/database.ts`: SQLite schema, migrations, FTS5 search, upsert logic, sync state, visibility state, and JSON import/export.
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
+- `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/node/`: Node test files for database behavior, import/export, sync utilities, i18n, userscript i18n, update checks, and browser tab policy.
@@ -36,13 +37,14 @@ The userscript has no build step. Edit it directly and validate it in Tampermonk
 - `npm install`: install Electron and renderer development dependencies.
 - `fnm exec --using 24 npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
 - `fnm exec --using 24 npm run lint:fix`: apply safe ESLint fixes.
-- `fnm exec --using 24 npm run typecheck`: run `vue-tsc` checks for shared types and renderer TypeScript/Vue files.
+- `fnm exec --using 24 npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
 - `fnm exec --using 24 npm run format`: format the repository with Prettier.
 - `fnm exec --using 24 npm run format:check`: verify Prettier formatting without changing files.
 - `fnm exec --using 24 npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
+- `fnm exec --using 24 npm run build:electron`: compile the Electron runtime into `app/runtime-dist/`.
 - `fnm exec --using 24 npm run build:renderer`: build the Vue renderer into `app/renderer-dist/`.
 - `fnm exec --using 24 npm run dev:renderer`: run the Vite renderer dev server.
-- `fnm exec --using 24 npm start`: build the renderer, then run the desktop app.
+- `fnm exec --using 24 npm start`: build the Electron runtime and renderer, then run the desktop app.
 - `fnm exec --using 24 npm run start:dev`: run Electron against the Vite dev server.
 - `fnm exec --using 24 npm test`: run Node tests.
 - `git diff`: review local changes before committing.
@@ -65,11 +67,11 @@ ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the
 
 Avoid dependencies, bundlers, or broad abstractions unless the script or desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
 
-For desktop main/preload/database code, use CommonJS modules, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.js`. Keep database migrations, search behavior, sync visibility rules, and JSON import/export centralized in `app/database.js`.
+For desktop main/preload/database code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep database migrations, search behavior, sync visibility rules, and JSON import/export centralized in `app/database.ts`.
 
 For renderer code, use Vue single-file components under `app/renderer-src/`, TypeScript where the renderer already uses it, Tailwind utilities for layout/state styling, and `window.jableApp` as the only renderer-to-main boundary. Treat `app/types/jable.ts` as the IPC contract.
 
-For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. When changing tab behavior, keep `app/browser-tab-policy.js`, main-process serialization, renderer state, and tests aligned.
+For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. When changing tab behavior, keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 
 ## Data, Sync, and JSON Rules
 

@@ -84,7 +84,7 @@ npm start
 
 Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has a compact floating mode, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
 
-`npm start` builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
+`npm start` compiles the Electron runtime into `app/runtime-dist/` and builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
 
 ```sh
 npm run dev:renderer
@@ -98,7 +98,7 @@ Desktop sync behavior:
 - Sync runs in a dedicated browser tab. The sync tab is locked while running, and batch-limited full syncs keep that tab locked so continuation can resume from the same page.
 - Full sync runs in batches of 100 pages. Batch-limited or failed runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - The webview scraper emits `sync-page` messages while it paginates. The renderer queues `saveSyncPage` calls and waits for all pending saves before calling `finishSync`.
-- Jable collection add/remove button clicks are observed in `app/webview-preload.js`; successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
+- Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
 - JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
 Desktop data and search behavior:
@@ -112,18 +112,18 @@ Desktop data and search behavior:
 
 Browser and tab behavior:
 
-- Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.js`, main-process serialization, renderer state, and tests aligned.
-- `app/browser-tab-policy.js` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
+- Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
+- `app/browser-tab-policy.ts` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
-- Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.js` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
+- Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.ts` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
-- HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.js` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
-- Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser-tab-policy.js`, `app/main.js`, `app/webview-preload.js`, and renderer link handlers.
+- HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.ts` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
+- Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser-tab-policy.ts`, `app/main.ts`, `app/webview-preload.ts`, and renderer link handlers.
 
 Renderer behavior:
 
-- `app/preload.js` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
+- `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
 - `app/renderer-src/App.vue` coordinates the two top-level views, browser messages, sync orchestration, import/export, toast status, and full-sync continuation state.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
 - `useLibraryState` owns collection selection, pagination, search mode, sorting, refresh token cancellation, and the pending full-sync continuation label.
@@ -133,7 +133,7 @@ Renderer behavior:
 Localization behavior:
 
 - The supported UI locales are `zh-TW`, `en-US`, and `ja-JP`.
-- Shared desktop locale dictionaries live in `app/i18n/locales/`. `app/i18n/index.js` is the CommonJS helper used by the Electron main process, and `app/renderer-src/i18n/index.ts` is the renderer wrapper.
+- Shared desktop locale dictionaries live in `app/i18n/locales/`. `app/i18n/index.ts` is the Electron main-process locale helper, and `app/renderer-src/i18n/index.ts` is the renderer wrapper.
 - Locale selection precedence is: user preference in renderer `localStorage` (`jable-desktop:locale`), then detected system/browser locale, then `zh-TW`.
 - Renderer locale changes are sent through `window.jableApp.setLocale()`, so native application menus, context menus, dialog titles, and renderer copy stay aligned.
 - Keep visible renderer copy, aria labels, placeholders, toast messages, select option labels, and menu/dialog labels in the locale dictionaries. Avoid putting user-facing fallback labels in `app/renderer-src/constants.ts`.
@@ -148,13 +148,14 @@ Userscript cache behavior:
 
 Desktop app files:
 
-- `app/main.js`: Electron main process and IPC handlers.
-- `app/preload.js`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
-- `app/webview-preload.js`: scraper injected into each embedded Jable `WebContentsView`.
-- `app/browser-tab-policy.js`: pure browser tab policies used by main-process behavior and Node tests.
-- `app/sync-utils.js`: shared pager-selection helper for sync pagination.
-- `app/database.js`: SQLite schema, migrations, upsert logic, search, sync state, JSON import/export.
+- `app/main.ts`: Electron main process and IPC handlers.
+- `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
+- `app/webview-preload.ts`: scraper injected into each embedded Jable `WebContentsView`.
+- `app/browser-tab-policy.ts`: pure browser tab policies used by main-process behavior and Node tests.
+- `app/sync-utils.ts`: shared pager-selection helper for sync pagination.
+- `app/database.ts`: SQLite schema, migrations, upsert logic, search, sync state, JSON import/export.
 - `app/types/`: shared renderer-facing TypeScript wire types for IPC payloads and app state.
+- `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-src/composables/`: renderer state modules for IPC access, BrowserView bounds/tabs/navigation, and local library state.
 - `app/renderer-src/components/`: presentational Vue components for top navigation, browser tabs, local data controls, pagination, and video cards.
@@ -165,7 +166,7 @@ Desktop app files:
 
 ### Quality Checks
 
-The project uses ESLint and Prettier as conservative guardrails. The config preserves the existing code style: `var` declarations, CommonJS in Electron main/preload/database modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
+The project uses ESLint and Prettier as conservative guardrails. The config preserves the existing code style: `var` declarations, TypeScript source compiled to CommonJS for Electron runtime modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
 
 Use Node.js 24, matching the repository `engines` field and GitHub Actions.
 
@@ -180,12 +181,13 @@ Useful commands:
 
 - `npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
 - `npm run lint:fix`: apply safe ESLint fixes.
-- `npm run typecheck`: run strict `vue-tsc` checks for shared types and renderer TypeScript/Vue files.
+- `npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
+- `npm run build:electron`: compile Electron runtime TypeScript into `app/runtime-dist/`.
 - `npm run format`: format the repository with Prettier.
 - `npm run format:check`: verify formatting without changing files.
 - `npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
 
-TypeScript is intentionally scoped to the renderer and shared IPC/wire types. Electron main/preload/database modules and the Tampermonkey userscript remain JavaScript to preserve their current runtime shape.
+TypeScript covers the renderer, shared IPC/wire types, and Electron runtime source. The Tampermonkey userscript remains JavaScript to preserve its no-build, self-contained runtime shape.
 
 Test coverage map:
 
@@ -206,7 +208,7 @@ Run the full local quality gate before opening a pull request:
 npm run check
 ```
 
-For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run typecheck` for renderer typing, `npm run test:renderer` for renderer unit tests, and `npm run build:renderer` for renderer build validation.
+For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
 
 Manual checks:
 
@@ -234,7 +236,7 @@ Install dependencies once:
 npm install
 ```
 
-Packaging scripts build the Vue renderer before running `electron-builder`.
+Packaging scripts build the Electron runtime and Vue renderer before running `electron-builder`.
 
 Build unpacked apps for local smoke testing:
 

@@ -1,14 +1,12 @@
-// @ts-check
 'use strict';
 
-/** @typedef {import('./types/jable').JableAppApi} JableAppApi */
+import type { JableAppApi } from './types/jable';
 
 var electron = require('electron');
 var contextBridge = electron.contextBridge;
 var ipcRenderer = electron.ipcRenderer;
 
-/** @type {JableAppApi} */
-var jableApp = {
+var jableApp: JableAppApi = {
   getAppInfo: function () {
     return ipcRenderer.invoke('app:info');
   },

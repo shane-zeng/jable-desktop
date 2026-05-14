@@ -17,5 +17,5 @@
     "types": ["vite/client", "vitest/globals"]
   },
   "include": ["app/types/**/*.ts", "app/renderer-src/**/*.ts", "app/renderer-src/**/*.vue", "test/renderer/**/*.ts"],
-  "exclude": ["app/renderer-dist", "node_modules", "release"]
+  "exclude": ["app/renderer-dist", "app/runtime-dist", "node_modules", "release"]
 }

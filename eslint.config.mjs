@@ -33,7 +33,7 @@ var nodeGlobals = {
 
 export default [
   {
-    ignores: ['app/renderer-dist/**', 'coverage/**', 'node_modules/**', 'release/**']
+    ignores: ['app/renderer-dist/**', 'app/runtime-dist/**', 'coverage/**', 'node_modules/**', 'release/**']
   },
   js.configs.recommended,
   ...vue.configs['flat/essential'],
@@ -45,7 +45,17 @@ export default [
     rules: commonRules
   },
   {
-    files: ['app/**/*.js', 'scripts/**/*.js', 'test/node/**/*.js'],
+    files: [
+      'app/browser-tab-policy.ts',
+      'app/database.ts',
+      'app/i18n/**/*.ts',
+      'app/main.ts',
+      'app/preload.ts',
+      'app/sync-utils.ts',
+      'app/update-checker.ts',
+      'scripts/**/*.js',
+      'test/node/**/*.js'
+    ],
     languageOptions: {
       globals: nodeGlobals,
       sourceType: 'commonjs'
@@ -100,7 +110,7 @@ export default [
     }
   },
   {
-    files: ['app/webview-preload.js'],
+    files: ['app/webview-preload.ts'],
     languageOptions: {
       globals: {
         ...nodeGlobals,

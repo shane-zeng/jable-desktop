@@ -1,39 +1,45 @@
-// @ts-check
 'use strict';
 
-/**
- * @typedef {'normal' | 'sync'} BrowserTabKind
- * @typedef {object} BrowserTabLike
- * @property {string} id
- * @property {unknown} [muted]
- * @property {unknown} [audible]
- * @property {unknown} [mediaPlaying]
- * @property {unknown} [pictureInPicture]
- * @property {unknown} [discarded]
- */
+type BrowserTabKind = 'normal' | 'sync';
 
-/**
- * @param {BrowserTabKind | string | null | undefined} kind
- * @returns {boolean}
- */
-function shouldThrottleBackground(kind) {
+type BrowserTabLike = {
+  id: string;
+  muted?: unknown;
+  audible?: unknown;
+  mediaPlaying?: unknown;
+  pictureInPicture?: unknown;
+  discarded?: unknown;
+};
+
+type BrowserTabWebPreferences = {
+  preload: string;
+  contextIsolation: boolean;
+  nodeIntegration: boolean;
+  sandbox: boolean;
+  partition: string;
+  backgroundThrottling: boolean;
+};
+
+type BrowserTabShortcutInput = {
+  type?: string;
+  key?: string;
+  code?: string;
+  isAutoRepeat?: boolean;
+  control?: boolean;
+  meta?: boolean;
+  alt?: boolean;
+  shift?: boolean;
+};
+
+function shouldThrottleBackground(kind: BrowserTabKind | string | null | undefined): boolean {
   return kind !== 'sync';
 }
 
-/**
- * @param {BrowserTabKind | string | null | undefined} kind
- * @param {string} preloadPath
- * @param {string} partition
- * @returns {{
- *   preload: string,
- *   contextIsolation: boolean,
- *   nodeIntegration: boolean,
- *   sandbox: boolean,
- *   partition: string,
- *   backgroundThrottling: boolean
- * }}
- */
-function browserTabWebPreferences(kind, preloadPath, partition) {
+function browserTabWebPreferences(
+  kind: BrowserTabKind | string | null | undefined,
+  preloadPath: string,
+  partition: string
+): BrowserTabWebPreferences {
   return {
     preload: preloadPath,
     contextIsolation: true,
@@ -44,17 +50,7 @@ function browserTabWebPreferences(kind, preloadPath, partition) {
   };
 }
 
-/**
- * @param {Partial<BrowserTabLike> | null | undefined} tab
- * @returns {{
- *   muted: boolean,
- *   audible: boolean,
- *   mediaPlaying: boolean,
- *   pictureInPicture: boolean,
- *   discarded: boolean
- * }}
- */
-function serializedMediaState(tab) {
+function serializedMediaState(tab: Partial<BrowserTabLike> | null | undefined) {
   tab = tab || {};
 
   return {
@@ -66,13 +62,11 @@ function serializedMediaState(tab) {
   };
 }
 
-/**
- * @param {Partial<BrowserTabLike>[]} tabs
- * @param {string | null | undefined} activeTabId
- * @param {number} offset
- * @returns {string | null}
- */
-function nextActiveTabIdByOffset(tabs, activeTabId, offset) {
+function nextActiveTabIdByOffset(
+  tabs: Partial<BrowserTabLike>[],
+  activeTabId: string | null | undefined,
+  offset: number
+): string | null {
   tabs = Array.isArray(tabs) ? tabs : [];
 
   if (!activeTabId || !tabs.length) return null;
@@ -95,21 +89,7 @@ function nextActiveTabIdByOffset(tabs, activeTabId, offset) {
   return nextTab && typeof nextTab.id === 'string' ? nextTab.id : null;
 }
 
-/**
- * @param {{
- *   type?: string,
- *   key?: string,
- *   code?: string,
- *   isAutoRepeat?: boolean,
- *   control?: boolean,
- *   meta?: boolean,
- *   alt?: boolean,
- *   shift?: boolean
- * } | null | undefined} input
- * @param {boolean} isMacos
- * @returns {number}
- */
-function browserTabShortcutOffset(input, isMacos) {
+function browserTabShortcutOffset(input: BrowserTabShortcutInput | null | undefined, isMacos: boolean): number {
   if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return 0;
 
   var key = String(input.key || '').toLowerCase();
@@ -141,13 +121,11 @@ function browserTabShortcutOffset(input, isMacos) {
   return 0;
 }
 
-/**
- * @param {BrowserTabLike[]} tabs
- * @param {string | null | undefined} activeTabId
- * @param {string | null | undefined} closingTabId
- * @returns {string | null}
- */
-function nextActiveTabIdAfterClose(tabs, activeTabId, closingTabId) {
+function nextActiveTabIdAfterClose(
+  tabs: BrowserTabLike[],
+  activeTabId: string | null | undefined,
+  closingTabId: string | null | undefined
+): string | null {
   tabs = Array.isArray(tabs) ? tabs : [];
 
   if (activeTabId !== closingTabId) return activeTabId || null;

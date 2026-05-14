@@ -1,30 +1,17 @@
-// @ts-check
 'use strict';
 
-/**
- * @typedef {object} PagerLink
- * @property {unknown} [pageNumber]
- */
+type PagerLink = {
+  pageNumber?: unknown;
+};
 
-/**
- * @param {unknown} value
- * @returns {number | null}
- */
-function numericPage(value) {
+function numericPage(value: unknown): number | null {
   var n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/**
- * @template {PagerLink} T
- * @param {T[]} links
- * @param {unknown} currentPage
- * @returns {T | null}
- */
-function chooseNextPagerLink(links, currentPage) {
+function chooseNextPagerLink<T extends PagerLink>(links: T[], currentPage: unknown): T | null {
   var current = numericPage(currentPage) || 1;
-  /** @type {{ pageNumber: number, link: T } | null} */
-  var best = null;
+  var best: { pageNumber: number; link: T } | null = null;
 
   for (var i = 0; i < links.length; i++) {
     var link = links[i];

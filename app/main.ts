@@ -46,7 +46,7 @@ var currentLocale = i18n.DEFAULT_LOCALE;
 var updateCheckInFlight = null;
 var lastBackgroundUpdateVersion = null;
 
-function t(key, params) {
+function t(key, params?) {
   return i18n.t(currentLocale, key, params);
 }
 
@@ -229,8 +229,8 @@ function registerAppShortcuts(webContents) {
 }
 
 function installApplicationMenu() {
-  var template = [];
-  var fileSubmenu = [
+  var template: any[] = [];
+  var fileSubmenu: any[] = [
     {
       label: t('menu.newTab'),
       accelerator: NEW_TAB_ACCELERATOR,
@@ -324,7 +324,7 @@ function loadRenderer() {
     return;
   }
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer-dist', 'index.html'));
+  mainWindow.loadFile(path.join(__dirname, '..', 'renderer-dist', 'index.html'));
 }
 
 function showAppDialog(options) {
@@ -428,7 +428,7 @@ function scheduleBackgroundUpdateCheck() {
   }, BACKGROUND_UPDATE_CHECK_DELAY_MS);
 }
 
-function createBrowserTab(options) {
+function createBrowserTab(options?) {
   options = options || {};
 
   if (browserTabs.length >= MAX_BROWSER_TABS) {
@@ -583,7 +583,7 @@ function cleanTitle(title) {
     .trim();
 }
 
-function getBrowserTab(tabId) {
+function getBrowserTab(tabId?) {
   var id = tabId || activeBrowserTabId;
   var tab = id ? browserTabsById[id] : null;
   var webContents = tab && tab.view ? tab.view.webContents : null;
@@ -677,7 +677,7 @@ function notifyBrowserTabsChanged() {
   forwardBrowserMessage('browser-navigation-state', browserNavigationState());
 }
 
-function browserNavigationState(tabId) {
+function browserNavigationState(tabId?) {
   var tab = null;
 
   try {
@@ -875,7 +875,7 @@ function setBrowserTabMuted(payload) {
   return browserTabsState();
 }
 
-function waitForBrowserStop(tab, timeoutMs) {
+function waitForBrowserStop(tab, timeoutMs?) {
   return new Promise(function (resolve) {
     var done = false;
     var timer = setTimeout(finish, timeoutMs || 25000);
@@ -930,7 +930,7 @@ async function reloadBrowser(tabId) {
   return Object.assign({ reloaded: true }, browserNavigationState(tab.id));
 }
 
-async function goBrowserBack(tabId) {
+async function goBrowserBack(tabId?) {
   var tab = null;
 
   try {
@@ -957,7 +957,7 @@ async function goBrowserBack(tabId) {
   return browserNavigationState(tab.id);
 }
 
-async function goBrowserForward(tabId) {
+async function goBrowserForward(tabId?) {
   var tab = null;
 
   try {
@@ -984,7 +984,7 @@ async function goBrowserForward(tabId) {
   return browserNavigationState(tab.id);
 }
 
-function safeCreateBrowserTab(options) {
+function safeCreateBrowserTab(options?) {
   try {
     return createBrowserTab(options);
   } catch (error) {
@@ -1053,7 +1053,7 @@ function showBrowserContextMenu(tab, params) {
     return;
   }
 
-  var items = [];
+  var items: any[] = [];
   var linkUrl = params.linkURL || '';
   var srcUrl = params.srcURL || '';
   var selectionText = String(params.selectionText || '').trim();
@@ -1152,7 +1152,7 @@ function showBrowserTabMenu(payload) {
   var tab = getBrowserTab(payload.tabId);
   syncBrowserTabMediaState(tab);
 
-  var items = [
+  var items: any[] = [
     {
       label: t('context.newTab'),
       enabled: browserTabs.length < MAX_BROWSER_TABS,
@@ -1205,7 +1205,7 @@ function showBrowserTabMenu(payload) {
       }
     }
   ];
-  var popupOptions = { window: mainWindow };
+  var popupOptions: any = { window: mainWindow };
 
   if (typeof payload.x === 'number' && typeof payload.y === 'number') {
     popupOptions.x = Math.round(payload.x);
@@ -1232,7 +1232,7 @@ function showLibraryVideoMenu(payload) {
     activeTab = null;
   }
 
-  var items = [
+  var items: any[] = [
     {
       label: t('context.openCurrentTab'),
       enabled: !!(activeTab && !activeTab.locked),
@@ -1261,7 +1261,7 @@ function showLibraryVideoMenu(payload) {
       }
     }
   ];
-  var popupOptions = { window: mainWindow };
+  var popupOptions: any = { window: mainWindow };
 
   if (typeof payload.x === 'number' && typeof payload.y === 'number') {
     popupOptions.x = Math.round(payload.x);
@@ -1275,7 +1275,7 @@ function showLibraryVideoMenu(payload) {
 function showEditableContextMenu(tab, params) {
   params = params || {};
   var editFlags = params.editFlags || {};
-  var items = [
+  var items: any[] = [
     {
       label: t('context.undo'),
       enabled: !!editFlags.canUndo,

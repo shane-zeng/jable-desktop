@@ -1,4 +1,5 @@
 node_modules/
 release/
 app/renderer-dist/
+app/runtime-dist/
 **/.DS_Store

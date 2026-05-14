@@ -20,7 +20,7 @@ var trackpadHistoryDeltaX = 0;
 var trackpadHistoryLastSentAt = 0;
 var trackpadHistoryResetTimer = null;
 
-function absUrl(href, base) {
+function absUrl(href, base?) {
   try {
     return new URL(href, base || location.href).href;
   } catch (error) {
@@ -90,7 +90,7 @@ function scrapeVideoBox(box) {
   var sub = box.querySelector('div.detail p.sub-title');
 
   if (sub) {
-    var texts = [];
+    var texts: string[] = [];
     for (var n = 0; n < sub.childNodes.length; n++) {
       var node = sub.childNodes[n];
       if (node.nodeType === Node.TEXT_NODE) {
@@ -483,7 +483,8 @@ function readCurrentVideoDetails() {
   var img =
     readMetaContent('meta[property="og:image"]') ||
     readMetaContent('meta[name="twitter:image"]') ||
-    (document.querySelector('video[poster]') || {}).poster ||
+    (document.querySelector('video[poster]') as HTMLVideoElement | null)?.poster ||
+    '' ||
     '';
 
   return {
@@ -684,7 +685,7 @@ async function syncCollection(options) {
     }
   }
 
-  async function recordCurrentPage(pageNumber) {
+  async function recordCurrentPage(pageNumber?) {
     var rows = uniqByUrl(scrapeCurrentPage());
     lastScrapedPage = pageNumber || logicalPage || currentPageNumber();
     logicalPage = lastScrapedPage;

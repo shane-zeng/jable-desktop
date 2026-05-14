@@ -6,7 +6,7 @@ var fs = require('node:fs');
 var os = require('node:os');
 var path = require('node:path');
 var DatabaseSync = require('node:sqlite').DatabaseSync;
-var JableDatabase = require('../../app/database').JableDatabase;
+var JableDatabase = require('../../app/runtime-dist/database').JableDatabase;
 
 function createTestDatabase(t) {
   var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));

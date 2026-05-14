@@ -2,10 +2,10 @@
 
 var test = require('node:test');
 var assert = require('node:assert/strict');
-var i18n = require('../../app/i18n');
-var zhTW = require('../../app/i18n/locales/zh-TW.json');
-var enUS = require('../../app/i18n/locales/en-US.json');
-var jaJP = require('../../app/i18n/locales/ja-JP.json');
+var i18n = require('../../app/runtime-dist/i18n');
+var zhTW = require('../../app/runtime-dist/i18n/locales/zh-TW.json');
+var enUS = require('../../app/runtime-dist/i18n/locales/en-US.json');
+var jaJP = require('../../app/runtime-dist/i18n/locales/ja-JP.json');
 
 function flattenKeys(value, prefix, out) {
   out = out || [];

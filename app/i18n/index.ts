@@ -1,31 +1,22 @@
 'use strict';
 
-var zhTW = require('./locales/zh-TW.json');
-var enUS = require('./locales/en-US.json');
-var jaJP = require('./locales/ja-JP.json');
+import zhTW = require('./locales/zh-TW.json');
+import enUS = require('./locales/en-US.json');
+import jaJP = require('./locales/ja-JP.json');
 
-/**
- * @typedef {'zh-TW' | 'en-US' | 'ja-JP'} SupportedLocale
- * @typedef {Record<string, unknown>} LocaleMessages
- * @typedef {Record<string, string | number | boolean | null | undefined>} InterpolationParams
- */
+type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
+type LocaleMessages = Record<string, unknown>;
+type InterpolationParams = Record<string, string | number | boolean | null | undefined>;
 
-/** @type {SupportedLocale} */
-var DEFAULT_LOCALE = 'zh-TW';
-/** @type {SupportedLocale[]} */
-var SUPPORTED_LOCALES = ['zh-TW', 'en-US', 'ja-JP'];
-/** @type {Record<SupportedLocale, LocaleMessages>} */
-var messages = {
+var DEFAULT_LOCALE: SupportedLocale = 'zh-TW';
+var SUPPORTED_LOCALES: SupportedLocale[] = ['zh-TW', 'en-US', 'ja-JP'];
+var messages: Record<SupportedLocale, LocaleMessages> = {
   'zh-TW': zhTW,
   'en-US': enUS,
   'ja-JP': jaJP
 };
 
-/**
- * @param {unknown} value
- * @returns {SupportedLocale}
- */
-function normalizeLocale(value) {
+function normalizeLocale(value: unknown): SupportedLocale {
   var locale = String(value || '').toLowerCase();
 
   if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
@@ -43,14 +34,8 @@ function normalizeLocale(value) {
   return DEFAULT_LOCALE;
 }
 
-/**
- * @param {SupportedLocale} locale
- * @param {string} key
- * @returns {string | null}
- */
-function messageAt(locale, key) {
-  /** @type {unknown} */
-  var current = messages[locale];
+function messageAt(locale: SupportedLocale, key: string): string | null {
+  var current: unknown = messages[locale];
   var parts = String(key || '').split('.');
 
   for (var i = 0; i < parts.length; i++) {
@@ -58,18 +43,13 @@ function messageAt(locale, key) {
       return null;
     }
 
-    current = /** @type {LocaleMessages} */ (current)[parts[i]];
+    current = (current as LocaleMessages)[parts[i]];
   }
 
   return typeof current === 'string' ? current : null;
 }
 
-/**
- * @param {unknown} template
- * @param {InterpolationParams | null | undefined} params
- * @returns {string}
- */
-function interpolate(template, params) {
+function interpolate(template: unknown, params?: InterpolationParams | null): string {
   params = params || {};
 
   return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, function (match, key) {
@@ -79,25 +59,15 @@ function interpolate(template, params) {
   });
 }
 
-function shouldExposeMissingKeys() {
+function shouldExposeMissingKeys(): boolean {
   return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 }
 
-/**
- * @param {string} key
- * @returns {string}
- */
-function missingKey(key) {
+function missingKey(key: string): string {
   return shouldExposeMissingKeys() ? '[missing:' + key + ']' : key;
 }
 
-/**
- * @param {unknown} locale
- * @param {string} key
- * @param {InterpolationParams | null | undefined} [params]
- * @returns {string}
- */
-function t(locale, key, params) {
+function t(locale: unknown, key: string, params?: InterpolationParams | null): string {
   var normalized = normalizeLocale(locale);
   var message = messageAt(normalized, key) || messageAt(DEFAULT_LOCALE, key) || missingKey(key);
 

@@ -1,31 +1,30 @@
-// @ts-check
 'use strict';
 
 var LATEST_RELEASE_API_URL = 'https://api.github.com/repos/shane-zeng/jable-favourites-exporter/releases/latest';
 var USER_AGENT = 'Jable-Desktop';
 
-/**
- * @typedef {[number, number, number]} ParsedVersion
- * @typedef {object} GitHubRelease
- * @property {unknown} [tag_name]
- * @property {unknown} [name]
- * @property {unknown} [html_url]
- * @property {unknown} [draft]
- * @property {unknown} [prerelease]
- * @typedef {object} ReleaseResponse
- * @property {boolean} [ok]
- * @property {number} [status]
- * @property {() => Promise<unknown>} json
- * @typedef {object} CheckLatestReleaseOptions
- * @property {string} [currentVersion]
- * @property {(url: string, init: { headers: Record<string, string> }) => Promise<ReleaseResponse>} [fetch]
- */
+type ParsedVersion = [number, number, number];
 
-/**
- * @param {unknown} value
- * @returns {ParsedVersion | null}
- */
-function parseVersion(value) {
+type GitHubRelease = {
+  tag_name?: unknown;
+  name?: unknown;
+  html_url?: unknown;
+  draft?: unknown;
+  prerelease?: unknown;
+};
+
+type ReleaseResponse = {
+  ok?: boolean;
+  status?: number;
+  json(): Promise<unknown>;
+};
+
+type CheckLatestReleaseOptions = {
+  currentVersion?: string;
+  fetch?: (url: string, init: { headers: Record<string, string> }) => Promise<ReleaseResponse>;
+};
+
+function parseVersion(value: unknown): ParsedVersion | null {
   var match = String(value || '')
     .trim()
     .match(/^v?(\d+)\.(\d+)\.(\d+)$/i);
@@ -35,12 +34,7 @@ function parseVersion(value) {
   return [parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10)];
 }
 
-/**
- * @param {ParsedVersion} left
- * @param {ParsedVersion} right
- * @returns {number}
- */
-function compareParsedVersions(left, right) {
+function compareParsedVersions(left: ParsedVersion, right: ParsedVersion): number {
   for (var i = 0; i < 3; i++) {
     if (left[i] > right[i]) return 1;
     if (left[i] < right[i]) return -1;
@@ -49,19 +43,11 @@ function compareParsedVersions(left, right) {
   return 0;
 }
 
-/**
- * @param {ParsedVersion} parsed
- * @returns {string}
- */
-function versionLabel(parsed) {
+function versionLabel(parsed: ParsedVersion): string {
   return parsed.join('.');
 }
 
-/**
- * @param {GitHubRelease | null | undefined} release
- * @returns {ParsedVersion | null}
- */
-function releaseVersion(release) {
+function releaseVersion(release: GitHubRelease | null | undefined): ParsedVersion | null {
   var candidates = [release && release.tag_name, release && release.name];
 
   for (var i = 0; i < candidates.length; i++) {
@@ -72,19 +58,11 @@ function releaseVersion(release) {
   return null;
 }
 
-/**
- * @param {unknown} error
- * @returns {string}
- */
-function errorMessage(error) {
+function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * @param {unknown} currentVersion
- * @param {unknown} release
- */
-function evaluateReleaseUpdate(currentVersion, release) {
+function evaluateReleaseUpdate(currentVersion: unknown, release: unknown) {
   var current = parseVersion(currentVersion);
 
   if (!current) {
@@ -103,7 +81,7 @@ function evaluateReleaseUpdate(currentVersion, release) {
     };
   }
 
-  var releaseInfo = /** @type {GitHubRelease} */ (release);
+  var releaseInfo = release as GitHubRelease;
 
   if (releaseInfo.draft || releaseInfo.prerelease) {
     return {
@@ -150,14 +128,11 @@ function evaluateReleaseUpdate(currentVersion, release) {
   };
 }
 
-/**
- * @param {CheckLatestReleaseOptions | null | undefined} options
- */
-async function checkLatestRelease(options) {
+async function checkLatestRelease(options?: CheckLatestReleaseOptions | null) {
   options = options || {};
 
   try {
-    var fetchImpl = /** @type {CheckLatestReleaseOptions['fetch']} */ (options.fetch || globalThis.fetch);
+    var fetchImpl = (options.fetch || globalThis.fetch) as CheckLatestReleaseOptions['fetch'];
     if (typeof fetchImpl !== 'function') throw new Error('fetch is not available');
 
     var response = await fetchImpl(LATEST_RELEASE_API_URL, {
