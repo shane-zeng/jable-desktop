@@ -12,6 +12,13 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["app/browser-tab-policy.js", "app/i18n/index.js", "app/sync-utils.js", "app/update-checker.js"],
+  "include": [
+    "app/browser-tab-policy.js",
+    "app/i18n/index.js",
+    "app/preload.js",
+    "app/sync-utils.js",
+    "app/types/**/*.ts",
+    "app/update-checker.js"
+  ],
   "exclude": ["app/renderer-dist", "node_modules", "release"]
 }

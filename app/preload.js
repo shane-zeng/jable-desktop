@@ -1,10 +1,14 @@
+// @ts-check
 'use strict';
+
+/** @typedef {import('./types/jable').JableAppApi} JableAppApi */
 
 var electron = require('electron');
 var contextBridge = electron.contextBridge;
 var ipcRenderer = electron.ipcRenderer;
 
-contextBridge.exposeInMainWorld('jableApp', {
+/** @type {JableAppApi} */
+var jableApp = {
   getAppInfo: function () {
     return ipcRenderer.invoke('app:info');
   },
@@ -94,4 +98,6 @@ contextBridge.exposeInMainWorld('jableApp', {
       callback(message);
     });
   }
-});
+};
+
+contextBridge.exposeInMainWorld('jableApp', jableApp);
