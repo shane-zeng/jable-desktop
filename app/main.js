@@ -34,6 +34,7 @@ var webContentsTabIds = {};
 var activeBrowserTabId = null;
 var nextBrowserTabId = 1;
 var browserBounds = { visible: true, x: 0, y: 52, width: 900, height: 600 };
+var browserHtmlFullScreenTabId = null;
 var database = null;
 var databasePath = null;
 var lastShortcutAction = { name: '', at: 0 };
@@ -84,6 +85,10 @@ function createWindow() {
     if (direction === 'right') goBrowserBack();
     else if (direction === 'left') goBrowserForward();
   });
+
+  mainWindow.on('resize', scheduleBrowserHtmlFullScreenResize);
+  mainWindow.on('enter-full-screen', scheduleBrowserHtmlFullScreenResize);
+  mainWindow.on('leave-full-screen', scheduleBrowserHtmlFullScreenResize);
 
   loadRenderer();
   createBrowserTab({ url: JABLE_HOME_URL, active: true });
@@ -427,6 +432,14 @@ function wireBrowserTab(tab) {
     notifyBrowserTabsChanged();
   });
 
+  tab.view.webContents.on('enter-html-full-screen', function () {
+    enterBrowserHtmlFullScreen(tab);
+  });
+
+  tab.view.webContents.on('leave-html-full-screen', function () {
+    leaveBrowserHtmlFullScreen(tab);
+  });
+
   tab.view.webContents.on('context-menu', function (_event, params) {
     showBrowserContextMenu(tab, params);
   });
@@ -578,6 +591,7 @@ function focusBrowserTab(tab) {
 
 function attachActiveBrowserTab() {
   var activeTab = null;
+  var bounds = null;
 
   try {
     activeTab = getBrowserTab();
@@ -596,12 +610,55 @@ function attachActiveBrowserTab() {
     activeTab.attached = true;
   }
 
+  bounds = browserTabBounds(activeTab);
   activeTab.view.setBounds({
-    x: browserBounds.x,
-    y: browserBounds.y,
-    width: browserBounds.width,
-    height: browserBounds.height
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height
   });
+}
+
+function browserTabBounds(tab) {
+  // HTML fullscreen expands only within WebContentsView bounds, so stretch the view over the app chrome.
+  if (browserHtmlFullScreenTabId === tab.id && mainWindow && !mainWindow.isDestroyed()) {
+    var size = mainWindow.getContentSize();
+
+    return {
+      x: 0,
+      y: 0,
+      width: Math.max(320, Math.floor(size[0] || 0)),
+      height: Math.max(320, Math.floor(size[1] || 0))
+    };
+  }
+
+  return browserBounds;
+}
+
+function scheduleBrowserHtmlFullScreenResize() {
+  if (!browserHtmlFullScreenTabId) return;
+
+  setImmediate(function () {
+    if (!browserHtmlFullScreenTabId) return;
+    attachActiveBrowserTab();
+  });
+}
+
+function enterBrowserHtmlFullScreen(tab) {
+  if (!tab || !mainWindow || mainWindow.isDestroyed()) return;
+
+  browserHtmlFullScreenTabId = tab.id;
+  activeBrowserTabId = tab.id;
+  attachActiveBrowserTab();
+  focusBrowserTab(tab);
+}
+
+function leaveBrowserHtmlFullScreen(tab) {
+  if (!tab || browserHtmlFullScreenTabId !== tab.id) return;
+
+  browserHtmlFullScreenTabId = null;
+  attachActiveBrowserTab();
+  focusBrowserTab(tab);
 }
 
 function setBrowserBounds(bounds) {
@@ -627,6 +684,9 @@ function setBrowserBounds(bounds) {
 
 function activateBrowserTab(tabId) {
   var tab = getBrowserTab(tabId);
+  if (browserHtmlFullScreenTabId && browserHtmlFullScreenTabId !== tab.id) {
+    browserHtmlFullScreenTabId = null;
+  }
   activeBrowserTabId = tab.id;
   attachActiveBrowserTab();
   focusBrowserTab(tab);
@@ -643,6 +703,7 @@ function closeBrowserTab(tabId) {
   detachBrowserTab(tab);
   delete browserTabsById[tab.id];
   delete webContentsTabIds[String(tab.view.webContents.id)];
+  if (browserHtmlFullScreenTabId === tab.id) browserHtmlFullScreenTabId = null;
   browserTabs.splice(browserTabs.indexOf(tab), 1);
 
   try {

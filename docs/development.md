@@ -117,6 +117,7 @@ Browser and tab behavior:
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.js` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
+- HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.js` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
 - Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser-tab-policy.js`, `app/main.js`, `app/webview-preload.js`, and renderer link handlers.
 
 Renderer behavior:
@@ -198,6 +199,7 @@ Manual checks:
 
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
 - Open, switch, close, right-click, toggle compact mode, hover to reveal close buttons, and drag-resize browser tabs. Confirm Jable `target=_blank` links open a new app tab.
+- Enter and leave fullscreen from a Jable video player. Confirm fullscreen covers the tab rail and top bar, then restores the normal browser layout after exit.
 - Verify keyboard tab switching shortcuts from [`docs/shortcuts.md`](shortcuts.md), including repeated previous/next switching without clicking the page between keystrokes.
 - Right-click Jable page content and verify link, media, selection, navigation, and page URL menu actions appear in the expected contexts.
 - Toggle Jable favourite/watch-later buttons in the embedded page and confirm the local list updates after the site-side action succeeds.
