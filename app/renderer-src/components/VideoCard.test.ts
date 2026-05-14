@@ -49,6 +49,9 @@ describe('VideoCard', function () {
     expect(wrapper.find('[data-test="video-title-link"]').attributes('href')).toBe(video.url);
     expect(wrapper.text()).toContain(Number(video.views).toLocaleString());
     expect(wrapper.text()).toContain(Number(video.likes).toLocaleString());
+    expect(wrapper.findAll('.pl-1').map(function (label) {
+      return label.text();
+    })).toEqual(['views', 'likes']);
   });
 
   it('emits open with the video URL when the title link is clicked', async function () {

@@ -98,8 +98,16 @@ function interpolate(template: string, params?: Record<string, string | number |
   });
 }
 
+function shouldExposeMissingKeys() {
+  return import.meta.env.DEV || import.meta.env.MODE === 'test';
+}
+
+function missingKey(key: string) {
+  return shouldExposeMissingKeys() ? '[missing:' + key + ']' : key;
+}
+
 export function t(key: string, params?: Record<string, string | number | null | undefined>) {
-  var message = messageAt(currentLocale.value, key) || messageAt(DEFAULT_LOCALE, key) || key;
+  var message = messageAt(currentLocale.value, key) || messageAt(DEFAULT_LOCALE, key) || missingKey(key);
   return interpolate(message, params);
 }
 

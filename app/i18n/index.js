@@ -52,9 +52,17 @@ function interpolate(template, params) {
   });
 }
 
+function shouldExposeMissingKeys() {
+  return process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+}
+
+function missingKey(key) {
+  return shouldExposeMissingKeys() ? '[missing:' + key + ']' : key;
+}
+
 function t(locale, key, params) {
   var normalized = normalizeLocale(locale);
-  var message = messageAt(normalized, key) || messageAt(DEFAULT_LOCALE, key) || key;
+  var message = messageAt(normalized, key) || messageAt(DEFAULT_LOCALE, key) || missingKey(key);
 
   return interpolate(message, params);
 }

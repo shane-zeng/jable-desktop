@@ -25,4 +25,8 @@ describe('renderer i18n', function () {
 
     expect(t('library.page', { current: 2, total: 5 })).toBe('Page 2 / 5');
   });
+
+  it('exposes missing keys during tests', function () {
+    expect(t('missing.example')).toBe('[missing:missing.example]');
+  });
 });

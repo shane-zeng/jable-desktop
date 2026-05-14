@@ -8,14 +8,8 @@ export type AppView = 'browser' | 'library';
 export type SupportedLocale = 'zh-TW' | 'en-US';
 
 export interface CollectionDefinition {
-  name: string;
   url: string;
   filename: string;
-}
-
-export interface SelectOption<T extends string> {
-  value: T;
-  label: string;
 }
 
 export interface VideoRow {

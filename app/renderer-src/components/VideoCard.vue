@@ -148,10 +148,10 @@ function openVideoMenu(event: MouseEvent) {
       >
         <div class="truncate">
           <span class="font-medium text-[var(--text)]">{{ formatNumber(video.views) }}</span>
-          <span> {{ i18n.t('video.views') }}</span>
+          <span class="pl-1">{{ i18n.t('video.views') }}</span>
           <span class="px-1.5">·</span>
           <span class="font-medium text-[var(--text)]">{{ formatNumber(video.likes) }}</span>
-          <span> {{ i18n.t('video.likes') }}</span>
+          <span class="pl-1">{{ i18n.t('video.likes') }}</span>
         </div>
         <div class="truncate">{{ i18n.t('video.synced', { date: formatDate(video.last_seen_at) }) }}</div>
       </div>

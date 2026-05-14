@@ -35,6 +35,9 @@
   var SEL_PAGER = 'ul.pagination'; // 分頁容器
   var SEL_PAGER_LINKS = 'ul.pagination a.page-link'; // 可點擊的分頁
   var BTN_ID = 'fav-export-all-btn'; // 匯出按鈕 ID
+  var WRAP_ID = 'fav-export-all-wrap';
+  var LOCALE_SELECT_ID = 'fav-export-locale-select';
+  var LOCALE_STORAGE_KEY = STORAGE_PREFIX + 'locale';
 
   var I18N_MESSAGES = {
     'zh-TW': {
@@ -43,7 +46,8 @@
       progress: '已擷取 {count} 筆，前往下一頁…',
       cacheFailed: '暫存失敗，請查看 console',
       processing: '處理中…',
-      exportButton: '📦 匯出所有分頁影片'
+      exportButton: '📦 匯出所有分頁影片',
+      localeSelectLabel: '匯出工具語言'
     },
     'en-US': {
       preparing: 'Preparing...',
@@ -51,7 +55,8 @@
       progress: 'Captured {count} items, moving to the next page...',
       cacheFailed: 'Cache failed. Check the console.',
       processing: 'Processing...',
-      exportButton: '📦 Export all pages'
+      exportButton: '📦 Export all pages',
+      localeSelectLabel: 'Exporter language'
     }
   };
   var CURRENT_LOCALE = detectLocale();
@@ -73,7 +78,25 @@
     return 'zh-TW';
   }
 
+  function readStoredLocale() {
+    try {
+      var stored = localStorage.getItem(LOCALE_STORAGE_KEY);
+      return stored ? normalizeLocale(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeStoredLocale(locale) {
+    try {
+      localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+    } catch (e) {}
+  }
+
   function detectLocale() {
+    var stored = readStoredLocale();
+    if (stored) return stored;
+
     var languages = [];
 
     if (navigator.languages && navigator.languages.length) languages = languages.concat(navigator.languages);
@@ -87,6 +110,12 @@
     return 'zh-TW';
   }
 
+  function setLocale(value) {
+    CURRENT_LOCALE = normalizeLocale(value);
+    writeStoredLocale(CURRENT_LOCALE);
+    refreshExportUiText();
+  }
+
   function t(key, params) {
     var messages = I18N_MESSAGES[CURRENT_LOCALE] || I18N_MESSAGES['zh-TW'];
     var template = messages[key] || I18N_MESSAGES['zh-TW'][key] || key;
@@ -97,6 +126,22 @@
       if (params[name] === null || typeof params[name] === 'undefined') return '';
       return String(params[name]);
     });
+  }
+
+  function refreshExportUiText() {
+    var btn = document.getElementById(BTN_ID);
+    var select = document.getElementById(LOCALE_SELECT_ID);
+
+    if (btn) {
+      btn.setAttribute('data-label', t('exportButton'));
+      if (btn.getAttribute('data-busy') !== 'true') btn.textContent = t('exportButton');
+    }
+
+    if (select) {
+      select.value = CURRENT_LOCALE;
+      select.setAttribute('aria-label', t('localeSelectLabel'));
+      select.setAttribute('title', t('localeSelectLabel'));
+    }
   }
 
   function isExportPage() {
@@ -1041,23 +1086,59 @@
     }
 
     btn.disabled = !!busy;
+    btn.setAttribute('data-busy', busy ? 'true' : 'false');
     btn.textContent = busy ? text || t('processing') : btn.getAttribute('data-label');
     btn.style.opacity = busy ? '0.7' : '1';
   }
 
   function addNavButton() {
-    if (document.getElementById(BTN_ID)) return true;
+    var existingBtn = document.getElementById(BTN_ID);
+    var existingWrap = document.getElementById(WRAP_ID);
+
+    if (existingBtn && existingWrap) {
+      refreshExportUiText();
+      return true;
+    }
+    if (existingBtn && existingBtn.parentNode) existingBtn.parentNode.removeChild(existingBtn);
+    if (existingWrap && existingWrap.parentNode) existingWrap.parentNode.removeChild(existingWrap);
     if (!isExportPage() || !document.body) return false;
 
+    var wrap = document.createElement('div');
     var btn = document.createElement('button');
+    var select = document.createElement('select');
+
+    wrap.id = WRAP_ID;
+
     btn.id = BTN_ID;
     btn.type = 'button';
     btn.textContent = t('exportButton');
+    btn.setAttribute('data-label', t('exportButton'));
+    btn.setAttribute('data-busy', 'false');
 
-    btn.style.setProperty('position', 'fixed', 'important');
-    btn.style.setProperty('right', '16px', 'important');
-    btn.style.setProperty('bottom', '16px', 'important');
-    btn.style.setProperty('z-index', '2147483647', 'important');
+    select.id = LOCALE_SELECT_ID;
+    select.setAttribute('aria-label', t('localeSelectLabel'));
+    select.setAttribute('title', t('localeSelectLabel'));
+    select.innerHTML =
+      '<option value="zh-TW">繁中</option>' +
+      '<option value="en-US">EN</option>';
+    select.value = CURRENT_LOCALE;
+    select.addEventListener('change', function () {
+      setLocale(select.value);
+    });
+
+    wrap.style.setProperty('position', 'fixed', 'important');
+    wrap.style.setProperty('right', '16px', 'important');
+    wrap.style.setProperty('bottom', '16px', 'important');
+    wrap.style.setProperty('z-index', '2147483647', 'important');
+    wrap.style.setProperty('display', 'inline-flex', 'important');
+    wrap.style.setProperty('align-items', 'center', 'important');
+    wrap.style.setProperty('gap', '6px', 'important');
+    wrap.style.setProperty('padding', '6px', 'important');
+    wrap.style.setProperty('border-radius', '10px', 'important');
+    wrap.style.setProperty('background', 'rgba(0, 0, 0, 0.56)', 'important');
+    wrap.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.35)', 'important');
+    wrap.style.setProperty('backdrop-filter', 'blur(8px)', 'important');
+
     btn.style.setProperty('display', 'inline-flex', 'important');
     btn.style.setProperty('align-items', 'center', 'important');
     btn.style.setProperty('justify-content', 'center', 'important');
@@ -1070,10 +1151,22 @@
     btn.style.setProperty('font-size', '14px', 'important');
     btn.style.setProperty('font-weight', '600', 'important');
     btn.style.setProperty('line-height', '1.4', 'important');
-    btn.style.setProperty('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.35)', 'important');
     btn.addEventListener('click', exportAllByClick);
 
-    document.body.appendChild(btn);
+    select.style.setProperty('height', '34px', 'important');
+    select.style.setProperty('min-width', '56px', 'important');
+    select.style.setProperty('border', '1px solid rgba(255, 255, 255, 0.28)', 'important');
+    select.style.setProperty('border-radius', '8px', 'important');
+    select.style.setProperty('background', '#111827', 'important');
+    select.style.setProperty('color', '#fff', 'important');
+    select.style.setProperty('padding', '0 6px', 'important');
+    select.style.setProperty('font-size', '12px', 'important');
+    select.style.setProperty('font-weight', '700', 'important');
+    select.style.setProperty('cursor', 'pointer', 'important');
+
+    wrap.appendChild(btn);
+    wrap.appendChild(select);
+    document.body.appendChild(wrap);
     log('floating button inserted');
     return true;
   }
@@ -1093,7 +1186,7 @@
 
   // SPA 變動時補插
   var mo = new MutationObserver(function () {
-    if (!document.getElementById(BTN_ID)) addNavButton();
+    if (!document.getElementById(BTN_ID) || !document.getElementById(WRAP_ID)) addNavButton();
   });
   mo.observe(document.documentElement, { childList: true, subtree: true });
 })();
