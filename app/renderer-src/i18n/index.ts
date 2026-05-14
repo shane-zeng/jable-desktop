@@ -1,28 +1,32 @@
 import { ref } from 'vue';
 import zhTW from '../../i18n/locales/zh-TW.json';
 import enUS from '../../i18n/locales/en-US.json';
+import jaJP from '../../i18n/locales/ja-JP.json';
 
-export type SupportedLocale = 'zh-TW' | 'en-US';
+export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 
 export const DEFAULT_LOCALE: SupportedLocale = 'zh-TW';
 export const LOCALE_STORAGE_KEY = 'jable-desktop:locale';
 
 var messages = {
   'zh-TW': zhTW,
-  'en-US': enUS
+  'en-US': enUS,
+  'ja-JP': jaJP
 };
 
 var currentLocale = ref<SupportedLocale>(detectLocale());
 
 export var localeOptions = [
   { value: 'zh-TW' as SupportedLocale, label: zhTW.locale.zhTW },
-  { value: 'en-US' as SupportedLocale, label: enUS.locale.enUS }
+  { value: 'en-US' as SupportedLocale, label: enUS.locale.enUS },
+  { value: 'ja-JP' as SupportedLocale, label: jaJP.locale.jaJP }
 ];
 
 export function normalizeLocale(value: unknown): SupportedLocale {
   var locale = String(value || '').toLowerCase();
 
   if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
+  if (locale === 'ja' || locale.indexOf('ja-') === 0) return 'ja-JP';
   if (
     locale === 'zh' ||
     locale === 'zh-tw' ||

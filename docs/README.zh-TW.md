@@ -4,7 +4,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。
 
 它會在 App 內開啟 Jable，將「影片收藏」與「稍後觀看」同步到你的電腦本機，方便瀏覽、搜尋、排序、匯入與匯出備份。
 
-[回到專案首頁](../README.md) · [English](README.en-US.md)
+[回到專案首頁](../README.md) · [English](README.en-US.md) · [日本語](README.ja-JP.md)
 
 ## 功能特色
 
@@ -14,7 +14,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。
 - 快速同步與完整同步模式
 - SQLite FTS5 本機全文搜尋
 - JSON 匯入與匯出
-- 支援繁體中文與英文介面
+- 支援繁體中文、英文與日文介面
 - 支援 macOS 與 Windows
 
 ## 技術亮點
@@ -25,6 +25,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。
 - Incremental sync 與 full reconciliation sync 設計
 - Embedded browser session persistence
 - Shared IPC wire types
+- 輕量 i18n 架構，支援 renderer、Electron native menu 與 userscript 多語系
 - GitHub Actions 自動化 lint、typecheck、test 與 release packaging
 
 ## 架構概覽
@@ -117,7 +118,7 @@ Jable 的登入狀態會保存在隔離的 Electron session partition 中，但�
 - `https://jable.tv/my/favourites/videos/`
 - `https://jable.tv/my/favourites/videos-watch-later/`
 
-進入頁面後，點擊右下角浮動匯出按鈕即可匯出所有分頁。旁邊的語言選擇器可切換 **繁中** / **EN**。
+進入頁面後，點擊右下角浮動匯出按鈕即可匯出所有分頁。旁邊的語言選擇器可切換 **繁中** / **EN** / **日本語**。
 
 ## 開發文件
 

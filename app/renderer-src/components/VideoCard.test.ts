@@ -49,9 +49,11 @@ describe('VideoCard', function () {
     expect(wrapper.find('[data-test="video-title-link"]').attributes('href')).toBe(video.url);
     expect(wrapper.text()).toContain(Number(video.views).toLocaleString());
     expect(wrapper.text()).toContain(Number(video.likes).toLocaleString());
-    expect(wrapper.findAll('.pl-1').map(function (label) {
-      return label.text();
-    })).toEqual(['views', 'likes']);
+    expect(
+      wrapper.findAll('.pl-1').map(function (label) {
+        return label.text();
+      })
+    ).toEqual(['views', 'likes']);
   });
 
   it('emits open with the video URL when the title link is clicked', async function () {
@@ -175,5 +177,26 @@ describe('VideoCard', function () {
 
     expect(wrapper.find('[data-test="video-thumb-link"]').attributes('aria-label')).toBe('Open video: Sample Video');
     expect(wrapper.text()).toContain('Synced');
+  });
+
+  it('renders Japanese aria labels, metadata labels, and locale-formatted sync date', function () {
+    setLocale('ja-JP', false);
+    var video = makeVideo();
+    var wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+    var syncedAt = new Date(video.last_seen_at || '').toLocaleString('ja-JP');
+
+    expect(wrapper.find('[data-test="video-thumb-link"]').attributes('aria-label')).toBe('動画を開く: Sample Video');
+    expect(wrapper.text()).toContain(Number(video.views).toLocaleString('ja-JP'));
+    expect(wrapper.text()).toContain(Number(video.likes).toLocaleString('ja-JP'));
+    expect(wrapper.text()).toContain('同期 ' + syncedAt);
+    expect(
+      wrapper.findAll('.pl-1').map(function (label) {
+        return label.text();
+      })
+    ).toEqual(['再生', 'いいね']);
   });
 });

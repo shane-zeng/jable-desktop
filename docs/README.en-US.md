@@ -4,7 +4,7 @@ Jable Desktop is an unofficial desktop tool and is not affiliated with Jable.
 
 It opens Jable inside the app and syncs favourites and watch-later lists into local storage for browsing, searching, sorting, importing, and exporting backups.
 
-[Back to project home](../README.md) · [繁體中文](README.zh-TW.md)
+[Back to project home](../README.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja-JP.md)
 
 ## Features
 
@@ -14,7 +14,7 @@ It opens Jable inside the app and syncs favourites and watch-later lists into lo
 - Quick sync and full sync modes
 - SQLite FTS5 local search
 - JSON import/export
-- Traditional Chinese and English UI
+- Traditional Chinese, English, and Japanese UI
 - macOS and Windows support
 
 ## Technical Highlights
@@ -25,6 +25,7 @@ It opens Jable inside the app and syncs favourites and watch-later lists into lo
 - Incremental sync and full reconciliation sync workflows
 - Embedded browser session persistence
 - Shared IPC wire types
+- Lightweight i18n architecture covering the renderer, Electron native menus, and userscript UI
 - GitHub Actions quality gates for linting, type-checking, testing, and release packaging
 
 ## Architecture Overview
@@ -117,7 +118,7 @@ It supports:
 - `https://jable.tv/my/favourites/videos/`
 - `https://jable.tv/my/favourites/videos-watch-later/`
 
-Open one of those pages, then click the floating export button in the lower-right corner to export all pages. Use the compact language selector beside it to choose **繁中** or **EN**.
+Open one of those pages, then click the floating export button in the lower-right corner to export all pages. Use the compact language selector beside it to choose **繁中**, **EN**, or **日本語**.
 
 ## Development Docs
 

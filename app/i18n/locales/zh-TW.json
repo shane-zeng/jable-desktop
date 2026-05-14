@@ -5,7 +5,8 @@
   "locale": {
     "label": "介面語言",
     "zhTW": "繁體中文",
-    "enUS": "English"
+    "enUS": "English",
+    "jaJP": "日本語"
   },
   "collections": {
     "favourites": "影片收藏",

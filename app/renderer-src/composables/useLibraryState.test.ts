@@ -241,4 +241,21 @@ describe('useLibraryState', function () {
       setup.stop();
     }
   });
+
+  it('formats pagination and sync labels in Japanese', async function () {
+    setLocale('ja-JP', false);
+    var rows = makeRows(PAGE_SIZE + 1);
+    var api = createPagedApi(rows);
+    var setup = createState(api);
+
+    try {
+      await setup.state.refreshVideos();
+
+      expect(setup.state.countLabel.value).toBe(PAGE_SIZE + 1 + ' 件 · 1ページ ' + PAGE_SIZE + ' 件');
+      expect(setup.state.pageLabel.value).toBe('ページ 1 / 2');
+      expect(setup.state.fullSyncButtonLabel.value).toBe('フル同期');
+    } finally {
+      setup.stop();
+    }
+  });
 });

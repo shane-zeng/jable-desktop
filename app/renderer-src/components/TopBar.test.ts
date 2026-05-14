@@ -54,4 +54,26 @@ describe('TopBar', function () {
     expect(wrapper.find('[aria-label="Back"]').exists()).toBe(true);
     expect(wrapper.find('[aria-label="Interface Language"]').exists()).toBe(true);
   });
+
+  it('renders Japanese labels and locale option after switching locale', function () {
+    setLocale('ja-JP', false);
+    var wrapper = mount(TopBar, {
+      props: {
+        activeView: 'browser',
+        busy: false,
+        navigation: {
+          tabId: null,
+          canGoBack: true,
+          canGoForward: false,
+          locked: false
+        }
+      }
+    });
+
+    expect(wrapper.text()).toContain('ブラウザー');
+    expect(wrapper.text()).toContain('ローカルデータ');
+    expect(wrapper.text()).toContain('日本語');
+    expect(wrapper.find('[aria-label="戻る"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="表示言語"]').exists()).toBe(true);
+  });
 });

@@ -2,18 +2,21 @@
 
 var zhTW = require('./locales/zh-TW.json');
 var enUS = require('./locales/en-US.json');
+var jaJP = require('./locales/ja-JP.json');
 
 var DEFAULT_LOCALE = 'zh-TW';
-var SUPPORTED_LOCALES = ['zh-TW', 'en-US'];
+var SUPPORTED_LOCALES = ['zh-TW', 'en-US', 'ja-JP'];
 var messages = {
   'zh-TW': zhTW,
-  'en-US': enUS
+  'en-US': enUS,
+  'ja-JP': jaJP
 };
 
 function normalizeLocale(value) {
   var locale = String(value || '').toLowerCase();
 
   if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
+  if (locale === 'ja' || locale.indexOf('ja-') === 0) return 'ja-JP';
   if (
     locale === 'zh' ||
     locale === 'zh-tw' ||

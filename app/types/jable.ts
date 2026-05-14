@@ -5,7 +5,7 @@ export type SearchMode = 'any' | 'all' | 'phrase';
 export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
 export type AppView = 'browser' | 'library';
-export type SupportedLocale = 'zh-TW' | 'en-US';
+export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 
 export interface CollectionDefinition {
   url: string;

@@ -102,9 +102,15 @@ function updateDirection(event: Event) {
     </div>
 
     <div
-      class="grid grid-cols-[132px_minmax(260px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      data-test="library-filters"
     >
-      <select :aria-label="t('library.searchMode')" :value="searchMode" @change="updateSearchMode">
+      <select
+        class="w-auto min-w-[132px] max-w-[220px]"
+        :aria-label="t('library.searchMode')"
+        :value="searchMode"
+        @change="updateSearchMode"
+      >
         <option v-for="option in SEARCH_MODE_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.searchMode.' + option.value) }}
         </option>

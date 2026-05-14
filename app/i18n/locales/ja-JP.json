@@ -1,0 +1,172 @@
+{
+  "app": {
+    "name": "Jable Desktop"
+  },
+  "locale": {
+    "label": "表示言語",
+    "zhTW": "繁體中文",
+    "enUS": "English",
+    "jaJP": "日本語"
+  },
+  "collections": {
+    "favourites": "お気に入り",
+    "watch_later": "後で見る"
+  },
+  "options": {
+    "sort": {
+      "site_order": "サイト順",
+      "title": "タイトル",
+      "views": "再生数",
+      "likes": "いいね数"
+    },
+    "searchMode": {
+      "any": "いずれかの語",
+      "all": "すべての語",
+      "phrase": "完全一致フレーズ"
+    },
+    "direction": {
+      "asc": "昇順",
+      "desc": "降順"
+    }
+  },
+  "topBar": {
+    "back": "戻る",
+    "next": "進む",
+    "reload": "再読み込み",
+    "browser": "ブラウザー",
+    "library": "ローカルデータ",
+    "diagnose": "診断",
+    "mainViews": "メインビュー"
+  },
+  "browser": {
+    "aria": "Jable ブラウザー",
+    "tabs": "ブラウザータブ",
+    "pages": "ブラウザーページ",
+    "newTab": "新しいタブ",
+    "closeTab": "タブを閉じる",
+    "newPage": "新しいタブ",
+    "muteTab": "タブをミュート",
+    "unmuteTab": "タブのミュート解除",
+    "resizeTabs": "ドラッグしてタブレール幅を調整",
+    "sync": "同期",
+    "syncTabTitle": "同期: {collection}"
+  },
+  "library": {
+    "aria": "ローカルライブラリ",
+    "collections": "コレクション",
+    "quickSync": "クイック同期",
+    "fullSync": "フル同期",
+    "continueFullSync": "フル同期を続行",
+    "importJson": "Import JSON",
+    "exportJson": "Export JSON",
+    "searchMode": "検索モード",
+    "searchPlaceholder": "タイトルまたは URL を検索",
+    "sort": "並び替え",
+    "sortDirection": "並び順",
+    "empty": "ローカルデータはまだありません",
+    "count": "{total} 件 · 1ページ {pageSize} 件",
+    "page": "ページ {current} / {total}"
+  },
+  "pagination": {
+    "prev": "前へ",
+    "next": "次へ"
+  },
+  "video": {
+    "open": "動画を開く: {target}",
+    "views": "再生",
+    "likes": "いいね",
+    "synced": "同期 {date}"
+  },
+  "sync": {
+    "quick": "クイック同期",
+    "full": "フル同期"
+  },
+  "status": {
+    "unknownError": "不明なエラー",
+    "browserOpenFailed": "動画を開けませんでした: {error}",
+    "browserOpenNewTabFailed": "新しいタブを開けませんでした: {error}",
+    "browserTabError": "ブラウザータブエラー: {error}",
+    "syncPage": "ページ {page} を同期中、{count} 件",
+    "syncProgress": "ページ {page} を読み込みました",
+    "updateLibraryFailed": "ローカルリストを更新できませんでした: {error}",
+    "collectionRemoved": "{collection} からローカルデータを削除しました",
+    "collectionRemoveNoop": "{collection} から削除しました。この項目はローカルデータにありませんでした",
+    "collectionAdded": "{collection} に追加し、ローカルに同期しました",
+    "fullSyncPaused": "{collection} の {mode} を一時停止しました: このバッチは {pages} ページ、{rows} 件を処理しました。フル同期を続行できます。",
+    "syncIncomplete": "{collection} の {mode} は完了しませんでした: {reason}",
+    "fullSyncComplete": "{collection} のフル同期が完了しました: {rows} 件、見つからない {hidden} 件を非表示にしました",
+    "quickSyncComplete": "{collection} のクイック同期が完了しました: {rows} 件、{reason}",
+    "stoppedByKnownPage": "既知のページに到達したため停止しました",
+    "finishedVisiblePages": "表示されている全ページを完了しました",
+    "loginRequired": "ブラウザーで Jable にログインし、{collection} ページを開けることを確認してください。",
+    "syncStart": "{collection} の {mode} を開始します",
+    "syncFailed": "{mode} に失敗しました: {error}",
+    "createSyncTabFailed": "同期タブを作成できませんでした",
+    "exportCanceled": "Export をキャンセルしました",
+    "exported": "{filename} を Export しました",
+    "exportFailed": "Export に失敗しました: {error}",
+    "imported": "{count} 件を {collection} に Import しました",
+    "importFailed": "Import に失敗しました: {error}",
+    "newTabFailed": "タブを作成できませんでした: {error}",
+    "activateTabFailed": "タブを切り替えられませんでした: {error}",
+    "closeTabFailed": "タブを閉じられませんでした: {error}",
+    "muteTabFailed": "タブの音声設定を変更できませんでした: {error}",
+    "tabMenuFailed": "タブメニューを開けませんでした: {error}",
+    "videoMenuFailed": "動画メニューを開けませんでした: {error}"
+  },
+  "toast": {
+    "close": "通知を閉じる"
+  },
+  "menu": {
+    "file": "ファイル",
+    "edit": "編集",
+    "view": "表示",
+    "window": "ウィンドウ",
+    "newTab": "新しいタブ",
+    "closeTab": "タブを閉じる"
+  },
+  "context": {
+    "openLinkInBackground": "リンクをバックグラウンドタブで開く",
+    "copyLinkUrl": "リンク URL をコピー",
+    "openMediaInBackground": "{media} をバックグラウンドタブで開く",
+    "copyMediaUrl": "{media} URL をコピー",
+    "copySelection": "選択テキストをコピー",
+    "back": "戻る",
+    "forward": "進む",
+    "reload": "再読み込み",
+    "newTab": "新しいタブ",
+    "copyCurrentPageUrl": "現在のページ URL をコピー",
+    "switchToTab": "このタブに切り替え",
+    "reloadTab": "タブを再読み込み",
+    "muteTab": "タブをミュート",
+    "unmuteTab": "タブのミュート解除",
+    "copyTabUrl": "タブ URL をコピー",
+    "compactMode": "コンパクトモード",
+    "closeTab": "タブを閉じる",
+    "openCurrentTab": "現在のタブで開く",
+    "openNewTab": "新しいタブで開く",
+    "copyUrl": "URL をコピー",
+    "undo": "元に戻す",
+    "redo": "やり直し",
+    "cut": "切り取り",
+    "copy": "コピー",
+    "paste": "貼り付け",
+    "selectAll": "すべて選択"
+  },
+  "media": {
+    "image": "画像",
+    "video": "動画",
+    "audio": "音声",
+    "media": "メディア"
+  },
+  "dialog": {
+    "exportJson": "Export JSON"
+  },
+  "errors": {
+    "maxTabs": "最大 {count} 個までブラウザータブを開けます",
+    "tabNotFound": "ブラウザータブが見つかりません",
+    "lockedClose": "同期中のタブは閉じられません",
+    "lockedNavigate": "同期中のタブは手動で移動できません",
+    "lockedReload": "同期中のタブは再読み込みできません"
+  }
+}

@@ -10,6 +10,8 @@ Unofficial local-first desktop app for syncing, browsing, searching, importing, 
   <a href="docs/README.zh-TW.md">繁體中文</a>
   ·
   <a href="docs/README.en-US.md">English</a>
+  ·
+  <a href="docs/README.ja-JP.md">日本語</a>
 </p>
 
 ---
@@ -27,7 +29,7 @@ The project also includes the original self-contained Tampermonkey exporter: [`j
 - Local SQLite storage with FTS5 search
 - Quick sync and full sync modes
 - JSON import/export with legacy userscript compatibility
-- Traditional Chinese and English UI
+- Lightweight Traditional Chinese / English / Japanese localization across desktop and userscript UI
 - macOS and Windows release targets
 
 ## Quick Start
@@ -38,6 +40,7 @@ Full usage guides:
 
 - [繁體中文使用說明](docs/README.zh-TW.md)
 - [English User Guide](docs/README.en-US.md)
+- [日本語ユーザーガイド](docs/README.ja-JP.md)
 
 ## Development
 

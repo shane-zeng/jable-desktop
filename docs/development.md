@@ -2,7 +2,7 @@
 
 > Developer-oriented notes for building, testing, packaging, and releasing Jable Desktop.
 
-The short project entrypoint lives in [README.md](../README.md). Full user-facing guides live in [docs/README.zh-TW.md](README.zh-TW.md) and [docs/README.en-US.md](README.en-US.md).
+The short project entrypoint lives in [README.md](../README.md). Full user-facing guides live in [docs/README.zh-TW.md](README.zh-TW.md), [docs/README.en-US.md](README.en-US.md), and [docs/README.ja-JP.md](README.ja-JP.md).
 
 ---
 
@@ -28,7 +28,7 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 - Desktop sync preserves Jable site order and supports quick/full sync modes.
 - Embedded browser uses multi-tab `WebContentsView` tabs with a persistent Jable session partition.
 - Renderer UI is dark-mode-only, with no system appearance selector.
-- Desktop and userscript UI support Traditional Chinese and English localization.
+- Desktop and userscript UI support Traditional Chinese, English, and Japanese localization.
 - Browser shortcuts and quick interactions are documented in [`docs/shortcuts.md`](shortcuts.md).
 
 ---
@@ -49,7 +49,7 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 - **稍後觀看**: `https://jable.tv/my/favourites/videos-watch-later/`
 
 2. Wait until all thumbnails are loaded.
-3. Click the floating export button in the lower-right corner. Use the compact language selector beside it to choose **繁中** or **EN** when needed.
+3. Click the floating export button in the lower-right corner. Use the compact language selector beside it to choose **繁中**, **EN**, or **日本語** when needed.
 4. The script will:
 
 - Simulate clicking each pagination button.
@@ -132,14 +132,14 @@ Renderer behavior:
 
 Localization behavior:
 
-- The supported UI locales are `zh-TW` and `en-US`. `ja-JP` intentionally falls back to `zh-TW` until there is a confirmed need for Japanese UI copy.
+- The supported UI locales are `zh-TW`, `en-US`, and `ja-JP`.
 - Shared desktop locale dictionaries live in `app/i18n/locales/`. `app/i18n/index.js` is the CommonJS helper used by the Electron main process, and `app/renderer-src/i18n/index.ts` is the renderer wrapper.
 - Locale selection precedence is: user preference in renderer `localStorage` (`jable-desktop:locale`), then detected system/browser locale, then `zh-TW`.
 - Renderer locale changes are sent through `window.jableApp.setLocale()`, so native application menus, context menus, dialog titles, and renderer copy stay aligned.
 - Keep visible renderer copy, aria labels, placeholders, toast messages, select option labels, and menu/dialog labels in the locale dictionaries. Avoid putting user-facing fallback labels in `app/renderer-src/constants.ts`.
-- Dictionary key parity between `zh-TW` and `en-US` is covered by `test/i18n.test.js`. Missing keys are exposed as `[missing:key.path]` in development/test and fall back to the raw key in production.
+- Dictionary key parity between `zh-TW`, `en-US`, and `ja-JP` is covered by `test/i18n.test.js`. Missing keys are exposed as `[missing:key.path]` in development/test and fall back to the raw key in production.
 - The userscript remains self-contained, so it has a small local i18n dictionary inside `jable-favourites-exporter.user.js` rather than importing the desktop dictionaries. Its language preference is stored in `localStorage` as `jable-favourites-exporter:locale`.
-- When adding a new user-facing message, update both desktop locale JSON files, update the userscript dictionary separately if the message appears there, and add or adjust tests for any new translation behavior.
+- When adding a new user-facing message, update all desktop locale JSON files, update the userscript dictionary separately if the message appears there, and add or adjust tests for any new translation behavior.
 
 Userscript cache behavior:
 
@@ -220,9 +220,9 @@ Manual checks:
 - Full sync a list and confirm local ordering matches the Jable page order.
 - For large lists, continue a paused full sync and confirm incomplete batches do not hide old rows or unlock the sync tab too early.
 - Search with `any`, `all`, and `phrase` modes and confirm title/URL filtering still matches README examples.
-- Switch desktop language between Traditional Chinese and English. Confirm the top bar, local data controls, pagination, video metadata labels, toast messages, application menu, page context menu, tab context menu, and export dialog title update.
+- Switch desktop language between Traditional Chinese, English, and Japanese. Confirm the top bar, local data controls, pagination, video metadata labels, toast messages, application menu, page context menu, tab context menu, and export dialog title update.
 - Restart the app after changing language and confirm the `jable-desktop:locale` preference is preserved.
-- In Tampermonkey, verify the userscript floating export UI on favourites and watch-later pages. Switch between **繁中** and **EN**, confirm the button label changes immediately, and confirm progress/error labels follow the selected language.
+- In Tampermonkey, verify the userscript floating export UI on favourites and watch-later pages. Switch between **繁中**, **EN**, and **日本語**, confirm the button label changes immediately, and confirm progress/error labels follow the selected language.
 - Import an existing userscript JSON export and verify rows appear in the matching tab.
 - Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
 

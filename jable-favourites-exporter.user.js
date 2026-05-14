@@ -57,6 +57,15 @@
       processing: 'Processing...',
       exportButton: '📦 Export all pages',
       localeSelectLabel: 'Exporter language'
+    },
+    'ja-JP': {
+      preparing: '準備中...',
+      exporting: '完了しました。Export 中...',
+      progress: '{count} 件取得しました。次のページへ移動します...',
+      cacheFailed: '一時保存に失敗しました。console を確認してください。',
+      processing: '処理中...',
+      exportButton: '📦 全ページを Export',
+      localeSelectLabel: 'Export ツールの言語'
     }
   };
   var CURRENT_LOCALE = detectLocale();
@@ -65,6 +74,7 @@
     var locale = String(value || '').toLowerCase();
 
     if (locale === 'en' || locale.indexOf('en-') === 0) return 'en-US';
+    if (locale === 'ja' || locale.indexOf('ja-') === 0) return 'ja-JP';
     if (
       locale === 'zh' ||
       locale === 'zh-tw' ||
@@ -104,7 +114,7 @@
 
     for (var i = 0; i < languages.length; i++) {
       var normalized = normalizeLocale(languages[i]);
-      if (normalized === 'en-US' || /^zh/i.test(String(languages[i] || ''))) return normalized;
+      if (normalized !== 'zh-TW' || /^zh/i.test(String(languages[i] || ''))) return normalized;
     }
 
     return 'zh-TW';
@@ -1120,7 +1130,8 @@
     select.setAttribute('title', t('localeSelectLabel'));
     select.innerHTML =
       '<option value="zh-TW">繁中</option>' +
-      '<option value="en-US">EN</option>';
+      '<option value="en-US">EN</option>' +
+      '<option value="ja-JP">日本語</option>';
     select.value = CURRENT_LOCALE;
     select.addEventListener('change', function () {
       setLocale(select.value);

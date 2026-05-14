@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LOCALE_STORAGE_KEY, detectLocale, normalizeLocale, setLocale, t } from '.';
+import { LOCALE_STORAGE_KEY, detectLocale, localeOptions, normalizeLocale, setLocale, t } from '.';
 
 describe('renderer i18n', function () {
   beforeEach(function () {
@@ -11,7 +11,13 @@ describe('renderer i18n', function () {
     expect(normalizeLocale('zh-HK')).toBe('zh-TW');
     expect(normalizeLocale('zh-Hant-TW')).toBe('zh-TW');
     expect(normalizeLocale('en-GB')).toBe('en-US');
-    expect(normalizeLocale('ja-JP')).toBe('zh-TW');
+    expect(normalizeLocale('ja-JP')).toBe('ja-JP');
+    expect(normalizeLocale('ja')).toBe('ja-JP');
+    expect(normalizeLocale('ja-JP-u-ca-japanese')).toBe('ja-JP');
+  });
+
+  it('lists Japanese in locale options', function () {
+    expect(localeOptions).toContainEqual({ value: 'ja-JP', label: '日本語' });
   });
 
   it('uses stored locale before detected locale', function () {
