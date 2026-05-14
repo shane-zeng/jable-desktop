@@ -1,6 +1,6 @@
 {
   "name": "jable-desktop",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Tampermonkey exporter and Electron desktop app for Jable favourites and watch-later lists.",
   "main": "app/main.js",
   "scripts": {
