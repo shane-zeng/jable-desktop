@@ -36,6 +36,28 @@ test('webview preload owns browser sync and diagnosis request handlers', functio
   assert.match(source, /function diagnosePage/);
 });
 
+test('webview pager fallback uses Jable get_block requests and page-number from parameters', function () {
+  const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+
+  assert.match(source, /function ajaxUrlForPagerLink/);
+  assert.match(source, /url\.searchParams\.set\('mode', 'async'\)/);
+  assert.match(source, /url\.searchParams\.set\('function', 'get_block'\)/);
+  assert.match(source, /function loadPagerLinkByFetch/);
+  assert.match(source, /new DOMParser\(\)\.parseFromString\(html, 'text\/html'\)/);
+  assert.match(source, /pageNumber = normalizePageNumber\(match\[1\]\)/);
+  assert.equal(source.includes('Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1'), false);
+});
+
+test('main process replays queued collection operations after recoverable incomplete sync', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /function shouldApplyDeferredSyncOperations/);
+  assert.match(source, /result\.incompleteReason === 'login-required'/);
+  assert.match(source, /result\.incompleteReason === 'batch-limit'/);
+  assert.match(source, /if \(!keepWorker && shouldApplyDeferredSyncOperations\(resultWithWorker\)\)/);
+  assert.equal(source.includes('!keepWorker && resultWithWorker.completed'), false);
+});
+
 test('webview deferred operation replay retries once and preserves outbox order after a failure', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
 

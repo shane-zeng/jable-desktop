@@ -1708,6 +1708,12 @@ async function applyDeferredSyncOperationsInWorker(
   return { applied: applied, failed: failedRows.length, failures: failedRows };
 }
 
+function shouldApplyDeferredSyncOperations(result: SyncResult) {
+  if (result.incompleteReason === 'login-required') return false;
+  if (result.incompleteReason === 'batch-limit') return false;
+  return true;
+}
+
 async function syncBrowserCollectionInWorker(payload: {
   tabId: string | null;
   options: SyncBrowserCollectionOptions;
@@ -1742,7 +1748,7 @@ async function syncBrowserCollectionInWorker(payload: {
 
     keepWorker = resultWithWorker.completed === false && resultWithWorker.incompleteReason === 'batch-limit';
 
-    if (!keepWorker && resultWithWorker.completed) {
+    if (!keepWorker && shouldApplyDeferredSyncOperations(resultWithWorker)) {
       const applied = await applyDeferredSyncOperationsInWorker(worker, payload.options);
       resultWithWorker.queuedOperationsApplied = applied.applied;
       resultWithWorker.queuedOperationsFailed = applied.failed;

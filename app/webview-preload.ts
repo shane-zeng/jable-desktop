@@ -36,7 +36,9 @@ type PendingCollectionOperation = {
   remoteFavType: string | null;
 };
 type PagerLink = {
+  ajaxUrl: string | null;
   el: HTMLAnchorElement;
+  href: string;
   id: string;
   label: string;
   pageNumber: number | null;
@@ -330,11 +332,23 @@ function currentPageNumber(): number | null {
   return null;
 }
 
-function signature() {
-  const list = document.querySelectorAll<HTMLAnchorElement>(SEL_TITLES);
+function signatureFrom(root: Document | Element) {
+  const list = root.querySelectorAll<HTMLAnchorElement>(SEL_TITLES);
   const count = list.length;
-  const first = count ? list[0].getAttribute('href') || '' : '';
-  return count + '|' + first;
+  const urls: string[] = [];
+  const sampleCount = Math.min(3, count);
+
+  for (let i = 0; i < sampleCount; i++) {
+    urls.push(list[i].getAttribute('href') || '');
+  }
+
+  if (count > sampleCount) urls.push(list[count - 1].getAttribute('href') || '');
+
+  return count + '|' + urls.join('|');
+}
+
+function signature() {
+  return signatureFrom(document);
 }
 
 function waitForContainerChange(oldSig: string, timeoutMs: number): Promise<boolean> {
@@ -371,6 +385,52 @@ function waitForContainerChange(oldSig: string, timeoutMs: number): Promise<bool
   });
 }
 
+function parseBlockParameters(value: string) {
+  const params = new URLSearchParams();
+  const parts = value.split(';');
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const separator = part.indexOf(':');
+    if (separator <= 0) continue;
+
+    const keys = part.slice(0, separator).split('+');
+    let paramValue = part.slice(separator + 1);
+
+    try {
+      paramValue = decodeURIComponent(paramValue).replace(/[+]/g, ' ');
+    } catch (error) {}
+
+    for (let k = 0; k < keys.length; k++) {
+      const key = keys[k].trim();
+      if (key) params.set(key, paramValue);
+    }
+  }
+
+  return params;
+}
+
+function ajaxUrlForPagerLink(blockId: string, parameters: string) {
+  if (!blockId) return null;
+
+  try {
+    const url = new URL(location.href);
+    const params = parseBlockParameters(parameters);
+
+    url.hash = '';
+    url.searchParams.set('mode', 'async');
+    url.searchParams.set('function', 'get_block');
+    url.searchParams.set('block_id', blockId);
+    params.forEach(function (value, key) {
+      url.searchParams.set(key, value);
+    });
+
+    return url.href;
+  } catch (error) {
+    return null;
+  }
+}
+
 function readPagerLinks() {
   const pager = document.querySelector(SEL_PAGER);
   if (!pager) return [];
@@ -381,9 +441,12 @@ function readPagerLinks() {
   for (let i = 0; i < anchors.length; i++) {
     const anchor = anchors[i];
     const text = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+    const href = absUrl(anchor.getAttribute('href') || anchor.href || '', anchor.baseURI || location.href);
+    const blockId = anchor.getAttribute('data-block-id') || '';
+    const parameters = anchor.getAttribute('data-parameters') || '';
+    const ajaxUrl = ajaxUrlForPagerLink(blockId, parameters);
     let pageNumber = /^\d+$/.test(text) ? normalizePageNumber(text) : null;
-    const params = anchor.getAttribute('data-parameters') || '';
-    const match = params.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
+    const match = parameters.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
     let id: string;
 
     if (match) id = match[1];
@@ -391,13 +454,113 @@ function readPagerLinks() {
     else id = text || 'a_' + i;
 
     if (!pageNumber && match) {
-      pageNumber = Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1;
+      pageNumber = normalizePageNumber(match[1]);
     }
 
-    out.push({ el: anchor, id: id, label: text, pageNumber: pageNumber });
+    out.push({
+      ajaxUrl: ajaxUrl,
+      el: anchor,
+      href: href,
+      id: id,
+      label: text,
+      pageNumber: pageNumber
+    });
   }
 
   return out;
+}
+
+function replacePagersFromDocument(doc: Document) {
+  const currentPagers = document.querySelectorAll<Element>(SEL_PAGER);
+  const nextPagers = doc.querySelectorAll<Element>(SEL_PAGER);
+  let replaced = false;
+
+  for (let i = 0; i < currentPagers.length && i < nextPagers.length; i++) {
+    currentPagers[i].replaceWith(document.importNode(nextPagers[i], true));
+    replaced = true;
+  }
+
+  return replaced;
+}
+
+function replaceCollectionDomFromDocument(doc: Document) {
+  const currentList = document.querySelector<Element>(SEL_LIST_CONTAINER);
+  const nextList = doc.querySelector<Element>(SEL_LIST_CONTAINER);
+  let replaced = false;
+
+  if (currentList && nextList) {
+    currentList.replaceWith(document.importNode(nextList, true));
+    replaced = true;
+  }
+
+  return replacePagersFromDocument(doc) || replaced;
+}
+
+async function fetchTextWithTimeout(url: string, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(function () {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      method: 'GET',
+      signal: controller.signal
+    });
+
+    if (!response.ok) return null;
+    return await response.text();
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function loadPagerLinkByFetch(link: PagerLink, oldSig: string) {
+  const urls = [link.ajaxUrl, link.href];
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    if (!url || !urlPolicy.isTrustedJableUrl(url)) continue;
+
+    const html = await fetchTextWithTimeout(url, 15000);
+    if (!html) continue;
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const nextSig = signatureFrom(doc);
+    if (!nextSig || nextSig === '0|' || nextSig === oldSig) continue;
+    if (!replaceCollectionDomFromDocument(doc)) continue;
+
+    scheduleApplyPendingCollectionOperations();
+    scheduleAdCosmeticFilter();
+
+    return signature() !== oldSig;
+  }
+
+  return false;
+}
+
+async function clickOrFetchPagerLink(link: PagerLink, preferFetch: boolean) {
+  const oldSig = signature();
+
+  if (preferFetch && (await loadPagerLinkByFetch(link, oldSig))) return true;
+
+  try {
+    link.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (error) {}
+
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 200);
+  });
+  link.el.click();
+
+  const changed = await waitForContainerChange(oldSig, 15000);
+  if (changed && signature() !== oldSig) return true;
+
+  return loadPagerLinkByFetch(link, oldSig);
 }
 
 function sendProgress(channel: string, payload: unknown) {
@@ -1181,6 +1344,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   let lastKnownUrl: string | null = null;
   let stoppedByKnownPage = false;
   let incompleteReason: string | null = null;
+  let preferFetchPager = false;
 
   function result(completed: boolean): SyncResult {
     return {
@@ -1256,23 +1420,14 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     const next = chooseNextPagerLink(links, logicalPage);
     if (!next) return 'done';
 
-    const oldSig = signature();
+    const changed = await clickOrFetchPagerLink(next, preferFetchPager);
 
-    try {
-      next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } catch (error) {}
-
-    await new Promise(function (resolve) {
-      setTimeout(resolve, 200);
-    });
-    next.el.click();
-    const changed = await waitForContainerChange(oldSig, 15000);
-
-    if (!changed || signature() === oldSig) {
+    if (!changed) {
       incompleteReason = 'page-unchanged';
       return 'failed';
     }
 
+    preferFetchPager = Boolean(next.ajaxUrl);
     logicalPage = next.pageNumber || currentPageNumber() || logicalPage;
 
     sendProgress('sync-progress', {
@@ -1298,19 +1453,8 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       return false;
     }
 
-    const oldSig = signature();
-
-    try {
-      first.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } catch (error) {}
-
-    await new Promise(function (resolve) {
-      setTimeout(resolve, 200);
-    });
-    first.el.click();
-
-    const changed = await waitForContainerChange(oldSig, 15000);
-    if (!changed || signature() === oldSig) {
+    const changed = await clickOrFetchPagerLink(first, preferFetchPager);
+    if (!changed) {
       if (currentPageNumber() === 1) {
         logicalPage = 1;
         return true;
@@ -1320,6 +1464,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       return false;
     }
 
+    preferFetchPager = Boolean(first.ajaxUrl);
     logicalPage = 1;
 
     sendProgress('sync-progress', {
