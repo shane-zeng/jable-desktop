@@ -6,6 +6,15 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.9.3] - 2026-05-15
+
+### Changed
+
+- Use jable-desktop as GitHub release repo
+- Bump package version to 0.9.2
+- Keep collection action buttons on sponsor removal
+- Bump version to 0.9.3
+
 ## [v0.9.1] - 2026-05-15
 
 ### Changed
@@ -175,7 +184,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.3...HEAD
+[v0.9.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.2...v0.9.3
 [v0.9.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.8.0...v0.9.1
 [v0.8.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.3...v0.8.0
 [v0.7.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.2...v0.7.3
