@@ -1529,7 +1529,10 @@ function markActiveSyncMutated(collectionKey: CollectionKey) {
   if (activeRun) activeRun.mutated = true;
 }
 
-function resolveSyncWorker(workerId: string | null, options: SyncBrowserCollectionOptions): {
+function resolveSyncWorker(
+  workerId: string | null,
+  options: SyncBrowserCollectionOptions
+): {
   worker: SyncWorker;
   reused: boolean;
 } {

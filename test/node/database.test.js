@@ -702,6 +702,82 @@ test('finishSync replays sync operations and resequences visible site order', fu
   assert.equal(pending.total, 0);
 });
 
+test('sync pages preserve existing site order after an operation is logged', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'A',
+        url: 'https://jable.tv/videos/a/',
+        siteOrder: 1
+      },
+      {
+        title: 'B',
+        url: 'https://jable.tv/videos/b/',
+        siteOrder: 2
+      },
+      {
+        title: 'C',
+        url: 'https://jable.tv/videos/c/',
+        siteOrder: 3
+      },
+      {
+        title: 'D',
+        url: 'https://jable.tv/videos/d/',
+        siteOrder: 4
+      }
+    ]
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: syncRunId,
+    video: {
+      url: 'https://jable.tv/videos/b/'
+    }
+  });
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'D shifted by remote pagination',
+        url: 'https://jable.tv/videos/d/',
+        siteOrder: 3
+      }
+    ]
+  });
+
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: syncRunId,
+    result: { completed: false, lastScrapedPage: 1 }
+  });
+
+  const visibleRows = db.listVideos('favourites', { sort: 'site_order', direction: 'asc' });
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/a/', 'https://jable.tv/videos/c/', 'https://jable.tv/videos/d/']
+  );
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.site_order;
+    }),
+    [1, 2, 3]
+  );
+});
+
 test('migration rebuilds the local full text index for existing videos', function (t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   const dbPath = path.join(dir, 'test.sqlite');

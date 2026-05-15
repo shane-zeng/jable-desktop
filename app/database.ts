@@ -983,6 +983,17 @@ class JableDatabase {
 
     const page = normalizeNumber(payload.page) || null;
     const syncRunId = normalizeText(payload.syncRunId);
+    const preserveExistingSiteOrder =
+      Boolean(syncRunId) &&
+      Boolean(
+        this.db
+          .prepare(
+            ['SELECT id', 'FROM sync_operations', 'WHERE collection_key = ?', '  AND sync_run_id = ?', 'LIMIT 1'].join(
+              ' '
+            )
+          )
+          .get(collectionKey, syncRunId)
+      );
     const rows = Array.isArray(payload.rows) ? payload.rows : [];
     const normalizedRows: NormalizedVideo[] = [];
 
@@ -1014,7 +1025,10 @@ class JableDatabase {
         'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
         'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
         '  last_seen_at = excluded.last_seen_at,',
-        '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+        '  site_order = CASE',
+        '    WHEN ? = 1 THEN collection_items.site_order',
+        '    ELSE COALESCE(excluded.site_order, collection_items.site_order)',
+        '  END,',
         '  is_visible = CASE',
         '    WHEN collection_items.is_visible = 0',
         '      AND excluded.last_sync_run_id IS NOT NULL',
@@ -1058,7 +1072,15 @@ class JableDatabase {
           timestamp,
           timestamp
         );
-        upsertItem.run(collectionKey, video.url, timestamp, timestamp, video.siteOrder, syncRunId);
+        upsertItem.run(
+          collectionKey,
+          video.url,
+          timestamp,
+          timestamp,
+          video.siteOrder,
+          syncRunId,
+          preserveExistingSiteOrder ? 1 : 0
+        );
       }
 
       upsertState.run(

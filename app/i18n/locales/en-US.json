@@ -94,7 +94,7 @@
     "collectionAdded": "Added to {collection} and synced locally",
     "fullSyncPaused": "{collection} {mode} paused: this batch scanned {pages} pages and {rows} items. You can continue full sync.",
     "firstPageRequired": "{collection} {mode} did not start: could not confirm or return to page 1.",
-    "syncChangedDuringRun": "{collection} {mode} did not complete: manual operations happened during sync. Reconciled {count} operations from the operation log; missing items were not hidden.",
+    "syncChangedDuringRun": "{collection} {mode} processed: reconciled {count} operations from the operation log. Missing-item hiding was skipped because manual operations happened during sync.",
     "syncIncomplete": "{collection} {mode} did not complete: {reason}",
     "fullSyncComplete": "{collection} full sync complete: {rows} items, hid {hidden} missing items",
     "quickSyncComplete": "{collection} quick sync complete: {rows} items, {reason}",

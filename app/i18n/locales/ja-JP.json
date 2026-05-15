@@ -94,7 +94,7 @@
     "collectionAdded": "{collection} に追加し、ローカルに同期しました",
     "fullSyncPaused": "{collection} の {mode} を一時停止しました: このバッチは {pages} ページ、{rows} 件を処理しました。フル同期を続行できます。",
     "firstPageRequired": "{collection} の {mode} を開始できませんでした: 1 ページ目を確認または表示できませんでした。",
-    "syncChangedDuringRun": "{collection} の {mode} は完了しませんでした: 同期中に手動操作がありました。操作ログから {count} 件を照合して適用し、見つからない項目は非表示にしていません。",
+    "syncChangedDuringRun": "{collection} の {mode} を処理しました: 操作ログから {count} 件を照合して適用しました。同期中に手動操作があったため、見つからない項目の非表示処理は省略しました。",
     "syncIncomplete": "{collection} の {mode} は完了しませんでした: {reason}",
     "fullSyncComplete": "{collection} のフル同期が完了しました: {rows} 件、見つからない {hidden} 件を非表示にしました",
     "quickSyncComplete": "{collection} のクイック同期が完了しました: {rows} 件、{reason}",

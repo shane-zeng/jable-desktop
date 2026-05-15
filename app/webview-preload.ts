@@ -682,7 +682,10 @@ function readCurrentVideoDetails(): ScrapedVideoRow | null {
   };
 }
 
-function readVideoDetailsForActionElement(el: Element | null, collectionKey?: CollectionKey | null): ScrapedVideoRow | null {
+function readVideoDetailsForActionElement(
+  el: Element | null,
+  collectionKey?: CollectionKey | null
+): ScrapedVideoRow | null {
   const box = el && typeof el.closest === 'function' ? el.closest('div.video-img-box') : null;
   const row = scrapeVideoBox(box);
   if (row && collectionKeyForCurrentLocation() === collectionKey) row.siteOrder = siteOrderForVideoBox(box);
@@ -823,7 +826,11 @@ async function handleCollectionButtonClick(event: MouseEvent) {
   const action = collectionActionForElement(actionElement);
 
   if (await waitForCollectionActionState(collectionKey, actionElement, action)) {
-    await applyCollectionToggle(collectionKey, action, readVideoDetailsForActionElement(actionElement, collectionKey) || video);
+    await applyCollectionToggle(
+      collectionKey,
+      action,
+      readVideoDetailsForActionElement(actionElement, collectionKey) || video
+    );
   }
 }
 
