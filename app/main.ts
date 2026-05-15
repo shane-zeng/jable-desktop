@@ -107,6 +107,10 @@ type DeferredSyncOperation = {
   remoteVideoId: string | null;
   remoteFavType: string | null;
 };
+type PendingCollectionOperationOverlay = Omit<DeferredSyncOperation, 'id'>;
+type PendingCollectionOperationOverlayState = {
+  collections: Partial<Record<CollectionKey, PendingCollectionOperationOverlay[]>>;
+};
 type DeferredSyncOperationApplyResult = {
   applied: number[];
   failed: Array<{ id: number; message: string }>;
@@ -1537,6 +1541,7 @@ function setActiveSyncRun(options: SyncBrowserCollectionOptions) {
     syncRunId: options.syncRunId
   };
   notifyBrowserSyncLocksChanged();
+  notifyPendingCollectionOperationsChanged();
 }
 
 function clearActiveSyncRun(options: SyncBrowserCollectionOptions) {
@@ -1544,6 +1549,7 @@ function clearActiveSyncRun(options: SyncBrowserCollectionOptions) {
   if (!activeRun || activeRun.syncRunId !== options.syncRunId) return;
   delete activeSyncRunsByCollection[options.collectionKey];
   notifyBrowserSyncLocksChanged();
+  notifyPendingCollectionOperationsChanged();
 }
 
 function syncRunForCollection(collectionKey: CollectionKey): ActiveSyncRun | null {
@@ -1561,12 +1567,51 @@ function activeSyncRunsState() {
   return { runs: runs };
 }
 
+function pendingCollectionOperationsState(): PendingCollectionOperationOverlayState {
+  const collections: Partial<Record<CollectionKey, PendingCollectionOperationOverlay[]>> = {};
+  const keys = Object.keys(activeSyncRunsByCollection) as CollectionKey[];
+
+  for (let i = 0; i < keys.length; i++) {
+    const collectionKey = keys[i];
+    const activeRun = activeSyncRunsByCollection[collectionKey];
+    if (!activeRun) continue;
+
+    const latestByUrl: Record<string, PendingCollectionOperationOverlay> = {};
+    const operations = getDatabase().listDeferredSyncOperations(collectionKey, activeRun.syncRunId);
+
+    for (let n = 0; n < operations.length; n++) {
+      const operation = operations[n];
+      latestByUrl[operation.videoUrl] = {
+        action: operation.action,
+        videoUrl: operation.videoUrl,
+        remoteVideoId: operation.remoteVideoId,
+        remoteFavType: operation.remoteFavType
+      };
+    }
+
+    collections[collectionKey] = Object.keys(latestByUrl).map(function (url) {
+      return latestByUrl[url];
+    });
+  }
+
+  return { collections: collections };
+}
+
 function notifyBrowserSyncLocksChanged() {
   const state = activeSyncRunsState();
 
   for (let i = 0; i < browserTabs.length; i++) {
     const webContents = browserTabs[i].view.webContents;
     if (!webContents.isDestroyed()) webContents.send('browser:sync-lock-state', state);
+  }
+}
+
+function notifyPendingCollectionOperationsChanged() {
+  const state = pendingCollectionOperationsState();
+
+  for (let i = 0; i < browserTabs.length; i++) {
+    const webContents = browserTabs[i].view.webContents;
+    if (!webContents.isDestroyed()) webContents.send('browser:pending-collection-operations', state);
   }
 }
 
@@ -1633,6 +1678,8 @@ async function applyDeferredSyncOperationsInWorker(
       failedRows[i].message
     );
   }
+
+  notifyPendingCollectionOperationsChanged();
 
   return { applied: applied, failed: failedRows.length };
 }
@@ -2501,6 +2548,7 @@ function registerIpcHandlers() {
 
       const result = getDatabase().applyCollectionToggle(normalizedPayload);
       forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));
+      if (result.queued) notifyPendingCollectionOperationsChanged();
       return result;
     } catch (error) {
       forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
@@ -2539,6 +2587,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('browser:active-sync-runs', function () {
     return activeSyncRunsState();
+  });
+
+  ipcMain.handle('browser:pending-collection-operations', function () {
+    return pendingCollectionOperationsState();
   });
 
   ipcMain.handle('browser:show-tab-menu', function (_event, payload) {

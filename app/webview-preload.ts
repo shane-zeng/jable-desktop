@@ -19,6 +19,13 @@ type ActiveSyncLock = {
 type DeferredSyncOperation = {
   id: number;
   action: CollectionAction;
+  videoUrl?: string | null;
+  remoteVideoId: string | null;
+  remoteFavType: string | null;
+};
+type PendingCollectionOperation = {
+  action: CollectionAction;
+  videoUrl: string;
   remoteVideoId: string | null;
   remoteFavType: string | null;
 };
@@ -74,6 +81,8 @@ let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
 let adCosmeticScanTimer: ReturnType<typeof setTimeout> | null = null;
 let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
+let pendingCollectionOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
+let pendingCollectionOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -86,6 +95,20 @@ function absUrl(href: string, base?: string) {
     return new URL(href, base || location.href).href;
   } catch (error) {
     return href;
+  }
+}
+
+function videoPathKey(value: unknown) {
+  if (!value) return '';
+
+  try {
+    const parsed = new URL(String(value), location.href);
+    // Match pending operations across the primary and fallback Jable origins.
+    if (!/^\/videos\/[^/]+\/?$/.test(parsed.pathname)) return '';
+    if (!/\/$/.test(parsed.pathname)) parsed.pathname += '/';
+    return parsed.pathname;
+  } catch (error) {
+    return '';
   }
 }
 
@@ -238,8 +261,8 @@ function siteOrderForVideoBox(box: Element | null) {
 
 function collectionKeyForCurrentLocation(): CollectionKey | null {
   const path = location.pathname.replace(/\/?$/, '/');
-  if (path === '/my/favourites/videos/') return 'favourites';
-  if (path === '/my/favourites/videos-watch-later/') return 'watch_later';
+  if (/^\/my\/favourites\/videos\/(?:\d+\/)?$/.test(path)) return 'favourites';
+  if (/^\/my\/favourites\/videos-watch-later\/(?:\d+\/)?$/.test(path)) return 'watch_later';
   return null;
 }
 
@@ -420,6 +443,43 @@ function updateActiveSyncLocks(payload: unknown) {
   activeSyncLocks = nextLocks;
 }
 
+function normalizePendingCollectionOperation(value: unknown): PendingCollectionOperation | null {
+  if (!isRecord(value)) return null;
+
+  const action = value.action === 'remove' ? 'remove' : value.action === 'add' ? 'add' : null;
+  const videoUrl = typeof value.videoUrl === 'string' ? value.videoUrl : '';
+  if (!action || !videoPathKey(videoUrl)) return null;
+
+  return {
+    action: action,
+    videoUrl: videoUrl,
+    remoteVideoId: typeof value.remoteVideoId === 'string' ? value.remoteVideoId : null,
+    remoteFavType: typeof value.remoteFavType === 'string' ? value.remoteFavType : null
+  };
+}
+
+function updatePendingCollectionOperations(payload: unknown) {
+  const nextOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
+  const collections = isRecord(payload) && isRecord(payload.collections) ? payload.collections : {};
+  const keys: CollectionKey[] = ['favourites', 'watch_later'];
+
+  for (let i = 0; i < keys.length; i++) {
+    const collectionKey = keys[i];
+    const rawOperations = Array.isArray(collections[collectionKey]) ? collections[collectionKey] : [];
+    const operations: PendingCollectionOperation[] = [];
+
+    for (let n = 0; n < rawOperations.length; n++) {
+      const operation = normalizePendingCollectionOperation(rawOperations[n]);
+      if (operation) operations.push(operation);
+    }
+
+    if (operations.length) nextOperations[collectionKey] = operations;
+  }
+
+  pendingCollectionOperations = nextOperations;
+  scheduleApplyPendingCollectionOperations();
+}
+
 function activeSyncLockForCollection(collectionKey: CollectionKey): ActiveSyncLock | null {
   return activeSyncLocks[collectionKey] || null;
 }
@@ -585,6 +645,7 @@ function collectionKeyForActionElement(el: Element | null): CollectionKey | null
 
   if (el.classList.contains('fav') || buttonHasIcon(el, '#icon-heart')) return 'favourites';
   if (buttonHasIcon(el, '#icon-bookmark-inline')) return 'watch_later';
+  if (collectionListActionForElement(el)) return collectionKeyForCurrentLocation();
 
   return null;
 }
@@ -617,26 +678,85 @@ function collectionActionForElement(el: Element | null): CollectionAction {
   return el && el.classList && el.classList.contains('active') ? 'remove' : 'add';
 }
 
+function addUniqueElement(list: Element[], el: Element | null) {
+  if (!el || list.indexOf(el) >= 0) return;
+  list.push(el);
+}
+
+function addCountDelta(counts: Element[], deltas: number[], count: Element | null, delta: number) {
+  if (!count || !delta || counts.indexOf(count) >= 0) return;
+  counts.push(count);
+  deltas.push(delta);
+}
+
+function collectionActionElementMatchesFavType(el: Element, collectionKey: CollectionKey, favType: string) {
+  const elementFavType = el.getAttribute('data-fav-type') || '';
+  if (elementFavType) return elementFavType === favType;
+  return collectionKeyForActionElement(el) === collectionKey;
+}
+
+function matchingCollectionActionElements(originalElement: Element | null, collectionKey: CollectionKey) {
+  const out: Element[] = [];
+  const videoId = originalElement ? originalElement.getAttribute('data-fav-video-id') || '' : '';
+  const favType = remoteFavTypeForActionElement(originalElement, collectionKey);
+
+  if (originalElement && document.documentElement.contains(originalElement)) addUniqueElement(out, originalElement);
+
+  if (videoId) {
+    const elements = document.querySelectorAll<Element>('.action[data-fav-video-id], button[data-fav-video-id]');
+
+    for (let i = 0; i < elements.length; i++) {
+      if (elements[i].getAttribute('data-fav-video-id') !== videoId) continue;
+      if (!collectionActionElementMatchesFavType(elements[i], collectionKey, favType)) continue;
+      addUniqueElement(out, elements[i]);
+    }
+  }
+
+  if (!out.length) addUniqueElement(out, findCollectionActionElement(collectionKey));
+
+  return out;
+}
+
 function applyQueuedCollectionVisualState(
   collectionKey: CollectionKey,
   originalElement: Element | null,
   action: CollectionAction
 ) {
-  if (collectionListActionForElement(originalElement)) {
-    const el =
-      originalElement && document.documentElement.contains(originalElement)
-        ? originalElement
-        : findMatchingCollectionActionElement(originalElement);
-    const imgBox = el && typeof el.closest === 'function' ? el.closest('div.img-box') : null;
-    if (imgBox) imgBox.classList.toggle('removed', action === 'remove');
-    return;
+  const targets = matchingCollectionActionElements(originalElement, collectionKey);
+  const counts: Element[] = [];
+  const countDeltas: number[] = [];
+
+  // This can be replayed after AJAX pagination, so count changes must stay idempotent.
+  for (let i = 0; i < targets.length; i++) {
+    const el = targets[i];
+    const count = el.querySelector('.count');
+
+    if (collectionListActionForElement(el) || collectionListActionForElement(originalElement)) {
+      const imgBox = el && typeof el.closest === 'function' ? el.closest('div.img-box') : null;
+      const shouldBeRemoved = action === 'remove';
+
+      if (imgBox) {
+        const wasRemoved = imgBox.classList.contains('removed');
+        if (wasRemoved !== shouldBeRemoved) addCountDelta(counts, countDeltas, count, action === 'add' ? 1 : -1);
+        imgBox.classList.toggle('removed', shouldBeRemoved);
+      }
+
+      continue;
+    }
+
+    const shouldBeActive = action === 'add';
+    const wasActive = el.classList.contains('active');
+
+    if (wasActive !== shouldBeActive) addCountDelta(counts, countDeltas, count, action === 'add' ? 1 : -1);
+    el.classList.toggle('active', shouldBeActive);
+    el.setAttribute('aria-pressed', shouldBeActive ? 'true' : 'false');
   }
 
-  const el =
-    originalElement && document.documentElement.contains(originalElement)
-      ? originalElement
-      : findCollectionActionElement(collectionKey);
-  if (el) el.classList.toggle('active', action === 'add');
+  for (let i = 0; i < counts.length; i++) {
+    const current = parseMetricNumber(counts[i].textContent) || 0;
+    const next = Math.max(0, current + countDeltas[i]);
+    counts[i].textContent = String(next);
+  }
 }
 
 function actionRequiresLogin(el: Element | null) {
@@ -773,6 +893,83 @@ function findCollectionActionElement(collectionKey: CollectionKey) {
   return null;
 }
 
+function hasPendingCollectionOperations() {
+  return Boolean(
+    (pendingCollectionOperations.favourites && pendingCollectionOperations.favourites.length) ||
+    (pendingCollectionOperations.watch_later && pendingCollectionOperations.watch_later.length)
+  );
+}
+
+function pendingOperationMatchesActionElement(
+  operation: PendingCollectionOperation,
+  collectionKey: CollectionKey,
+  actionElement: Element
+) {
+  const remoteVideoId = remoteVideoIdForActionElement(actionElement);
+  if (remoteVideoId && operation.remoteVideoId === remoteVideoId) {
+    const remoteFavType = remoteFavTypeForActionElement(actionElement, collectionKey);
+    return !operation.remoteFavType || operation.remoteFavType === remoteFavType;
+  }
+
+  const row = readVideoDetailsForActionElement(actionElement, collectionKey);
+  return row ? videoPathKey(row.url) === videoPathKey(operation.videoUrl) : false;
+}
+
+function pendingCollectionOperationForActionElement(collectionKey: CollectionKey, actionElement: Element) {
+  const operations = pendingCollectionOperations[collectionKey] || [];
+
+  for (let i = operations.length - 1; i >= 0; i--) {
+    if (pendingOperationMatchesActionElement(operations[i], collectionKey, actionElement)) return operations[i];
+  }
+
+  return null;
+}
+
+function applyPendingCollectionOperationsToPage() {
+  pendingCollectionOverlayTimer = null;
+  if (!hasPendingCollectionOperations()) return;
+
+  const actionElements = document.querySelectorAll<Element>('button.btn-action, .action[data-fav-video-id]');
+
+  for (let i = 0; i < actionElements.length; i++) {
+    const collectionKey = collectionKeyForActionElement(actionElements[i]);
+    if (!collectionKey) continue;
+
+    const operation = pendingCollectionOperationForActionElement(collectionKey, actionElements[i]);
+    if (!operation) continue;
+
+    applyQueuedCollectionVisualState(collectionKey, actionElements[i], operation.action);
+  }
+}
+
+function scheduleApplyPendingCollectionOperations() {
+  if (!hasPendingCollectionOperations()) return;
+  if (pendingCollectionOverlayTimer) return;
+  pendingCollectionOverlayTimer = setTimeout(applyPendingCollectionOperationsToPage, 0);
+}
+
+function installPendingCollectionOperationOverlay() {
+  scheduleApplyPendingCollectionOperations();
+  document.addEventListener('DOMContentLoaded', scheduleApplyPendingCollectionOperations, { once: true });
+  window.addEventListener('load', scheduleApplyPendingCollectionOperations, { once: true });
+
+  if (typeof MutationObserver === 'undefined') return;
+
+  const target = document.documentElement || document;
+  const observer = new MutationObserver(function (records) {
+    for (let i = 0; i < records.length; i++) {
+      if (records[i].type === 'childList' && (records[i].addedNodes.length || records[i].removedNodes.length)) {
+        scheduleApplyPendingCollectionOperations();
+        return;
+      }
+    }
+  });
+  observer.observe(target, {
+    childList: true,
+    subtree: true
+  });
+}
+
 function collectionActionActiveState(collectionKey: CollectionKey, originalElement: Element | null) {
   const el =
     originalElement && document.documentElement.contains(originalElement)
@@ -890,8 +1087,11 @@ async function queueCollectionToggle(
   actionElement: Element | null,
   syncLock: ActiveSyncLock
 ) {
+  const rollbackAction = action === 'add' ? 'remove' : 'add';
+  applyQueuedCollectionVisualState(collectionKey, actionElement, action);
+
   try {
-    const result = await ipcRenderer.invoke('db:apply-collection-toggle', {
+    return await ipcRenderer.invoke('db:apply-collection-toggle', {
       collectionKey: collectionKey,
       action: action,
       deferRemote: true,
@@ -901,10 +1101,8 @@ async function queueCollectionToggle(
       video: video,
       sourceUrl: location.href
     });
-
-    applyQueuedCollectionVisualState(collectionKey, actionElement, action);
-    return result;
   } catch (error) {
+    applyQueuedCollectionVisualState(collectionKey, actionElement, rollbackAction);
     console.warn('[JableDesktopScraper] collection toggle queue failed', error);
     return null;
   }
@@ -1241,9 +1439,18 @@ ipcRenderer.on('browser:sync-lock-state', function (_event, payload: unknown) {
   updateActiveSyncLocks(payload);
 });
 
+ipcRenderer.on('browser:pending-collection-operations', function (_event, payload: unknown) {
+  updatePendingCollectionOperations(payload);
+});
+
 ipcRenderer
   .invoke('browser:active-sync-runs')
   .then(updateActiveSyncLocks)
+  .catch(function () {});
+
+ipcRenderer
+  .invoke('browser:pending-collection-operations')
+  .then(updatePendingCollectionOperations)
   .catch(function () {});
 
 ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
@@ -1257,4 +1464,5 @@ ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
   }
 });
 
+installPendingCollectionOperationOverlay();
 installAdCosmeticFilter();
