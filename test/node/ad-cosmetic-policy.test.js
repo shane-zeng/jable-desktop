@@ -79,3 +79,20 @@ test('removes modal wrappers when their media comes from known ad hosts', async 
   assert.equal(document.querySelector('#ad-modal'), null);
   assert.notEqual(document.querySelector('#page-content'), null);
 });
+
+test('removes fullscreen ad iframes left behind after request blocking', async function () {
+  const document = await createDocument(`
+    <iframe
+      id="ad-iframe"
+      src="https://go.xlivrdr.com/smartpop/ebdeebd?p1=3730011"
+      style="width: 100vw; height: 100vh;"
+    ></iframe>
+    <iframe id="real-iframe" src="https://jable.tv/embed/player"></iframe>
+  `);
+
+  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+
+  assert.equal(removed, 1);
+  assert.equal(document.querySelector('#ad-iframe'), null);
+  assert.notEqual(document.querySelector('#real-iframe'), null);
+});

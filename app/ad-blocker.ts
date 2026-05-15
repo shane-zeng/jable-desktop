@@ -22,13 +22,21 @@ type InstallAdBlockerResult = {
 
 const BLOCKED_AD_HOSTS = [
   'a.labadena.com',
+  'ads.adxadserv.com',
   'static.adxadserv.com',
   'cdn.tapioni.com',
   'go.mnaspm.com',
   'go.bluetrafficstream.com',
+  'go.xlivrdr.com',
+  'creative.xlivrdr.com',
+  'creative.xxxvjmp.com',
   'img.doppiocdn.com',
+  'pxl-eu.tsyndicate.com',
+  'r.trackwilltrk.com',
   'a.magsrv.com',
+  's.magsrv.com',
   's.zline0.com',
+  't.nettrck.store',
   't.fluxtrck.site',
   'z6v2p9a8.bkcdn.net'
 ];
@@ -39,13 +47,21 @@ const BLOCKED_AD_PATHS: Record<string, string[]> = {
 };
 const BLOCKED_AD_URL_PATTERNS = [
   '*://a.labadena.com/*',
+  '*://ads.adxadserv.com/*',
   '*://static.adxadserv.com/*',
   '*://cdn.tapioni.com/*',
   '*://go.mnaspm.com/*',
   '*://go.bluetrafficstream.com/*',
+  '*://go.xlivrdr.com/*',
+  '*://creative.xlivrdr.com/*',
+  '*://creative.xxxvjmp.com/*',
   '*://img.doppiocdn.com/*',
+  '*://pxl-eu.tsyndicate.com/*',
+  '*://r.trackwilltrk.com/*',
   '*://a.magsrv.com/*',
+  '*://s.magsrv.com/*',
   '*://s.zline0.com/*',
+  '*://t.nettrck.store/*',
   '*://t.fluxtrck.site/*',
   '*://z6v2p9a8.bkcdn.net/*',
   '*://assets-cdn.jable.tv/assets/images/252/427-240-3.gif*',
