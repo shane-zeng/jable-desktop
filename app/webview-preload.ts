@@ -23,6 +23,12 @@ type DeferredSyncOperation = {
   remoteVideoId: string | null;
   remoteFavType: string | null;
 };
+type DeferredSyncOperationApplyFailure = {
+  id: number;
+  url: string;
+  message: string;
+  blocked: boolean;
+};
 type PendingCollectionOperation = {
   action: CollectionAction;
   videoUrl: string;
@@ -1373,50 +1379,79 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   return result(true);
 }
 
+async function applyDeferredSyncOperationOnce(operation: DeferredSyncOperation, baseUrl: string) {
+  if (!operation.remoteVideoId) throw new Error('Missing remote video id');
+
+  const params = new URLSearchParams();
+  params.set('mode', 'async');
+  params.set('format', 'json');
+  params.set('action', operation.action === 'remove' ? 'delete_from_favourites' : 'add_to_favourites');
+  params.set('video_id', operation.remoteVideoId);
+  params.append('video_ids[]', operation.remoteVideoId);
+  params.set('fav_type', operation.remoteFavType || '0');
+  params.set('playlist_id', '0');
+
+  const response = await fetch(baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + params.toString(), {
+    cache: 'no-store',
+    credentials: 'same-origin',
+    method: 'GET'
+  });
+  const text = await response.text();
+  let body: { status?: unknown; errors?: Array<{ code?: unknown }> } | null = null;
+
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch (error) {}
+
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  if (body && body.status === 'failure') {
+    const code = body.errors && body.errors[0] && body.errors[0].code;
+    throw new Error(String(code || 'Remote operation failed'));
+  }
+}
+
+async function applyDeferredSyncOperationWithSingleRetry(operation: DeferredSyncOperation, baseUrl: string) {
+  try {
+    await applyDeferredSyncOperationOnce(operation, baseUrl);
+  } catch (error) {
+    await applyDeferredSyncOperationOnce(operation, baseUrl);
+  }
+}
+
+function deferredSyncOperationFailure(
+  operation: DeferredSyncOperation,
+  message: string,
+  blocked: boolean
+): DeferredSyncOperationApplyFailure {
+  return {
+    id: operation.id,
+    url: String(operation.videoUrl || ''),
+    message: message,
+    blocked: blocked
+  };
+}
+
 async function applyDeferredSyncOperations(operations: DeferredSyncOperation[]) {
   const applied: number[] = [];
-  const failed: Array<{ id: number; message: string }> = [];
+  const failed: DeferredSyncOperationApplyFailure[] = [];
   const baseUrl = String(location.href || '').split('#')[0];
 
   for (let i = 0; i < operations.length; i++) {
     const operation = operations[i];
 
     try {
-      if (!operation.remoteVideoId) throw new Error('Missing remote video id');
-
-      const params = new URLSearchParams();
-      params.set('mode', 'async');
-      params.set('format', 'json');
-      params.set('action', operation.action === 'remove' ? 'delete_from_favourites' : 'add_to_favourites');
-      params.set('video_id', operation.remoteVideoId);
-      params.append('video_ids[]', operation.remoteVideoId);
-      params.set('fav_type', operation.remoteFavType || '0');
-      params.set('playlist_id', '0');
-
-      const response = await fetch(baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + params.toString(), {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        method: 'GET'
-      });
-      const text = await response.text();
-      let body: { status?: unknown; errors?: Array<{ code?: unknown }> } | null = null;
-
-      try {
-        body = text ? JSON.parse(text) : null;
-      } catch (error) {}
-
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      if (body && body.status === 'failure') {
-        const code = body.errors && body.errors[0] && body.errors[0].code;
-        throw new Error(String(code || 'Remote operation failed'));
-      }
-
+      await applyDeferredSyncOperationWithSingleRetry(operation, baseUrl);
       applied.push(operation.id);
     } catch (error) {
-      failed.push({
-        id: operation.id,
-        message: error instanceof Error ? error.message : String(error)
-      });
+      failed.push(
+        deferredSyncOperationFailure(operation, error instanceof Error ? error.message : String(error), false)
+      );
+
+      for (let blocked = i + 1; blocked < operations.length; blocked++) {
+        failed.push(deferredSyncOperationFailure(operations[blocked], 'Blocked by earlier failed operation', true));
+      }
+
+      break;
     }
   }
 

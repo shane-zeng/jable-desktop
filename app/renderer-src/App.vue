@@ -32,6 +32,7 @@ import type {
   SyncMode,
   SyncPagePayload,
   SyncProgressPayload,
+  SyncQueuedOperationFailure,
   SyncResult,
   SyncState,
   VideoRow
@@ -41,6 +42,13 @@ const api = useJableApi();
 const i18n = useI18n();
 const activeView = ref<AppView>('browser');
 const toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
+const queuedFailureDialog = ref<{
+  collection: string;
+  failedMessage: string;
+  failedUrl: string;
+  blockedUrls: string[];
+  urlText: string;
+} | null>(null);
 const busy = ref(false);
 const syncing = ref(false);
 const browserTabsCompact = ref(false);
@@ -92,6 +100,10 @@ function hideToast() {
   }
 
   toast.value = null;
+}
+
+function closeQueuedFailureDialog() {
+  queuedFailureDialog.value = null;
 }
 
 function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info', options?: { sticky?: boolean }) {
@@ -162,6 +174,52 @@ function currentCollection(): CollectionDefinition {
 
 function collectionName(collectionKey: CollectionKey) {
   return i18n.t('collections.' + collectionKey);
+}
+
+function uniqueUrls(urls: string[]) {
+  const seen: Record<string, boolean> = {};
+  const result: string[] = [];
+
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    if (!url || seen[url]) continue;
+    seen[url] = true;
+    result.push(url);
+  }
+
+  return result;
+}
+
+function queuedOperationFailures(result: SyncResult): SyncQueuedOperationFailure[] {
+  return Array.isArray(result.queuedOperationFailures) ? result.queuedOperationFailures : [];
+}
+
+function showQueuedFailureDialog(collectionKey: CollectionKey, result: SyncResult) {
+  const failures = queuedOperationFailures(result);
+  if (!failures.length) return;
+
+  const firstFailure =
+    failures.find(function (failure) {
+      return !failure.blocked;
+    }) || failures[0];
+  const blockedUrls = uniqueUrls(
+    failures
+      .filter(function (failure) {
+        return failure.blocked;
+      })
+      .map(function (failure) {
+        return failure.url;
+      })
+  );
+  const failedUrl = firstFailure.url || '';
+
+  queuedFailureDialog.value = {
+    collection: collectionName(collectionKey),
+    failedMessage: firstFailure.message || i18n.t('status.unknownError'),
+    failedUrl: failedUrl,
+    blockedUrls: blockedUrls,
+    urlText: blockedUrls.join('\n')
+  };
 }
 
 async function openInBrowser(url: string) {
@@ -279,10 +337,17 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 }
 
-function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: SyncResult, finishState: SyncState) {
+function resultStatus(
+  collectionKey: CollectionKey,
+  mode: SyncMode,
+  result: SyncResult,
+  finishState: SyncState,
+  visibleRows?: number
+) {
   const name = syncModeName(mode);
   const collection = collectionName(collectionKey);
   const queuedFailures = result.queuedOperationsFailed || 0;
+  const totalRows = typeof visibleRows === 'number' ? visibleRows : result.totalRows;
 
   if (queuedFailures > 0) {
     return i18n.t('status.syncQueuedOperationsFailed', {
@@ -327,7 +392,7 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
   if (mode === 'full') {
     return i18n.t('status.fullSyncComplete', {
       collection: collection,
-      rows: result.totalRows,
+      rows: totalRows,
       hidden: (finishState && finishState.hidden) || 0
     });
   }
@@ -337,7 +402,7 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
     : i18n.t('status.finishedVisiblePages');
   return i18n.t('status.quickSyncComplete', {
     collection: collection,
-    rows: result.totalRows,
+    rows: totalRows,
     reason: reason
   });
 }
@@ -400,13 +465,19 @@ async function syncCollection(mode: SyncMode) {
       library.fullSyncContinuation.value = null;
     }
 
+    const finalVisibleRows = await api.countVideos({ collectionKey: collectionKey });
     library.currentPage.value = 1;
     setActiveView('library');
     await library.refreshVideos();
+    showQueuedFailureDialog(collectionKey, result);
 
-    setStatus(resultStatus(collectionKey, mode, result, finishState), undefined, {
-      sticky: result.completed === false
-    });
+    setStatus(
+      resultStatus(collectionKey, mode, result, finishState, finalVisibleRows),
+      result.queuedOperationsFailed ? 'warning' : undefined,
+      {
+        sticky: result.completed === false
+      }
+    );
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.syncFailed', { mode: syncModeName(mode), error: errorMessage(error) }), 'error');
@@ -582,6 +653,56 @@ onMounted(async function () {
       <div v-if="toast" class="app-toast" :class="'app-toast-' + toast.tone" role="status" aria-live="polite">
         <span class="min-w-0 flex-1">{{ toast.text }}</span>
         <button class="app-toast-close" type="button" :aria-label="i18n.t('toast.close')" @click="hideToast">×</button>
+      </div>
+    </Transition>
+
+    <Transition name="app-modal">
+      <div v-if="queuedFailureDialog" class="app-modal-backdrop">
+        <section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="sync-queue-failure-title">
+          <header class="space-y-2">
+            <h2 id="sync-queue-failure-title" class="text-base font-bold">
+              {{ i18n.t('status.syncQueueFailureTitle') }}
+            </h2>
+            <p class="text-sm leading-6 text-[var(--muted)]">
+              {{
+                i18n.t('status.syncQueueFailureSummary', {
+                  collection: queuedFailureDialog.collection,
+                  error: queuedFailureDialog.failedMessage,
+                  count: queuedFailureDialog.blockedUrls.length
+                })
+              }}
+            </p>
+          </header>
+
+          <div class="space-y-3">
+            <div v-if="queuedFailureDialog.failedUrl" class="space-y-1">
+              <h3 class="text-xs font-bold text-[var(--muted)]">
+                {{ i18n.t('status.syncQueueFailureFailedUrl') }}
+              </h3>
+              <p class="break-all rounded-md bg-[var(--segmented)] px-3 py-2 text-xs leading-5">
+                {{ queuedFailureDialog.failedUrl }}
+              </p>
+            </div>
+
+            <div v-if="queuedFailureDialog.blockedUrls.length" class="space-y-1">
+              <h3 class="text-xs font-bold text-[var(--muted)]">
+                {{ i18n.t('status.syncQueueFailureBlockedUrls') }}
+              </h3>
+              <textarea
+                class="app-modal-url-list"
+                readonly
+                :aria-label="i18n.t('status.syncQueueFailureBlockedUrls')"
+                :value="queuedFailureDialog.urlText"
+              ></textarea>
+            </div>
+          </div>
+
+          <footer class="flex justify-end">
+            <button type="button" @click="closeQueuedFailureDialog">
+              {{ i18n.t('status.syncQueueFailureClose') }}
+            </button>
+          </footer>
+        </section>
       </div>
     </Transition>
 

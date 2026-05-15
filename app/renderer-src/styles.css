@@ -204,6 +204,51 @@ button:focus {
   color: var(--text);
 }
 
+.app-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.app-modal {
+  display: grid;
+  gap: 16px;
+  width: min(720px, 100%);
+  max-height: min(680px, calc(100vh - 48px));
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--floating-panel);
+  box-shadow: var(--floating-shadow);
+}
+
+.app-modal-url-list {
+  width: 100%;
+  min-height: 170px;
+  max-height: 320px;
+  resize: vertical;
+  white-space: pre;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.app-modal-enter-active,
+.app-modal-leave-active {
+  transition: opacity 0.16s ease;
+}
+
+.app-modal-enter-from,
+.app-modal-leave-to {
+  opacity: 0;
+}
+
 .status-toast-enter-active,
 .status-toast-leave-active {
   transition:

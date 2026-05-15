@@ -204,6 +204,13 @@ export interface SyncProgressPayload {
   message?: string;
 }
 
+export interface SyncQueuedOperationFailure {
+  id?: number;
+  url: string;
+  message: string;
+  blocked: boolean;
+}
+
 export interface CollectionToggleResult {
   tabId?: string | null;
   collectionKey: CollectionKey;
@@ -227,6 +234,7 @@ export interface SyncResult {
   lastKnownUrl: string | null;
   queuedOperationsApplied?: number;
   queuedOperationsFailed?: number;
+  queuedOperationFailures?: SyncQueuedOperationFailure[];
 }
 
 export interface FullSyncContinuation {

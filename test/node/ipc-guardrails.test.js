@@ -6,6 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const MAIN_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'main.ts');
+const APP_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'renderer-src', 'App.vue');
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'webview-preload.ts');
 
 function readSource(filePath) {
@@ -33,4 +34,25 @@ test('webview preload owns browser sync and diagnosis request handlers', functio
   assert.match(source, /browser:preload-response/);
   assert.match(source, /function syncCollection/);
   assert.match(source, /function diagnosePage/);
+});
+
+test('webview deferred operation replay retries once and preserves outbox order after a failure', function () {
+  const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+
+  assert.match(source, /function applyDeferredSyncOperationWithSingleRetry/);
+  assert.match(source, /await applyDeferredSyncOperationOnce\(operation, baseUrl\);[\s\S]*catch \(error\)/);
+  assert.match(source, /Blocked by earlier failed operation/);
+  assert.match(source, /for \(let blocked = i \+ 1; blocked < operations\.length; blocked\+\+\)/);
+  assert.match(source, /break;\n\s*}\n\s*}/);
+});
+
+test('renderer reports queued operation failures outside the toast and counts final visible rows', function () {
+  const source = readSource(APP_SOURCE_PATH);
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(mainSource, /queuedOperationFailures = applied\.failures/);
+  assert.match(source, /const finalVisibleRows = await api\.countVideos\(\{ collectionKey: collectionKey \}\)/);
+  assert.match(source, /resultStatus\(collectionKey, mode, result, finishState, finalVisibleRows\)/);
+  assert.match(source, /showQueuedFailureDialog\(collectionKey, result\)/);
+  assert.match(source, /class="app-modal-url-list"/);
 });

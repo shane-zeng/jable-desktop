@@ -27,6 +27,7 @@ import type {
   SupportedLocale,
   SyncBrowserCollectionOptions,
   SyncMode,
+  SyncQueuedOperationFailure,
   SyncPagePayload,
   SyncResult,
   SyncState,
@@ -113,7 +114,7 @@ type PendingCollectionOperationOverlayState = {
 };
 type DeferredSyncOperationApplyResult = {
   applied: number[];
-  failed: Array<{ id: number; message: string }>;
+  failed: SyncQueuedOperationFailure[];
 };
 type JableDatabaseInstance = {
   close(): void;
@@ -1653,9 +1654,9 @@ function resolveSyncWorker(
 async function applyDeferredSyncOperationsInWorker(
   worker: SyncWorker,
   options: SyncBrowserCollectionOptions
-): Promise<{ applied: number; failed: number }> {
+): Promise<{ applied: number; failed: number; failures: SyncQueuedOperationFailure[] }> {
   const operations = getDatabase().listDeferredSyncOutboxOperations(options.collectionKey);
-  if (!operations.length) return { applied: 0, failed: 0 };
+  if (!operations.length) return { applied: 0, failed: 0, failures: [] };
 
   const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
     worker.webContents,
@@ -1677,7 +1678,7 @@ async function applyDeferredSyncOperationsInWorker(
 
   notifyPendingCollectionOperationsChanged();
 
-  return { applied: applied, failed: failedRows.length };
+  return { applied: applied, failed: failedRows.length, failures: failedRows };
 }
 
 async function syncBrowserCollectionInWorker(payload: {
@@ -1718,6 +1719,7 @@ async function syncBrowserCollectionInWorker(payload: {
       const applied = await applyDeferredSyncOperationsInWorker(worker, payload.options);
       resultWithWorker.queuedOperationsApplied = applied.applied;
       resultWithWorker.queuedOperationsFailed = applied.failed;
+      resultWithWorker.queuedOperationFailures = applied.failures;
     }
 
     return resultWithWorker;
