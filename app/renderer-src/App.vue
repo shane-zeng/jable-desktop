@@ -282,6 +282,14 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
       return i18n.t('status.firstPageRequired', { collection: collection, mode: name });
     }
 
+    if (result.incompleteReason === 'collection-mutated-during-sync') {
+      return i18n.t('status.syncChangedDuringRun', {
+        collection: collection,
+        mode: name,
+        count: (finishState && finishState.mutationsReconciled) || 0
+      });
+    }
+
     if (result.incompleteReason === 'batch-limit') {
       return i18n.t('status.fullSyncPaused', {
         collection: collection,

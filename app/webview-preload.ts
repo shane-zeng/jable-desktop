@@ -213,6 +213,25 @@ function scrapeCurrentPage() {
   return out;
 }
 
+function siteOrderForVideoBox(box: Element | null) {
+  if (!box) return null;
+
+  const boxes = document.querySelectorAll('div.video-img-box');
+  for (let i = 0; i < boxes.length; i++) {
+    if (boxes[i] !== box) continue;
+    return ((currentPageNumber() || 1) - 1) * SITE_PAGE_SIZE + i + 1;
+  }
+
+  return null;
+}
+
+function collectionKeyForCurrentLocation(): CollectionKey | null {
+  const path = location.pathname.replace(/\/?$/, '/');
+  if (path === '/my/favourites/videos/') return 'favourites';
+  if (path === '/my/favourites/videos-watch-later/') return 'watch_later';
+  return null;
+}
+
 function normalizePageNumber(value: unknown) {
   const n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
   return isFinite(n) && n > 0 ? n : 1;
@@ -663,9 +682,10 @@ function readCurrentVideoDetails(): ScrapedVideoRow | null {
   };
 }
 
-function readVideoDetailsForActionElement(el: Element | null): ScrapedVideoRow | null {
+function readVideoDetailsForActionElement(el: Element | null, collectionKey?: CollectionKey | null): ScrapedVideoRow | null {
   const box = el && typeof el.closest === 'function' ? el.closest('div.video-img-box') : null;
   const row = scrapeVideoBox(box);
+  if (row && collectionKeyForCurrentLocation() === collectionKey) row.siteOrder = siteOrderForVideoBox(box);
 
   return row || readCurrentVideoDetails();
 }
@@ -797,13 +817,13 @@ async function handleCollectionButtonClick(event: MouseEvent) {
   const collectionKey = collectionKeyForActionElement(actionElement);
   if (!collectionKey || actionRequiresLogin(actionElement)) return;
 
-  const video = readVideoDetailsForActionElement(actionElement);
+  const video = readVideoDetailsForActionElement(actionElement, collectionKey);
   if (!video) return;
 
   const action = collectionActionForElement(actionElement);
 
   if (await waitForCollectionActionState(collectionKey, actionElement, action)) {
-    await applyCollectionToggle(collectionKey, action, readVideoDetailsForActionElement(actionElement) || video);
+    await applyCollectionToggle(collectionKey, action, readVideoDetailsForActionElement(actionElement, collectionKey) || video);
   }
 }
 

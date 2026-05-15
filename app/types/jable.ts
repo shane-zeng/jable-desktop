@@ -241,6 +241,7 @@ export interface SyncState {
   last_known_url: string | null;
   updated_at: string;
   hidden?: number;
+  mutationsReconciled?: number;
 }
 
 export interface FinishSyncPayload {

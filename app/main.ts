@@ -65,6 +65,8 @@ type SyncWorker = {
   lastMainFrameLoadFailure: BrowserLoadFailure | null;
 };
 type ActiveSyncRun = {
+  mode: SyncMode;
+  mutated: boolean;
   syncRunId: string;
 };
 type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
@@ -1506,6 +1508,8 @@ function syncIncompleteResult(
 
 function setActiveSyncRun(options: SyncBrowserCollectionOptions) {
   activeSyncRunsByCollection[options.collectionKey] = {
+    mode: options.mode,
+    mutated: false,
     syncRunId: options.syncRunId
   };
 }
@@ -1518,6 +1522,11 @@ function clearActiveSyncRun(options: SyncBrowserCollectionOptions) {
 
 function syncRunForCollection(collectionKey: CollectionKey): ActiveSyncRun | null {
   return activeSyncRunsByCollection[collectionKey] || null;
+}
+
+function markActiveSyncMutated(collectionKey: CollectionKey) {
+  const activeRun = activeSyncRunsByCollection[collectionKey];
+  if (activeRun) activeRun.mutated = true;
 }
 
 function resolveSyncWorker(workerId: string | null, options: SyncBrowserCollectionOptions): {
@@ -1570,8 +1579,15 @@ async function syncBrowserCollectionInWorker(payload: {
       { options: payload.options },
       BROWSER_SYNC_REQUEST_TIMEOUT_MS
     );
+    const activeRun = syncRunForCollection(payload.options.collectionKey);
     const resultWithWorker = Object.assign({}, result, { syncWorkerId: worker.id });
-    keepWorker = result.completed === false && result.incompleteReason === 'batch-limit';
+
+    if (payload.options.mode === 'full' && activeRun && activeRun.mutated) {
+      resultWithWorker.completed = false;
+      resultWithWorker.incompleteReason = 'collection-mutated-during-sync';
+    }
+
+    keepWorker = resultWithWorker.completed === false && resultWithWorker.incompleteReason === 'batch-limit';
 
     return resultWithWorker;
   } finally {
@@ -2388,7 +2404,10 @@ function registerIpcHandlers() {
     try {
       const normalizedPayload = normalizeCollectionTogglePayload(payload);
       const activeRun = syncRunForCollection(normalizedPayload.collectionKey as CollectionKey);
-      if (activeRun) normalizedPayload.syncRunId = activeRun.syncRunId;
+      if (activeRun) {
+        markActiveSyncMutated(normalizedPayload.collectionKey as CollectionKey);
+        normalizedPayload.syncRunId = activeRun.syncRunId;
+      }
 
       const result = getDatabase().applyCollectionToggle(normalizedPayload);
       forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));

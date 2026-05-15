@@ -60,6 +60,19 @@ type FinishSyncInput = {
   syncRunId?: unknown;
   result?: SyncResultInput;
 };
+type SyncOperationRow = {
+  id: number;
+  collection_key: CollectionKey;
+  sync_run_id: string;
+  action: 'add' | 'remove';
+  video_url: string;
+  title: string | null;
+  views: number | null;
+  likes: number | null;
+  img: string | null;
+  preview: string | null;
+  site_order: number | null;
+};
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
   canonicalJableUrl(value: unknown): string;
@@ -668,6 +681,23 @@ class JableDatabase {
         '  updated_at TEXT NOT NULL,',
         '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
         ');',
+        'CREATE TABLE IF NOT EXISTS sync_operations (',
+        '  id INTEGER PRIMARY KEY AUTOINCREMENT,',
+        '  collection_key TEXT NOT NULL,',
+        '  sync_run_id TEXT NOT NULL,',
+        "  action TEXT NOT NULL CHECK(action IN ('add', 'remove')),",
+        '  video_url TEXT NOT NULL,',
+        '  title TEXT,',
+        '  views INTEGER,',
+        '  likes INTEGER,',
+        '  img TEXT,',
+        '  preview TEXT,',
+        '  site_order INTEGER,',
+        '  created_at TEXT NOT NULL,',
+        '  reconciled_at TEXT,',
+        '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
+        ');',
+        'CREATE INDEX IF NOT EXISTS sync_operations_run_idx ON sync_operations (collection_key, sync_run_id, reconciled_at, id);',
         'DROP TABLE IF EXISTS playback_states;'
       ].join('\n')
     );
@@ -1050,6 +1080,181 @@ class JableDatabase {
     };
   }
 
+  recordSyncOperation(
+    collectionKey: CollectionKey,
+    syncRunId: string | null,
+    action: 'add' | 'remove',
+    video: NormalizedVideo,
+    timestamp: string
+  ) {
+    if (!syncRunId) return;
+
+    this.db
+      .prepare(
+        [
+          'INSERT INTO sync_operations (',
+          '  collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order, created_at',
+          ')',
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ].join(' ')
+      )
+      .run(
+        collectionKey,
+        syncRunId,
+        action,
+        video.url,
+        video.title,
+        video.views,
+        video.likes,
+        video.img,
+        video.preview,
+        video.siteOrder,
+        timestamp
+      );
+  }
+
+  reconcileSyncOperations(collectionKey: CollectionKey, syncRunId: string | null, timestamp: string): number {
+    if (!syncRunId) return 0;
+
+    const operations = this.db
+      .prepare(
+        [
+          'SELECT id, collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order',
+          'FROM sync_operations',
+          'WHERE collection_key = ?',
+          '  AND sync_run_id = ?',
+          '  AND reconciled_at IS NULL',
+          'ORDER BY id ASC'
+        ].join(' ')
+      )
+      .all(collectionKey, syncRunId) as SyncOperationRow[];
+
+    if (!operations.length) return 0;
+
+    const latestByUrl: Record<string, SyncOperationRow> = {};
+
+    for (let i = 0; i < operations.length; i++) {
+      latestByUrl[operations[i].video_url] = operations[i];
+    }
+
+    const upsertVideo = this.db.prepare(
+      [
+        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'ON CONFLICT(url) DO UPDATE SET',
+        '  title = COALESCE(excluded.title, videos.title),',
+        '  views = COALESCE(excluded.views, videos.views),',
+        '  likes = COALESCE(excluded.likes, videos.likes),',
+        '  img = COALESCE(excluded.img, videos.img),',
+        '  preview = COALESCE(excluded.preview, videos.preview),',
+        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
+        '  updated_at = excluded.updated_at'
+      ].join(' ')
+    );
+    const upsertVisibleItem = this.db.prepare(
+      [
+        'INSERT INTO collection_items (',
+        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+        ')',
+        'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
+        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+        '  last_seen_at = excluded.last_seen_at,',
+        '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+        '  is_visible = 1,',
+        '  missing_at = NULL,',
+        '  last_sync_run_id = excluded.last_sync_run_id'
+      ].join(' ')
+    );
+    const upsertHiddenItem = this.db.prepare(
+      [
+        'INSERT INTO collection_items (',
+        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+        ')',
+        'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+        '  last_seen_at = excluded.last_seen_at,',
+        '  is_visible = 0,',
+        '  missing_at = excluded.missing_at,',
+        '  last_sync_run_id = excluded.last_sync_run_id'
+      ].join(' ')
+    );
+    const markReconciled = this.db.prepare(
+      [
+        'UPDATE sync_operations',
+        'SET reconciled_at = ?',
+        'WHERE collection_key = ?',
+        '  AND sync_run_id = ?',
+        '  AND reconciled_at IS NULL'
+      ].join(' ')
+    );
+    const selectVisibleOrder = this.db.prepare(
+      [
+        'SELECT video_url',
+        'FROM collection_items',
+        'WHERE collection_key = ?',
+        '  AND is_visible = 1',
+        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
+      ].join(' ')
+    );
+    const updateSiteOrder = this.db.prepare(
+      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
+    );
+    const latestOperations = Object.keys(latestByUrl).map(function (url) {
+      return latestByUrl[url];
+    });
+    latestOperations.sort(function (left, right) {
+      return left.id - right.id;
+    });
+
+    this.db.exec('BEGIN IMMEDIATE');
+
+    try {
+      for (let i = 0; i < latestOperations.length; i++) {
+        const operation = latestOperations[i];
+        const siteOrder = operation.site_order === null ? -Date.now() - i : operation.site_order;
+
+        upsertVideo.run(
+          operation.video_url,
+          operation.title,
+          operation.views,
+          operation.likes,
+          operation.img,
+          operation.preview,
+          buildVideoSearchText(operation.title, operation.video_url),
+          timestamp,
+          timestamp
+        );
+
+        if (operation.action === 'remove') {
+          upsertHiddenItem.run(
+            collectionKey,
+            operation.video_url,
+            timestamp,
+            timestamp,
+            siteOrder,
+            timestamp,
+            syncRunId
+          );
+        } else {
+          upsertVisibleItem.run(collectionKey, operation.video_url, timestamp, timestamp, siteOrder, syncRunId);
+        }
+      }
+
+      const visibleRows = selectVisibleOrder.all(collectionKey) as VideoUrlRow[];
+      for (let i = 0; i < visibleRows.length; i++) {
+        updateSiteOrder.run(i + 1, collectionKey, visibleRows[i].video_url);
+      }
+
+      markReconciled.run(timestamp, collectionKey, syncRunId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+
+    return operations.length;
+  }
+
   /**
    * @param {CollectionTogglePayload | null | undefined} payload
    * @returns {{ action: 'add' | 'remove', changed: boolean, collectionKey: CollectionKey, url: string, visible: boolean }}
@@ -1147,6 +1352,8 @@ class JableDatabase {
         }
       }
 
+      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp);
+
       return {
         action: action,
         changed: Boolean(removeResult && removeResult.changes),
@@ -1207,6 +1414,7 @@ class JableDatabase {
         video.siteOrder === null ? -Date.now() : video.siteOrder,
         syncRunId
       );
+      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
@@ -1238,6 +1446,7 @@ class JableDatabase {
     const mode = normalizeText(payload.mode || result.mode);
     const syncRunId = normalizeText(payload.syncRunId || result.syncRunId);
     let hidden = 0;
+    let mutationsReconciled = 0;
 
     this.db
       .prepare(
@@ -1268,9 +1477,12 @@ class JableDatabase {
       hidden = Number(update.changes || 0);
     }
 
+    mutationsReconciled = this.reconcileSyncOperations(collectionKey, syncRunId, timestamp);
+
     const state = this.getSyncState(collectionKey);
     if (!state) throw new Error('Sync state was not saved for collection: ' + collectionKey);
     state.hidden = hidden;
+    state.mutationsReconciled = mutationsReconciled;
     return state;
   }
 

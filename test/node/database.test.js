@@ -590,12 +590,14 @@ test('manual collection toggles win over stale pages during an active sync run',
     }
   });
 
-  db.finishSync({
+  const state = db.finishSync({
     collectionKey: 'favourites',
     mode: 'full',
     syncRunId: syncRunId,
     result: { completed: true, lastScrapedPage: 1 }
   });
+
+  assert.equal(state.mutationsReconciled, 3);
 
   const visibleUrls = db.listVideos('favourites').map(function (row) {
     return row.url;
@@ -604,6 +606,100 @@ test('manual collection toggles win over stale pages during an active sync run',
 
   hiddenRows = db.listVideos('favourites', { includeHidden: true });
   assert.equal(hiddenRows.length, 3);
+});
+
+test('finishSync replays sync operations and resequences visible site order', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'A',
+        url: 'https://jable.tv/videos/a/',
+        siteOrder: 1
+      },
+      {
+        title: 'B',
+        url: 'https://jable.tv/videos/b/',
+        siteOrder: 2
+      },
+      {
+        title: 'C',
+        url: 'https://jable.tv/videos/c/',
+        siteOrder: 3
+      }
+    ]
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: syncRunId,
+    video: {
+      url: 'https://jable.tv/videos/b/'
+    }
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: syncRunId,
+    video: {
+      title: 'D',
+      url: 'https://jable.tv/videos/d/'
+    }
+  });
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'B stale',
+        url: 'https://jable.tv/videos/b/',
+        siteOrder: 2
+      }
+    ]
+  });
+
+  const state = db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: syncRunId,
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  assert.equal(state.mutationsReconciled, 2);
+
+  const visibleRows = db.listVideos('favourites', { sort: 'site_order', direction: 'asc' });
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/d/', 'https://jable.tv/videos/a/', 'https://jable.tv/videos/c/']
+  );
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.site_order;
+    }),
+    [1, 2, 3]
+  );
+
+  const hiddenRows = db.listVideos('favourites', { includeHidden: true }).filter(function (row) {
+    return row.url === 'https://jable.tv/videos/b/';
+  });
+  assert.equal(hiddenRows.length, 1);
+  assert.equal(hiddenRows[0].is_visible, 0);
+
+  const pending = db.db
+    .prepare('SELECT COUNT(*) AS total FROM sync_operations WHERE sync_run_id = ? AND reconciled_at IS NULL')
+    .get(syncRunId);
+  assert.equal(pending.total, 0);
 });
 
 test('migration rebuilds the local full text index for existing videos', function (t) {

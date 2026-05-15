@@ -94,6 +94,7 @@
     "collectionAdded": "已加入{collection}並同步到本機",
     "fullSyncPaused": "{collection} {mode}已暫停：本批 {pages} 頁、{rows} 筆，可繼續完整同步",
     "firstPageRequired": "{collection} {mode}未開始：無法確認或切回第 1 頁",
+    "syncChangedDuringRun": "{collection} {mode}未完成：同步期間清單有手動操作，已比對操作表並套用 {count} 筆操作；未隱藏缺漏項目",
     "syncIncomplete": "{collection} {mode}未完整完成：{reason}",
     "fullSyncComplete": "{collection} 完整同步完成：{rows} 筆，隱藏 {hidden} 筆缺漏資料",
     "quickSyncComplete": "{collection} 快速同步完成：{rows} 筆，{reason}",
