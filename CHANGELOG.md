@@ -6,6 +6,16 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.9.1] - 2026-05-15
+
+### Changed
+
+- Add Electron smoke test
+- Add Jable ad blocker and cosmetic filter
+- Bump version to 0.9.0
+- Block additional ad hosts and speed cosmetic scan
+- Bump version to 0.9.1
+
 ## [v0.8.0] - 2026-05-15
 
 ### Changed
@@ -165,7 +175,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.1...HEAD
+[v0.9.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.8.0...v0.9.1
 [v0.8.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.3...v0.8.0
 [v0.7.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.2...v0.7.3
 [v0.7.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.0...v0.7.1
