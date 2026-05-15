@@ -22,6 +22,7 @@
     "app/sync-utils.ts",
     "app/types/**/*.ts",
     "app/update-checker.ts",
+    "app/url-policy.ts",
     "app/webview-preload.ts"
   ],
   "exclude": ["app/renderer-dist", "app/renderer-src", "app/runtime-dist", "node_modules", "release"]

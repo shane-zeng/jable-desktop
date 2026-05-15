@@ -1,4 +1,5 @@
 import type { CollectionDefinition, CollectionKey, SearchMode, SortDirection, SortKey } from '../types/jable';
+import { JABLE_PRIMARY_ORIGIN, jableCollectionUrl } from '../url-policy';
 
 interface ValueOption<T extends string> {
   value: T;
@@ -6,7 +7,7 @@ interface ValueOption<T extends string> {
 
 export const PAGE_SIZE = 24;
 export const FULL_SYNC_BATCH_LIMIT = 100;
-export const DEFAULT_BROWSER_URL = 'https://jable.tv/';
+export const DEFAULT_BROWSER_URL = JABLE_PRIMARY_ORIGIN + '/';
 export const BROWSER_TABS_COMPACT_STORAGE_KEY = 'jable-desktop:browser-tabs-compact';
 export const BROWSER_TABS_WIDTH_STORAGE_KEY = 'jable-desktop:browser-tabs-width';
 export const BROWSER_TABS_DEFAULT_WIDTH = 280;
@@ -15,11 +16,11 @@ export const BROWSER_TABS_MAX_WIDTH = 420;
 
 export const COLLECTIONS: Record<CollectionKey, CollectionDefinition> = {
   favourites: {
-    url: 'https://jable.tv/my/favourites/videos/',
+    url: jableCollectionUrl('favourites'),
     filename: 'favourites_list.json'
   },
   watch_later: {
-    url: 'https://jable.tv/my/favourites/videos-watch-later/',
+    url: jableCollectionUrl('watch_later'),
     filename: 'watch_later_list.json'
   }
 };

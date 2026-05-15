@@ -59,6 +59,10 @@ type FinishSyncInput = {
   syncRunId?: unknown;
   result?: SyncResultInput;
 };
+type UrlPolicyModule = {
+  JABLE_PRIMARY_ORIGIN: string;
+  canonicalJableUrl(value: unknown): string;
+};
 type DatabaseSortKey = NonNullable<ListVideosOptions['sort']> | 'updated_at' | 'last_seen_at';
 type DatabaseListOptions = Partial<ListVideosOptions> & { sort?: DatabaseSortKey };
 type VideoListQuery = { joins: string[]; params: SQLInputValue[]; where: string; orderBy: string };
@@ -70,6 +74,7 @@ type TableColumnRow = { name: string };
 
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
+const urlPolicy = require('./url-policy') as UrlPolicyModule;
 
 let DatabaseSync: typeof NodeSqlite.DatabaseSync;
 try {
@@ -136,7 +141,7 @@ function normalizeVideoUrl(value: unknown): string | null {
     parsed.search = '';
     parsed.hash = '';
     if (/^\/videos\/[^/]+$/.test(parsed.pathname)) parsed.pathname += '/';
-    return parsed.href;
+    return urlPolicy.canonicalJableUrl(parsed.href);
   } catch (error) {
     return text;
   }
@@ -234,7 +239,7 @@ function exportMeta(
   return {
     format_version: 2,
     source_path: collection.sourcePath,
-    source_url: 'https://jable.tv' + collection.sourcePath,
+    source_url: urlPolicy.JABLE_PRIMARY_ORIGIN + collection.sourcePath,
     exported_at: exportedAt,
     completed: Boolean(state && state.completed),
     per_page: PAGE_SIZE,

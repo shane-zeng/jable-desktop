@@ -47,6 +47,8 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 
 - **影片收藏**: `https://jable.tv/my/favourites/videos/`
 - **稍後觀看**: `https://jable.tv/my/favourites/videos-watch-later/`
+- **備用站影片收藏**: `https://fs1.app/my/favourites/videos/`
+- **備用站稍後觀看**: `https://fs1.app/my/favourites/videos-watch-later/`
 
 2. Wait until all thumbnails are loaded.
 3. Click the floating export button in the lower-right corner. Use the compact language selector beside it to choose **繁中**, **EN**, or **日本語** when needed.
@@ -64,6 +66,8 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 | -------- | ---------------------------------------------------- | ----------------------------------- |
 | 影片收藏 | `https://jable.tv/my/favourites/videos/`             | `favourites_list.json` (or `.csv`)  |
 | 稍後觀看 | `https://jable.tv/my/favourites/videos-watch-later/` | `watch_later_list.json` (or `.csv`) |
+| 影片收藏 | `https://fs1.app/my/favourites/videos/`              | `favourites_list.json` (or `.csv`)  |
+| 稍後觀看 | `https://fs1.app/my/favourites/videos-watch-later/`  | `watch_later_list.json` (or `.csv`) |
 
 You can change export format by editing this line in the script:
 
@@ -82,7 +86,7 @@ npm install
 npm start
 ```
 
-Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has a compact floating mode, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
+Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has a compact floating mode, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. If `https://jable.tv` fails to load, the app automatically falls back to `https://fs1.app` for the current session. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
 
 `npm start` compiles the Electron runtime into `app/runtime-dist/` and builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
 
@@ -104,6 +108,7 @@ Desktop sync behavior:
 Desktop data and search behavior:
 
 - Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
+- Video URLs from the fallback origin are canonicalized to `https://jable.tv` before local storage, so syncing through `https://fs1.app` does not duplicate existing rows.
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
 - Database migration creates `videos`, `collections`, `collection_items`, and `sync_states`; adds `site_order`, `is_visible`, `missing_at`, `last_sync_run_id`, and `videos.search_text`; verifies the FTS table columns; recreates triggers when needed; and rebuilds the index if search text changed or FTS objects are missing.
@@ -117,6 +122,7 @@ Browser and tab behavior:
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.ts` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
+- `app/url-policy.ts` centralizes trusted Jable origins (`https://jable.tv`, `https://fs1.app`), safe browser-tab protocols, GitHub release external URL checks, collection URL checks, and fallback-origin rewrites.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
 - Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Do not call embedded page functions through injected JavaScript strings.
 - HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.ts` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
@@ -155,6 +161,7 @@ Desktop app files:
 - `app/webview-preload.ts`: scraper injected into each embedded Jable `WebContentsView`.
 - `app/browser-tab-policy.ts`: pure browser tab policies used by main-process behavior and Node tests.
 - `app/sync-utils.ts`: shared pager-selection helper for sync pagination.
+- `app/url-policy.ts`: trusted URL origins, browser-tab protocol policy, release URL allowlist, fallback-origin rewriting, and collection URL checks.
 - `app/database.ts`: SQLite schema, migrations, upsert logic, search, sync state, JSON import/export.
 - `app/types/`: shared renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.

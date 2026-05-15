@@ -107,6 +107,8 @@ Synced data is stored locally on the user's computer.
 
 The app does not upload list data to external services. Browsing and sign-in continue communicating directly with the official Jable website.
 
+If `https://jable.tv` fails to load, the desktop app automatically switches to the official fallback site `https://fs1.app` for the current session. Local data still uses the primary URL as the canonical URL so the same video is not duplicated across domains.
+
 Login state is stored inside an isolated Electron session partition, but users may still need to sign in again if the official Jable session expires.
 
 ## Tampermonkey Userscript
@@ -117,6 +119,8 @@ It supports:
 
 - `https://jable.tv/my/favourites/videos/`
 - `https://jable.tv/my/favourites/videos-watch-later/`
+- `https://fs1.app/my/favourites/videos/`
+- `https://fs1.app/my/favourites/videos-watch-later/`
 
 Open one of those pages, then click the floating export button in the lower-right corner to export all pages. Use the compact language selector beside it to choose **繁中**, **EN**, or **日本語**.
 

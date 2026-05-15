@@ -17,6 +17,7 @@ import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
 import { useI18n } from './i18n';
+import { isJableCollectionUrl } from '../url-policy';
 import type {
   AppInfo,
   AppView,
@@ -163,19 +164,6 @@ function collectionName(collectionKey: CollectionKey) {
   return i18n.t('collections.' + collectionKey);
 }
 
-function collectionUrlPattern(collectionKey: CollectionKey) {
-  if (collectionKey === 'watch_later') return /\/my\/favourites\/videos-watch-later\/?$/;
-  return /\/my\/favourites\/videos\/?$/;
-}
-
-function pathFromUrl(value: string) {
-  try {
-    return new URL(value).pathname;
-  } catch (error) {
-    return '';
-  }
-}
-
 async function openInBrowser(url: string) {
   if (!url || busy.value || syncing.value) return;
 
@@ -284,6 +272,11 @@ function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'browser-tab-shortcut') {
     setActiveView('browser');
   }
+
+  if (message.channel === 'jable-origin-fallback') {
+    const payload = (message.args[0] || {}) as { origin?: string };
+    setStatus(i18n.t('status.jableFallback', { origin: payload.origin || 'https://fs1.app' }), 'warning');
+  }
 }
 
 function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: SyncResult, finishState: SyncState) {
@@ -351,7 +344,7 @@ async function syncCollection(mode: SyncMode) {
     const startPage = usedContinuation && continuation ? continuation.lastScrapedPage : null;
     const browserUrl = await browser.currentBrowserUrl(syncTabId);
 
-    if (!collectionUrlPattern(collectionKey).test(pathFromUrl(browserUrl))) {
+    if (!isJableCollectionUrl(collectionKey, browserUrl)) {
       await browser.setTabLocked(syncTabId, false);
       setStatus(i18n.t('status.loginRequired', { collection: collectionName(collectionKey) }), 'warning');
       return;
@@ -432,7 +425,7 @@ async function prepareSyncTab(
     await browser.setTabLocked(continuation.tabId, true);
 
     const continuationUrl = await browser.currentBrowserUrl(continuation.tabId);
-    if (collectionUrlPattern(collectionKey).test(pathFromUrl(continuationUrl))) {
+    if (isJableCollectionUrl(collectionKey, continuationUrl)) {
       return {
         tabId: continuation.tabId,
         usedContinuation: true

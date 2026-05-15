@@ -57,6 +57,7 @@ export default [
       'app/preload.ts',
       'app/sync-utils.ts',
       'app/update-checker.ts',
+      'app/url-policy.ts',
       'scripts/**/*.js',
       'test/node/**/*.js'
     ],
@@ -66,7 +67,13 @@ export default [
     }
   },
   {
-    files: ['**/*.mjs', 'app/renderer-src/**/*.{js,ts,vue}', 'app/types/**/*.ts', 'test/renderer/**/*.{js,ts}'],
+    files: [
+      '**/*.mjs',
+      'app/renderer-src/**/*.{js,ts,vue}',
+      'app/types/**/*.ts',
+      'app/url-policy.ts',
+      'test/renderer/**/*.{js,ts}'
+    ],
     languageOptions: {
       sourceType: 'module'
     }

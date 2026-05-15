@@ -107,6 +107,8 @@ App 會從影片標題與 URL 建立正規化搜尋索引，支援：
 
 App 不會將你的清單上傳到其他服務；登入與瀏覽仍直接與 Jable 官方網站互動。
 
+若 `https://jable.tv` 載入失敗，桌面 app 會在目前 session 自動切換到官方備用站 `https://fs1.app`。本機資料仍會使用主要網址作為標準 URL，避免同一影片因不同網域重複。
+
 Jable 的登入狀態會保存在隔離的 Electron session partition 中，但若 Jable 官方 session 過期，仍可能需要重新登入。
 
 ## Tampermonkey Userscript
@@ -117,6 +119,8 @@ Jable 的登入狀態會保存在隔離的 Electron session partition 中，但�
 
 - `https://jable.tv/my/favourites/videos/`
 - `https://jable.tv/my/favourites/videos-watch-later/`
+- `https://fs1.app/my/favourites/videos/`
+- `https://fs1.app/my/favourites/videos-watch-later/`
 
 進入頁面後，點擊右下角浮動匯出按鈕即可匯出所有分頁。旁邊的語言選擇器可切換 **繁中** / **EN** / **日本語**。
 

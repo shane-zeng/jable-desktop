@@ -101,6 +101,7 @@
     "loginRequired": "Please log in to Jable in the browser and confirm the {collection} page can open.",
     "syncStart": "Starting {mode} for {collection}",
     "syncFailed": "{mode} failed: {error}",
+    "jableFallback": "Primary site failed to load. Switched to fallback site {origin}.",
     "createSyncTabFailed": "Failed to create sync tab",
     "exportCanceled": "Export canceled",
     "exported": "Exported {filename}",
@@ -125,7 +126,8 @@
     "noUpdateTitle": "You're Up to Date",
     "noUpdateMessage": "Version {currentVersion} is the latest version.",
     "failedTitle": "Update Check Failed",
-    "failedMessage": "Could not check for updates: {error}"
+    "failedMessage": "Could not check for updates: {error}",
+    "untrustedReleaseUrl": "The update download URL is not an allowed GitHub Releases URL"
   },
   "menu": {
     "file": "File",
@@ -177,6 +179,7 @@
   "errors": {
     "maxTabs": "You can open at most {count} browser tabs",
     "tabNotFound": "Browser tab not found",
+    "unsupportedUrlProtocol": "Only HTTP or HTTPS URLs can be opened",
     "lockedClose": "A syncing tab cannot be closed",
     "lockedNavigate": "A syncing tab cannot be navigated manually",
     "lockedReload": "A syncing tab cannot be reloaded"

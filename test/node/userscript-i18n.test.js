@@ -14,6 +14,7 @@ function readUserscript() {
 test('userscript exposes a persisted locale selector for the floating exporter UI', function () {
   const source = readUserscript();
 
+  assert.match(source, /@match\s+https:\/\/fs1\.app\/\*/);
   assert.match(source, /LOCALE_STORAGE_KEY = STORAGE_PREFIX \+ 'locale'/);
   assert.match(source, /LOCALE_SELECT_ID = 'fav-export-locale-select'/);
   assert.match(source, /<option value="zh-TW">繁中<\/option>/);

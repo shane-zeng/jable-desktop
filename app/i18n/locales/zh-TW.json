@@ -101,6 +101,7 @@
     "loginRequired": "請先在瀏覽器登入 Jable，並確認可開啟「{collection}」頁面",
     "syncStart": "開始{mode} {collection}",
     "syncFailed": "{mode}失敗：{error}",
+    "jableFallback": "主站無法載入，已自動切換至備用站 {origin}",
     "createSyncTabFailed": "建立同步分頁失敗",
     "exportCanceled": "已取消匯出",
     "exported": "已匯出 {filename}",
@@ -125,7 +126,8 @@
     "noUpdateTitle": "已是最新版",
     "noUpdateMessage": "目前版本 {currentVersion} 已是最新版。",
     "failedTitle": "檢查更新失敗",
-    "failedMessage": "無法檢查更新：{error}"
+    "failedMessage": "無法檢查更新：{error}",
+    "untrustedReleaseUrl": "更新下載網址不是允許的 GitHub Releases 網址"
   },
   "menu": {
     "file": "檔案",
@@ -177,6 +179,7 @@
   "errors": {
     "maxTabs": "最多只能開啟 {count} 個瀏覽器分頁",
     "tabNotFound": "找不到瀏覽器分頁",
+    "unsupportedUrlProtocol": "只支援開啟 HTTP 或 HTTPS 網址",
     "lockedClose": "同步中的分頁不能關閉",
     "lockedNavigate": "同步中的分頁不能手動導航",
     "lockedReload": "同步中的分頁不能重新整理"

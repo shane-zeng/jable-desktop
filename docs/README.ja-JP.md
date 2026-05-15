@@ -107,6 +107,8 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 
 アプリはリストデータを外部サービスへアップロードしません。閲覧とサインインは引き続き Jable 公式サイトと直接通信します。
 
+`https://jable.tv` を読み込めない場合、デスクトップアプリは現在の session で公式代替サイト `https://fs1.app` に自動切り替えします。ローカルデータは引き続き primary URL を canonical URL として扱うため、同じ動画がドメイン違いで重複しません。
+
 ログイン状態は分離された Electron session partition に保存されます。ただし、Jable 公式側の session が期限切れになった場合は再ログインが必要になることがあります。
 
 ## Tampermonkey Userscript
@@ -117,6 +119,8 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 
 - `https://jable.tv/my/favourites/videos/`
 - `https://jable.tv/my/favourites/videos-watch-later/`
+- `https://fs1.app/my/favourites/videos/`
+- `https://fs1.app/my/favourites/videos-watch-later/`
 
 対象ページを開いた後、右下の floating export button をクリックすると全ページを Export できます。隣の compact language selector で **繁中**、**EN**、**日本語** を選択できます。
 

@@ -101,6 +101,7 @@
     "loginRequired": "ブラウザーで Jable にログインし、{collection} ページを開けることを確認してください。",
     "syncStart": "{collection} の {mode} を開始します",
     "syncFailed": "{mode} に失敗しました: {error}",
+    "jableFallback": "メインサイトを読み込めませんでした。代替サイト {origin} に切り替えました。",
     "createSyncTabFailed": "同期タブを作成できませんでした",
     "exportCanceled": "Export をキャンセルしました",
     "exported": "{filename} を Export しました",
@@ -125,7 +126,8 @@
     "noUpdateTitle": "最新版です",
     "noUpdateMessage": "現在のバージョン {currentVersion} は最新版です。",
     "failedTitle": "更新の確認に失敗しました",
-    "failedMessage": "更新を確認できませんでした: {error}"
+    "failedMessage": "更新を確認できませんでした: {error}",
+    "untrustedReleaseUrl": "更新ダウンロード URL は許可された GitHub Releases URL ではありません"
   },
   "menu": {
     "file": "ファイル",
@@ -177,6 +179,7 @@
   "errors": {
     "maxTabs": "最大 {count} 個までブラウザータブを開けます",
     "tabNotFound": "ブラウザータブが見つかりません",
+    "unsupportedUrlProtocol": "開けるのは HTTP または HTTPS の URL のみです",
     "lockedClose": "同期中のタブは閉じられません",
     "lockedNavigate": "同期中のタブは手動で移動できません",
     "lockedReload": "同期中のタブは再読み込みできません"

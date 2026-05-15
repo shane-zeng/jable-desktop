@@ -26,6 +26,7 @@ The project also includes the original self-contained Tampermonkey exporter: [`j
 
 - Sync favourites and watch-later lists
 - Embedded multi-tab browser with persistent Jable session storage
+- Automatic fallback from `jable.tv` to `fs1.app` when the primary site fails to load
 - Local SQLite storage with FTS5 search
 - Quick sync and full sync modes
 - JSON import/export with legacy userscript compatibility

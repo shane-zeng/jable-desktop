@@ -6,6 +6,7 @@
 // @license      MIT
 // @author       shane
 // @match        https://jable.tv/*
+// @match        https://fs1.app/*
 // @run-at       document-end
 // @grant        none
 // ==/UserScript==

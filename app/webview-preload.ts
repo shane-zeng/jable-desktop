@@ -22,11 +22,15 @@ type SendToHostIpcRenderer = Electron.IpcRenderer & {
   sendToHost?: (channel: string, ...args: unknown[]) => void;
 };
 type ChooseNextPagerLink = (links: PagerLink[], currentPage: number | null) => PagerLink | null;
+type UrlPolicyModule = {
+  isTrustedJableUrl(value: unknown): boolean;
+};
 
 const electron: typeof Electron = require('electron');
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
 const chooseNextPagerLink = (require('./sync-utils') as { chooseNextPagerLink: ChooseNextPagerLink })
   .chooseNextPagerLink;
+const urlPolicy = require('./url-policy') as UrlPolicyModule;
 
 const IS_MACOS = process.platform === 'darwin';
 const SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';
@@ -460,7 +464,7 @@ function actionRequiresLogin(el: Element | null) {
 }
 
 function isJablePage() {
-  return /(^|\.)jable\.tv$/i.test(location.hostname || '');
+  return urlPolicy.isTrustedJableUrl(location.href);
 }
 
 function currentVideoUrl() {

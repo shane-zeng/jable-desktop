@@ -35,6 +35,7 @@ import type {
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 type BrowserBoundsState = { visible: boolean; x: number; y: number; width: number; height: number };
+type BrowserLoadFailure = { url: string; errorCode: number };
 type BrowserTab = {
   id: string;
   kind: BrowserTabKind;
@@ -52,6 +53,8 @@ type BrowserTab = {
   discarded: boolean;
   canGoBack: boolean;
   canGoForward: boolean;
+  controlledLoad: boolean;
+  lastMainFrameLoadFailure: BrowserLoadFailure | null;
 };
 type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
 type DatabaseListOptions = Partial<ListVideosOptions> & {
@@ -148,6 +151,14 @@ type UpdateCheckResult = {
 type UpdateCheckerModule = {
   checkLatestRelease(options: { currentVersion?: string }): Promise<UpdateCheckResult>;
 };
+type UrlPolicyModule = {
+  JABLE_PRIMARY_ORIGIN: string;
+  JABLE_FALLBACK_ORIGIN: string;
+  fallbackJableUrl(value: unknown): string | null;
+  isAllowedExternalReleaseUrl(value: unknown): boolean;
+  isSafeBrowserUrl(value: unknown): boolean;
+  rewriteJableUrlOrigin(value: unknown, origin: string): string;
+};
 type UpdateCheckOptions = { manual?: boolean };
 type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
@@ -157,6 +168,7 @@ const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModu
 const databaseModule = require('./database') as DatabaseModule;
 const i18n = require('./i18n') as I18nModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
+const urlPolicy = require('./url-policy') as UrlPolicyModule;
 const JableDatabase = databaseModule.JableDatabase;
 const COLLECTIONS = databaseModule.COLLECTIONS;
 
@@ -174,7 +186,7 @@ const nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
 const nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
 const serializedMediaState = browserTabPolicy.serializedMediaState;
 
-const JABLE_HOME_URL = 'https://jable.tv/';
+const JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const MAX_BROWSER_TABS = 14;
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
@@ -192,6 +204,7 @@ const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
 let activeBrowserTabId: string | null = null;
 let nextBrowserTabId = 1;
 let nextBrowserPreloadRequestId = 1;
+let activeJableOrigin = urlPolicy.JABLE_PRIMARY_ORIGIN;
 let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
 let browserHtmlFullScreenTabId: string | null = null;
 let database: JableDatabaseInstance | null = null;
@@ -207,6 +220,38 @@ function t(key: string, params?: TranslationParams | null): string {
 
 function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeBrowserNavigationUrl(value: unknown): string {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  if (!urlPolicy.isSafeBrowserUrl(url)) throw new Error(t('errors.unsupportedUrlProtocol'));
+  return urlPolicy.rewriteJableUrlOrigin(url, activeJableOrigin);
+}
+
+function notifyJableOriginFallback(origin: string) {
+  forwardBrowserMessage('jable-origin-fallback', { origin: origin });
+}
+
+function activateJableFallbackOrigin() {
+  if (activeJableOrigin === urlPolicy.JABLE_FALLBACK_ORIGIN) return;
+  activeJableOrigin = urlPolicy.JABLE_FALLBACK_ORIGIN;
+  notifyJableOriginFallback(activeJableOrigin);
+}
+
+function fallbackUrlForLoadFailure(failure: BrowserLoadFailure | null | undefined): string | null {
+  if (!failure || failure.errorCode === -3) return null;
+  if (activeJableOrigin !== urlPolicy.JABLE_PRIMARY_ORIGIN) return null;
+  return urlPolicy.fallbackJableUrl(failure.url);
+}
+
+function autoFallbackBrowserTab(tab: BrowserTab, failure: BrowserLoadFailure | null | undefined): boolean {
+  const fallbackUrl = fallbackUrlForLoadFailure(failure);
+  if (!fallbackUrl) return false;
+
+  activateJableFallbackOrigin();
+  loadTabUrl(tab, fallbackUrl, true);
+  return true;
 }
 
 function ipcPayloadError(channel: string, field?: string): Error {
@@ -823,6 +868,13 @@ function showUpdateAvailableDialog(result: UpdateCheckResult, manual: boolean): 
     })
   }).then(function (dialogResult: Electron.MessageBoxReturnValue) {
     if (dialogResult.response !== 0 || !result.releaseUrl) return result;
+    if (!urlPolicy.isAllowedExternalReleaseUrl(result.releaseUrl)) {
+      return showUpdateFailedDialog({
+        error: t('updates.untrustedReleaseUrl')
+      }).then(function () {
+        return result;
+      });
+    }
 
     return shell.openExternal(result.releaseUrl).then(function () {
       return result;
@@ -905,6 +957,7 @@ function scheduleBackgroundUpdateCheck() {
 
 function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
   const normalizedOptions = options || {};
+  const targetUrl = normalizeBrowserNavigationUrl(normalizedOptions.url);
 
   if (browserTabs.length >= MAX_BROWSER_TABS) {
     throw new Error(t('errors.maxTabs', { count: MAX_BROWSER_TABS }));
@@ -922,7 +975,7 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
     attached: false,
     locked: Boolean(normalizedOptions.locked),
     title: normalizedOptions.title || (kind === 'sync' ? t('browser.sync') : 'Jable'),
-    url: normalizedOptions.url || '',
+    url: targetUrl,
     favicon: normalizedOptions.favicon || '',
     loading: false,
     muted: Boolean(normalizedOptions.muted),
@@ -931,7 +984,9 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
     pictureInPicture: false,
     discarded: false,
     canGoBack: false,
-    canGoForward: false
+    canGoForward: false,
+    controlledLoad: false,
+    lastMainFrameLoadFailure: null
   };
 
   browserTabs.push(tab);
@@ -943,7 +998,7 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
     activeBrowserTabId = id;
   }
 
-  if (normalizedOptions.url) loadTabUrl(tab, normalizedOptions.url, Boolean(normalizedOptions.forceReload));
+  if (targetUrl) loadTabUrl(tab, targetUrl, Boolean(normalizedOptions.forceReload));
   attachActiveBrowserTab();
   if (activeBrowserTabId === tab.id) focusBrowserTab(tab);
   notifyBrowserTabsChanged();
@@ -986,6 +1041,7 @@ function wireBrowserTab(tab: BrowserTab) {
 
   tab.view.webContents.on('did-start-loading', function () {
     tab.loading = true;
+    tab.lastMainFrameLoadFailure = null;
     resetBrowserTabMediaState(tab);
     updateTabNavigationState(tab);
     notifyBrowserTabsChanged();
@@ -1003,11 +1059,28 @@ function wireBrowserTab(tab: BrowserTab) {
     notifyBrowserTabsChanged();
   });
 
-  tab.view.webContents.on('did-fail-load', function () {
-    tab.loading = false;
-    updateTabNavigationState(tab);
-    notifyBrowserTabsChanged();
-  });
+  tab.view.webContents.on(
+    'did-fail-load',
+    function (
+      _event: Electron.Event,
+      errorCode: number,
+      _errorDescription: string,
+      validatedURL: string,
+      isMainFrame: boolean
+    ) {
+      tab.loading = false;
+      if (isMainFrame) {
+        tab.lastMainFrameLoadFailure = {
+          url: validatedURL || tab.url,
+          errorCode: errorCode
+        };
+      }
+      updateTabNavigationState(tab);
+      notifyBrowserTabsChanged();
+
+      if (isMainFrame && !tab.controlledLoad && autoFallbackBrowserTab(tab, tab.lastMainFrameLoadFailure)) return;
+    }
+  );
 
   tab.view.webContents.on('render-process-gone', function () {
     rejectBrowserPreloadRequestsForTab(tab.id, 'Browser tab renderer process ended');
@@ -1471,9 +1544,11 @@ function waitForBrowserStop(tab: BrowserTab, timeoutMs?: number): Promise<string
 }
 
 function loadTabUrl(tab: BrowserTab, targetUrl: string, forceReload: boolean) {
+  targetUrl = normalizeBrowserNavigationUrl(targetUrl);
   const currentUrl = tab.view.webContents.getURL();
   tab.url = targetUrl || tab.url;
   tab.loading = true;
+  tab.lastMainFrameLoadFailure = null;
 
   if (forceReload && currentUrl === targetUrl) tab.view.webContents.reload();
   else tab.view.webContents.loadURL(targetUrl);
@@ -1485,16 +1560,31 @@ function loadTabUrl(tab: BrowserTab, targetUrl: string, forceReload: boolean) {
 async function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string> {
   const normalizedPayload: BrowserNavigatePayload = payload || { url: '' };
   const tab = getBrowserTab(normalizedPayload.tabId);
-  const targetUrl = normalizedPayload.url;
+  const targetUrl = normalizeBrowserNavigationUrl(normalizedPayload.url);
 
   if (!targetUrl) return tab.view.webContents.getURL();
   if (tab.locked) throw new Error(t('errors.lockedNavigate'));
 
-  const wait = waitForBrowserStop(tab);
-  loadTabUrl(tab, targetUrl, Boolean(normalizedPayload.forceReload));
-  const loadedUrl = await wait;
-  notifyBrowserTabsChanged();
-  return loadedUrl;
+  tab.controlledLoad = true;
+
+  try {
+    let wait = waitForBrowserStop(tab);
+    loadTabUrl(tab, targetUrl, Boolean(normalizedPayload.forceReload));
+    let loadedUrl = await wait;
+    const fallbackUrl = fallbackUrlForLoadFailure(tab.lastMainFrameLoadFailure);
+
+    if (fallbackUrl) {
+      activateJableFallbackOrigin();
+      wait = waitForBrowserStop(tab);
+      loadTabUrl(tab, fallbackUrl, true);
+      loadedUrl = await wait;
+    }
+
+    notifyBrowserTabsChanged();
+    return loadedUrl;
+  } finally {
+    tab.controlledLoad = false;
+  }
 }
 
 async function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {

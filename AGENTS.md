@@ -10,6 +10,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/webview-preload.ts`: scraper and collection action observer injected into embedded Jable `WebContentsView` instances.
 - `app/browser-tab-policy.ts`: pure tab policy helpers for web preferences, media state serialization, close target selection, shortcut detection, and visual-order tab cycling.
 - `app/sync-utils.ts`: shared pagination helper logic for sync flows.
+- `app/url-policy.ts`: trusted URL origins, safe browser URL protocol checks, GitHub release URL allowlist, fallback-origin rewriting, and collection URL checks.
 - `app/database.ts`: SQLite schema, migrations, FTS5 search, upsert logic, sync state, visibility state, and JSON import/export.
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
@@ -53,6 +54,8 @@ For userscript validation, install or update `jable-favourites-exporter.user.js`
 
 - `https://jable.tv/my/favourites/videos/`
 - `https://jable.tv/my/favourites/videos-watch-later/`
+- `https://fs1.app/my/favourites/videos/`
+- `https://fs1.app/my/favourites/videos-watch-later/`
 
 ## Coding Style & Architecture
 
@@ -131,5 +134,7 @@ Pull requests should include:
 ## Security & Configuration Tips
 
 Keep `@grant none` unless a Tampermonkey API is required. Do not add external network calls, credentials, analytics, or tracking. Treat Jable DOM selectors as fragile and update them narrowly when the site changes.
+
+Keep URL trust rules centralized in `app/url-policy.ts`. The supported Jable origins are `https://jable.tv` and `https://fs1.app`; fallback-origin video URLs should canonicalize to the primary origin before storage so local rows do not duplicate across domains.
 
 The app stores Jable cookies in an isolated Electron persistent session partition and synced data in local SQLite. Do not collect, persist, or log credentials. Keep import/export local-first and avoid hidden remote services.

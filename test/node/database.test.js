@@ -89,6 +89,42 @@ test('saveSyncPage upserts videos and keeps one collection item per URL', functi
   assert.deepEqual(db.getCollectionUrls('favourites'), ['https://jable.tv/videos/first/']);
 });
 
+test('saveSyncPage canonicalizes fallback-origin video URLs', function (t) {
+  const db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Fallback title',
+        url: 'https://fs1.app/videos/fallback-origin/?from=sync#fragment',
+        views: 1,
+        likes: 1
+      }
+    ]
+  });
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Primary title',
+        url: 'https://jable.tv/videos/fallback-origin/',
+        views: 2,
+        likes: 2
+      }
+    ]
+  });
+
+  const rows = db.listVideos('favourites');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].title, 'Primary title');
+  assert.equal(rows[0].url, 'https://jable.tv/videos/fallback-origin/');
+  assert.deepEqual(db.getCollectionUrls('favourites'), ['https://jable.tv/videos/fallback-origin/']);
+  assert.equal(db.allCollectionUrlsKnown('favourites', ['https://fs1.app/videos/fallback-origin/?from=quick']), true);
+});
+
 test('saveSyncPage stores and lists videos by site order', function (t) {
   const db = createTestDatabase(t);
 
