@@ -30,11 +30,8 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run tests
-        run: npm run test:all
+      - name: Run quality checks
+        run: npm run check
 
       - name: Build unsigned macOS artifacts
         run: npm run dist:mac:unsigned
@@ -70,11 +67,8 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run tests
-        run: npm run test:all
+      - name: Run quality checks
+        run: npm run check
 
       - name: Build unsigned Windows artifacts
         run: npm run dist:win:unsigned

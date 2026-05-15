@@ -200,7 +200,7 @@ Test coverage map:
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
 
-GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs formatting, linting, and tests before building unsigned macOS and Windows artifacts.
+GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
 
 ### Desktop Validation
 
@@ -267,7 +267,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow checks formatting, runs linting and tests, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
+The workflow checks formatting, runs `npm run check`, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
 
 The macOS and Windows workflow artifacts uploaded between build jobs and the release job are retained for 1 day only. The draft GitHub release assets are the durable release downloads.
 
