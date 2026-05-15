@@ -217,6 +217,7 @@ export interface SyncResult {
   completed: boolean;
   mode: SyncMode;
   syncRunId: string;
+  syncWorkerId?: string | null;
   incompleteReason: string | null;
   stoppedByKnownPage: boolean;
   totalPages: number;

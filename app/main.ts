@@ -56,6 +56,14 @@ type BrowserTab = {
   controlledLoad: boolean;
   lastMainFrameLoadFailure: BrowserLoadFailure | null;
 };
+type SyncWorker = {
+  id: string;
+  window: Electron.BrowserWindow;
+  webContents: Electron.WebContents;
+  collectionKey: CollectionKey;
+  syncRunId: string;
+  lastMainFrameLoadFailure: BrowserLoadFailure | null;
+};
 type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
 type DatabaseListOptions = Partial<ListVideosOptions> & {
   sort?: ListVideosOptions['sort'] | 'updated_at' | 'last_seen_at';
@@ -124,7 +132,7 @@ type BrowserTabPolicyModule = {
   serializedMediaState(tab: BrowserTab): SerializedMediaState;
 };
 type BrowserPreloadRequest = {
-  tabId: string;
+  webContentsId: number;
   timer: ReturnType<typeof setTimeout>;
   resolve(value: unknown): void;
   reject(error: Error): void;
@@ -168,8 +176,10 @@ type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
   JABLE_FALLBACK_ORIGIN: string;
   fallbackJableUrl(value: unknown): string | null;
+  isJableCollectionUrl(collectionKey: CollectionKey, value: unknown): boolean;
   isAllowedExternalReleaseUrl(value: unknown): boolean;
   isSafeBrowserUrl(value: unknown): boolean;
+  jableCollectionUrl(collectionKey: CollectionKey, origin?: string): string;
   rewriteJableUrlOrigin(value: unknown, origin: string): string;
 };
 type UpdateCheckOptions = { manual?: boolean };
@@ -216,9 +226,11 @@ let mainWindow: Electron.BrowserWindow | null = null;
 const browserTabs: BrowserTab[] = [];
 const browserTabsById: Record<string, BrowserTab> = {};
 const webContentsTabIds: Record<string, string> = {};
+const syncWorkersById: Record<string, SyncWorker> = {};
 const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
 let activeBrowserTabId: string | null = null;
 let nextBrowserTabId = 1;
+let nextSyncWorkerId = 1;
 let nextBrowserPreloadRequestId = 1;
 let activeJableOrigin = urlPolicy.JABLE_PRIMARY_ORIGIN;
 let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
@@ -677,6 +689,10 @@ function createWindow() {
   mainWindow.on('resize', scheduleBrowserHtmlFullScreenResize);
   mainWindow.on('enter-full-screen', scheduleBrowserHtmlFullScreenResize);
   mainWindow.on('leave-full-screen', scheduleBrowserHtmlFullScreenResize);
+  mainWindow.on('closed', function () {
+    mainWindow = null;
+    closeAllSyncWorkers();
+  });
 
   loadRenderer();
   createBrowserTab({ url: JABLE_HOME_URL, active: true });
@@ -1237,14 +1253,24 @@ function rejectBrowserPreloadRequest(requestId: string, error: Error) {
   request.reject(error);
 }
 
-function rejectBrowserPreloadRequestsForTab(tabId: string, message: string) {
+function rejectBrowserPreloadRequestsForWebContents(webContentsId: number, message: string) {
   const requestIds = Object.keys(browserPreloadRequests);
 
   for (let i = 0; i < requestIds.length; i++) {
     const requestId = requestIds[i];
     const request = browserPreloadRequests[requestId];
-    if (request && request.tabId === tabId) rejectBrowserPreloadRequest(requestId, new Error(message));
+    if (request && request.webContentsId === webContentsId) {
+      rejectBrowserPreloadRequest(requestId, new Error(message));
+    }
   }
+}
+
+function rejectBrowserPreloadRequestsForTab(tabId: string, message: string) {
+  const tab = browserTabsById[tabId];
+  const webContents = tab && tab.view ? tab.view.webContents : null;
+
+  if (!webContents || webContents.isDestroyed()) return;
+  rejectBrowserPreloadRequestsForWebContents(webContents.id, message);
 }
 
 function resolveBrowserPreloadResponse(event: Electron.IpcMainEvent, payload: unknown) {
@@ -1259,8 +1285,7 @@ function resolveBrowserPreloadResponse(event: Electron.IpcMainEvent, payload: un
   const request = browserPreloadRequests[response.requestId];
   if (!request) return;
 
-  const tab = getBrowserTabByWebContents(event.sender);
-  if (!tab || tab.id !== request.tabId) return;
+  if (event.sender.id !== request.webContentsId) return;
 
   clearTimeout(request.timer);
   delete browserPreloadRequests[response.requestId];
@@ -1269,13 +1294,13 @@ function resolveBrowserPreloadResponse(event: Electron.IpcMainEvent, payload: un
   else request.reject(new Error(response.error || 'Browser preload request failed'));
 }
 
-function requestBrowserPreload<T>(
-  tab: BrowserTab,
+function requestWebContentsPreload<T>(
+  webContents: Electron.WebContents,
   channel: string,
   payload: Record<string, unknown>,
   timeoutMs: number
 ): Promise<T> {
-  if (tab.view.webContents.isDestroyed()) return Promise.reject(new Error(t('errors.tabNotFound')));
+  if (webContents.isDestroyed()) return Promise.reject(new Error(t('errors.tabNotFound')));
 
   const requestId = 'browser-preload-' + nextBrowserPreloadRequestId++;
   const message = Object.assign({}, payload, { requestId: requestId });
@@ -1286,7 +1311,7 @@ function requestBrowserPreload<T>(
     }, timeoutMs);
 
     browserPreloadRequests[requestId] = {
-      tabId: tab.id,
+      webContentsId: webContents.id,
       timer: timer,
       resolve: function (value: unknown) {
         resolve(value as T);
@@ -1295,11 +1320,237 @@ function requestBrowserPreload<T>(
     };
 
     try {
-      tab.view.webContents.send(channel, message);
+      webContents.send(channel, message);
     } catch (error) {
       rejectBrowserPreloadRequest(requestId, new Error(mainErrorMessage(error)));
     }
   });
+}
+
+function requestBrowserPreload<T>(
+  tab: BrowserTab,
+  channel: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number
+): Promise<T> {
+  return requestWebContentsPreload<T>(tab.view.webContents, channel, payload, timeoutMs);
+}
+
+function createSyncWorker(collectionKey: CollectionKey, syncRunId: string): SyncWorker {
+  const preloadPath = path.join(__dirname, 'webview-preload.js');
+  const workerWindow = new BrowserWindow({
+    show: false,
+    width: 1280,
+    height: 900,
+    webPreferences: browserTabWebPreferences('sync', preloadPath, JABLE_SESSION_PARTITION)
+  });
+  const worker: SyncWorker = {
+    id: 'sync-worker-' + nextSyncWorkerId++,
+    window: workerWindow,
+    webContents: workerWindow.webContents,
+    collectionKey: collectionKey,
+    syncRunId: syncRunId,
+    lastMainFrameLoadFailure: null
+  };
+
+  syncWorkersById[worker.id] = worker;
+  wireSyncWorker(worker);
+  return worker;
+}
+
+function wireSyncWorker(worker: SyncWorker) {
+  worker.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
+    if (details.url && shouldDenyAdNavigation(details.url)) return { action: 'deny' };
+    return { action: 'deny' };
+  });
+
+  worker.webContents.on('will-navigate', function (event: Electron.Event, url: string) {
+    if (shouldDenyAdNavigation(url)) event.preventDefault();
+  });
+
+  worker.webContents.on(
+    'did-fail-load',
+    function (
+      _event: Electron.Event,
+      errorCode: number,
+      _errorDescription: string,
+      validatedURL: string,
+      isMainFrame: boolean
+    ) {
+      if (!isMainFrame) return;
+
+      worker.lastMainFrameLoadFailure = {
+        url: validatedURL || worker.webContents.getURL(),
+        errorCode: errorCode
+      };
+    }
+  );
+
+  worker.webContents.on('render-process-gone', function () {
+    closeSyncWorker(worker.id, 'Sync worker renderer process ended');
+  });
+
+  worker.webContents.on('destroyed', function () {
+    closeSyncWorker(worker.id, 'Sync worker was destroyed');
+  });
+
+  worker.window.on('closed', function () {
+    closeSyncWorker(worker.id, 'Sync worker was closed');
+  });
+}
+
+function closeSyncWorker(workerId: string | null | undefined, message?: string) {
+  if (!workerId) return;
+
+  const worker = syncWorkersById[workerId];
+  if (!worker) return;
+
+  delete syncWorkersById[worker.id];
+  rejectBrowserPreloadRequestsForWebContents(worker.webContents.id, message || 'Sync worker closed');
+
+  try {
+    if (!worker.window.isDestroyed()) worker.window.destroy();
+  } catch (error) {}
+}
+
+function closeAllSyncWorkers() {
+  const workerIds = Object.keys(syncWorkersById);
+
+  for (let i = 0; i < workerIds.length; i++) {
+    closeSyncWorker(workerIds[i], 'Application is quitting');
+  }
+}
+
+function waitForSyncWorkerStop(worker: SyncWorker, timeoutMs?: number): Promise<string> {
+  return new Promise(function (resolve, reject) {
+    let done = false;
+    const timer = setTimeout(finish, timeoutMs || 25000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      worker.webContents.removeListener('did-stop-loading', finish);
+      worker.webContents.removeListener('destroyed', fail);
+    }
+
+    function finish() {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(worker.webContents.getURL());
+    }
+
+    function fail() {
+      if (done) return;
+      done = true;
+      cleanup();
+      reject(new Error('Sync worker was destroyed while loading'));
+    }
+
+    worker.webContents.once('did-stop-loading', finish);
+    worker.webContents.once('destroyed', fail);
+  });
+}
+
+function loadSyncWorkerUrl(worker: SyncWorker, targetUrl: string, forceReload: boolean) {
+  const currentUrl = worker.webContents.getURL();
+  worker.lastMainFrameLoadFailure = null;
+
+  if (forceReload && currentUrl === targetUrl) worker.webContents.reload();
+  else worker.webContents.loadURL(targetUrl);
+}
+
+async function loadSyncWorkerCollection(worker: SyncWorker): Promise<string> {
+  let targetUrl = urlPolicy.jableCollectionUrl(worker.collectionKey, activeJableOrigin);
+  let wait = waitForSyncWorkerStop(worker);
+  loadSyncWorkerUrl(worker, targetUrl, true);
+  let loadedUrl = await wait;
+  const fallbackUrl = fallbackUrlForLoadFailure(worker.lastMainFrameLoadFailure);
+
+  if (fallbackUrl) {
+    activateJableFallbackOrigin();
+    targetUrl = fallbackUrl;
+    wait = waitForSyncWorkerStop(worker);
+    loadSyncWorkerUrl(worker, targetUrl, true);
+    loadedUrl = await wait;
+  }
+
+  return loadedUrl;
+}
+
+function syncIncompleteResult(
+  options: SyncBrowserCollectionOptions,
+  reason: string,
+  workerId?: string | null
+): SyncResult {
+  return {
+    completed: false,
+    mode: options.mode,
+    syncRunId: options.syncRunId,
+    syncWorkerId: workerId || null,
+    incompleteReason: reason,
+    stoppedByKnownPage: false,
+    totalPages: 0,
+    totalRows: 0,
+    lastScrapedPage: options.startPage || null,
+    lastKnownUrl: null
+  };
+}
+
+function resolveSyncWorker(workerId: string | null, options: SyncBrowserCollectionOptions): {
+  worker: SyncWorker;
+  reused: boolean;
+} {
+  if (!workerId) {
+    return {
+      worker: createSyncWorker(options.collectionKey, options.syncRunId),
+      reused: false
+    };
+  }
+
+  const worker = syncWorkersById[workerId];
+  if (!worker || worker.webContents.isDestroyed()) {
+    closeSyncWorker(workerId, 'Sync continuation expired');
+    throw new Error('Sync continuation is no longer available');
+  }
+  if (worker.collectionKey !== options.collectionKey || worker.syncRunId !== options.syncRunId) {
+    throw new Error('Sync continuation does not match the requested collection');
+  }
+
+  return {
+    worker: worker,
+    reused: true
+  };
+}
+
+async function syncBrowserCollectionInWorker(payload: {
+  tabId: string | null;
+  options: SyncBrowserCollectionOptions;
+}): Promise<SyncResult> {
+  const resolved = resolveSyncWorker(payload.tabId, payload.options);
+  const worker = resolved.worker;
+  let keepWorker = false;
+
+  try {
+    if (!resolved.reused) {
+      const loadedUrl = await loadSyncWorkerCollection(worker);
+      if (!urlPolicy.isJableCollectionUrl(payload.options.collectionKey, loadedUrl)) {
+        return syncIncompleteResult(payload.options, 'login-required', worker.id);
+      }
+    }
+
+    const result = await requestWebContentsPreload<SyncResult>(
+      worker.webContents,
+      'browser:sync-collection-request',
+      { options: payload.options },
+      BROWSER_SYNC_REQUEST_TIMEOUT_MS
+    );
+    const resultWithWorker = Object.assign({}, result, { syncWorkerId: worker.id });
+    keepWorker = result.completed === false && result.incompleteReason === 'batch-limit';
+
+    return resultWithWorker;
+  } finally {
+    if (!keepWorker) closeSyncWorker(worker.id, 'Sync worker finished');
+  }
 }
 
 function resetBrowserTabMediaState(tab: BrowserTab | null | undefined) {
@@ -2200,13 +2451,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('browser:sync-collection', function (_event, payload) {
     const normalizedPayload = normalizeBrowserSyncCollectionPayload(payload);
-    const tab = getBrowserTab(normalizedPayload.tabId);
-    return requestBrowserPreload<SyncResult>(
-      tab,
-      'browser:sync-collection-request',
-      { options: normalizedPayload.options },
-      BROWSER_SYNC_REQUEST_TIMEOUT_MS
-    );
+    return syncBrowserCollectionInWorker(normalizedPayload);
   });
 
   ipcMain.handle('browser:diagnose', function (_event, payload) {
@@ -2272,5 +2517,6 @@ app.on('window-all-closed', function () {
 });
 
 app.on('before-quit', function () {
+  closeAllSyncWorkers();
   if (database) database.close();
 });

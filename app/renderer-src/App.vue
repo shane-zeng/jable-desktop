@@ -17,7 +17,6 @@ import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
 import { useI18n } from './i18n';
-import { isJableCollectionUrl } from '../url-policy';
 import type {
   AppInfo,
   AppView,
@@ -29,7 +28,6 @@ import type {
   CollectionKey,
   CollectionToggleResult,
   ExportResource,
-  FullSyncContinuation,
   LibraryVideoMenuAction,
   LibraryVideoMenuPayload,
   SyncMode,
@@ -163,7 +161,7 @@ function collectionName(collectionKey: CollectionKey) {
 }
 
 async function openInBrowser(url: string) {
-  if (!url || busy.value || syncing.value) return;
+  if (!url || busy.value) return;
 
   try {
     setActiveView('browser');
@@ -175,7 +173,7 @@ async function openInBrowser(url: string) {
 }
 
 async function openInNewBrowserTab(url: string) {
-  if (!url || busy.value || syncing.value) return;
+  if (!url || busy.value) return;
 
   try {
     setActiveView('browser');
@@ -276,6 +274,10 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
   const collection = collectionName(collectionKey);
 
   if (result.completed === false) {
+    if (result.incompleteReason === 'login-required') {
+      return i18n.t('status.loginRequired', { collection: collection });
+    }
+
     if (result.incompleteReason === 'batch-limit') {
       return i18n.t('status.fullSyncPaused', {
         collection: collection,
@@ -319,26 +321,17 @@ async function syncCollection(mode: SyncMode) {
 
   try {
     const collectionKey = library.activeCollection.value;
-    const collection = currentCollection();
     const continuation =
       mode === 'full' &&
       library.fullSyncContinuation.value &&
       library.fullSyncContinuation.value.collectionKey === collectionKey
         ? library.fullSyncContinuation.value
         : null;
-    const syncTab = await prepareSyncTab(collectionKey, collection, mode, continuation);
-    syncTabId = syncTab.tabId;
-    const usedContinuation = syncTab.usedContinuation;
+    const usedContinuation = Boolean(continuation && continuation.tabId);
+    syncTabId = usedContinuation && continuation ? continuation.tabId : null;
     const syncRunId = usedContinuation && continuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
     const siteOrderOffset = usedContinuation && continuation ? continuation.siteOrderOffset : 0;
     const startPage = usedContinuation && continuation ? continuation.lastScrapedPage : null;
-    const browserUrl = await browser.currentBrowserUrl(syncTabId);
-
-    if (!isJableCollectionUrl(collectionKey, browserUrl)) {
-      await browser.setTabLocked(syncTabId, false);
-      setStatus(i18n.t('status.loginRequired', { collection: collectionName(collectionKey) }), 'warning');
-      return;
-    }
 
     const options = {
       collectionKey: collectionKey,
@@ -356,6 +349,7 @@ async function syncCollection(mode: SyncMode) {
       tabId: syncTabId,
       options: options
     });
+    syncTabId = result.syncWorkerId || syncTabId;
 
     const finishState = await api.finishSync({
       collectionKey: collectionKey,
@@ -368,16 +362,12 @@ async function syncCollection(mode: SyncMode) {
       library.fullSyncContinuation.value = {
         collectionKey: collectionKey,
         syncRunId: syncRunId,
-        tabId: syncTabId,
+        tabId: result.syncWorkerId || syncTabId || '',
         siteOrderOffset: siteOrderOffset + result.totalRows,
         lastScrapedPage: result.lastScrapedPage
       };
     } else if (mode === 'full') {
       library.fullSyncContinuation.value = null;
-    }
-
-    if (!(mode === 'full' && result.completed === false && result.incompleteReason === 'batch-limit')) {
-      await browser.setTabLocked(syncTabId, false);
     }
 
     library.currentPage.value = 1;
@@ -388,66 +378,10 @@ async function syncCollection(mode: SyncMode) {
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.syncFailed', { mode: syncModeName(mode), error: errorMessage(error) }), 'error');
-    if (syncTabId) {
-      try {
-        await browser.setTabLocked(syncTabId, false);
-      } catch (unlockError) {}
-    }
   } finally {
     activeSyncRunId = null;
     syncing.value = false;
   }
-}
-
-async function prepareSyncTab(
-  collectionKey: CollectionKey,
-  collection: CollectionDefinition,
-  mode: SyncMode,
-  continuation: FullSyncContinuation | null
-) {
-  setActiveView('browser');
-
-  if (mode === 'full' && continuation && continuation.tabId && browser.hasTab(continuation.tabId)) {
-    await browser.activateTab(continuation.tabId);
-    await browser.setTabLocked(continuation.tabId, true);
-
-    const continuationUrl = await browser.currentBrowserUrl(continuation.tabId);
-    if (isJableCollectionUrl(collectionKey, continuationUrl)) {
-      return {
-        tabId: continuation.tabId,
-        usedContinuation: true
-      };
-    }
-
-    await browser.setTabLocked(continuation.tabId, false);
-    library.fullSyncContinuation.value = null;
-  }
-
-  const existingSyncTab = browser.firstUnlockedSyncTab();
-  if (existingSyncTab) {
-    await browser.activateTab(existingSyncTab.id);
-    await browser.loadBrowser(collection.url, true, existingSyncTab.id);
-    await browser.setTabLocked(existingSyncTab.id, true);
-    return {
-      tabId: existingSyncTab.id,
-      usedContinuation: false
-    };
-  }
-
-  await browser.createTab(null, {
-    active: true,
-    kind: 'sync',
-    title: i18n.t('browser.syncTabTitle', { collection: collectionName(collectionKey) })
-  });
-  const tabId = browser.activeTabId.value;
-  if (!tabId) throw new Error(i18n.t('status.createSyncTabFailed'));
-  await browser.loadBrowser(collection.url, true, tabId);
-  await browser.setTabLocked(tabId, true);
-
-  return {
-    tabId: tabId,
-    usedContinuation: false
-  };
 }
 
 async function exportActiveCollection() {

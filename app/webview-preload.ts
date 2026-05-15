@@ -774,7 +774,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   const batchLimit = Number(syncOptions.batchLimit) || null;
   let totalRows = 0;
   let totalPages = 0;
-  let logicalPage = startPage || currentPageNumber();
+  let logicalPage = currentPageNumber() || startPage || 1;
   let lastScrapedPage: number | null = null;
   let lastKnownUrl: string | null = null;
   let stoppedByKnownPage = false;
@@ -849,23 +849,10 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     return false;
   }
 
-  if (await recordCurrentPage()) {
-    return result(true);
-  }
-
-  if (batchLimit && totalPages >= batchLimit) {
-    if (chooseNextPagerLink(readPagerLinks(), logicalPage)) {
-      incompleteReason = 'batch-limit';
-      return result(false);
-    }
-
-    return result(true);
-  }
-
-  while (true) {
+  async function loadNextPage() {
     const links = readPagerLinks();
     const next = chooseNextPagerLink(links, logicalPage);
-    if (!next) break;
+    if (!next) return 'done';
 
     const oldSig = signature();
 
@@ -881,10 +868,10 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
 
     if (!changed || signature() === oldSig) {
       incompleteReason = 'page-unchanged';
-      return result(false);
+      return 'failed';
     }
 
-    logicalPage = next.pageNumber || currentPageNumber();
+    logicalPage = next.pageNumber || currentPageNumber() || logicalPage;
 
     sendProgress('sync-progress', {
       collectionKey: collectionKey,
@@ -893,6 +880,33 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       page: logicalPage,
       message: 'page-loaded'
     });
+
+    return 'loaded';
+  }
+
+  if (startPage && logicalPage <= startPage) {
+    const nextState = await loadNextPage();
+    if (nextState === 'failed') return result(false);
+    if (nextState === 'done') return result(true);
+  }
+
+  if (await recordCurrentPage()) {
+    return result(true);
+  }
+
+  if (batchLimit && totalPages >= batchLimit) {
+    if (chooseNextPagerLink(readPagerLinks(), logicalPage)) {
+      incompleteReason = 'batch-limit';
+      return result(false);
+    }
+
+    return result(true);
+  }
+
+  while (true) {
+    const nextState = await loadNextPage();
+    if (nextState === 'done') break;
+    if (nextState === 'failed') return result(false);
 
     if (await recordCurrentPage(logicalPage)) return result(true);
     if (batchLimit && totalPages >= batchLimit) {
