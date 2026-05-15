@@ -12,6 +12,16 @@ import type {
 
 type CollectionAction = 'add' | 'remove';
 type TrackpadHistoryDirection = 'back' | 'forward';
+type ActiveSyncLock = {
+  mode: SyncMode;
+  syncRunId: string;
+};
+type DeferredSyncOperation = {
+  id: number;
+  action: CollectionAction;
+  remoteVideoId: string | null;
+  remoteFavType: string | null;
+};
 type PagerLink = {
   el: HTMLAnchorElement;
   id: string;
@@ -63,6 +73,7 @@ let trackpadHistoryDeltaX = 0;
 let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
 let adCosmeticScanTimer: ReturnType<typeof setTimeout> | null = null;
+let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -388,6 +399,31 @@ function syncOptionsFromPayload(payload: unknown): Partial<SyncBrowserCollection
   return isRecord(payload.options) ? (payload.options as Partial<SyncBrowserCollectionOptions>) : null;
 }
 
+function updateActiveSyncLocks(payload: unknown) {
+  const nextLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
+  const runs = isRecord(payload) && isRecord(payload.runs) ? payload.runs : {};
+
+  if (isRecord(runs.favourites)) {
+    const run = runs.favourites;
+    if (typeof run.syncRunId === 'string' && (run.mode === 'quick' || run.mode === 'full')) {
+      nextLocks.favourites = { mode: run.mode, syncRunId: run.syncRunId };
+    }
+  }
+
+  if (isRecord(runs.watch_later)) {
+    const run = runs.watch_later;
+    if (typeof run.syncRunId === 'string' && (run.mode === 'quick' || run.mode === 'full')) {
+      nextLocks.watch_later = { mode: run.mode, syncRunId: run.syncRunId };
+    }
+  }
+
+  activeSyncLocks = nextLocks;
+}
+
+function activeSyncLockForCollection(collectionKey: CollectionKey): ActiveSyncLock | null {
+  return activeSyncLocks[collectionKey] || null;
+}
+
 function sendPreloadResponse(requestId: string, result: unknown) {
   ipcRenderer.send('browser:preload-response', {
     requestId: requestId,
@@ -553,6 +589,18 @@ function collectionKeyForActionElement(el: Element | null): CollectionKey | null
   return null;
 }
 
+function remoteFavTypeForCollection(collectionKey: CollectionKey) {
+  return collectionKey === 'watch_later' ? '1' : '0';
+}
+
+function remoteVideoIdForActionElement(el: Element | null) {
+  return el ? el.getAttribute('data-fav-video-id') || '' : '';
+}
+
+function remoteFavTypeForActionElement(el: Element | null, collectionKey: CollectionKey) {
+  return (el ? el.getAttribute('data-fav-type') || '' : '') || remoteFavTypeForCollection(collectionKey);
+}
+
 function collectionListActionForElement(el: Element | null): CollectionAction | null {
   if (!el || !el.classList) return null;
 
@@ -567,6 +615,28 @@ function collectionActionForElement(el: Element | null): CollectionAction {
   if (listAction) return listAction;
 
   return el && el.classList && el.classList.contains('active') ? 'remove' : 'add';
+}
+
+function applyQueuedCollectionVisualState(
+  collectionKey: CollectionKey,
+  originalElement: Element | null,
+  action: CollectionAction
+) {
+  if (collectionListActionForElement(originalElement)) {
+    const el =
+      originalElement && document.documentElement.contains(originalElement)
+        ? originalElement
+        : findMatchingCollectionActionElement(originalElement);
+    const imgBox = el && typeof el.closest === 'function' ? el.closest('div.img-box') : null;
+    if (imgBox) imgBox.classList.toggle('removed', action === 'remove');
+    return;
+  }
+
+  const el =
+    originalElement && document.documentElement.contains(originalElement)
+      ? originalElement
+      : findCollectionActionElement(collectionKey);
+  if (el) el.classList.toggle('active', action === 'add');
 }
 
 function actionRequiresLogin(el: Element | null) {
@@ -813,6 +883,33 @@ async function applyCollectionToggle(collectionKey: CollectionKey, action: Colle
   }
 }
 
+async function queueCollectionToggle(
+  collectionKey: CollectionKey,
+  action: CollectionAction,
+  video: ScrapedVideoRow,
+  actionElement: Element | null,
+  syncLock: ActiveSyncLock
+) {
+  try {
+    const result = await ipcRenderer.invoke('db:apply-collection-toggle', {
+      collectionKey: collectionKey,
+      action: action,
+      deferRemote: true,
+      remoteVideoId: remoteVideoIdForActionElement(actionElement),
+      remoteFavType: remoteFavTypeForActionElement(actionElement, collectionKey),
+      syncRunId: syncLock.syncRunId,
+      video: video,
+      sourceUrl: location.href
+    });
+
+    applyQueuedCollectionVisualState(collectionKey, actionElement, action);
+    return result;
+  } catch (error) {
+    console.warn('[JableDesktopScraper] collection toggle queue failed', error);
+    return null;
+  }
+}
+
 async function handleCollectionButtonClick(event: MouseEvent) {
   if (!event.isTrusted || event.defaultPrevented) return;
 
@@ -824,6 +921,15 @@ async function handleCollectionButtonClick(event: MouseEvent) {
   if (!video) return;
 
   const action = collectionActionForElement(actionElement);
+  const syncLock = activeSyncLockForCollection(collectionKey);
+
+  if (syncLock) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    await queueCollectionToggle(collectionKey, action, video, actionElement, syncLock);
+    return;
+  }
 
   if (await waitForCollectionActionState(collectionKey, actionElement, action)) {
     await applyCollectionToggle(
@@ -1050,6 +1156,59 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   return result(true);
 }
 
+async function applyDeferredSyncOperations(operations: DeferredSyncOperation[]) {
+  const applied: number[] = [];
+  const failed: Array<{ id: number; message: string }> = [];
+  const baseUrl = String(location.href || '').split('#')[0];
+
+  for (let i = 0; i < operations.length; i++) {
+    const operation = operations[i];
+
+    try {
+      if (!operation.remoteVideoId) throw new Error('Missing remote video id');
+
+      const params = new URLSearchParams();
+      params.set('mode', 'async');
+      params.set('format', 'json');
+      params.set('action', operation.action === 'remove' ? 'delete_from_favourites' : 'add_to_favourites');
+      params.set('video_id', operation.remoteVideoId);
+      params.append('video_ids[]', operation.remoteVideoId);
+      params.set('fav_type', operation.remoteFavType || '0');
+      params.set('playlist_id', '0');
+
+      const response = await fetch(baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + params.toString(), {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        method: 'GET'
+      });
+      const text = await response.text();
+      let body: { status?: unknown; errors?: Array<{ code?: unknown }> } | null = null;
+
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch (error) {}
+
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      if (body && body.status === 'failure') {
+        const code = body.errors && body.errors[0] && body.errors[0].code;
+        throw new Error(String(code || 'Remote operation failed'));
+      }
+
+      applied.push(operation.id);
+    } catch (error) {
+      failed.push({
+        id: operation.id,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  return {
+    applied: applied,
+    failed: failed
+  };
+}
+
 ipcRenderer.on('browser:sync-collection-request', function (_event, payload: unknown) {
   const requestId = requestIdFromPayload(payload);
   if (!requestId) return;
@@ -1062,6 +1221,30 @@ ipcRenderer.on('browser:sync-collection-request', function (_event, payload: unk
       sendPreloadError(requestId, error);
     });
 });
+
+ipcRenderer.on('browser:apply-deferred-sync-operations-request', function (_event, payload: unknown) {
+  const requestId = requestIdFromPayload(payload);
+  if (!requestId) return;
+
+  const operations = isRecord(payload) && Array.isArray(payload.operations) ? payload.operations : [];
+
+  applyDeferredSyncOperations(operations as DeferredSyncOperation[])
+    .then(function (result) {
+      sendPreloadResponse(requestId, result);
+    })
+    .catch(function (error) {
+      sendPreloadError(requestId, error);
+    });
+});
+
+ipcRenderer.on('browser:sync-lock-state', function (_event, payload: unknown) {
+  updateActiveSyncLocks(payload);
+});
+
+ipcRenderer
+  .invoke('browser:active-sync-runs')
+  .then(updateActiveSyncLocks)
+  .catch(function () {});
 
 ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
   const requestId = requestIdFromPayload(payload);

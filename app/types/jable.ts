@@ -211,6 +211,7 @@ export interface CollectionToggleResult {
   changed: boolean;
   url: string;
   visible: boolean;
+  queued?: boolean;
 }
 
 export interface SyncResult {
@@ -224,6 +225,8 @@ export interface SyncResult {
   totalRows: number;
   lastScrapedPage: number | null;
   lastKnownUrl: string | null;
+  queuedOperationsApplied?: number;
+  queuedOperationsFailed?: number;
 }
 
 export interface FullSyncContinuation {

@@ -778,6 +778,55 @@ test('sync pages preserve existing site order after an operation is logged', fun
   );
 });
 
+test('deferred sync operations are listed and marked after remote apply', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: syncRunId,
+    deferRemote: true,
+    remoteVideoId: '123',
+    remoteFavType: '0',
+    sourceUrl: 'https://jable.tv/latest-updates/',
+    video: {
+      title: 'Queued add',
+      url: 'https://jable.tv/videos/queued-add/'
+    }
+  });
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: syncRunId,
+    deferRemote: true,
+    remoteVideoId: '456',
+    remoteFavType: '0',
+    video: {
+      title: 'Queued remove',
+      url: 'https://jable.tv/videos/queued-remove/'
+    }
+  });
+
+  let operations = db.listDeferredSyncOperations('favourites', syncRunId);
+  assert.equal(operations.length, 2);
+  assert.equal(operations[0].action, 'add');
+  assert.equal(operations[0].remoteVideoId, '123');
+  assert.equal(operations[1].action, 'remove');
+  assert.equal(operations[1].remoteVideoId, '456');
+  const secondOperationId = operations[1].id;
+
+  assert.equal(db.markDeferredSyncOperationsApplied('favourites', syncRunId, [operations[0].id]), 1);
+  assert.equal(
+    db.markDeferredSyncOperationFailed('favourites', syncRunId, operations[1].id, 'Remote operation failed'),
+    true
+  );
+
+  operations = db.listDeferredSyncOperations('favourites', syncRunId);
+  assert.equal(operations.length, 1);
+  assert.equal(operations[0].id, secondOperationId);
+});
+
 test('migration rebuilds the local full text index for existing videos', function (t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   const dbPath = path.join(dir, 'test.sqlite');

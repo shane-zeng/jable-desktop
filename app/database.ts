@@ -46,6 +46,10 @@ type CollectionTogglePayload = VideoInput & {
   action?: unknown;
   video?: VideoInput;
   syncRunId?: unknown;
+  deferRemote?: unknown;
+  remoteVideoId?: unknown;
+  remoteFavType?: unknown;
+  sourceUrl?: unknown;
 };
 type SyncResultInput = {
   completed?: unknown;
@@ -72,6 +76,16 @@ type SyncOperationRow = {
   img: string | null;
   preview: string | null;
   site_order: number | null;
+  remote_deferred: number | boolean;
+  remote_video_id: string | null;
+  remote_fav_type: string | null;
+};
+type PendingSyncOperation = {
+  id: number;
+  action: 'add' | 'remove';
+  videoUrl: string;
+  remoteVideoId: string | null;
+  remoteFavType: string | null;
 };
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
@@ -693,6 +707,12 @@ class JableDatabase {
         '  img TEXT,',
         '  preview TEXT,',
         '  site_order INTEGER,',
+        '  remote_deferred INTEGER NOT NULL DEFAULT 0,',
+        '  remote_video_id TEXT,',
+        '  remote_fav_type TEXT,',
+        '  source_url TEXT,',
+        '  remote_applied_at TEXT,',
+        '  remote_apply_error TEXT,',
         '  created_at TEXT NOT NULL,',
         '  reconciled_at TEXT,',
         '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
@@ -705,6 +725,12 @@ class JableDatabase {
     this.ensureColumn('collection_items', 'is_visible', 'INTEGER NOT NULL DEFAULT 1');
     this.ensureColumn('collection_items', 'missing_at', 'TEXT');
     this.ensureColumn('collection_items', 'last_sync_run_id', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_deferred', 'INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('sync_operations', 'remote_video_id', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_fav_type', 'TEXT');
+    this.ensureColumn('sync_operations', 'source_url', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_applied_at', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_apply_error', 'TEXT');
     this.ensureColumn('videos', 'search_text', 'TEXT');
     this.ensureVideoSearchIndex(this.backfillVideoSearchText());
   }
@@ -1107,17 +1133,25 @@ class JableDatabase {
     syncRunId: string | null,
     action: 'add' | 'remove',
     video: NormalizedVideo,
-    timestamp: string
+    timestamp: string,
+    options?: {
+      remoteDeferred?: boolean;
+      remoteVideoId?: string | null;
+      remoteFavType?: string | null;
+      sourceUrl?: string | null;
+    } | null
   ) {
     if (!syncRunId) return;
+    const normalizedOptions = options || {};
 
     this.db
       .prepare(
         [
           'INSERT INTO sync_operations (',
-          '  collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order, created_at',
+          '  collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,',
+          '  remote_deferred, remote_video_id, remote_fav_type, source_url, created_at',
           ')',
-          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         ].join(' ')
       )
       .run(
@@ -1131,8 +1165,107 @@ class JableDatabase {
         video.img,
         video.preview,
         video.siteOrder,
+        normalizedOptions.remoteDeferred ? 1 : 0,
+        normalizedOptions.remoteVideoId || null,
+        normalizedOptions.remoteFavType || null,
+        normalizedOptions.sourceUrl || null,
         timestamp
       );
+  }
+
+  listDeferredSyncOperations(collectionKey: CollectionKey, syncRunId: string | null): PendingSyncOperation[] {
+    if (!syncRunId) return [];
+
+    const rows = this.db
+      .prepare(
+        [
+          'SELECT id, action, video_url, remote_video_id, remote_fav_type',
+          'FROM sync_operations',
+          'WHERE collection_key = ?',
+          '  AND sync_run_id = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          'ORDER BY id ASC'
+        ].join(' ')
+      )
+      .all(collectionKey, syncRunId) as Array<{
+      id: number;
+      action: 'add' | 'remove';
+      video_url: string;
+      remote_video_id: string | null;
+      remote_fav_type: string | null;
+    }>;
+
+    return rows.map(function (row) {
+      return {
+        id: row.id,
+        action: row.action,
+        videoUrl: row.video_url,
+        remoteVideoId: row.remote_video_id,
+        remoteFavType: row.remote_fav_type
+      };
+    });
+  }
+
+  markDeferredSyncOperationsApplied(collectionKey: CollectionKey, syncRunId: string | null, ids: unknown[]): number {
+    if (!syncRunId || !Array.isArray(ids) || !ids.length) return 0;
+
+    const timestamp = nowIso();
+    const update = this.db.prepare(
+      [
+        'UPDATE sync_operations',
+        'SET remote_applied_at = ?, remote_apply_error = NULL',
+        'WHERE collection_key = ?',
+        '  AND sync_run_id = ?',
+        '  AND id = ?'
+      ].join(' ')
+    );
+    let applied = 0;
+
+    this.db.exec('BEGIN IMMEDIATE');
+
+    try {
+      for (let i = 0; i < ids.length; i++) {
+        const id = normalizeNumber(ids[i]);
+        if (id === null) continue;
+
+        const result = update.run(timestamp, collectionKey, syncRunId, id);
+        applied += Number(result.changes || 0);
+      }
+
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+
+    return applied;
+  }
+
+  markDeferredSyncOperationFailed(
+    collectionKey: CollectionKey,
+    syncRunId: string | null,
+    id: unknown,
+    message: unknown
+  ): boolean {
+    if (!syncRunId) return false;
+
+    const operationId = normalizeNumber(id);
+    if (operationId === null) return false;
+
+    const result = this.db
+      .prepare(
+        [
+          'UPDATE sync_operations',
+          'SET remote_apply_error = ?',
+          'WHERE collection_key = ?',
+          '  AND sync_run_id = ?',
+          '  AND id = ?'
+        ].join(' ')
+      )
+      .run(normalizeText(message) || 'Failed to apply queued operation', collectionKey, syncRunId, operationId);
+
+    return Boolean(result.changes);
   }
 
   reconcileSyncOperations(collectionKey: CollectionKey, syncRunId: string | null, timestamp: string): number {
@@ -1141,7 +1274,8 @@ class JableDatabase {
     const operations = this.db
       .prepare(
         [
-          'SELECT id, collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order',
+          'SELECT id, collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,',
+          '  remote_deferred, remote_video_id, remote_fav_type',
           'FROM sync_operations',
           'WHERE collection_key = ?',
           '  AND sync_run_id = ?',
@@ -1285,6 +1419,7 @@ class JableDatabase {
     action: 'add' | 'remove';
     changed: boolean;
     collectionKey: CollectionKey;
+    queued: boolean;
     url: string;
     visible: boolean;
   } {
@@ -1300,6 +1435,13 @@ class JableDatabase {
 
     const timestamp = nowIso();
     const syncRunId = normalizeText(payload.syncRunId);
+    const remoteDeferred = payload.deferRemote === true;
+    const operationOptions = {
+      remoteDeferred: remoteDeferred,
+      remoteVideoId: normalizeText(payload.remoteVideoId),
+      remoteFavType: normalizeText(payload.remoteFavType),
+      sourceUrl: normalizeText(payload.sourceUrl)
+    };
 
     if (action === 'remove') {
       const removeResult = this.db
@@ -1374,12 +1516,13 @@ class JableDatabase {
         }
       }
 
-      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp);
+      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp, operationOptions);
 
       return {
         action: action,
         changed: Boolean(removeResult && removeResult.changes),
         collectionKey: collectionKey,
+        queued: remoteDeferred,
         url: video.url,
         visible: false
       };
@@ -1436,7 +1579,7 @@ class JableDatabase {
         video.siteOrder === null ? -Date.now() : video.siteOrder,
         syncRunId
       );
-      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp);
+      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp, operationOptions);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
@@ -1447,6 +1590,7 @@ class JableDatabase {
       action: action,
       changed: true,
       collectionKey: collectionKey,
+      queued: remoteDeferred,
       url: video.url,
       visible: true
     };

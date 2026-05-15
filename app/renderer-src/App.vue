@@ -196,6 +196,12 @@ function handleLibraryVideoMenuAction(payload: LibraryVideoMenuAction | null | u
 function collectionToggleStatus(payload: CollectionToggleResult) {
   const name = collectionName(payload.collectionKey);
 
+  if (payload.queued) {
+    return payload.action === 'remove'
+      ? i18n.t('status.collectionRemoveQueued', { collection: name })
+      : i18n.t('status.collectionAddQueued', { collection: name });
+  }
+
   if (payload.action === 'remove') {
     return payload.changed
       ? i18n.t('status.collectionRemoved', { collection: name })
@@ -272,6 +278,14 @@ function handleBrowserMessage(message: BrowserMessage) {
 function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: SyncResult, finishState: SyncState) {
   const name = syncModeName(mode);
   const collection = collectionName(collectionKey);
+  const queuedFailures = result.queuedOperationsFailed || 0;
+
+  if (queuedFailures > 0) {
+    return i18n.t('status.syncQueuedOperationsFailed', {
+      collection: collection,
+      count: queuedFailures
+    });
+  }
 
   if (result.completed === false) {
     if (result.incompleteReason === 'login-required') {

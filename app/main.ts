@@ -77,6 +77,10 @@ type CollectionTogglePayload = {
   collectionKey?: CollectionKey;
   action?: unknown;
   syncRunId?: unknown;
+  deferRemote?: unknown;
+  remoteVideoId?: unknown;
+  remoteFavType?: unknown;
+  sourceUrl?: unknown;
   video?: unknown;
   url?: unknown;
   title?: unknown;
@@ -92,8 +96,20 @@ type CollectionToggleResult = {
   action: 'add' | 'remove';
   changed: boolean;
   collectionKey: CollectionKey;
+  queued?: boolean;
   url: string;
   visible: boolean;
+};
+type DeferredSyncOperation = {
+  id: number;
+  action: 'add' | 'remove';
+  videoUrl: string;
+  remoteVideoId: string | null;
+  remoteFavType: string | null;
+};
+type DeferredSyncOperationApplyResult = {
+  applied: number[];
+  failed: Array<{ id: number; message: string }>;
 };
 type JableDatabaseInstance = {
   close(): void;
@@ -103,6 +119,14 @@ type JableDatabaseInstance = {
   allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean;
   saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null };
   applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult;
+  listDeferredSyncOperations(collectionKey: CollectionKey, syncRunId: string | null): DeferredSyncOperation[];
+  markDeferredSyncOperationsApplied(collectionKey: CollectionKey, syncRunId: string | null, ids: unknown[]): number;
+  markDeferredSyncOperationFailed(
+    collectionKey: CollectionKey,
+    syncRunId: string | null,
+    id: unknown,
+    message: unknown
+  ): boolean;
   finishSync(payload: FinishSyncPayload): SyncState;
   clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
   importResource(
@@ -1512,16 +1536,38 @@ function setActiveSyncRun(options: SyncBrowserCollectionOptions) {
     mutated: false,
     syncRunId: options.syncRunId
   };
+  notifyBrowserSyncLocksChanged();
 }
 
 function clearActiveSyncRun(options: SyncBrowserCollectionOptions) {
   const activeRun = activeSyncRunsByCollection[options.collectionKey];
   if (!activeRun || activeRun.syncRunId !== options.syncRunId) return;
   delete activeSyncRunsByCollection[options.collectionKey];
+  notifyBrowserSyncLocksChanged();
 }
 
 function syncRunForCollection(collectionKey: CollectionKey): ActiveSyncRun | null {
   return activeSyncRunsByCollection[collectionKey] || null;
+}
+
+function activeSyncRunsState() {
+  const runs: Partial<Record<CollectionKey, { mode: SyncMode; syncRunId: string }>> = {};
+
+  for (const key of Object.keys(activeSyncRunsByCollection) as CollectionKey[]) {
+    const activeRun = activeSyncRunsByCollection[key];
+    if (activeRun) runs[key] = { mode: activeRun.mode, syncRunId: activeRun.syncRunId };
+  }
+
+  return { runs: runs };
+}
+
+function notifyBrowserSyncLocksChanged() {
+  const state = activeSyncRunsState();
+
+  for (let i = 0; i < browserTabs.length; i++) {
+    const webContents = browserTabs[i].view.webContents;
+    if (!webContents.isDestroyed()) webContents.send('browser:sync-lock-state', state);
+  }
 }
 
 function markActiveSyncMutated(collectionKey: CollectionKey) {
@@ -1558,6 +1604,39 @@ function resolveSyncWorker(
   };
 }
 
+async function applyDeferredSyncOperationsInWorker(
+  worker: SyncWorker,
+  options: SyncBrowserCollectionOptions
+): Promise<{ applied: number; failed: number }> {
+  const operations = getDatabase().listDeferredSyncOperations(options.collectionKey, options.syncRunId);
+  if (!operations.length) return { applied: 0, failed: 0 };
+
+  const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
+    worker.webContents,
+    'browser:apply-deferred-sync-operations-request',
+    { operations: operations },
+    BROWSER_SYNC_REQUEST_TIMEOUT_MS
+  );
+  const normalized = (result || {}) as DeferredSyncOperationApplyResult;
+  const applied = getDatabase().markDeferredSyncOperationsApplied(
+    options.collectionKey,
+    options.syncRunId,
+    Array.isArray(normalized.applied) ? normalized.applied : []
+  );
+  const failedRows = Array.isArray(normalized.failed) ? normalized.failed : [];
+
+  for (let i = 0; i < failedRows.length; i++) {
+    getDatabase().markDeferredSyncOperationFailed(
+      options.collectionKey,
+      options.syncRunId,
+      failedRows[i].id,
+      failedRows[i].message
+    );
+  }
+
+  return { applied: applied, failed: failedRows.length };
+}
+
 async function syncBrowserCollectionInWorker(payload: {
   tabId: string | null;
   options: SyncBrowserCollectionOptions;
@@ -1591,6 +1670,12 @@ async function syncBrowserCollectionInWorker(payload: {
     }
 
     keepWorker = resultWithWorker.completed === false && resultWithWorker.incompleteReason === 'batch-limit';
+
+    if (!keepWorker && resultWithWorker.completed) {
+      const applied = await applyDeferredSyncOperationsInWorker(worker, payload.options);
+      resultWithWorker.queuedOperationsApplied = applied.applied;
+      resultWithWorker.queuedOperationsFailed = applied.failed;
+    }
 
     return resultWithWorker;
   } finally {
@@ -2408,7 +2493,9 @@ function registerIpcHandlers() {
       const normalizedPayload = normalizeCollectionTogglePayload(payload);
       const activeRun = syncRunForCollection(normalizedPayload.collectionKey as CollectionKey);
       if (activeRun) {
-        markActiveSyncMutated(normalizedPayload.collectionKey as CollectionKey);
+        if (normalizedPayload.deferRemote !== true) {
+          markActiveSyncMutated(normalizedPayload.collectionKey as CollectionKey);
+        }
         normalizedPayload.syncRunId = activeRun.syncRunId;
       }
 
@@ -2448,6 +2535,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('browser:list-tabs', function () {
     return browserTabsState();
+  });
+
+  ipcMain.handle('browser:active-sync-runs', function () {
+    return activeSyncRunsState();
   });
 
   ipcMain.handle('browser:show-tab-menu', function (_event, payload) {
