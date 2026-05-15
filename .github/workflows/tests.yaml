@@ -9,9 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  NODE_VERSION: '24'
-
 jobs:
   tests:
     name: Node and renderer tests
@@ -25,7 +22,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: npm
 
       - name: Install dependencies

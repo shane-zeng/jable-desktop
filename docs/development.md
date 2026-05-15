@@ -124,6 +124,7 @@ Browser and tab behavior:
 Renderer behavior:
 
 - `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
+- `app/main.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and main-process normalizers aligned when adding IPC calls.
 - `app/renderer-src/App.vue` coordinates the two top-level views, browser messages, sync orchestration, import/export, toast status, and full-sync continuation state.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
 - `useLibraryState` owns collection selection, pagination, search mode, sorting, refresh token cancellation, and the pending full-sync continuation label.
@@ -168,7 +169,7 @@ Desktop app files:
 
 The project uses ESLint and Prettier as conservative guardrails. The config enforces `const` by default, `let` only for reassignment, no `var` declarations, no variable shadowing, block-scoped variable usage, strict equality, explicit boolean coercion, and consistent type imports. It still preserves the project shape: TypeScript source compiled to CommonJS for Electron runtime modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
 
-Use Node.js 24, matching the repository `engines` field and GitHub Actions.
+Use Node.js 24, matching `.node-version`, the repository `engines` field, and GitHub Actions. The package manager is locked through `packageManager` in `package.json`.
 
 ```sh
 npm run lint
@@ -198,7 +199,7 @@ Test coverage map:
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
 
-GitHub Actions run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs formatting, linting, and tests before building unsigned macOS and Windows artifacts.
+GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs formatting, linting, and tests before building unsigned macOS and Windows artifacts.
 
 ### Desktop Validation
 

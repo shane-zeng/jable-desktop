@@ -10,15 +10,22 @@ import type {
   BrowserTabLockedPayload,
   BrowserTabMenuPayload,
   BrowserTabMutedPayload,
+  BrowserTabPayload,
   BrowserTabsState,
   CollectionKey,
   CreateBrowserTabPayload,
   ExportJsonFileResult,
   ExportResource,
   FinishSyncPayload,
+  ImportJsonPayload,
   LibraryVideoMenuPayload,
   ListVideosOptions,
+  SearchMode,
+  SortDirection,
+  SortKey,
   SupportedLocale,
+  SyncBrowserCollectionOptions,
+  SyncMode,
   SyncPagePayload,
   SyncState,
   VideoRow
@@ -182,6 +189,324 @@ function t(key: string, params?: TranslationParams | null): string {
 
 function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function ipcPayloadError(channel: string, field?: string): Error {
+  return new Error('Invalid IPC payload for ' + channel + (field ? ': ' + field : ''));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function optionalRecord(value: unknown, channel: string): Record<string, unknown> {
+  if (value === null || typeof value === 'undefined') return {};
+  if (isRecord(value)) return value;
+  throw ipcPayloadError(channel);
+}
+
+function requiredRecord(value: unknown, channel: string): Record<string, unknown> {
+  if (isRecord(value)) return value;
+  throw ipcPayloadError(channel);
+}
+
+function optionalStringField(record: Record<string, unknown>, field: string, channel: string): string | undefined {
+  const value = record[field];
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (typeof value === 'string') return value;
+  throw ipcPayloadError(channel, field);
+}
+
+function requiredStringValue(value: unknown, field: string, channel: string): string {
+  if (typeof value === 'string') return value;
+  throw ipcPayloadError(channel, field);
+}
+
+function optionalBooleanField(record: Record<string, unknown>, field: string, channel: string): boolean | undefined {
+  const value = record[field];
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (typeof value === 'boolean') return value;
+  throw ipcPayloadError(channel, field);
+}
+
+function optionalNumberField(record: Record<string, unknown>, field: string, channel: string): number | undefined {
+  const value = record[field];
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  throw ipcPayloadError(channel, field);
+}
+
+function nullableNumberField(record: Record<string, unknown>, field: string, channel: string): number | null {
+  const value = record[field];
+  if (value === null || typeof value === 'undefined') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  throw ipcPayloadError(channel, field);
+}
+
+function normalizeCollectionKey(value: unknown, channel = 'collection'): CollectionKey {
+  if (value === 'favourites' || value === 'watch_later') return value;
+  throw ipcPayloadError(channel, 'collectionKey');
+}
+
+function normalizeTabIdValue(value: unknown, channel: string): string | null {
+  if (value === null || typeof value === 'undefined') return null;
+  if (typeof value === 'string') return value;
+  throw ipcPayloadError(channel, 'tabId');
+}
+
+function normalizeBrowserTabPayload(payload: unknown, channel: string): BrowserTabPayload {
+  const record = optionalRecord(payload, channel);
+  return {
+    tabId: normalizeTabIdValue(record.tabId, channel)
+  };
+}
+
+function normalizeSearchMode(value: unknown, channel: string): SearchMode | undefined {
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (value === 'any' || value === 'all' || value === 'phrase') return value;
+  throw ipcPayloadError(channel, 'searchMode');
+}
+
+function normalizeSortKey(value: unknown, channel: string): SortKey | undefined {
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (value === 'site_order' || value === 'title' || value === 'views' || value === 'likes') return value;
+  throw ipcPayloadError(channel, 'sort');
+}
+
+function normalizeSortDirection(value: unknown, channel: string): SortDirection | undefined {
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (value === 'asc' || value === 'desc') return value;
+  throw ipcPayloadError(channel, 'direction');
+}
+
+function normalizeSyncMode(value: unknown, channel: string): SyncMode {
+  if (value === 'quick' || value === 'full') return value;
+  throw ipcPayloadError(channel, 'mode');
+}
+
+function normalizeListVideosOptions(payload: unknown, channel: string): ListVideosOptions {
+  const record = requiredRecord(payload, channel);
+  const options: ListVideosOptions = {
+    collectionKey: normalizeCollectionKey(record.collectionKey, channel)
+  };
+  const search = optionalStringField(record, 'search', channel);
+  const searchMode = normalizeSearchMode(record.searchMode, channel);
+  const sort = normalizeSortKey(record.sort, channel);
+  const direction = normalizeSortDirection(record.direction, channel);
+  const includeHidden = optionalBooleanField(record, 'includeHidden', channel);
+  const limit = optionalNumberField(record, 'limit', channel);
+  const offset = optionalNumberField(record, 'offset', channel);
+
+  if (typeof search !== 'undefined') options.search = search;
+  if (typeof searchMode !== 'undefined') options.searchMode = searchMode;
+  if (typeof sort !== 'undefined') options.sort = sort;
+  if (typeof direction !== 'undefined') options.direction = direction;
+  if (typeof includeHidden !== 'undefined') options.includeHidden = includeHidden;
+  if (typeof limit !== 'undefined') options.limit = limit;
+  if (typeof offset !== 'undefined') options.offset = offset;
+
+  return options;
+}
+
+function normalizeCollectionUrlsKnownPayload(payload: unknown) {
+  const channel = 'db:collection-urls-known';
+  const record = requiredRecord(payload, channel);
+
+  if (!Array.isArray(record.urls)) throw ipcPayloadError(channel, 'urls');
+
+  return {
+    collectionKey: normalizeCollectionKey(record.collectionKey, channel),
+    urls: record.urls
+  };
+}
+
+function normalizeSyncPagePayload(payload: unknown): SyncPagePayload {
+  const channel = 'db:save-sync-page';
+  const record = requiredRecord(payload, channel);
+  const page = optionalNumberField(record, 'page', channel);
+  const rows = record.rows;
+
+  if (typeof page === 'undefined') throw ipcPayloadError(channel, 'page');
+  if (!Array.isArray(rows)) throw ipcPayloadError(channel, 'rows');
+
+  return {
+    tabId: normalizeTabIdValue(record.tabId, channel),
+    collectionKey: normalizeCollectionKey(record.collectionKey, channel),
+    mode: normalizeSyncMode(record.mode, channel),
+    syncRunId: requiredStringValue(record.syncRunId, 'syncRunId', channel),
+    page: page,
+    rows: rows as SyncPagePayload['rows'],
+    url: requiredStringValue(record.url, 'url', channel)
+  };
+}
+
+function normalizeCollectionTogglePayload(payload: unknown): CollectionTogglePayload {
+  const channel = 'db:apply-collection-toggle';
+  const record = requiredRecord(payload, channel);
+  return Object.assign({}, record, {
+    collectionKey: normalizeCollectionKey(record.collectionKey, channel)
+  });
+}
+
+function normalizeSyncResultPayload(value: unknown, channel: string): FinishSyncPayload['result'] {
+  const record = requiredRecord(value, channel + '.result');
+  return {
+    completed: optionalBooleanField(record, 'completed', channel) !== false,
+    mode: normalizeSyncMode(record.mode, channel),
+    syncRunId: requiredStringValue(record.syncRunId, 'syncRunId', channel),
+    incompleteReason: optionalStringField(record, 'incompleteReason', channel) || null,
+    stoppedByKnownPage: optionalBooleanField(record, 'stoppedByKnownPage', channel) || false,
+    totalPages: optionalNumberField(record, 'totalPages', channel) || 0,
+    totalRows: optionalNumberField(record, 'totalRows', channel) || 0,
+    lastScrapedPage: nullableNumberField(record, 'lastScrapedPage', channel),
+    lastKnownUrl: optionalStringField(record, 'lastKnownUrl', channel) || null
+  };
+}
+
+function normalizeFinishSyncPayload(payload: unknown): FinishSyncPayload {
+  const channel = 'db:finish-sync';
+  const record = requiredRecord(payload, channel);
+  return {
+    collectionKey: normalizeCollectionKey(record.collectionKey, channel),
+    mode: normalizeSyncMode(record.mode, channel),
+    syncRunId: requiredStringValue(record.syncRunId, 'syncRunId', channel),
+    result: normalizeSyncResultPayload(record.result, channel)
+  };
+}
+
+function normalizeImportJsonPayload(payload: unknown): ImportJsonPayload {
+  const channel = 'db:import-json';
+  const record = requiredRecord(payload, channel);
+  return {
+    collectionKey: normalizeCollectionKey(record.collectionKey, channel),
+    resource: requiredRecord(record.resource, channel + '.resource') as unknown as ExportResource
+  };
+}
+
+function normalizeCreateBrowserTabPayload(payload: unknown): CreateBrowserTabPayload {
+  const channel = 'browser:create-tab';
+  const record = optionalRecord(payload, channel);
+  const normalized: CreateBrowserTabPayload = {};
+  const url = optionalStringField(record, 'url', channel);
+  const title = optionalStringField(record, 'title', channel);
+  const favicon = optionalStringField(record, 'favicon', channel);
+  const active = optionalBooleanField(record, 'active', channel);
+  const locked = optionalBooleanField(record, 'locked', channel);
+  const muted = optionalBooleanField(record, 'muted', channel);
+  const forceReload = optionalBooleanField(record, 'forceReload', channel);
+
+  if (record.kind === 'normal' || record.kind === 'sync') normalized.kind = record.kind;
+  else if (typeof record.kind !== 'undefined' && record.kind !== null) throw ipcPayloadError(channel, 'kind');
+
+  if (typeof url !== 'undefined') normalized.url = url;
+  if (typeof title !== 'undefined') normalized.title = title;
+  if (typeof favicon !== 'undefined') normalized.favicon = favicon;
+  if (typeof active !== 'undefined') normalized.active = active;
+  if (typeof locked !== 'undefined') normalized.locked = locked;
+  if (typeof muted !== 'undefined') normalized.muted = muted;
+  if (typeof forceReload !== 'undefined') normalized.forceReload = forceReload;
+
+  return normalized;
+}
+
+function normalizeBrowserTabLockedPayload(payload: unknown): BrowserTabLockedPayload {
+  const channel = 'browser:set-tab-locked';
+  const record = optionalRecord(payload, channel);
+  return {
+    tabId: normalizeTabIdValue(record.tabId, channel),
+    locked: optionalBooleanField(record, 'locked', channel) || false
+  };
+}
+
+function normalizeBrowserTabMutedPayload(payload: unknown): BrowserTabMutedPayload {
+  const channel = 'browser:set-tab-muted';
+  const record = optionalRecord(payload, channel);
+  return {
+    tabId: normalizeTabIdValue(record.tabId, channel),
+    muted: optionalBooleanField(record, 'muted', channel) || false
+  };
+}
+
+function normalizeBrowserBounds(payload: unknown): BrowserBounds {
+  const channel = 'browser:set-bounds';
+  const record = requiredRecord(payload, channel);
+  const visible = optionalBooleanField(record, 'visible', channel);
+
+  if (visible === false) return { visible: false };
+
+  return {
+    visible: true,
+    x: optionalNumberField(record, 'x', channel) || 0,
+    y: optionalNumberField(record, 'y', channel) || 0,
+    width: optionalNumberField(record, 'width', channel) || 0,
+    height: optionalNumberField(record, 'height', channel) || 0
+  };
+}
+
+function normalizeBrowserNavigatePayload(payload: unknown): BrowserNavigatePayload {
+  const channel = 'browser:navigate';
+  const record = optionalRecord(payload, channel);
+  return {
+    tabId: normalizeTabIdValue(record.tabId, channel),
+    url: optionalStringField(record, 'url', channel) || '',
+    forceReload: optionalBooleanField(record, 'forceReload', channel) || false
+  };
+}
+
+function normalizeBrowserTabMenuPayload(payload: unknown): BrowserTabMenuPayload {
+  const channel = 'browser:show-tab-menu';
+  const record = optionalRecord(payload, channel);
+  const normalized: BrowserTabMenuPayload = {
+    tabId: normalizeTabIdValue(record.tabId, channel)
+  };
+  const x = optionalNumberField(record, 'x', channel);
+  const y = optionalNumberField(record, 'y', channel);
+  const compactMode = optionalBooleanField(record, 'compactMode', channel);
+
+  if (typeof x !== 'undefined') normalized.x = x;
+  if (typeof y !== 'undefined') normalized.y = y;
+  if (typeof compactMode !== 'undefined') normalized.compactMode = compactMode;
+
+  return normalized;
+}
+
+function normalizeLibraryVideoMenuPayload(payload: unknown): LibraryVideoMenuPayload {
+  const channel = 'library:show-video-menu';
+  const record = optionalRecord(payload, channel);
+  const normalized: LibraryVideoMenuPayload = {
+    url: optionalStringField(record, 'url', channel) || ''
+  };
+  const title = optionalStringField(record, 'title', channel);
+  const x = optionalNumberField(record, 'x', channel);
+  const y = optionalNumberField(record, 'y', channel);
+
+  if (typeof title !== 'undefined') normalized.title = title;
+  if (typeof x !== 'undefined') normalized.x = x;
+  if (typeof y !== 'undefined') normalized.y = y;
+
+  return normalized;
+}
+
+function normalizeBrowserSyncCollectionPayload(payload: unknown): {
+  tabId: string | null;
+  options: SyncBrowserCollectionOptions;
+} {
+  const channel = 'browser:sync-collection';
+  const record = requiredRecord(payload, channel);
+  const rawOptions = isRecord(record.options) ? record.options : record;
+
+  return {
+    tabId: normalizeTabIdValue(record.tabId, channel),
+    options: {
+      collectionKey: normalizeCollectionKey(rawOptions.collectionKey, channel),
+      mode: normalizeSyncMode(rawOptions.mode, channel),
+      syncRunId: requiredStringValue(rawOptions.syncRunId, 'syncRunId', channel),
+      siteOrderOffset: optionalNumberField(rawOptions, 'siteOrderOffset', channel) || 0,
+      startPage: nullableNumberField(rawOptions, 'startPage', channel),
+      stopOnKnownPage: optionalBooleanField(rawOptions, 'stopOnKnownPage', channel) || false,
+      batchLimit: nullableNumberField(rawOptions, 'batchLimit', channel)
+    }
+  };
 }
 
 function setCurrentLocale(locale: unknown): SupportedLocale {
@@ -1497,29 +1822,31 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('db:list-videos', function (_event, options) {
-    return getDatabase().listVideos(options.collectionKey, options);
+    const normalizedOptions = normalizeListVideosOptions(options, 'db:list-videos');
+    return getDatabase().listVideos(normalizedOptions.collectionKey, normalizedOptions);
   });
 
   ipcMain.handle('db:count-videos', function (_event, options) {
-    return getDatabase().countVideos(options.collectionKey, options);
+    const normalizedOptions = normalizeListVideosOptions(options, 'db:count-videos');
+    return getDatabase().countVideos(normalizedOptions.collectionKey, normalizedOptions);
   });
 
   ipcMain.handle('db:collection-urls', function (_event, collectionKey) {
-    return getDatabase().getCollectionUrls(collectionKey);
+    return getDatabase().getCollectionUrls(normalizeCollectionKey(collectionKey, 'db:collection-urls'));
   });
 
   ipcMain.handle('db:collection-urls-known', function (_event, payload) {
-    payload = payload || {};
-    return getDatabase().allCollectionUrlsKnown(payload.collectionKey, payload.urls);
+    const normalizedPayload = normalizeCollectionUrlsKnownPayload(payload);
+    return getDatabase().allCollectionUrlsKnown(normalizedPayload.collectionKey, normalizedPayload.urls);
   });
 
   ipcMain.handle('db:save-sync-page', function (_event, payload) {
-    return getDatabase().saveSyncPage(payload);
+    return getDatabase().saveSyncPage(normalizeSyncPagePayload(payload));
   });
 
   ipcMain.handle('db:apply-collection-toggle', function (event, payload) {
     try {
-      const result = getDatabase().applyCollectionToggle(payload);
+      const result = getDatabase().applyCollectionToggle(normalizeCollectionTogglePayload(payload));
       forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));
       return result;
     } catch (error) {
@@ -1529,27 +1856,28 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('db:finish-sync', function (_event, payload) {
-    return getDatabase().finishSync(payload);
+    return getDatabase().finishSync(normalizeFinishSyncPayload(payload));
   });
 
   ipcMain.handle('db:clear-sync-state', function (_event, collectionKey) {
-    return getDatabase().clearSyncState(collectionKey);
+    return getDatabase().clearSyncState(normalizeCollectionKey(collectionKey, 'db:clear-sync-state'));
   });
 
   ipcMain.handle('db:import-json', function (_event, payload) {
-    return getDatabase().importResource(payload.collectionKey, payload.resource);
+    const normalizedPayload = normalizeImportJsonPayload(payload);
+    return getDatabase().importResource(normalizedPayload.collectionKey, normalizedPayload.resource);
   });
 
   ipcMain.handle('db:export-json', function (_event, collectionKey) {
-    return getDatabase().exportResource(collectionKey);
+    return getDatabase().exportResource(normalizeCollectionKey(collectionKey, 'db:export-json'));
   });
 
   ipcMain.handle('db:export-json-file', function (_event, collectionKey) {
-    return exportJsonFile(collectionKey);
+    return exportJsonFile(normalizeCollectionKey(collectionKey, 'db:export-json-file'));
   });
 
   ipcMain.handle('library:show-video-menu', function (_event, payload) {
-    return showLibraryVideoMenu(payload);
+    return showLibraryVideoMenu(normalizeLibraryVideoMenuPayload(payload));
   });
 
   ipcMain.handle('browser:list-tabs', function () {
@@ -1557,75 +1885,66 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('browser:show-tab-menu', function (_event, payload) {
-    return showBrowserTabMenu(payload);
+    return showBrowserTabMenu(normalizeBrowserTabMenuPayload(payload));
   });
 
   ipcMain.handle('browser:create-tab', function (_event, payload) {
-    return createBrowserTab(payload);
+    return createBrowserTab(normalizeCreateBrowserTabPayload(payload));
   });
 
   ipcMain.handle('browser:activate-tab', function (_event, tabId) {
-    return activateBrowserTab(tabId);
+    return activateBrowserTab(normalizeTabIdValue(tabId, 'browser:activate-tab'));
   });
 
   ipcMain.handle('browser:close-tab', function (_event, tabId) {
-    return closeBrowserTab(tabId);
+    return closeBrowserTab(normalizeTabIdValue(tabId, 'browser:close-tab'));
   });
 
   ipcMain.handle('browser:set-tab-locked', function (_event, payload) {
-    return setBrowserTabLocked(payload);
+    return setBrowserTabLocked(normalizeBrowserTabLockedPayload(payload));
   });
 
   ipcMain.handle('browser:set-tab-muted', function (_event, payload) {
-    return setBrowserTabMuted(payload);
+    return setBrowserTabMuted(normalizeBrowserTabMutedPayload(payload));
   });
 
   ipcMain.handle('browser:set-bounds', function (_event, bounds) {
-    return setBrowserBounds(bounds);
+    return setBrowserBounds(normalizeBrowserBounds(bounds));
   });
 
   ipcMain.handle('browser:navigate', function (_event, payload) {
-    return navigateBrowser(payload);
+    return navigateBrowser(normalizeBrowserNavigatePayload(payload));
   });
 
   ipcMain.handle('browser:reload', async function (_event, payload) {
-    payload = payload || {};
-    return reloadBrowser(payload.tabId);
+    return reloadBrowser(normalizeBrowserTabPayload(payload, 'browser:reload').tabId);
   });
 
   ipcMain.handle('browser:go-back', async function (_event, payload) {
-    payload = payload || {};
-    return goBrowserBack(payload.tabId);
+    return goBrowserBack(normalizeBrowserTabPayload(payload, 'browser:go-back').tabId);
   });
 
   ipcMain.handle('browser:go-forward', async function (_event, payload) {
-    payload = payload || {};
-    return goBrowserForward(payload.tabId);
+    return goBrowserForward(normalizeBrowserTabPayload(payload, 'browser:go-forward').tabId);
   });
 
   ipcMain.handle('browser:navigation-state', function (_event, payload) {
-    payload = payload || {};
-    return browserNavigationState(payload.tabId);
+    return browserNavigationState(normalizeBrowserTabPayload(payload, 'browser:navigation-state').tabId);
   });
 
   ipcMain.handle('browser:get-url', function (_event, payload) {
-    payload = payload || {};
-    return getBrowserTab(payload.tabId).view.webContents.getURL();
+    return getBrowserTab(normalizeBrowserTabPayload(payload, 'browser:get-url').tabId).view.webContents.getURL();
   });
 
   ipcMain.handle('browser:sync-collection', function (_event, payload) {
-    payload = payload || {};
-    const tab = getBrowserTab(payload.tabId);
-    const options = Object.assign({}, payload.options || payload);
-    delete options.tabId;
-    delete options.options;
-    const script = 'window.jableDesktopScraper.syncCollection(' + JSON.stringify(options) + ')';
+    const normalizedPayload = normalizeBrowserSyncCollectionPayload(payload);
+    const tab = getBrowserTab(normalizedPayload.tabId);
+    const script = 'window.jableDesktopScraper.syncCollection(' + JSON.stringify(normalizedPayload.options) + ')';
     return tab.view.webContents.executeJavaScript(script, true);
   });
 
   ipcMain.handle('browser:diagnose', function (_event, payload) {
-    payload = payload || {};
-    const tab = getBrowserTab(payload.tabId);
+    const tab = getBrowserTab(normalizeBrowserTabPayload(payload, 'browser:diagnose').tabId);
     return tab.view.webContents.executeJavaScript(
       [
         '({',

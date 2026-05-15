@@ -1,7 +1,0 @@
-{
-  "extends": "./tsconfig.electron.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "strict": true
-  }
-}

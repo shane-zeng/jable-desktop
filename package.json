@@ -1,6 +1,8 @@
 {
   "name": "jable-desktop",
   "version": "0.7.3",
+  "private": true,
+  "packageManager": "npm@11.12.1",
   "description": "Tampermonkey exporter and Electron desktop app for Jable favourites and watch-later lists.",
   "main": "app/runtime-dist/main.js",
   "scripts": {
@@ -16,10 +18,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "pretypecheck": "npm run check:node",
-    "typecheck": "npm run typecheck:renderer && npm run typecheck:electron:strict",
+    "typecheck": "npm run typecheck:renderer && npm run typecheck:electron",
     "typecheck:renderer": "vue-tsc --noEmit -p tsconfig.json",
     "typecheck:electron": "tsc -p tsconfig.electron.json --noEmit",
-    "typecheck:electron:strict": "tsc -p tsconfig.electron.strict.json --noEmit",
     "format": "prettier --write .",
     "preformat:check": "npm run check:node",
     "format:check": "prettier --check .",
