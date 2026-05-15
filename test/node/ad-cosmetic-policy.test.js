@@ -61,6 +61,30 @@ test('removes sponsor text rows for known external sponsor links', async functio
   assert.notEqual(document.querySelector('#content-row'), null);
 });
 
+test('keeps collection action buttons when removing a sponsor link from a shared detail row', async function () {
+  const document = await createDocument(`
+    <div id="shared-row" class="text-center">
+      <a class="text-sponsor" target="_blank" href="https://s.zline0.com/v1/d.php?z=4789176">Sponsor</a>
+      <style>.text-sponsor::before { content: 'x'; }</style>
+      <div class="my-3">
+        <button id="fav-button" data-fav-video-id="59085" data-fav-type="0" class="btn btn-action fav mr-2">
+          <span class="count">106</span>
+        </button>
+        <button id="watch-later-button" data-fav-video-id="59085" data-fav-type="1" class="btn btn-action">
+        </button>
+      </div>
+    </div>
+  `);
+
+  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+
+  assert.equal(removed, 1);
+  assert.notEqual(document.querySelector('#shared-row'), null);
+  assert.equal(document.querySelector('#shared-row .text-sponsor'), null);
+  assert.notEqual(document.querySelector('#fav-button'), null);
+  assert.notEqual(document.querySelector('#watch-later-button'), null);
+});
+
 test('removes modal wrappers when their media comes from known ad hosts', async function () {
   const document = await createDocument(`
     <div id="ad-modal" class="modelWrapper--hcpk7">

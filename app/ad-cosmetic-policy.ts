@@ -4,6 +4,8 @@ type AdUrlMatcher = (value: unknown) => boolean;
 
 const AD_URL_ATTRIBUTES = ['href', 'src', 'data-src'];
 const AD_URL_SELECTOR = 'a[href], img[src], img[data-src], iframe[src], script[src], source[src], video[src]';
+const COLLECTION_ACTION_SELECTOR =
+  'button.btn-action, button[data-fav-video-id][data-fav-type], .action[data-fav-video-id]';
 
 function isElementLike(value: unknown): value is Element {
   return Boolean(
@@ -55,6 +57,17 @@ function hasBlockedAdUrl(element: Element, isBlockedAdUrl: AdUrlMatcher): boolea
   return false;
 }
 
+function hasCollectionActionControls(element: Element): boolean {
+  return Boolean(element.querySelector(COLLECTION_ACTION_SELECTOR));
+}
+
+function textSponsorContainerForElement(element: Element): Element {
+  const textCenter = element.closest('div.text-center');
+  if (textCenter && !hasCollectionActionControls(textCenter)) return textCenter;
+
+  return element;
+}
+
 function cosmeticAdContainerForElement(element: Element): Element {
   const videoBox = element.closest('div.video-img-box');
   if (videoBox) {
@@ -67,7 +80,7 @@ function cosmeticAdContainerForElement(element: Element): Element {
   if (modalWrapper) return modalWrapper;
 
   const textSponsor = element.closest('a.text-sponsor');
-  if (textSponsor) return textSponsor.closest('div.text-center') || textSponsor;
+  if (textSponsor) return textSponsorContainerForElement(textSponsor);
 
   const iframe = element.closest('iframe');
   if (iframe) return iframe;
