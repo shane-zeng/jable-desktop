@@ -3,6 +3,7 @@
 import type * as Electron from 'electron';
 import type * as NodePath from 'node:path';
 import type {
+  BrowserDiagnosis,
   BrowserBounds,
   BrowserNavigatePayload,
   BrowserNavigationState,
@@ -27,6 +28,7 @@ import type {
   SyncBrowserCollectionOptions,
   SyncMode,
   SyncPagePayload,
+  SyncResult,
   SyncState,
   VideoRow
 } from './types/jable';
@@ -118,6 +120,18 @@ type BrowserTabPolicyModule = {
   nextActiveTabIdAfterClose(tabs: BrowserTab[], activeTabId: string | null, closingTabId: string): string | null;
   serializedMediaState(tab: BrowserTab): SerializedMediaState;
 };
+type BrowserPreloadRequest = {
+  tabId: string;
+  timer: ReturnType<typeof setTimeout>;
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+};
+type BrowserPreloadResponse = {
+  requestId: string;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+};
 type I18nModule = {
   DEFAULT_LOCALE: SupportedLocale;
   normalizeLocale(value: unknown): SupportedLocale;
@@ -164,6 +178,8 @@ const JABLE_HOME_URL = 'https://jable.tv/';
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const MAX_BROWSER_TABS = 14;
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
+const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
+const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -172,8 +188,10 @@ let mainWindow: Electron.BrowserWindow | null = null;
 const browserTabs: BrowserTab[] = [];
 const browserTabsById: Record<string, BrowserTab> = {};
 const webContentsTabIds: Record<string, string> = {};
+const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
 let activeBrowserTabId: string | null = null;
 let nextBrowserTabId = 1;
+let nextBrowserPreloadRequestId = 1;
 let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
 let browserHtmlFullScreenTabId: string | null = null;
 let database: JableDatabaseInstance | null = null;
@@ -991,6 +1009,14 @@ function wireBrowserTab(tab: BrowserTab) {
     notifyBrowserTabsChanged();
   });
 
+  tab.view.webContents.on('render-process-gone', function () {
+    rejectBrowserPreloadRequestsForTab(tab.id, 'Browser tab renderer process ended');
+  });
+
+  tab.view.webContents.on('destroyed', function () {
+    rejectBrowserPreloadRequestsForTab(tab.id, t('errors.tabNotFound'));
+  });
+
   tab.view.webContents.on('did-navigate', function (_event: Electron.Event, url: string) {
     tab.url = url || tab.view.webContents.getURL() || tab.url;
     updateTabNavigationState(tab);
@@ -1056,6 +1082,96 @@ function getBrowserTabByWebContents(webContents: Electron.WebContents | null | u
   if (!webContents) return null;
   const tabId = webContentsTabIds[String(webContents.id)];
   return tabId ? browserTabsById[tabId] : null;
+}
+
+function normalizeBrowserPreloadResponse(payload: unknown): BrowserPreloadResponse {
+  const channel = 'browser:preload-response';
+  const record = requiredRecord(payload, channel);
+  const ok = optionalBooleanField(record, 'ok', channel);
+  const error = optionalStringField(record, 'error', channel);
+  const response: BrowserPreloadResponse = {
+    requestId: requiredStringValue(record.requestId, 'requestId', channel),
+    ok: ok !== false
+  };
+
+  if (typeof record.result !== 'undefined') response.result = record.result;
+  if (typeof error !== 'undefined') response.error = error;
+
+  return response;
+}
+
+function rejectBrowserPreloadRequest(requestId: string, error: Error) {
+  const request = browserPreloadRequests[requestId];
+  if (!request) return;
+
+  clearTimeout(request.timer);
+  delete browserPreloadRequests[requestId];
+  request.reject(error);
+}
+
+function rejectBrowserPreloadRequestsForTab(tabId: string, message: string) {
+  const requestIds = Object.keys(browserPreloadRequests);
+
+  for (let i = 0; i < requestIds.length; i++) {
+    const requestId = requestIds[i];
+    const request = browserPreloadRequests[requestId];
+    if (request && request.tabId === tabId) rejectBrowserPreloadRequest(requestId, new Error(message));
+  }
+}
+
+function resolveBrowserPreloadResponse(event: Electron.IpcMainEvent, payload: unknown) {
+  let response: BrowserPreloadResponse;
+
+  try {
+    response = normalizeBrowserPreloadResponse(payload);
+  } catch (error) {
+    return;
+  }
+
+  const request = browserPreloadRequests[response.requestId];
+  if (!request) return;
+
+  const tab = getBrowserTabByWebContents(event.sender);
+  if (!tab || tab.id !== request.tabId) return;
+
+  clearTimeout(request.timer);
+  delete browserPreloadRequests[response.requestId];
+
+  if (response.ok) request.resolve(response.result);
+  else request.reject(new Error(response.error || 'Browser preload request failed'));
+}
+
+function requestBrowserPreload<T>(
+  tab: BrowserTab,
+  channel: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number
+): Promise<T> {
+  if (tab.view.webContents.isDestroyed()) return Promise.reject(new Error(t('errors.tabNotFound')));
+
+  const requestId = 'browser-preload-' + nextBrowserPreloadRequestId++;
+  const message = Object.assign({}, payload, { requestId: requestId });
+
+  return new Promise<T>(function (resolve, reject) {
+    const timer = setTimeout(function () {
+      rejectBrowserPreloadRequest(requestId, new Error('Timed out waiting for webview preload response: ' + channel));
+    }, timeoutMs);
+
+    browserPreloadRequests[requestId] = {
+      tabId: tab.id,
+      timer: timer,
+      resolve: function (value: unknown) {
+        resolve(value as T);
+      },
+      reject: reject
+    };
+
+    try {
+      tab.view.webContents.send(channel, message);
+    } catch (error) {
+      rejectBrowserPreloadRequest(requestId, new Error(mainErrorMessage(error)));
+    }
+  });
 }
 
 function resetBrowserTabMediaState(tab: BrowserTab | null | undefined) {
@@ -1292,6 +1408,7 @@ function closeBrowserTab(tabId: string | null): BrowserTabsState {
 
   const shouldFocusNextTab = activeBrowserTabId === tab.id;
   const nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
+  rejectBrowserPreloadRequestsForTab(tab.id, t('errors.tabNotFound'));
   detachBrowserTab(tab);
   delete browserTabsById[tab.id];
   delete webContentsTabIds[String(tab.view.webContents.id)];
@@ -1939,25 +2056,25 @@ function registerIpcHandlers() {
   ipcMain.handle('browser:sync-collection', function (_event, payload) {
     const normalizedPayload = normalizeBrowserSyncCollectionPayload(payload);
     const tab = getBrowserTab(normalizedPayload.tabId);
-    const script = 'window.jableDesktopScraper.syncCollection(' + JSON.stringify(normalizedPayload.options) + ')';
-    return tab.view.webContents.executeJavaScript(script, true);
+    return requestBrowserPreload<SyncResult>(
+      tab,
+      'browser:sync-collection-request',
+      { options: normalizedPayload.options },
+      BROWSER_SYNC_REQUEST_TIMEOUT_MS
+    );
   });
 
   ipcMain.handle('browser:diagnose', function (_event, payload) {
     const tab = getBrowserTab(normalizeBrowserTabPayload(payload, 'browser:diagnose').tabId);
-    return tab.view.webContents.executeJavaScript(
-      [
-        '({',
-        'url: location.href,',
-        'innerWidth: window.innerWidth,',
-        'innerHeight: window.innerHeight,',
-        'clientHeight: document.documentElement.clientHeight,',
-        'scrollHeight: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)',
-        '})'
-      ].join(''),
-      true
+    return requestBrowserPreload<BrowserDiagnosis>(
+      tab,
+      'browser:diagnose-request',
+      {},
+      BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS
     );
   });
+
+  ipcMain.on('browser:preload-response', resolveBrowserPreloadResponse);
 
   ipcMain.on('browser:sync-page', function (event, payload) {
     forwardBrowserMessage('sync-page', syncPayloadForEvent(event, payload));

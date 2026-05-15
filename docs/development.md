@@ -118,6 +118,7 @@ Browser and tab behavior:
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.ts` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
+- Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Do not call embedded page functions through injected JavaScript strings.
 - HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.ts` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
 - Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser-tab-policy.ts`, `app/main.ts`, `app/webview-preload.ts`, and renderer link handlers.
 

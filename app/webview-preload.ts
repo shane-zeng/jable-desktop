@@ -1,7 +1,14 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type { CollectionKey, ScrapedVideoRow, SyncBrowserCollectionOptions, SyncMode, SyncResult } from './types/jable';
+import type {
+  BrowserDiagnosis,
+  CollectionKey,
+  ScrapedVideoRow,
+  SyncBrowserCollectionOptions,
+  SyncMode,
+  SyncResult
+} from './types/jable';
 
 type CollectionAction = 'add' | 'remove';
 type TrackpadHistoryDirection = 'back' | 'forward';
@@ -15,12 +22,8 @@ type SendToHostIpcRenderer = Electron.IpcRenderer & {
   sendToHost?: (channel: string, ...args: unknown[]) => void;
 };
 type ChooseNextPagerLink = (links: PagerLink[], currentPage: number | null) => PagerLink | null;
-type JableDesktopScraperApi = {
-  syncCollection(options?: Partial<SyncBrowserCollectionOptions> | null): Promise<SyncResult>;
-};
 
 const electron: typeof Electron = require('electron');
-const contextBridge = electron.contextBridge;
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
 const chooseNextPagerLink = (require('./sync-utils') as { chooseNextPagerLink: ChooseNextPagerLink })
   .chooseNextPagerLink;
@@ -250,6 +253,53 @@ function sendProgress(channel: string, payload: unknown) {
   } catch (error) {}
 
   ipcRenderer.send('browser:' + channel, payload);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requestIdFromPayload(payload: unknown): string | null {
+  if (!isRecord(payload)) return null;
+  return typeof payload.requestId === 'string' ? payload.requestId : null;
+}
+
+function syncOptionsFromPayload(payload: unknown): Partial<SyncBrowserCollectionOptions> | null {
+  if (!isRecord(payload)) return null;
+  return isRecord(payload.options) ? (payload.options as Partial<SyncBrowserCollectionOptions>) : null;
+}
+
+function sendPreloadResponse(requestId: string, result: unknown) {
+  ipcRenderer.send('browser:preload-response', {
+    requestId: requestId,
+    ok: true,
+    result: result
+  });
+}
+
+function sendPreloadError(requestId: string, error: unknown) {
+  ipcRenderer.send('browser:preload-response', {
+    requestId: requestId,
+    ok: false,
+    error: errorMessage(error)
+  });
+}
+
+function diagnosePage(): BrowserDiagnosis {
+  const documentElement = document.documentElement;
+  const body = document.body;
+
+  return {
+    url: location.href,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    clientHeight: documentElement.clientHeight,
+    scrollHeight: Math.max(documentElement.scrollHeight, body ? body.scrollHeight : 0)
+  };
 }
 
 function canElementScrollHorizontally(el: Element | null): el is HTMLElement {
@@ -809,6 +859,26 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   return result(true);
 }
 
-contextBridge.exposeInMainWorld('jableDesktopScraper', {
-  syncCollection: syncCollection
-} satisfies JableDesktopScraperApi);
+ipcRenderer.on('browser:sync-collection-request', function (_event, payload: unknown) {
+  const requestId = requestIdFromPayload(payload);
+  if (!requestId) return;
+
+  syncCollection(syncOptionsFromPayload(payload))
+    .then(function (result) {
+      sendPreloadResponse(requestId, result);
+    })
+    .catch(function (error) {
+      sendPreloadError(requestId, error);
+    });
+});
+
+ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
+  const requestId = requestIdFromPayload(payload);
+  if (!requestId) return;
+
+  try {
+    sendPreloadResponse(requestId, diagnosePage());
+  } catch (error) {
+    sendPreloadError(requestId, error);
+  }
+});
