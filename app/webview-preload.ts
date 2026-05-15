@@ -829,14 +829,17 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
 
     const allKnown = await checkRowsKnown(rows);
 
-    sendProgress('sync-page', {
+    const payload = {
       collectionKey: collectionKey,
       mode: mode,
       syncRunId: syncRunId,
       page: lastScrapedPage,
       rows: rows,
       url: location.href
-    });
+    };
+
+    await ipcRenderer.invoke('db:save-sync-page', payload);
+    sendProgress('sync-page', payload);
 
     if (allKnown) {
       stoppedByKnownPage = true;

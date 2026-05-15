@@ -51,8 +51,6 @@ const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
-let pendingSaves: Promise<unknown>[] = [];
-let saveFailure: unknown = null;
 let activeSyncRunId: string | null = null;
 let toastTimer: number | null = null;
 let mainLocaleSynced = false;
@@ -230,12 +228,6 @@ function handleBrowserMessage(message: BrowserMessage) {
     const payload = message.args[0] as SyncPagePayload;
     if (activeSyncRunId && payload.syncRunId !== activeSyncRunId) return;
     setStatus(i18n.t('status.syncPage', { page: payload.page, count: payload.rows.length }));
-
-    const save = api.saveSyncPage(payload).catch(function (error) {
-      saveFailure = error;
-      throw error;
-    });
-    pendingSaves.push(save);
   }
 
   if (message.channel === 'sync-progress') {
@@ -322,8 +314,6 @@ async function syncCollection(mode: SyncMode) {
   if (busy.value || syncing.value) return;
 
   syncing.value = true;
-  pendingSaves = [];
-  saveFailure = null;
   activeSyncRunId = null;
   let syncTabId: string | null = null;
 
@@ -366,9 +356,6 @@ async function syncCollection(mode: SyncMode) {
       tabId: syncTabId,
       options: options
     });
-    await Promise.all(pendingSaves);
-
-    if (saveFailure) throw saveFailure;
 
     const finishState = await api.finishSync({
       collectionKey: collectionKey,
