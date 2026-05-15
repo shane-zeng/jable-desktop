@@ -508,6 +508,104 @@ test('applyCollectionToggle adds, hides, and restores a local collection item', 
   assert.equal(rows[0].missing_at, null);
 });
 
+test('manual collection toggles win over stale pages during an active sync run', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'Stale sync row',
+        url: 'https://jable.tv/videos/stale-row/',
+        siteOrder: 1
+      }
+    ]
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: syncRunId,
+    video: {
+      url: 'https://jable.tv/videos/stale-row/'
+    }
+  });
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'Stale sync row',
+        url: 'https://jable.tv/videos/stale-row/',
+        siteOrder: 1
+      }
+    ]
+  });
+
+  assert.equal(db.countVideos('favourites'), 0);
+  let hiddenRows = db.listVideos('favourites', { includeHidden: true });
+  assert.equal(hiddenRows.length, 1);
+  assert.equal(hiddenRows[0].is_visible, 0);
+  assert.equal(hiddenRows[0].last_sync_run_id, syncRunId);
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: syncRunId,
+    video: {
+      title: 'Not yet local',
+      url: 'https://jable.tv/videos/not-yet-local/'
+    }
+  });
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'Not yet local',
+        url: 'https://jable.tv/videos/not-yet-local/',
+        siteOrder: 2
+      }
+    ]
+  });
+
+  assert.equal(db.countVideos('favourites'), 0);
+  hiddenRows = db.listVideos('favourites', { includeHidden: true });
+  assert.equal(hiddenRows.length, 2);
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: syncRunId,
+    video: {
+      title: 'Added during sync',
+      url: 'https://jable.tv/videos/added-during-sync/'
+    }
+  });
+
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: syncRunId,
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  const visibleUrls = db.listVideos('favourites').map(function (row) {
+    return row.url;
+  });
+  assert.deepEqual(visibleUrls, ['https://jable.tv/videos/added-during-sync/']);
+
+  hiddenRows = db.listVideos('favourites', { includeHidden: true });
+  assert.equal(hiddenRows.length, 3);
+});
+
 test('migration rebuilds the local full text index for existing videos', function (t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   const dbPath = path.join(dir, 'test.sqlite');

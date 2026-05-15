@@ -45,6 +45,7 @@ type CollectionTogglePayload = VideoInput & {
   collectionKey?: CollectionKey;
   action?: unknown;
   video?: VideoInput;
+  syncRunId?: unknown;
 };
 type SyncResultInput = {
   completed?: unknown;
@@ -984,8 +985,18 @@ class JableDatabase {
         'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
         '  last_seen_at = excluded.last_seen_at,',
         '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
-        '  is_visible = 1,',
-        '  missing_at = NULL,',
+        '  is_visible = CASE',
+        '    WHEN collection_items.is_visible = 0',
+        '      AND excluded.last_sync_run_id IS NOT NULL',
+        '      AND collection_items.last_sync_run_id = excluded.last_sync_run_id THEN 0',
+        '    ELSE 1',
+        '  END,',
+        '  missing_at = CASE',
+        '    WHEN collection_items.is_visible = 0',
+        '      AND excluded.last_sync_run_id IS NOT NULL',
+        '      AND collection_items.last_sync_run_id = excluded.last_sync_run_id THEN collection_items.missing_at',
+        '    ELSE NULL',
+        '  END,',
         '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'
       ].join(' ')
     );
@@ -1061,19 +1072,80 @@ class JableDatabase {
     if (!video || !video.url) throw new Error('Collection toggle requires a video URL');
 
     const timestamp = nowIso();
+    const syncRunId = normalizeText(payload.syncRunId);
 
     if (action === 'remove') {
       const removeResult = this.db
         .prepare(
           [
             'UPDATE collection_items',
-            'SET is_visible = 0, missing_at = ?, last_seen_at = ?',
+            'SET is_visible = 0, missing_at = ?, last_seen_at = ?,',
+            '  last_sync_run_id = COALESCE(?, last_sync_run_id)',
             'WHERE collection_key = ?',
             '  AND video_url = ?',
             '  AND is_visible = 1'
           ].join(' ')
         )
-        .run(timestamp, timestamp, collectionKey, video.url);
+        .run(timestamp, timestamp, syncRunId, collectionKey, video.url);
+
+      if (!removeResult.changes && syncRunId) {
+        const upsertVideo = this.db.prepare(
+          [
+            'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'ON CONFLICT(url) DO UPDATE SET',
+            '  title = COALESCE(excluded.title, videos.title),',
+            '  views = COALESCE(excluded.views, videos.views),',
+            '  likes = COALESCE(excluded.likes, videos.likes),',
+            '  img = COALESCE(excluded.img, videos.img),',
+            '  preview = COALESCE(excluded.preview, videos.preview),',
+            '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
+            '  updated_at = excluded.updated_at'
+          ].join(' ')
+        );
+        const upsertHiddenItem = this.db.prepare(
+          [
+            'INSERT INTO collection_items (',
+            '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+            ')',
+            'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+            'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+            '  last_seen_at = excluded.last_seen_at,',
+            '  is_visible = 0,',
+            '  missing_at = excluded.missing_at,',
+            '  last_sync_run_id = excluded.last_sync_run_id'
+          ].join(' ')
+        );
+
+        this.db.exec('BEGIN IMMEDIATE');
+
+        try {
+          upsertVideo.run(
+            video.url,
+            video.title,
+            video.views,
+            video.likes,
+            video.img,
+            video.preview,
+            video.searchText,
+            timestamp,
+            timestamp
+          );
+          upsertHiddenItem.run(
+            collectionKey,
+            video.url,
+            timestamp,
+            timestamp,
+            video.siteOrder === null ? -Date.now() : video.siteOrder,
+            timestamp,
+            syncRunId
+          );
+          this.db.exec('COMMIT');
+        } catch (error) {
+          this.db.exec('ROLLBACK');
+          throw error;
+        }
+      }
 
       return {
         action: action,
@@ -1103,12 +1175,13 @@ class JableDatabase {
         'INSERT INTO collection_items (',
         '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
         ')',
-        'VALUES (?, ?, ?, ?, ?, 1, NULL, NULL)',
+        'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
         'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
         '  last_seen_at = excluded.last_seen_at,',
         '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
         '  is_visible = 1,',
-        '  missing_at = NULL'
+        '  missing_at = NULL,',
+        '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'
       ].join(' ')
     );
 
@@ -1131,7 +1204,8 @@ class JableDatabase {
         video.url,
         timestamp,
         timestamp,
-        video.siteOrder === null ? -Date.now() : video.siteOrder
+        video.siteOrder === null ? -Date.now() : video.siteOrder,
+        syncRunId
       );
       this.db.exec('COMMIT');
     } catch (error) {

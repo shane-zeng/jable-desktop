@@ -64,6 +64,9 @@ type SyncWorker = {
   syncRunId: string;
   lastMainFrameLoadFailure: BrowserLoadFailure | null;
 };
+type ActiveSyncRun = {
+  syncRunId: string;
+};
 type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
 type DatabaseListOptions = Partial<ListVideosOptions> & {
   sort?: ListVideosOptions['sort'] | 'updated_at' | 'last_seen_at';
@@ -71,6 +74,7 @@ type DatabaseListOptions = Partial<ListVideosOptions> & {
 type CollectionTogglePayload = {
   collectionKey?: CollectionKey;
   action?: unknown;
+  syncRunId?: unknown;
   video?: unknown;
   url?: unknown;
   title?: unknown;
@@ -227,6 +231,7 @@ const browserTabs: BrowserTab[] = [];
 const browserTabsById: Record<string, BrowserTab> = {};
 const webContentsTabIds: Record<string, string> = {};
 const syncWorkersById: Record<string, SyncWorker> = {};
+const activeSyncRunsByCollection: Partial<Record<CollectionKey, ActiveSyncRun>> = {};
 const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
 let activeBrowserTabId: string | null = null;
 let nextBrowserTabId = 1;
@@ -1406,6 +1411,9 @@ function closeSyncWorker(workerId: string | null | undefined, message?: string) 
   if (!worker) return;
 
   delete syncWorkersById[worker.id];
+  if (activeSyncRunsByCollection[worker.collectionKey]?.syncRunId === worker.syncRunId) {
+    delete activeSyncRunsByCollection[worker.collectionKey];
+  }
   rejectBrowserPreloadRequestsForWebContents(worker.webContents.id, message || 'Sync worker closed');
 
   try {
@@ -1496,6 +1504,22 @@ function syncIncompleteResult(
   };
 }
 
+function setActiveSyncRun(options: SyncBrowserCollectionOptions) {
+  activeSyncRunsByCollection[options.collectionKey] = {
+    syncRunId: options.syncRunId
+  };
+}
+
+function clearActiveSyncRun(options: SyncBrowserCollectionOptions) {
+  const activeRun = activeSyncRunsByCollection[options.collectionKey];
+  if (!activeRun || activeRun.syncRunId !== options.syncRunId) return;
+  delete activeSyncRunsByCollection[options.collectionKey];
+}
+
+function syncRunForCollection(collectionKey: CollectionKey): ActiveSyncRun | null {
+  return activeSyncRunsByCollection[collectionKey] || null;
+}
+
 function resolveSyncWorker(workerId: string | null, options: SyncBrowserCollectionOptions): {
   worker: SyncWorker;
   reused: boolean;
@@ -1530,6 +1554,8 @@ async function syncBrowserCollectionInWorker(payload: {
   const worker = resolved.worker;
   let keepWorker = false;
 
+  setActiveSyncRun(payload.options);
+
   try {
     if (!resolved.reused) {
       const loadedUrl = await loadSyncWorkerCollection(worker);
@@ -1549,6 +1575,7 @@ async function syncBrowserCollectionInWorker(payload: {
 
     return resultWithWorker;
   } finally {
+    if (!keepWorker) clearActiveSyncRun(payload.options);
     if (!keepWorker) closeSyncWorker(worker.id, 'Sync worker finished');
   }
 }
@@ -2359,7 +2386,11 @@ function registerIpcHandlers() {
 
   ipcMain.handle('db:apply-collection-toggle', function (event, payload) {
     try {
-      const result = getDatabase().applyCollectionToggle(normalizeCollectionTogglePayload(payload));
+      const normalizedPayload = normalizeCollectionTogglePayload(payload);
+      const activeRun = syncRunForCollection(normalizedPayload.collectionKey as CollectionKey);
+      if (activeRun) normalizedPayload.syncRunId = activeRun.syncRunId;
+
+      const result = getDatabase().applyCollectionToggle(normalizedPayload);
       forwardBrowserMessage('collection-toggle', syncPayloadForEvent(event, result));
       return result;
     } catch (error) {
