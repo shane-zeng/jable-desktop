@@ -1098,12 +1098,46 @@ class JableDatabase {
         '  updated_at = excluded.updated_at'
       ].join(' ')
     );
+    const selectDuplicateAddOperation = this.db.prepare(
+      [
+        'SELECT latest.id',
+        'FROM sync_operations latest',
+        'WHERE latest.collection_key = ?',
+        '  AND latest.sync_run_id = ?',
+        '  AND latest.video_url = ?',
+        "  AND latest.action = 'add'",
+        '  AND latest.site_order IS NULL',
+        '  AND latest.reconciled_at IS NULL',
+        '  AND latest.id = (',
+        '    SELECT MAX(id)',
+        '    FROM sync_operations',
+        '    WHERE collection_key = latest.collection_key',
+        '      AND sync_run_id = latest.sync_run_id',
+        '      AND video_url = latest.video_url',
+        '      AND reconciled_at IS NULL',
+        '  )',
+        '  AND NOT EXISTS (',
+        '    SELECT 1',
+        '    FROM sync_operations prior',
+        '    WHERE prior.collection_key = latest.collection_key',
+        '      AND prior.sync_run_id = latest.sync_run_id',
+        '      AND prior.video_url = latest.video_url',
+        "      AND prior.action = 'remove'",
+        '      AND prior.id < latest.id',
+        '  )',
+        'LIMIT 1'
+      ].join(' ')
+    );
 
     this.db.exec('BEGIN IMMEDIATE');
 
     try {
       for (let n = 0; n < normalizedRows.length; n++) {
         const video = normalizedRows[n];
+        const shouldUseScrapedSiteOrder =
+          preserveExistingSiteOrder &&
+          video.siteOrder !== null &&
+          Boolean(selectDuplicateAddOperation.get(collectionKey, syncRunId, video.url));
         upsertVideo.run(
           video.url,
           video.title,
@@ -1122,7 +1156,7 @@ class JableDatabase {
           timestamp,
           video.siteOrder,
           syncRunId,
-          preserveExistingSiteOrder ? 1 : 0
+          preserveExistingSiteOrder && !shouldUseScrapedSiteOrder ? 1 : 0
         );
       }
 
@@ -1343,7 +1377,10 @@ class JableDatabase {
         'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
         'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
         '  last_seen_at = excluded.last_seen_at,',
-        '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+        '  site_order = CASE',
+        '    WHEN collection_items.is_visible = 1 AND excluded.site_order < 0 THEN collection_items.site_order',
+        '    ELSE COALESCE(excluded.site_order, collection_items.site_order)',
+        '  END,',
         '  is_visible = 1,',
         '  missing_at = NULL,',
         '  last_sync_run_id = excluded.last_sync_run_id'
@@ -1578,7 +1615,10 @@ class JableDatabase {
         'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
         'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
         '  last_seen_at = excluded.last_seen_at,',
-        '  site_order = COALESCE(excluded.site_order, collection_items.site_order),',
+        '  site_order = CASE',
+        '    WHEN collection_items.is_visible = 1 AND excluded.site_order < 0 THEN collection_items.site_order',
+        '    ELSE COALESCE(excluded.site_order, collection_items.site_order)',
+        '  END,',
         '  is_visible = 1,',
         '  missing_at = NULL,',
         '  last_sync_run_id = COALESCE(excluded.last_sync_run_id, collection_items.last_sync_run_id)'

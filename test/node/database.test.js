@@ -842,6 +842,122 @@ test('restored collection items are replayed as newest sync operations', functio
   );
 });
 
+test('duplicate add of a visible collection item preserves site order', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'A',
+        url: 'https://jable.tv/videos/a/',
+        siteOrder: 1
+      },
+      {
+        title: 'B',
+        url: 'https://jable.tv/videos/b/',
+        siteOrder: 2
+      },
+      {
+        title: 'C',
+        url: 'https://jable.tv/videos/c/',
+        siteOrder: 3
+      }
+    ]
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: syncRunId,
+    video: {
+      title: 'B duplicate add',
+      url: 'https://jable.tv/videos/b/',
+      siteOrder: null
+    }
+  });
+
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: syncRunId,
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  const visibleRows = db.listVideos('favourites', { sort: 'site_order', direction: 'asc' });
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/a/', 'https://jable.tv/videos/b/', 'https://jable.tv/videos/c/']
+  );
+});
+
+test('duplicate add discovered later in full sync uses scraped site order', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'A',
+        url: 'https://jable.tv/videos/a/',
+        siteOrder: 1
+      },
+      {
+        title: 'C',
+        url: 'https://jable.tv/videos/c/',
+        siteOrder: 3
+      }
+    ]
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: syncRunId,
+    video: {
+      title: 'B duplicate add',
+      url: 'https://jable.tv/videos/b/',
+      siteOrder: null
+    }
+  });
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 2,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'B from official list',
+        url: 'https://jable.tv/videos/b/',
+        siteOrder: 2
+      }
+    ]
+  });
+
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: syncRunId,
+    result: { completed: true, lastScrapedPage: 2 }
+  });
+
+  const visibleRows = db.listVideos('favourites', { sort: 'site_order', direction: 'asc' });
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/a/', 'https://jable.tv/videos/b/', 'https://jable.tv/videos/c/']
+  );
+});
+
 test('deferred sync operations are listed and marked after remote apply', function (t) {
   const db = createTestDatabase(t);
   const syncRunId = 'full-run';
