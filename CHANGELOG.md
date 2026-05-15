@@ -6,6 +6,25 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.9.4] - 2026-05-16
+
+### Changed
+
+- Persist sync pages from preload
+- Run sync in a hidden worker
+- Protect manual toggles during sync
+- Start fresh syncs from page one
+- Add sync operation reconciliation
+- Preserve order after sync operations
+- Queue collection changes during sync
+- Apply queued collection overlays across tabs
+- Harden queued sync operations
+- Handle queued operation replay failures
+- Preserve order for duplicate queued adds
+- Show sync queue progress states
+- Recover sync pagination and queued replay
+- Bump version to 0.9.4
+
 ## [v0.9.3] - 2026-05-15
 
 ### Changed
@@ -184,7 +203,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.3...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.4...HEAD
+[v0.9.4]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.3...v0.9.4
 [v0.9.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.2...v0.9.3
 [v0.9.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.8.0...v0.9.1
 [v0.8.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.7.3...v0.8.0
