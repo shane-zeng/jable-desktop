@@ -33,6 +33,7 @@
     "test": "npm run build:electron && node --test test/node/*.test.js",
     "pretest:renderer": "npm run check:node",
     "test:renderer": "vitest run --config vitest.renderer.config.mjs",
+    "test:electron": "npm run build && playwright test --config playwright.electron.config.mjs",
     "test:all": "npm test && npm run test:renderer",
     "pack:mac": "npm run build && electron-builder --mac --dir",
     "pack:win": "npm run build && electron-builder --win --dir --x64",
@@ -50,6 +51,7 @@
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.3.0",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/test-utils": "^2.4.10",

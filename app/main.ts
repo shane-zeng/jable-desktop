@@ -186,7 +186,8 @@ const nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
 const nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
 const serializedMediaState = browserTabPolicy.serializedMediaState;
 
-const JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
+const DEFAULT_JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
+const JABLE_HOME_URL = configuredHomeUrl();
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const MAX_BROWSER_TABS = 14;
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
@@ -216,6 +217,16 @@ let lastBackgroundUpdateVersion: string | null = null;
 
 function t(key: string, params?: TranslationParams | null): string {
   return i18n.t(currentLocale, key, params);
+}
+
+function configuredHomeUrl() {
+  const homeUrl = String(process.env.JABLE_DESKTOP_TEST_HOME_URL || '').trim();
+  return homeUrl && urlPolicy.isSafeBrowserUrl(homeUrl) ? homeUrl : DEFAULT_JABLE_HOME_URL;
+}
+
+function configureAppStorageForTests() {
+  const userDataDir = String(process.env.JABLE_DESKTOP_TEST_USER_DATA_DIR || '').trim();
+  if (userDataDir) app.setPath('userData', path.resolve(userDataDir));
 }
 
 function mainErrorMessage(error: unknown): string {
@@ -2194,6 +2205,8 @@ function registerIpcHandlers() {
 }
 
 registerIpcHandlers();
+
+configureAppStorageForTests();
 
 app.whenReady().then(function () {
   app.setName('Jable Desktop');

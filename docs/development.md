@@ -171,6 +171,7 @@ Desktop app files:
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/node/`: Node tests for database behavior, sync utilities, i18n, update checks, and browser tab policy.
 - `test/renderer/`: Vitest renderer/component/composable tests.
+- `test/electron/`: Playwright Electron smoke tests for app startup, preload IPC, tab IPC, and import/export integration.
 - `scripts/check-node-version.js`: local guard that enforces the supported Node.js version range before scripts run.
 
 ### Quality Checks
@@ -195,6 +196,7 @@ Useful commands:
 - `npm run format`: format the repository with Prettier.
 - `npm run format:check`: verify formatting without changing files.
 - `npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
+- `npm run test:electron`: build the Electron runtime and renderer, then run the Playwright Electron smoke test with isolated test user data and a local HTTP page.
 
 TypeScript covers the renderer, shared IPC/wire types, and Electron runtime source. The Tampermonkey userscript remains JavaScript to preserve its no-build, self-contained runtime shape.
 
@@ -206,6 +208,7 @@ Test coverage map:
 - `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
+- `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, browser tab create/activate/close IPC, and import/export happy path.
 
 GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
 
@@ -217,7 +220,7 @@ Run the full local quality gate before opening a pull request:
 npm run check
 ```
 
-For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
+For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run test:electron` for Electron startup/preload/tab IPC smoke coverage, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
 
 Manual checks:
 

@@ -59,6 +59,7 @@ export default [
       'app/update-checker.ts',
       'app/url-policy.ts',
       'scripts/**/*.js',
+      'test/electron/**/*.js',
       'test/node/**/*.js'
     ],
     languageOptions: {

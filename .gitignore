@@ -1,5 +1,7 @@
 node_modules/
 release/
+playwright-report/
+test-results/
 app/renderer-dist/
 app/runtime-dist/
 **/.DS_Store
