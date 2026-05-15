@@ -10,8 +10,7 @@ import {
   BROWSER_TABS_MIN_WIDTH,
   BROWSER_TABS_WIDTH_STORAGE_KEY,
   COLLECTIONS,
-  DEFAULT_BROWSER_URL,
-  FULL_SYNC_BATCH_LIMIT
+  DEFAULT_BROWSER_URL
 } from './constants';
 import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
@@ -95,7 +94,7 @@ function hideToast() {
   toast.value = null;
 }
 
-function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info') {
+function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info', options?: { sticky?: boolean }) {
   if (shouldSkipStatus(text)) return;
 
   if (toastTimer) clearTimeout(toastTimer);
@@ -103,6 +102,11 @@ function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info'
     text: text,
     tone: tone || statusTone(text)
   };
+  if (options && options.sticky) {
+    toastTimer = null;
+    return;
+  }
+
   toastTimer = setTimeout(function () {
     toast.value = null;
     toastTimer = null;
@@ -366,7 +370,7 @@ async function syncCollection(mode: SyncMode) {
       siteOrderOffset: siteOrderOffset,
       startPage: startPage,
       stopOnKnownPage: mode === 'quick',
-      batchLimit: mode === 'full' ? FULL_SYNC_BATCH_LIMIT : null
+      batchLimit: null
     };
 
     setStatus(i18n.t('status.syncStart', { mode: syncModeName(mode), collection: collectionName(collectionKey) }));
@@ -400,7 +404,9 @@ async function syncCollection(mode: SyncMode) {
     setActiveView('library');
     await library.refreshVideos();
 
-    setStatus(resultStatus(collectionKey, mode, result, finishState));
+    setStatus(resultStatus(collectionKey, mode, result, finishState), undefined, {
+      sticky: result.completed === false
+    });
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.syncFailed', { mode: syncModeName(mode), error: errorMessage(error) }), 'error');

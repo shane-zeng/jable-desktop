@@ -6,7 +6,6 @@ interface ValueOption<T extends string> {
 }
 
 export const PAGE_SIZE = 24;
-export const FULL_SYNC_BATCH_LIMIT = 100;
 export const DEFAULT_BROWSER_URL = JABLE_PRIMARY_ORIGIN + '/';
 export const BROWSER_TABS_COMPACT_STORAGE_KEY = 'jable-desktop:browser-tabs-compact';
 export const BROWSER_TABS_WIDTH_STORAGE_KEY = 'jable-desktop:browser-tabs-width';

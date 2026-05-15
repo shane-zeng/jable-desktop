@@ -87,6 +87,13 @@ type PendingSyncOperation = {
   remoteVideoId: string | null;
   remoteFavType: string | null;
 };
+type PendingSyncOperationRow = {
+  id: number;
+  action: 'add' | 'remove';
+  video_url: string;
+  remote_video_id: string | null;
+  remote_fav_type: string | null;
+};
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
   canonicalJableUrl(value: unknown): string;
@@ -453,6 +460,16 @@ function buildVideoSearchText(title: unknown, url: unknown): string {
   }
 
   return Object.keys(tokens).join(' ');
+}
+
+function pendingSyncOperationFromRow(row: PendingSyncOperationRow): PendingSyncOperation {
+  return {
+    id: row.id,
+    action: row.action,
+    videoUrl: row.video_url,
+    remoteVideoId: row.remote_video_id,
+    remoteFavType: row.remote_fav_type
+  };
 }
 
 /**
@@ -1188,27 +1205,32 @@ class JableDatabase {
           'ORDER BY id ASC'
         ].join(' ')
       )
-      .all(collectionKey, syncRunId) as Array<{
-      id: number;
-      action: 'add' | 'remove';
-      video_url: string;
-      remote_video_id: string | null;
-      remote_fav_type: string | null;
-    }>;
+      .all(collectionKey, syncRunId) as PendingSyncOperationRow[];
 
-    return rows.map(function (row) {
-      return {
-        id: row.id,
-        action: row.action,
-        videoUrl: row.video_url,
-        remoteVideoId: row.remote_video_id,
-        remoteFavType: row.remote_fav_type
-      };
-    });
+    return rows.map(pendingSyncOperationFromRow);
+  }
+
+  listDeferredSyncOutboxOperations(collectionKey: CollectionKey): PendingSyncOperation[] {
+    this.ensureCollection(collectionKey);
+
+    const rows = this.db
+      .prepare(
+        [
+          'SELECT id, action, video_url, remote_video_id, remote_fav_type',
+          'FROM sync_operations',
+          'WHERE collection_key = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          'ORDER BY id ASC'
+        ].join(' ')
+      )
+      .all(collectionKey) as PendingSyncOperationRow[];
+
+    return rows.map(pendingSyncOperationFromRow);
   }
 
   markDeferredSyncOperationsApplied(collectionKey: CollectionKey, syncRunId: string | null, ids: unknown[]): number {
-    if (!syncRunId || !Array.isArray(ids) || !ids.length) return 0;
+    if (!Array.isArray(ids) || !ids.length) return 0;
 
     const timestamp = nowIso();
     const update = this.db.prepare(
@@ -1216,9 +1238,11 @@ class JableDatabase {
         'UPDATE sync_operations',
         'SET remote_applied_at = ?, remote_apply_error = NULL',
         'WHERE collection_key = ?',
-        '  AND sync_run_id = ?',
+        syncRunId ? '  AND sync_run_id = ?' : '',
         '  AND id = ?'
-      ].join(' ')
+      ]
+        .filter(Boolean)
+        .join(' ')
     );
     let applied = 0;
 
@@ -1229,7 +1253,9 @@ class JableDatabase {
         const id = normalizeNumber(ids[i]);
         if (id === null) continue;
 
-        const result = update.run(timestamp, collectionKey, syncRunId, id);
+        const result = syncRunId
+          ? update.run(timestamp, collectionKey, syncRunId, id)
+          : update.run(timestamp, collectionKey, id);
         applied += Number(result.changes || 0);
       }
 
@@ -1248,22 +1274,24 @@ class JableDatabase {
     id: unknown,
     message: unknown
   ): boolean {
-    if (!syncRunId) return false;
-
     const operationId = normalizeNumber(id);
     if (operationId === null) return false;
 
-    const result = this.db
-      .prepare(
-        [
-          'UPDATE sync_operations',
-          'SET remote_apply_error = ?',
-          'WHERE collection_key = ?',
-          '  AND sync_run_id = ?',
-          '  AND id = ?'
-        ].join(' ')
-      )
-      .run(normalizeText(message) || 'Failed to apply queued operation', collectionKey, syncRunId, operationId);
+    const update = this.db.prepare(
+      [
+        'UPDATE sync_operations',
+        'SET remote_apply_error = ?',
+        'WHERE collection_key = ?',
+        syncRunId ? '  AND sync_run_id = ?' : '',
+        '  AND id = ?'
+      ]
+        .filter(Boolean)
+        .join(' ')
+    );
+    const messageText = normalizeText(message) || 'Failed to apply queued operation';
+    const result = syncRunId
+      ? update.run(messageText, collectionKey, syncRunId, operationId)
+      : update.run(messageText, collectionKey, operationId);
 
     return Boolean(result.changes);
   }

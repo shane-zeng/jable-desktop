@@ -778,6 +778,70 @@ test('sync pages preserve existing site order after an operation is logged', fun
   );
 });
 
+test('restored collection items are replayed as newest sync operations', function (t) {
+  const db = createTestDatabase(t);
+  const syncRunId = 'full-run';
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    syncRunId: syncRunId,
+    rows: [
+      {
+        title: 'A',
+        url: 'https://jable.tv/videos/a/',
+        siteOrder: 1
+      },
+      {
+        title: 'B',
+        url: 'https://jable.tv/videos/b/',
+        siteOrder: 2
+      },
+      {
+        title: 'C',
+        url: 'https://jable.tv/videos/c/',
+        siteOrder: 3
+      }
+    ]
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: syncRunId,
+    video: {
+      title: 'B',
+      url: 'https://jable.tv/videos/b/'
+    }
+  });
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: syncRunId,
+    video: {
+      title: 'B',
+      url: 'https://jable.tv/videos/b/',
+      siteOrder: null
+    }
+  });
+
+  db.finishSync({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: syncRunId,
+    result: { completed: true, lastScrapedPage: 1 }
+  });
+
+  const visibleRows = db.listVideos('favourites', { sort: 'site_order', direction: 'asc' });
+  assert.deepEqual(
+    visibleRows.map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/b/', 'https://jable.tv/videos/a/', 'https://jable.tv/videos/c/']
+  );
+});
+
 test('deferred sync operations are listed and marked after remote apply', function (t) {
   const db = createTestDatabase(t);
   const syncRunId = 'full-run';
@@ -825,6 +889,33 @@ test('deferred sync operations are listed and marked after remote apply', functi
   operations = db.listDeferredSyncOperations('favourites', syncRunId);
   assert.equal(operations.length, 1);
   assert.equal(operations[0].id, secondOperationId);
+});
+
+test('deferred sync outbox keeps failed operations for a later retry', function (t) {
+  const db = createTestDatabase(t);
+
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'add',
+    syncRunId: 'old-run',
+    deferRemote: true,
+    remoteVideoId: '111',
+    remoteFavType: '0',
+    video: {
+      title: 'Old failed add',
+      url: 'https://jable.tv/videos/old-failed/'
+    }
+  });
+
+  const firstAttempt = db.listDeferredSyncOutboxOperations('favourites');
+  assert.equal(firstAttempt.length, 1);
+  assert.equal(db.markDeferredSyncOperationFailed('favourites', null, firstAttempt[0].id, 'Temporary failure'), true);
+
+  const retryAttempt = db.listDeferredSyncOutboxOperations('favourites');
+  assert.equal(retryAttempt.length, 1);
+  assert.equal(retryAttempt[0].id, firstAttempt[0].id);
+  assert.equal(db.markDeferredSyncOperationsApplied('favourites', null, [retryAttempt[0].id]), 1);
+  assert.equal(db.listDeferredSyncOutboxOperations('favourites').length, 0);
 });
 
 test('migration rebuilds the local full text index for existing videos', function (t) {

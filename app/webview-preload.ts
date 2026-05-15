@@ -951,6 +951,11 @@ function scheduleApplyPendingCollectionOperations() {
 function installPendingCollectionOperationOverlay() {
   scheduleApplyPendingCollectionOperations();
   document.addEventListener('DOMContentLoaded', scheduleApplyPendingCollectionOperations, { once: true });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) scheduleApplyPendingCollectionOperations();
+  });
+  window.addEventListener('focus', scheduleApplyPendingCollectionOperations);
+  window.addEventListener('pageshow', scheduleApplyPendingCollectionOperations);
   window.addEventListener('load', scheduleApplyPendingCollectionOperations, { once: true });
 
   if (typeof MutationObserver === 'undefined') return;
@@ -1080,6 +1085,18 @@ async function applyCollectionToggle(collectionKey: CollectionKey, action: Colle
   }
 }
 
+function videoForCollectionToggleOperation(
+  video: ScrapedVideoRow,
+  actionElement: Element | null,
+  action: CollectionAction
+) {
+  if (action === 'add' && collectionListActionForElement(actionElement) === 'add') {
+    return Object.assign({}, video, { siteOrder: null });
+  }
+
+  return video;
+}
+
 async function queueCollectionToggle(
   collectionKey: CollectionKey,
   action: CollectionAction,
@@ -1088,6 +1105,7 @@ async function queueCollectionToggle(
   syncLock: ActiveSyncLock
 ) {
   const rollbackAction = action === 'add' ? 'remove' : 'add';
+  const queuedVideo = videoForCollectionToggleOperation(video, actionElement, action);
   applyQueuedCollectionVisualState(collectionKey, actionElement, action);
 
   try {
@@ -1098,7 +1116,7 @@ async function queueCollectionToggle(
       remoteVideoId: remoteVideoIdForActionElement(actionElement),
       remoteFavType: remoteFavTypeForActionElement(actionElement, collectionKey),
       syncRunId: syncLock.syncRunId,
-      video: video,
+      video: queuedVideo,
       sourceUrl: location.href
     });
   } catch (error) {
@@ -1130,10 +1148,11 @@ async function handleCollectionButtonClick(event: MouseEvent) {
   }
 
   if (await waitForCollectionActionState(collectionKey, actionElement, action)) {
+    const toggledVideo = readVideoDetailsForActionElement(actionElement, collectionKey) || video;
     await applyCollectionToggle(
       collectionKey,
       action,
-      readVideoDetailsForActionElement(actionElement, collectionKey) || video
+      videoForCollectionToggleOperation(toggledVideo, actionElement, action)
     );
   }
 }

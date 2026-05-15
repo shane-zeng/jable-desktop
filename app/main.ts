@@ -124,6 +124,7 @@ type JableDatabaseInstance = {
   saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null };
   applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult;
   listDeferredSyncOperations(collectionKey: CollectionKey, syncRunId: string | null): DeferredSyncOperation[];
+  listDeferredSyncOutboxOperations(collectionKey: CollectionKey): DeferredSyncOperation[];
   markDeferredSyncOperationsApplied(collectionKey: CollectionKey, syncRunId: string | null, ids: unknown[]): number;
   markDeferredSyncOperationFailed(
     collectionKey: CollectionKey,
@@ -1577,7 +1578,7 @@ function pendingCollectionOperationsState(): PendingCollectionOperationOverlaySt
     if (!activeRun) continue;
 
     const latestByUrl: Record<string, PendingCollectionOperationOverlay> = {};
-    const operations = getDatabase().listDeferredSyncOperations(collectionKey, activeRun.syncRunId);
+    const operations = getDatabase().listDeferredSyncOutboxOperations(collectionKey);
 
     for (let n = 0; n < operations.length; n++) {
       const operation = operations[n];
@@ -1653,7 +1654,7 @@ async function applyDeferredSyncOperationsInWorker(
   worker: SyncWorker,
   options: SyncBrowserCollectionOptions
 ): Promise<{ applied: number; failed: number }> {
-  const operations = getDatabase().listDeferredSyncOperations(options.collectionKey, options.syncRunId);
+  const operations = getDatabase().listDeferredSyncOutboxOperations(options.collectionKey);
   if (!operations.length) return { applied: 0, failed: 0 };
 
   const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
@@ -1665,18 +1666,13 @@ async function applyDeferredSyncOperationsInWorker(
   const normalized = (result || {}) as DeferredSyncOperationApplyResult;
   const applied = getDatabase().markDeferredSyncOperationsApplied(
     options.collectionKey,
-    options.syncRunId,
+    null,
     Array.isArray(normalized.applied) ? normalized.applied : []
   );
   const failedRows = Array.isArray(normalized.failed) ? normalized.failed : [];
 
   for (let i = 0; i < failedRows.length; i++) {
-    getDatabase().markDeferredSyncOperationFailed(
-      options.collectionKey,
-      options.syncRunId,
-      failedRows[i].id,
-      failedRows[i].message
-    );
+    getDatabase().markDeferredSyncOperationFailed(options.collectionKey, null, failedRows[i].id, failedRows[i].message);
   }
 
   notifyPendingCollectionOperationsChanged();
