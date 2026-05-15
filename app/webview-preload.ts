@@ -21,6 +21,7 @@ type PagerLink = {
 type SendToHostIpcRenderer = Electron.IpcRenderer & {
   sendToHost?: (channel: string, ...args: unknown[]) => void;
 };
+type ChooseFirstPagerLink = (links: PagerLink[]) => PagerLink | null;
 type ChooseNextPagerLink = (links: PagerLink[], currentPage: number | null) => PagerLink | null;
 type UrlPolicyModule = {
   isTrustedJableUrl(value: unknown): boolean;
@@ -38,8 +39,12 @@ const electron: typeof Electron = require('electron');
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const adCosmeticPolicy = require('./ad-cosmetic-policy') as AdCosmeticPolicyModule;
-const chooseNextPagerLink = (require('./sync-utils') as { chooseNextPagerLink: ChooseNextPagerLink })
-  .chooseNextPagerLink;
+const syncUtils = require('./sync-utils') as {
+  chooseFirstPagerLink: ChooseFirstPagerLink;
+  chooseNextPagerLink: ChooseNextPagerLink;
+};
+const chooseFirstPagerLink = syncUtils.chooseFirstPagerLink;
+const chooseNextPagerLink = syncUtils.chooseNextPagerLink;
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
 
 const IS_MACOS = process.platform === 'darwin';
@@ -213,7 +218,30 @@ function normalizePageNumber(value: unknown) {
   return isFinite(n) && n > 0 ? n : 1;
 }
 
-function currentPageNumber() {
+function readPageNumber(value: unknown): number | null {
+  const n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
+  return isFinite(n) && n > 0 ? n : null;
+}
+
+function samePageUrl(left: unknown, right: unknown) {
+  const leftUrl = absUrl(String(left || ''));
+  const rightUrl = absUrl(String(right || ''));
+
+  return leftUrl.replace(/\/?$/, '/') === rightUrl.replace(/\/?$/, '/');
+}
+
+function hasVisibleActiveBackground(el: Element | null) {
+  if (!el) return false;
+
+  try {
+    const color = window.getComputedStyle(el).backgroundColor;
+    return Boolean(color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)');
+  } catch (error) {
+    return false;
+  }
+}
+
+function currentPageNumber(): number | null {
   const active = document.querySelector<Element>(
     [
       'ul.pagination span.page-link.active',
@@ -222,7 +250,25 @@ function currentPageNumber() {
       'ul.pagination [aria-current="page"]'
     ].join(', ')
   );
-  return active ? normalizePageNumber(active.textContent) : 1;
+  const activePageNumber = active ? readPageNumber(active.textContent) : null;
+  if (activePageNumber) return activePageNumber;
+
+  const anchors = document.querySelectorAll<HTMLAnchorElement>(SEL_PAGER_LINKS);
+
+  for (let i = 0; i < anchors.length; i++) {
+    const pageNumber = readPageNumber(anchors[i].textContent);
+    if (pageNumber && samePageUrl(anchors[i].getAttribute('href'), location.href)) return pageNumber;
+  }
+
+  for (let i = 0; i < anchors.length; i++) {
+    const pageNumber = readPageNumber(anchors[i].textContent);
+    if (!pageNumber) continue;
+    if (hasVisibleActiveBackground(anchors[i]) || hasVisibleActiveBackground(anchors[i].parentElement)) {
+      return pageNumber;
+    }
+  }
+
+  return null;
 }
 
 function signature() {
@@ -815,7 +861,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
 
   async function recordCurrentPage(pageNumber?: number | null) {
     const rows = uniqByUrl(scrapeCurrentPage());
-    lastScrapedPage = pageNumber || logicalPage || currentPageNumber();
+    lastScrapedPage = pageNumber || logicalPage || currentPageNumber() || 1;
     logicalPage = lastScrapedPage;
 
     for (let r = 0; r < rows.length; r++) {
@@ -882,6 +928,57 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     });
 
     return 'loaded';
+  }
+
+  async function ensureFirstPage() {
+    const pageNumber = currentPageNumber();
+    logicalPage = pageNumber || logicalPage || 1;
+
+    if (pageNumber === 1) return true;
+
+    const first = chooseFirstPagerLink(readPagerLinks());
+    if (!first) {
+      incompleteReason = 'first-page-unavailable';
+      return false;
+    }
+
+    const oldSig = signature();
+
+    try {
+      first.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (error) {}
+
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 200);
+    });
+    first.el.click();
+
+    const changed = await waitForContainerChange(oldSig, 15000);
+    if (!changed || signature() === oldSig) {
+      if (currentPageNumber() === 1) {
+        logicalPage = 1;
+        return true;
+      }
+
+      incompleteReason = 'first-page-unchanged';
+      return false;
+    }
+
+    logicalPage = 1;
+
+    sendProgress('sync-progress', {
+      collectionKey: collectionKey,
+      mode: mode,
+      syncRunId: syncRunId,
+      page: logicalPage,
+      message: 'first-page-loaded'
+    });
+
+    return true;
+  }
+
+  if (!startPage && !(await ensureFirstPage())) {
+    return result(false);
   }
 
   if (startPage && logicalPage <= startPage) {

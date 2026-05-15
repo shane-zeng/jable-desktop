@@ -93,6 +93,7 @@
     "collectionRemoveNoop": "{collection} から削除しました。この項目はローカルデータにありませんでした",
     "collectionAdded": "{collection} に追加し、ローカルに同期しました",
     "fullSyncPaused": "{collection} の {mode} を一時停止しました: このバッチは {pages} ページ、{rows} 件を処理しました。フル同期を続行できます。",
+    "firstPageRequired": "{collection} の {mode} を開始できませんでした: 1 ページ目を確認または表示できませんでした。",
     "syncIncomplete": "{collection} の {mode} は完了しませんでした: {reason}",
     "fullSyncComplete": "{collection} のフル同期が完了しました: {rows} 件、見つからない {hidden} 件を非表示にしました",
     "quickSyncComplete": "{collection} のクイック同期が完了しました: {rows} 件、{reason}",

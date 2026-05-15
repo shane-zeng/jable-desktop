@@ -278,6 +278,10 @@ function resultStatus(collectionKey: CollectionKey, mode: SyncMode, result: Sync
       return i18n.t('status.loginRequired', { collection: collection });
     }
 
+    if (result.incompleteReason === 'first-page-unavailable' || result.incompleteReason === 'first-page-unchanged') {
+      return i18n.t('status.firstPageRequired', { collection: collection, mode: name });
+    }
+
     if (result.incompleteReason === 'batch-limit') {
       return i18n.t('status.fullSyncPaused', {
         collection: collection,

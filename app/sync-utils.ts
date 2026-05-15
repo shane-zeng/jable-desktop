@@ -1,6 +1,7 @@
 'use strict';
 
 type PagerLink = {
+  label?: unknown;
   pageNumber?: unknown;
 };
 
@@ -28,7 +29,31 @@ function chooseNextPagerLink<T extends PagerLink>(links: T[], currentPage: unkno
   return best ? best.link : null;
 }
 
+function isFirstPageLabel(value: unknown): boolean {
+  const label = String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  return Boolean(label && (label.indexOf('首頁') !== -1 || label.indexOf('first') !== -1 || label === 'home'));
+}
+
+function chooseFirstPagerLink<T extends PagerLink>(links: T[]): T | null {
+  links = Array.isArray(links) ? links : [];
+
+  for (let i = 0; i < links.length; i++) {
+    if (numericPage(links[i].pageNumber) === 1) return links[i];
+  }
+
+  for (let i = 0; i < links.length; i++) {
+    if (isFirstPageLabel(links[i].label)) return links[i];
+  }
+
+  return null;
+}
+
 module.exports = {
+  chooseFirstPagerLink: chooseFirstPagerLink,
   chooseNextPagerLink: chooseNextPagerLink,
   numericPage: numericPage
 };
