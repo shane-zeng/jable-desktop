@@ -25,9 +25,19 @@ type ChooseNextPagerLink = (links: PagerLink[], currentPage: number | null) => P
 type UrlPolicyModule = {
   isTrustedJableUrl(value: unknown): boolean;
 };
+type AdBlockerModule = {
+  isAdBlockDebugEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
+  isAdBlockEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
+  shouldBlockAdNavigation(value: unknown): boolean;
+};
+type AdCosmeticPolicyModule = {
+  removeCosmeticAds(root: Document | Element, isBlockedAdUrl: (value: unknown) => boolean): number;
+};
 
 const electron: typeof Electron = require('electron');
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
+const adBlocker = require('./ad-blocker') as AdBlockerModule;
+const adCosmeticPolicy = require('./ad-cosmetic-policy') as AdCosmeticPolicyModule;
 const chooseNextPagerLink = (require('./sync-utils') as { chooseNextPagerLink: ChooseNextPagerLink })
   .chooseNextPagerLink;
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
@@ -43,9 +53,11 @@ const TRACKPAD_HISTORY_COOLDOWN_MS = 700;
 const TRACKPAD_HISTORY_RESET_MS = 180;
 const COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS = 4000;
 const COLLECTION_TOGGLE_CONFIRM_POLL_MS = 120;
+const AD_COSMETIC_SCAN_DELAY_MS = 80;
 let trackpadHistoryDeltaX = 0;
 let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
+let adCosmeticScanTimer: ReturnType<typeof setTimeout> | null = null;
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -72,6 +84,40 @@ function uniqByUrl(rows: ScrapedVideoRow[]) {
   }
 
   return out;
+}
+
+function runAdCosmeticFilter() {
+  adCosmeticScanTimer = null;
+
+  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+  if (removed && adBlocker.isAdBlockDebugEnabledByEnv(process.env)) {
+    console.info('[ad-blocker] removed ' + removed + ' ad container(s)');
+  }
+}
+
+function scheduleAdCosmeticFilter() {
+  if (adCosmeticScanTimer) return;
+
+  adCosmeticScanTimer = setTimeout(runAdCosmeticFilter, AD_COSMETIC_SCAN_DELAY_MS);
+}
+
+function installAdCosmeticFilter() {
+  if (!adBlocker.isAdBlockEnabledByEnv(process.env)) return;
+
+  scheduleAdCosmeticFilter();
+
+  document.addEventListener('DOMContentLoaded', scheduleAdCosmeticFilter, { once: true });
+
+  if (typeof MutationObserver === 'undefined') return;
+
+  const target = document.documentElement || document;
+  const observer = new MutationObserver(scheduleAdCosmeticFilter);
+  observer.observe(target, {
+    attributes: true,
+    attributeFilter: ['href', 'src', 'data-src'],
+    childList: true,
+    subtree: true
+  });
 }
 
 function parseMetricNumber(value: unknown) {
@@ -886,3 +932,5 @@ ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
     sendPreloadError(requestId, error);
   }
 });
+
+installAdCosmeticFilter();

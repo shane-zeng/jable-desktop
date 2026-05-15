@@ -151,6 +151,19 @@ type UpdateCheckResult = {
 type UpdateCheckerModule = {
   checkLatestRelease(options: { currentVersion?: string }): Promise<UpdateCheckResult>;
 };
+type AdBlockerModule = {
+  installJableAdBlocker(
+    session: Electron.Session,
+    options?: {
+      enabled?: boolean;
+      debug?: boolean;
+      logger?: { info(message?: unknown, ...optionalParams: unknown[]): void };
+    } | null
+  ): { enabled: boolean; patterns: string[] };
+  isAdBlockDebugEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
+  isAdBlockEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
+  shouldBlockAdNavigation(value: unknown): boolean;
+};
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
   JABLE_FALLBACK_ORIGIN: string;
@@ -164,6 +177,7 @@ type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 const electron: typeof Electron = require('electron');
 const path: typeof NodePath = require('node:path');
+const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
 const databaseModule = require('./database') as DatabaseModule;
 const i18n = require('./i18n') as I18nModule;
@@ -179,6 +193,7 @@ const ipcMain = electron.ipcMain;
 const Menu = electron.Menu;
 const clipboard = electron.clipboard;
 const dialog = electron.dialog;
+const session = electron.session;
 const shell = electron.shell;
 const browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
 const browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
@@ -227,6 +242,27 @@ function configuredHomeUrl() {
 function configureAppStorageForTests() {
   const userDataDir = String(process.env.JABLE_DESKTOP_TEST_USER_DATA_DIR || '').trim();
   if (userDataDir) app.setPath('userData', path.resolve(userDataDir));
+}
+
+function shouldDenyAdNavigation(url: unknown): boolean {
+  const blocked = adBlocker.shouldBlockAdNavigation(url);
+
+  if (blocked && adBlocker.isAdBlockDebugEnabledByEnv(process.env)) {
+    console.info('[ad-blocker] blocked navigation', url);
+  }
+
+  return blocked;
+}
+
+function installAdBlocker() {
+  const result = adBlocker.installJableAdBlocker(session.fromPartition(JABLE_SESSION_PARTITION), {
+    enabled: adBlocker.isAdBlockEnabledByEnv(process.env),
+    debug: adBlocker.isAdBlockDebugEnabledByEnv(process.env)
+  });
+
+  if (result.enabled && adBlocker.isAdBlockDebugEnabledByEnv(process.env)) {
+    console.info('[ad-blocker] enabled with ' + result.patterns.length + ' URL patterns');
+  }
 }
 
 function mainErrorMessage(error: unknown): string {
@@ -618,6 +654,8 @@ function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
+      if (shouldDenyAdNavigation(details.url)) return { action: 'deny' };
+
       try {
         createBrowserTab({
           url: details.url,
@@ -1025,6 +1063,8 @@ function wireBrowserTab(tab: BrowserTab) {
 
   tab.view.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
+      if (shouldDenyAdNavigation(details.url)) return { action: 'deny' };
+
       try {
         createBrowserTab({
           url: details.url,
@@ -1036,6 +1076,10 @@ function wireBrowserTab(tab: BrowserTab) {
     }
 
     return { action: 'deny' };
+  });
+
+  tab.view.webContents.on('will-navigate', function (event: Electron.Event, url: string) {
+    if (shouldDenyAdNavigation(url)) event.preventDefault();
   });
 
   tab.view.webContents.on('page-title-updated', function (_event: Electron.Event, title: string) {
@@ -2214,6 +2258,7 @@ app.whenReady().then(function () {
   installApplicationMenu();
 
   getDatabase();
+  installAdBlocker();
   createWindow();
   scheduleBackgroundUpdateCheck();
 

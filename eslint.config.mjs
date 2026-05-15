@@ -50,6 +50,8 @@ export default [
   },
   {
     files: [
+      'app/ad-blocker.ts',
+      'app/ad-cosmetic-policy.ts',
       'app/browser-tab-policy.ts',
       'app/database.ts',
       'app/i18n/**/*.ts',
@@ -124,7 +126,7 @@ export default [
     }
   },
   {
-    files: ['app/webview-preload.ts'],
+    files: ['app/ad-cosmetic-policy.ts', 'app/webview-preload.ts'],
     languageOptions: {
       globals: {
         ...nodeGlobals,

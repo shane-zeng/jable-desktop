@@ -27,6 +27,7 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 - Desktop app stores synced data in SQLite and supports JSON import/export.
 - Desktop sync preserves Jable site order and supports quick/full sync modes.
 - Embedded browser uses multi-tab `WebContentsView` tabs with a persistent Jable session partition.
+- Embedded browser blocks a small, Jable-specific set of known ad and popup requests in the shared session.
 - Renderer UI is dark-mode-only, with no system appearance selector.
 - Desktop and userscript UI support Traditional Chinese, English, and Japanese localization.
 - Browser shortcuts and quick interactions are documented in [`docs/shortcuts.md`](shortcuts.md).
@@ -122,6 +123,7 @@ Browser and tab behavior:
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.ts` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
+- `app/ad-blocker.ts` centralizes Jable-specific ad request patterns for the `persist:jable-session` Electron session. It blocks known third-party ad subresources and suppresses known ad popup navigations, but keeps Jable `mainFrame` navigations and `blob:` media URLs untouched. `app/ad-cosmetic-policy.ts` is used by the webview preload to remove leftover ad card, sponsor, and modal containers whose URLs match those same rules. Set `JABLE_DESKTOP_AD_BLOCK=0` to disable both request blocking and cosmetic filtering while testing, or `JABLE_DESKTOP_AD_BLOCK_DEBUG=1` to log blocked requests, navigations, and removed containers.
 - `app/url-policy.ts` centralizes trusted Jable origins (`https://jable.tv`, `https://fs1.app`), safe browser-tab protocols, GitHub release external URL checks, collection URL checks, and fallback-origin rewrites.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
 - Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Do not call embedded page functions through injected JavaScript strings.
@@ -159,6 +161,8 @@ Desktop app files:
 - `app/main.ts`: Electron main process and IPC handlers.
 - `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
 - `app/webview-preload.ts`: scraper injected into each embedded Jable `WebContentsView`.
+- `app/ad-blocker.ts`: session-level Jable ad and popup request filtering.
+- `app/ad-cosmetic-policy.ts`: DOM-level removal rules for ad containers left behind after request blocking.
 - `app/browser-tab-policy.ts`: pure browser tab policies used by main-process behavior and Node tests.
 - `app/sync-utils.ts`: shared pager-selection helper for sync pagination.
 - `app/url-policy.ts`: trusted URL origins, browser-tab protocol policy, release URL allowlist, fallback-origin rewriting, and collection URL checks.
@@ -203,6 +207,8 @@ TypeScript covers the renderer, shared IPC/wire types, and Electron runtime sour
 Test coverage map:
 
 - `test/node/database.test.js`: SQLite schema migrations, sync visibility, search, import/export, streamed file export, and collection toggle persistence.
+- `test/node/ad-blocker.test.js`: Jable ad request matching, popup navigation suppression, environment switches, and Electron listener installation.
+- `test/node/ad-cosmetic-policy.test.js`: DOM container removal for blocked ad cards, sponsor rows, and modal wrappers.
 - `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
 - `test/node/sync-utils.test.js`: numeric pager selection.
 - `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
