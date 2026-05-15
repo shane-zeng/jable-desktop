@@ -9,7 +9,7 @@ test('detects newer release versions with or without v prefix', function () {
     available: true,
     currentVersion: '0.7.3',
     latestVersion: '0.7.4',
-    releaseUrl: 'https://github.com/shane-zeng/jable-favourites-exporter/releases/tag/v0.7.4',
+    releaseUrl: 'https://github.com/shane-zeng/jable-desktop/releases/tag/v0.7.4',
     reason: 'newer-release'
   });
 
@@ -37,9 +37,16 @@ test('falls back to release name when tag is not a version', function () {
     updateChecker.evaluateReleaseUpdate('0.7.3', {
       tag_name: 'desktop-release',
       name: 'v0.7.4',
-      html_url: 'https://github.com/shane-zeng/jable-favourites-exporter/releases/tag/desktop-release'
+      html_url: 'https://github.com/shane-zeng/jable-desktop/releases/tag/desktop-release'
     }).available,
     true
+  );
+});
+
+test('checks the desktop release repository', function () {
+  assert.equal(
+    updateChecker.LATEST_RELEASE_API_URL,
+    'https://api.github.com/repos/shane-zeng/jable-desktop/releases/latest'
   );
 });
 
@@ -93,6 +100,6 @@ test('returns a stable failure result for GitHub API errors', async function () 
 function release(version) {
   return {
     tag_name: version,
-    html_url: 'https://github.com/shane-zeng/jable-favourites-exporter/releases/tag/' + version
+    html_url: 'https://github.com/shane-zeng/jable-desktop/releases/tag/' + version
   };
 }

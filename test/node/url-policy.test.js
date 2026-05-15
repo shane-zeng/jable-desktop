@@ -6,18 +6,19 @@ const urlPolicy = require('../../app/runtime-dist/url-policy');
 
 test('allows only expected GitHub release URLs for external opening', function () {
   assert.equal(
+    urlPolicy.isAllowedExternalReleaseUrl('https://github.com/shane-zeng/jable-desktop/releases/tag/v0.7.3'),
+    true
+  );
+  assert.equal(urlPolicy.isAllowedExternalReleaseUrl('https://github.com/shane-zeng/jable-desktop/releases'), true);
+  assert.equal(
     urlPolicy.isAllowedExternalReleaseUrl(
       'https://github.com/shane-zeng/jable-favourites-exporter/releases/tag/v0.7.3'
     ),
-    true
-  );
-  assert.equal(
-    urlPolicy.isAllowedExternalReleaseUrl('https://github.com/shane-zeng/jable-favourites-exporter/releases'),
-    true
+    false
   );
   assert.equal(urlPolicy.isAllowedExternalReleaseUrl('https://github.com/other/repo/releases/tag/v1.0.0'), false);
   assert.equal(
-    urlPolicy.isAllowedExternalReleaseUrl('http://github.com/shane-zeng/jable-favourites-exporter/releases/tag/v1.0.0'),
+    urlPolicy.isAllowedExternalReleaseUrl('http://github.com/shane-zeng/jable-desktop/releases/tag/v1.0.0'),
     false
   );
   assert.equal(urlPolicy.isAllowedExternalReleaseUrl('javascript:alert(1)'), false);

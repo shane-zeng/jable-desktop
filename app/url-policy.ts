@@ -8,7 +8,8 @@ export const JABLE_PRIMARY_ORIGIN: JableOrigin = 'https://jable.tv';
 export const JABLE_FALLBACK_ORIGIN: JableOrigin = 'https://fs1.app';
 export const JABLE_ORIGINS: JableOrigin[] = [JABLE_PRIMARY_ORIGIN, JABLE_FALLBACK_ORIGIN];
 export const GITHUB_RELEASE_ORIGIN = 'https://github.com';
-export const GITHUB_RELEASE_PATH_PREFIX = '/shane-zeng/jable-favourites-exporter/releases';
+export const GITHUB_RELEASE_REPO = 'shane-zeng/jable-desktop';
+export const GITHUB_RELEASE_PATH_PREFIX = '/' + GITHUB_RELEASE_REPO + '/releases';
 
 function parseUrl(value: unknown, base?: string): URL | null {
   const text = String(value || '').trim();
