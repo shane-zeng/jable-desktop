@@ -68,7 +68,7 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 You can change export format by editing this line in the script:
 
 ```js
-var EXPORT_FORMAT = 'json'; // or 'csv'
+const EXPORT_FORMAT = 'json'; // or 'csv'
 ```
 
 ---
@@ -166,7 +166,7 @@ Desktop app files:
 
 ### Quality Checks
 
-The project uses ESLint and Prettier as conservative guardrails. The config preserves the existing code style: `var` declarations, TypeScript source compiled to CommonJS for Electron runtime modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
+The project uses ESLint and Prettier as conservative guardrails. The config enforces `const` by default, `let` only for reassignment, no `var` declarations, no variable shadowing, block-scoped variable usage, strict equality, explicit boolean coercion, and consistent type imports. It still preserves the project shape: TypeScript source compiled to CommonJS for Electron runtime modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
 
 Use Node.js 24, matching the repository `engines` field and GitHub Actions.
 
