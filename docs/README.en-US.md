@@ -62,6 +62,7 @@ After syncing, videos can be searched and sorted locally without repeatedly load
 - Starts from page 1
 - Stops once an entire page is already known
 - Designed for incremental updates
+- Use Full Sync first when the local database is empty
 
 ### Full Sync
 
@@ -70,7 +71,7 @@ After syncing, videos can be searched and sorted locally without repeatedly load
 - Updates all visible videos
 - Hides local rows no longer present on the website
 
-Large lists are processed in batches and can be resumed later.
+Large lists are accelerated in the background with a bounded AJAX window. If the website response does not validate, the app automatically falls back to normal sequential paging.
 
 ## Installation
 
@@ -91,8 +92,10 @@ Please verify the download source is this project's GitHub Releases.
 1. Sign in to Jable inside the embedded browser
 2. Open the Local Data tab
 3. Choose Favourites or Watch Later
-4. Click Quick Sync
+4. Click Full Sync
 5. Synced videos will appear in the local list
+
+After the first full sync, use Quick Sync for routine incremental updates.
 
 ## Import And Export
 

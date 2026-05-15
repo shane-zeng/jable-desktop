@@ -41,7 +41,16 @@ type PagerLink = {
   href: string;
   id: string;
   label: string;
+  pageParamName: string | null;
+  pageParamWidth: number;
   pageNumber: number | null;
+};
+type AjaxSyncPage = {
+  pageNumber: number;
+  rows: ScrapedVideoRow[];
+  signature: string;
+  lastPage: number | null;
+  url: string;
 };
 type SendToHostIpcRenderer = Electron.IpcRenderer & {
   sendToHost?: (channel: string, ...args: unknown[]) => void;
@@ -78,6 +87,8 @@ const SEL_TITLES = 'div.detail h6.title a';
 const SEL_PAGER = 'ul.pagination';
 const SEL_PAGER_LINKS = 'ul.pagination a.page-link';
 const SITE_PAGE_SIZE = 24;
+const FULL_SYNC_AJAX_WINDOW_SIZE = 10;
+const FULL_SYNC_AJAX_PAGE_DELAY_MS = 100;
 const TRACKPAD_HISTORY_THRESHOLD = 180;
 const TRACKPAD_HISTORY_COOLDOWN_MS = 700;
 const TRACKPAD_HISTORY_RESET_MS = 180;
@@ -131,6 +142,16 @@ function uniqByUrl(rows: ScrapedVideoRow[]) {
   }
 
   return out;
+}
+
+function rowUrlSignature(rows: ScrapedVideoRow[]) {
+  const urls: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    urls.push(rows[i].url || '');
+  }
+
+  return urls.join('|');
 }
 
 function runAdCosmeticFilter() {
@@ -243,9 +264,9 @@ function scrapeVideoBox(box: Element | null): ScrapedVideoRow | null {
   };
 }
 
-function scrapeCurrentPage() {
+function scrapeRowsFrom(root: Document | Element) {
   const out: ScrapedVideoRow[] = [];
-  const boxes = document.querySelectorAll('div.video-img-box');
+  const boxes = root.querySelectorAll('div.video-img-box');
 
   for (let i = 0; i < boxes.length; i++) {
     const row = scrapeVideoBox(boxes[i]);
@@ -253,6 +274,10 @@ function scrapeCurrentPage() {
   }
 
   return out;
+}
+
+function scrapeCurrentPage() {
+  return scrapeRowsFrom(document);
 }
 
 function siteOrderForVideoBox(box: Element | null) {
@@ -302,8 +327,8 @@ function hasVisibleActiveBackground(el: Element | null) {
   }
 }
 
-function currentPageNumber(): number | null {
-  const active = document.querySelector<Element>(
+function activePageNumberFrom(root: Document | Element): number | null {
+  const active = root.querySelector<Element>(
     [
       'ul.pagination span.page-link.active',
       'ul.pagination a.page-link.active',
@@ -314,15 +339,55 @@ function currentPageNumber(): number | null {
   const activePageNumber = active ? readPageNumber(active.textContent) : null;
   if (activePageNumber) return activePageNumber;
 
+  return null;
+}
+
+function pagerPageParameter(el: Element) {
+  const params = el.getAttribute('data-parameters') || '';
+  const match = params.match(/(?:^|;)(from(?:_my_fav_videos)?)\s*:\s*(\d+)/);
+
+  return match
+    ? {
+        name: match[1],
+        value: match[2],
+        width: match[2].length
+      }
+    : null;
+}
+
+function pagerPageNumberFromElement(el: Element) {
+  const textPageNumber = readPageNumber(el.textContent);
+  if (textPageNumber) return textPageNumber;
+
+  const pageParameter = pagerPageParameter(el);
+  return pageParameter ? normalizePageNumber(pageParameter.value) : null;
+}
+
+function lastPagerPageNumberFrom(root: Document | Element) {
+  const links = root.querySelectorAll<Element>('ul.pagination .page-link');
+  let lastPage: number | null = null;
+
+  for (let i = 0; i < links.length; i++) {
+    const pageNumber = pagerPageNumberFromElement(links[i]);
+    if (pageNumber && (!lastPage || pageNumber > lastPage)) lastPage = pageNumber;
+  }
+
+  return lastPage;
+}
+
+function currentPageNumber(): number | null {
+  const activePageNumber = activePageNumberFrom(document);
+  if (activePageNumber) return activePageNumber;
+
   const anchors = document.querySelectorAll<HTMLAnchorElement>(SEL_PAGER_LINKS);
 
   for (let i = 0; i < anchors.length; i++) {
-    const pageNumber = readPageNumber(anchors[i].textContent);
+    const pageNumber = pagerPageNumberFromElement(anchors[i]);
     if (pageNumber && samePageUrl(anchors[i].getAttribute('href'), location.href)) return pageNumber;
   }
 
   for (let i = 0; i < anchors.length; i++) {
-    const pageNumber = readPageNumber(anchors[i].textContent);
+    const pageNumber = pagerPageNumberFromElement(anchors[i]);
     if (!pageNumber) continue;
     if (hasVisibleActiveBackground(anchors[i]) || hasVisibleActiveBackground(anchors[i].parentElement)) {
       return pageNumber;
@@ -444,17 +509,17 @@ function readPagerLinks() {
     const href = absUrl(anchor.getAttribute('href') || anchor.href || '', anchor.baseURI || location.href);
     const blockId = anchor.getAttribute('data-block-id') || '';
     const parameters = anchor.getAttribute('data-parameters') || '';
+    const pageParameter = pagerPageParameter(anchor);
     const ajaxUrl = ajaxUrlForPagerLink(blockId, parameters);
     let pageNumber = /^\d+$/.test(text) ? normalizePageNumber(text) : null;
-    const match = parameters.match(/(?:^|;)from(?:_my_fav_videos)?:\s*(\d+)/);
     let id: string;
 
-    if (match) id = match[1];
+    if (pageParameter) id = pageParameter.value;
     else if (/^\d+$/.test(text)) id = text;
     else id = text || 'a_' + i;
 
-    if (!pageNumber && match) {
-      pageNumber = normalizePageNumber(match[1]);
+    if (!pageNumber && pageParameter) {
+      pageNumber = normalizePageNumber(pageParameter.value);
     }
 
     out.push({
@@ -463,6 +528,8 @@ function readPagerLinks() {
       href: href,
       id: id,
       label: text,
+      pageParamName: pageParameter ? pageParameter.name : null,
+      pageParamWidth: pageParameter ? pageParameter.width : 0,
       pageNumber: pageNumber
     });
   }
@@ -517,6 +584,63 @@ async function fetchTextWithTimeout(url: string, timeoutMs: number) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+function ajaxUrlForPage(template: PagerLink, pageNumber: number) {
+  if (!template.ajaxUrl || !template.pageParamName) return null;
+
+  try {
+    const url = new URL(template.ajaxUrl);
+    const value = String(pageNumber).padStart(template.pageParamWidth || 1, '0');
+    url.searchParams.set(template.pageParamName, value);
+    return url.href;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function fetchAjaxSyncPage(
+  template: PagerLink,
+  pageNumber: number,
+  expectedLastPage: number
+): Promise<AjaxSyncPage> {
+  const url = ajaxUrlForPage(template, pageNumber);
+  if (!url || !urlPolicy.isTrustedJableUrl(url)) {
+    throw new Error('ajax-url-unavailable');
+  }
+
+  const html = await fetchTextWithTimeout(url, 15000);
+  if (!html) throw new Error('ajax-empty-response');
+
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const rows = uniqByUrl(scrapeRowsFrom(doc));
+  const pageSignature = signatureFrom(doc);
+  const activePage = activePageNumberFrom(doc);
+  const lastPage = lastPagerPageNumberFrom(doc);
+
+  if (!rows.length || !pageSignature || pageSignature === '0|') {
+    throw new Error('ajax-empty-page');
+  }
+
+  if (activePage !== pageNumber) {
+    throw new Error('ajax-page-mismatch');
+  }
+
+  if (lastPage && lastPage !== expectedLastPage) {
+    throw new Error('ajax-last-page-changed');
+  }
+
+  if (pageNumber < expectedLastPage && rows.length !== SITE_PAGE_SIZE) {
+    throw new Error('ajax-short-page');
+  }
+
+  return {
+    pageNumber: pageNumber,
+    rows: rows,
+    signature: pageSignature,
+    lastPage: lastPage,
+    url: url
+  };
 }
 
 async function loadPagerLinkByFetch(link: PagerLink, oldSig: string) {
@@ -1379,8 +1503,8 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     }
   }
 
-  async function recordCurrentPage(pageNumber?: number | null) {
-    const rows = uniqByUrl(scrapeCurrentPage());
+  async function saveRowsForPage(rows: ScrapedVideoRow[], pageNumber: number | null | undefined, pageUrl: string) {
+    rows = uniqByUrl(rows);
     lastScrapedPage = pageNumber || logicalPage || currentPageNumber() || 1;
     logicalPage = lastScrapedPage;
 
@@ -1401,7 +1525,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       syncRunId: syncRunId,
       page: lastScrapedPage,
       rows: rows,
-      url: location.href
+      url: pageUrl
     };
 
     await ipcRenderer.invoke('db:save-sync-page', payload);
@@ -1413,6 +1537,106 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     }
 
     return false;
+  }
+
+  async function recordCurrentPage(pageNumber?: number | null) {
+    return saveRowsForPage(scrapeCurrentPage(), pageNumber, location.href);
+  }
+
+  async function fetchAjaxPagesWithWindow(template: PagerLink, start: number, end: number) {
+    const pageNumbers: number[] = [];
+    const pages: AjaxSyncPage[] = [];
+    let nextIndex = 0;
+    let failure: unknown = null;
+
+    for (let pageNumber = start; pageNumber <= end; pageNumber++) {
+      pageNumbers.push(pageNumber);
+    }
+
+    async function worker() {
+      while (!failure) {
+        const index = nextIndex;
+        nextIndex++;
+        if (index >= pageNumbers.length) return;
+
+        const pageNumber = pageNumbers[index];
+        sendProgress('sync-progress', {
+          collectionKey: collectionKey,
+          mode: mode,
+          syncRunId: syncRunId,
+          page: pageNumber,
+          message: 'ajax-page-loading'
+        });
+
+        try {
+          pages[index] = await fetchAjaxSyncPage(template, pageNumber, end);
+        } catch (error) {
+          failure = error;
+          return;
+        }
+
+        await new Promise(function (resolve) {
+          setTimeout(resolve, FULL_SYNC_AJAX_PAGE_DELAY_MS);
+        });
+      }
+    }
+
+    const workers: Promise<void>[] = [];
+    for (let i = 0; i < Math.min(FULL_SYNC_AJAX_WINDOW_SIZE, pageNumbers.length); i++) {
+      workers.push(worker());
+    }
+
+    await Promise.all(workers);
+    if (failure) throw failure;
+
+    return pages;
+  }
+
+  function validateAjaxPages(firstPageRows: ScrapedVideoRow[], pages: AjaxSyncPage[]) {
+    const seen: Record<string, boolean> = {};
+
+    for (let i = 0; i < firstPageRows.length; i++) {
+      seen[firstPageRows[i].url] = true;
+    }
+
+    for (let p = 0; p < pages.length; p++) {
+      const page = pages[p];
+      for (let r = 0; r < page.rows.length; r++) {
+        const url = page.rows[r].url;
+        if (seen[url]) throw new Error('ajax-duplicate-url');
+        seen[url] = true;
+      }
+    }
+  }
+
+  async function syncRemainingPagesWithAjaxWindow(firstPageRows: ScrapedVideoRow[], firstPageSignature: string) {
+    if (mode !== 'full' || startPage || batchLimit || syncOptions.stopOnKnownPage) return false;
+    if ((logicalPage || 1) !== 1) return false;
+
+    const links = readPagerLinks();
+    const next = chooseNextPagerLink(links, logicalPage);
+    const lastPage = lastPagerPageNumberFrom(document);
+    if (!next || !next.ajaxUrl || !next.pageParamName || !lastPage || lastPage <= (logicalPage || 1)) return false;
+
+    try {
+      const pages = await fetchAjaxPagesWithWindow(next, (logicalPage || 1) + 1, lastPage);
+      const firstPageCheck = await fetchAjaxSyncPage(next, 1, lastPage);
+      if (firstPageCheck.signature !== firstPageSignature) throw new Error('ajax-first-page-signature-changed');
+      if (rowUrlSignature(firstPageCheck.rows) !== rowUrlSignature(firstPageRows)) {
+        throw new Error('ajax-first-page-rows-changed');
+      }
+
+      validateAjaxPages(firstPageRows, pages);
+
+      for (let i = 0; i < pages.length; i++) {
+        await saveRowsForPage(pages[i].rows, pages[i].pageNumber, pages[i].url);
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('[JableDesktopScraper] ajax sliding window sync failed; falling back to sequential paging', error);
+      return false;
+    }
   }
 
   async function loadNextPage() {
@@ -1488,7 +1712,9 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     if (nextState === 'done') return result(true);
   }
 
-  if (await recordCurrentPage()) {
+  const firstPageRows = uniqByUrl(scrapeCurrentPage());
+  const firstPageSignature = signature();
+  if (await saveRowsForPage(firstPageRows, null, location.href)) {
     return result(true);
   }
 
@@ -1498,6 +1724,10 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       return result(false);
     }
 
+    return result(true);
+  }
+
+  if (await syncRemainingPagesWithAjaxWindow(firstPageRows, firstPageSignature)) {
     return result(true);
   }
 

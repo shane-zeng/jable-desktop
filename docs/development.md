@@ -98,12 +98,12 @@ npm run start:dev
 
 Desktop sync behavior:
 
-- **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known.
+- **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known. It is intended for routine incremental updates after an initial full sync.
 - **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run.
-- Sync runs in a dedicated browser tab. The sync tab is locked while running, and batch-limited full syncs keep that tab locked so continuation can resume from the same page.
-- Full sync runs in batches of 100 pages. Batch-limited or failed runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
-- The webview scraper emits `sync-page` messages while it paginates. The renderer queues `saveSyncPage` calls and waits for all pending saves before calling `finishSync`.
-- Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
+- Full sync writes page 1 first, then can fetch remaining pages through a bounded `get_block` AJAX sliding window. The AJAX path validates active page number, last-page stability, first-page stability, expected page size, and duplicate URLs before writing prefetched rows; failed validation falls back to sequential paging.
+- Sync runs in a dedicated background browser worker. Failed full runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
+- The webview scraper saves each page through `db:save-sync-page` and emits `sync-page` messages while it paginates. The renderer displays progress and calls `finishSync` after the worker returns.
+- Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; during active sync they are deferred into the ordered `sync_operations` outbox, then replayed after sync. Outside active sync, successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
 - JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
 Desktop data and search behavior:
@@ -236,9 +236,10 @@ Manual checks:
 - Verify keyboard tab switching shortcuts from [`docs/shortcuts.md`](shortcuts.md), including repeated previous/next switching without clicking the page between keystrokes.
 - Right-click Jable page content and verify link, media, selection, navigation, and page URL menu actions appear in the expected contexts.
 - Toggle Jable favourite/watch-later buttons in the embedded page and confirm the local list updates after the site-side action succeeds.
-- Quick sync both favourites and watch-later lists.
+- On an empty local database, full sync both favourites and watch-later lists first.
+- Quick sync both favourites and watch-later lists after a completed full sync.
 - Full sync a list and confirm local ordering matches the Jable page order.
-- For large lists, continue a paused full sync and confirm incomplete batches do not hide old rows or unlock the sync tab too early.
+- For large lists, confirm the bounded AJAX full-sync path completes or falls back to sequential paging without hiding old rows on incomplete runs.
 - Search with `any`, `all`, and `phrase` modes and confirm title/URL filtering still matches README examples.
 - Switch desktop language between Traditional Chinese, English, and Japanese. Confirm the top bar, local data controls, pagination, video metadata labels, toast messages, application menu, page context menu, tab context menu, and export dialog title update.
 - Restart the app after changing language and confirm the `jable-desktop:locale` preference is preserved.

@@ -62,6 +62,7 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 - 1 ページ目から開始
 - 1 ページ全体が既知のデータだった時点で停止
 - 日常的な増分更新向け
+- ローカルデータが空の場合は先にフル同期を使用
 
 ### フル同期
 
@@ -70,7 +71,7 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 - 表示中の動画をすべて更新
 - サイト上に存在しなくなったローカル行を非表示にする
 
-大きなリストは batch で処理され、後から再開できます。
+大きなリストは background の bounded AJAX window で高速化されます。サイトの応答を検証できない場合は、通常の逐次ページングへ自動的に fallback します。
 
 ## インストール
 
@@ -91,8 +92,10 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 1. 内蔵 browser で Jable にサインイン
 2. ローカルデータタブを開く
 3. お気に入りまたは後で見るを選択
-4. クイック同期をクリック
+4. フル同期をクリック
 5. 同期された動画がローカルリストに表示されます
+
+初回のフル同期後は、日常的な更新にクイック同期を使用できます。
 
 ## Import と Export
 

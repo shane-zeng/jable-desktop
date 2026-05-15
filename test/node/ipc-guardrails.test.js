@@ -44,8 +44,21 @@ test('webview pager fallback uses Jable get_block requests and page-number from 
   assert.match(source, /url\.searchParams\.set\('function', 'get_block'\)/);
   assert.match(source, /function loadPagerLinkByFetch/);
   assert.match(source, /new DOMParser\(\)\.parseFromString\(html, 'text\/html'\)/);
-  assert.match(source, /pageNumber = normalizePageNumber\(match\[1\]\)/);
+  assert.match(source, /function pagerPageParameter/);
+  assert.match(source, /pageNumber = normalizePageNumber\(pageParameter\.value\)/);
   assert.equal(source.includes('Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1'), false);
+});
+
+test('full sync can use a bounded ajax sliding window with sequential fallback', function () {
+  const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+
+  assert.match(source, /const FULL_SYNC_AJAX_WINDOW_SIZE = 10/);
+  assert.match(source, /function ajaxUrlForPage/);
+  assert.match(source, /async function fetchAjaxPagesWithWindow/);
+  assert.match(source, /async function syncRemainingPagesWithAjaxWindow/);
+  assert.match(source, /rowUrlSignature\(firstPageCheck\.rows\) !== rowUrlSignature\(firstPageRows\)/);
+  assert.match(source, /ajax sliding window sync failed; falling back to sequential paging/);
+  assert.match(source, /await syncRemainingPagesWithAjaxWindow\(firstPageRows, firstPageSignature\)/);
 });
 
 test('main process replays queued collection operations after recoverable incomplete sync', function () {
