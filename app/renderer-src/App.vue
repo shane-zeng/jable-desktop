@@ -33,11 +33,13 @@ import type {
   SyncPagePayload,
   SyncProgressPayload,
   SyncQueuedOperationFailure,
+  SyncQueueProgressPayload,
   SyncResult,
   SyncState,
   VideoRow
 } from '../types/jable';
 
+const SYNC_RETURNING_NOTICE_DELAY_MS = 450;
 const api = useJableApi();
 const i18n = useI18n();
 const activeView = ref<AppView>('browser');
@@ -123,6 +125,12 @@ function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info'
     toast.value = null;
     toastTimer = null;
   }, 4200);
+}
+
+function waitForSyncReturningNotice() {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, SYNC_RETURNING_NOTICE_DELAY_MS);
+  });
 }
 
 function loadBrowserTabsCompact() {
@@ -302,6 +310,30 @@ function handleBrowserMessage(message: BrowserMessage) {
     setStatus(i18n.t('status.syncProgress', { page: progress.page }));
   }
 
+  if (message.channel === 'sync-queue-progress') {
+    const progress = message.args[0] as SyncQueueProgressPayload;
+    if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
+
+    if (progress.phase === 'start') {
+      setStatus(
+        i18n.t('status.syncQueueProcessing', {
+          collection: collectionName(progress.collectionKey),
+          count: progress.total
+        }),
+        'info'
+      );
+    } else {
+      setStatus(
+        i18n.t('status.syncQueueProcessed', {
+          collection: collectionName(progress.collectionKey),
+          applied: progress.applied || 0,
+          failed: progress.failed || 0
+        }),
+        progress.failed ? 'warning' : 'success'
+      );
+    }
+  }
+
   if (message.channel === 'collection-toggle') {
     const togglePayload = message.args[0] as CollectionToggleResult;
     if (togglePayload.collectionKey === library.activeCollection.value) {
@@ -445,6 +477,7 @@ async function syncCollection(mode: SyncMode) {
       options: options
     });
     syncTabId = result.syncWorkerId || syncTabId;
+    setStatus(i18n.t('status.syncFinalizingLocalData', { collection: collectionName(collectionKey) }), 'info');
 
     const finishState = await api.finishSync({
       collectionKey: collectionKey,
@@ -467,6 +500,8 @@ async function syncCollection(mode: SyncMode) {
 
     const finalVisibleRows = await api.countVideos({ collectionKey: collectionKey });
     library.currentPage.value = 1;
+    setStatus(i18n.t('status.syncReturningLibrary', { collection: collectionName(collectionKey) }), 'info');
+    await waitForSyncReturningNotice();
     setActiveView('library');
     await library.refreshVideos();
     showQueuedFailureDialog(collectionKey, result);

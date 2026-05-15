@@ -28,6 +28,7 @@ import type {
   SyncBrowserCollectionOptions,
   SyncMode,
   SyncQueuedOperationFailure,
+  SyncQueueProgressPayload,
   SyncPagePayload,
   SyncResult,
   SyncState,
@@ -116,6 +117,7 @@ type DeferredSyncOperationApplyResult = {
   applied: number[];
   failed: SyncQueuedOperationFailure[];
 };
+type SyncQueueProgressInput = Omit<SyncQueueProgressPayload, 'collectionKey' | 'mode' | 'syncRunId'>;
 type JableDatabaseInstance = {
   close(): void;
   listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[];
@@ -1651,12 +1653,31 @@ function resolveSyncWorker(
   };
 }
 
+function notifySyncQueueProgress(options: SyncBrowserCollectionOptions, payload: SyncQueueProgressInput) {
+  forwardBrowserMessage(
+    'sync-queue-progress',
+    Object.assign(
+      {
+        collectionKey: options.collectionKey,
+        mode: options.mode,
+        syncRunId: options.syncRunId
+      },
+      payload
+    )
+  );
+}
+
 async function applyDeferredSyncOperationsInWorker(
   worker: SyncWorker,
   options: SyncBrowserCollectionOptions
 ): Promise<{ applied: number; failed: number; failures: SyncQueuedOperationFailure[] }> {
   const operations = getDatabase().listDeferredSyncOutboxOperations(options.collectionKey);
   if (!operations.length) return { applied: 0, failed: 0, failures: [] };
+
+  notifySyncQueueProgress(options, {
+    phase: 'start',
+    total: operations.length
+  });
 
   const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
     worker.webContents,
@@ -1677,6 +1698,12 @@ async function applyDeferredSyncOperationsInWorker(
   }
 
   notifyPendingCollectionOperationsChanged();
+  notifySyncQueueProgress(options, {
+    phase: 'complete',
+    total: operations.length,
+    applied: applied,
+    failed: failedRows.length
+  });
 
   return { applied: applied, failed: failedRows.length, failures: failedRows };
 }

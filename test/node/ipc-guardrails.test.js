@@ -56,3 +56,17 @@ test('renderer reports queued operation failures outside the toast and counts fi
   assert.match(source, /showQueuedFailureDialog\(collectionKey, result\)/);
   assert.match(source, /class="app-modal-url-list"/);
 });
+
+test('sync queue and finalization phases surface renderer status updates', function () {
+  const source = readSource(APP_SOURCE_PATH);
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(mainSource, /function notifySyncQueueProgress/);
+  assert.match(mainSource, /'sync-queue-progress'/);
+  assert.match(mainSource, /phase: 'start'/);
+  assert.match(source, /message\.channel === 'sync-queue-progress'/);
+  assert.match(source, /status\.syncQueueProcessing/);
+  assert.match(source, /status\.syncFinalizingLocalData/);
+  assert.match(source, /status\.syncReturningLibrary/);
+  assert.match(source, /waitForSyncReturningNotice/);
+});

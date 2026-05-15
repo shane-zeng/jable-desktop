@@ -204,6 +204,16 @@ export interface SyncProgressPayload {
   message?: string;
 }
 
+export interface SyncQueueProgressPayload {
+  collectionKey: CollectionKey;
+  mode: SyncMode;
+  syncRunId: string;
+  phase: 'start' | 'complete';
+  total: number;
+  applied?: number;
+  failed?: number;
+}
+
 export interface SyncQueuedOperationFailure {
   id?: number;
   url: string;
