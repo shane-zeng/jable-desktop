@@ -801,6 +801,21 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
   });
 }
 
+function reconcileDownloadRecordFileState(record: DownloadRecord): DownloadRecord {
+  const next = downloadRecordWithFileState(record);
+  if (!downloadRecordNeedsPersistence(record, next)) return next;
+
+  const persisted = upsertPersistedDownload({
+    videoUrl: next.videoUrl,
+    state: next.state,
+    progress: next.progress,
+    error: next.error,
+    fileSizeBytes: next.fileSizeBytes
+  });
+  notifyDownloadsChanged();
+  return persisted;
+}
+
 function downloadRecordNeedsPersistence(current: DownloadRecord, next: DownloadRecord): boolean {
   return (
     current.state !== next.state ||
@@ -1270,7 +1285,7 @@ function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
   const record = getPersistedDownload(videoUrl);
-  const readyRecord = record ? downloadRecordWithFileState(record) : null;
+  const readyRecord = record ? reconcileDownloadRecordFileState(record) : null;
   if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
     throw new Error(t('status.downloadFileUnavailable'));
   }
@@ -1291,7 +1306,7 @@ function revealDownloadFile(value: unknown): RevealDownloadFileResult {
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
   const record = getPersistedDownload(videoUrl);
-  const readyRecord = record ? downloadRecordWithFileState(record) : null;
+  const readyRecord = record ? reconcileDownloadRecordFileState(record) : null;
   if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
     throw new Error(t('status.downloadFileUnavailable'));
   }

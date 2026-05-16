@@ -202,3 +202,12 @@ test('main process validates the download root before queueing work', function (
     /await ffmpegCommandForDownload\(\);\n\s+ensureDownloadRootReady\(\);\n\n\s+const record = upsertPersistedDownload/
   );
 });
+
+test('main process persists missing state discovered by open or reveal', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /function reconcileDownloadRecordFileState/);
+  assert.match(source, /const next = downloadRecordWithFileState\(record\)/);
+  assert.match(source, /notifyDownloadsChanged\(\);\n\s+return persisted/);
+  assert.match(source, /const readyRecord = record \? reconcileDownloadRecordFileState\(record\) : null/);
+});

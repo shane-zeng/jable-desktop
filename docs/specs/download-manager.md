@@ -168,7 +168,7 @@ This document specifies the current Download List and local video file managemen
 - Open and reveal actions require the record to be `ready` and the file to exist.
 - Open uses Electron `shell.openPath(filePath)`.
 - Reveal uses Electron `shell.showItemInFolder(filePath)`.
-- If open or reveal discovers an unavailable file, the renderer refreshes download records so missing state can be inferred.
+- If open or reveal discovers an unavailable file, main persists `missing` state and notifies the renderer.
 - Download completion and failure are surfaced with localized renderer toast messages.
 - User-initiated cancellation is suppressed from the generic download-failed toast path.
 
