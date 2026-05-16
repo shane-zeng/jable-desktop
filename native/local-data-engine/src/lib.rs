@@ -1521,11 +1521,12 @@ impl Engine {
          ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC",
             )
             .map_err(to_napi_error)?;
-        statement
+        let rows = statement
             .query_map(params![collection_key], |row| row.get::<_, String>(0))
             .map_err(to_napi_error)?
             .collect::<std::result::Result<Vec<String>, _>>()
-            .map_err(to_napi_error)
+            .map_err(to_napi_error)?;
+        Ok(rows)
     }
 
     fn finish_sync(&self, payload: Value) -> Result<Value> {

@@ -9,6 +9,18 @@ const path = require('node:path');
 const dataEngine = require('../../app/runtime-dist/data-engine');
 
 const ENGINE_KINDS = ['ts'];
+const nativeAddonPath = path.join(
+  __dirname,
+  '..',
+  '..',
+  'app',
+  'native-dist',
+  'jable_data_engine.' + process.platform + '-' + process.arch + '.node'
+);
+
+if (process.env.JABLE_TEST_RUST_ENGINE === '1' || fs.existsSync(nativeAddonPath)) {
+  ENGINE_KINDS.push('rust');
+}
 
 function createEngine(t, kind) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-engine-'));
