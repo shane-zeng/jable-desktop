@@ -368,11 +368,13 @@ describe('LibraryPanel', function () {
     expect(cards[1].text()).toContain('錯誤：File removed');
 
     await cards[0].get('button').trigger('click');
+    await cards[0].get('[data-test="download-record-reveal"]').trigger('click');
     await cards[0].get('[data-test="download-record-delete"]').trigger('click');
     await cards[1].get('[data-test="download-record-retry"]').trigger('click');
     await cards[1].get('[data-test="download-record-delete"]').trigger('click');
 
     expect(wrapper.emitted('open-download')).toEqual([['https://jable.tv/videos/ready/']]);
+    expect(wrapper.emitted('reveal-download')).toEqual([['https://jable.tv/videos/ready/']]);
     expect(wrapper.emitted('retry-download')).toEqual([['https://jable.tv/videos/missing/']]);
     expect(wrapper.emitted('delete-download')).toEqual([
       ['https://jable.tv/videos/ready/'],

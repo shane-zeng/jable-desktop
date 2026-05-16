@@ -63,6 +63,9 @@ const jableApp: JableAppApi = {
   openDownloadFile: function (videoUrl) {
     return ipcRenderer.invoke('download:open-file', videoUrl);
   },
+  revealDownloadFile: function (videoUrl) {
+    return ipcRenderer.invoke('download:reveal-file', videoUrl);
+  },
   deleteDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:delete', videoUrl);
   },

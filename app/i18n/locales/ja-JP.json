@@ -97,6 +97,7 @@
     "empty": "ダウンロードはまだありません",
     "unknownCollection": "不明なリスト",
     "retry": "再試行",
+    "reveal": "場所を表示",
     "delete": "削除",
     "error": "エラー: {error}",
     "state": {
@@ -277,8 +278,10 @@
     "downloadRootClearFailed": "ダウンロード先をリセットできませんでした: {error}",
     "downloadRootOpenFailed": "ダウンロードフォルダーを開けませんでした: {error}",
     "downloadFileOpened": "ダウンロードファイルを開きました",
+    "downloadFileRevealed": "ダウンロードファイルの場所を表示しました",
     "downloadFileUnavailable": "ダウンロードファイルを使用できません",
     "downloadFileOpenFailed": "ダウンロードファイルを開けませんでした: {error}",
+    "downloadFileRevealFailed": "ダウンロードファイルの場所を表示できませんでした: {error}",
     "downloadQueued": "ダウンロード一覧に追加しました",
     "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
     "downloadStartFailed": "ダウンロードを開始できませんでした: {error}",

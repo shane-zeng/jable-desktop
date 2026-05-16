@@ -173,6 +173,11 @@ export interface OpenDownloadFileResult {
   path: string;
 }
 
+export interface RevealDownloadFileResult {
+  revealed: boolean;
+  path: string;
+}
+
 export interface DeleteDownloadResult {
   deleted: boolean;
   removed: boolean;
@@ -455,6 +460,7 @@ export interface JableAppApi {
   enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
   retryDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
+  revealDownloadFile(videoUrl: string): Promise<RevealDownloadFileResult>;
   deleteDownload(videoUrl: string): Promise<DeleteDownloadResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;

@@ -51,6 +51,7 @@ const emit = defineEmits<{
   'next-page': [];
   'go-page': [page: number];
   'open-download': [videoUrl: string];
+  'reveal-download': [videoUrl: string];
   'retry-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
   'download-video': [video: VideoRow];
@@ -192,6 +193,7 @@ function updateDirection(event: Event) {
             :key="record.videoUrl"
             :record="record"
             @open="emit('open-download', $event)"
+            @reveal="emit('reveal-download', $event)"
             @retry="emit('retry-download', $event)"
             @delete="emit('delete-download', $event)"
           />

@@ -36,6 +36,7 @@ import type {
   OpenDownloadFileResult,
   PendingRemoteOperationActionResult,
   PendingRemoteOperationGroup,
+  RevealDownloadFileResult,
   SupportedLocale,
   SyncBrowserCollectionOptions,
   SyncMode,
@@ -1070,6 +1071,23 @@ function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
       path: readyRecord.localPath as string
     };
   });
+}
+
+function revealDownloadFile(value: unknown): RevealDownloadFileResult {
+  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:reveal-file').trim();
+  if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
+
+  const record = getDownloadStore().get(videoUrl);
+  const readyRecord = record ? downloadRecordWithFileState(record) : null;
+  if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
+    throw new Error(t('status.downloadFileUnavailable'));
+  }
+
+  shell.showItemInFolder(readyRecord.localPath);
+  return {
+    revealed: true,
+    path: readyRecord.localPath
+  };
 }
 
 function getDatabase(): DataEngineInstance {
@@ -3137,6 +3155,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('download:open-file', function (_event, videoUrl) {
     return openDownloadFile(videoUrl);
+  });
+
+  ipcMain.handle('download:reveal-file', function (_event, videoUrl) {
+    return revealDownloadFile(videoUrl);
   });
 
   ipcMain.handle('download:delete', function (_event, videoUrl) {

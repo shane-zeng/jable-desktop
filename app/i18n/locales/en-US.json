@@ -97,6 +97,7 @@
     "empty": "No downloads yet",
     "unknownCollection": "Unknown list",
     "retry": "Retry",
+    "reveal": "Reveal",
     "delete": "Delete",
     "error": "Error: {error}",
     "state": {
@@ -277,8 +278,10 @@
     "downloadRootClearFailed": "Failed to reset download location: {error}",
     "downloadRootOpenFailed": "Failed to open download folder: {error}",
     "downloadFileOpened": "Opened the downloaded file",
+    "downloadFileRevealed": "Revealed the downloaded file",
     "downloadFileUnavailable": "Downloaded file is unavailable",
     "downloadFileOpenFailed": "Failed to open downloaded file: {error}",
+    "downloadFileRevealFailed": "Failed to reveal downloaded file: {error}",
     "downloadQueued": "Added to the download list",
     "downloadAlreadyQueued": "Video is already in the download list",
     "downloadStartFailed": "Failed to start download: {error}",

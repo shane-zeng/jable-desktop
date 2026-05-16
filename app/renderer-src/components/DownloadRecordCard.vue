@@ -8,6 +8,7 @@ defineProps<{
 
 const emit = defineEmits<{
   open: [videoUrl: string];
+  reveal: [videoUrl: string];
   retry: [videoUrl: string];
   delete: [videoUrl: string];
 }>();
@@ -59,6 +60,15 @@ function progressLabel(record: DownloadRecord) {
       <span v-if="progressLabel(record)" class="py-1 text-xs text-[var(--muted)]">
         {{ progressLabel(record) }}
       </span>
+      <button
+        v-if="record.state === 'ready'"
+        type="button"
+        class="min-h-7 px-2 py-1 text-xs"
+        data-test="download-record-reveal"
+        @click="emit('reveal', record.videoUrl)"
+      >
+        {{ t('downloadList.reveal') }}
+      </button>
       <button
         v-if="record.state === 'failed' || record.state === 'missing'"
         type="button"

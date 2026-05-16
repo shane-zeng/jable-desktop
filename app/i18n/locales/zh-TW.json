@@ -97,6 +97,7 @@
     "empty": "目前沒有下載項目",
     "unknownCollection": "未知清單",
     "retry": "重試",
+    "reveal": "顯示位置",
     "delete": "刪除",
     "error": "錯誤：{error}",
     "state": {
@@ -277,8 +278,10 @@
     "downloadRootClearFailed": "重設下載位置失敗：{error}",
     "downloadRootOpenFailed": "開啟下載資料夾失敗：{error}",
     "downloadFileOpened": "已開啟下載檔案",
+    "downloadFileRevealed": "已顯示下載檔案位置",
     "downloadFileUnavailable": "下載檔案無法使用",
     "downloadFileOpenFailed": "開啟下載檔案失敗：{error}",
+    "downloadFileRevealFailed": "顯示下載檔案位置失敗：{error}",
     "downloadQueued": "已加入下載清單",
     "downloadAlreadyQueued": "影片已在下載清單中",
     "downloadStartFailed": "開始下載失敗：{error}",
