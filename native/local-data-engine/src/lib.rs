@@ -8,114 +8,34 @@ use std::path::Path;
 use std::sync::Mutex;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
-use unicode_normalization::UnicodeNormalization;
-use url::Url;
 
-const PAGE_SIZE: usize = 24;
-const SEARCH_NGRAM_MAX: usize = 3;
-const PRIMARY_ORIGIN: &str = "https://jable.tv";
+mod collections;
+mod payload;
+mod resource;
+mod rows;
+mod schema;
+mod search;
+mod store;
 
-#[derive(Clone)]
-struct Collection {
-    key: &'static str,
-    name: &'static str,
-    source_path: &'static str,
-}
-
-#[derive(Clone)]
-struct NormalizedVideo {
-    url: String,
-    title: Option<String>,
-    views: Option<i64>,
-    likes: Option<i64>,
-    img: Option<String>,
-    preview: Option<String>,
-    site_order: Option<i64>,
-    search_text: String,
-}
-
-#[derive(Clone)]
-struct OperationRow {
-    id: i64,
-    sync_run_id: String,
-    action: String,
-    video_url: String,
-    title: Option<String>,
-    views: Option<i64>,
-    likes: Option<i64>,
-    img: Option<String>,
-    preview: Option<String>,
-    site_order: Option<i64>,
-    remote_deferred: i64,
-    remote_apply_state: String,
-}
-
-struct PendingRemoteOperationRow {
-    id: i64,
-    collection_key: String,
-    action: String,
-    video_url: String,
-    title: Option<String>,
-    views: Option<i64>,
-    likes: Option<i64>,
-    img: Option<String>,
-    preview: Option<String>,
-    remote_apply_state: String,
-    remote_apply_error: Option<String>,
-}
-
-struct PendingRemoteOperationGroup {
-    group_id: String,
-    collection_key: String,
-    video_url: String,
-    title: Option<String>,
-    views: Option<i64>,
-    likes: Option<i64>,
-    img: Option<String>,
-    preview: Option<String>,
-    state: String,
-    error: Option<String>,
-    sequence: Vec<Value>,
-}
-
-struct ListRow {
-    url: String,
-    title: Option<String>,
-    views: Option<i64>,
-    likes: Option<i64>,
-    img: Option<String>,
-    preview: Option<String>,
-    created_at: Option<String>,
-    updated_at: Option<String>,
-    first_seen_at: Option<String>,
-    last_seen_at: Option<String>,
-    site_order: Option<i64>,
-    is_visible: i64,
-    missing_at: Option<String>,
-    last_sync_run_id: Option<String>,
-    search_text: Option<String>,
-}
+use collections::ensure_collection;
+use payload::{
+    normalize_video, normalize_video_url, object_field, read_site_order, value_bool, value_i64,
+    value_string, NormalizedVideo,
+};
+use resource::{export_meta, export_page, flatten_resource, PAGE_SIZE};
+use rows::{
+    operation_from_row, pending_operation_from_row, OperationRow, PendingRemoteOperationGroup,
+    PendingRemoteOperationRow,
+};
+use search::build_video_search_text;
+#[cfg(test)]
+use search::matches_search;
 
 struct Engine {
     conn: Option<Connection>,
 }
 
-fn collections() -> [Collection; 2] {
-    [
-        Collection {
-            key: "favourites",
-            name: "影片收藏",
-            source_path: "/my/favourites/videos/",
-        },
-        Collection {
-            key: "watch_later",
-            name: "稍後觀看",
-            source_path: "/my/favourites/videos-watch-later/",
-        },
-    ]
-}
-
-fn to_napi_error(error: impl std::fmt::Display) -> Error {
+pub(crate) fn to_napi_error(error: impl std::fmt::Display) -> Error {
     Error::from_reason(error.to_string())
 }
 
@@ -141,325 +61,6 @@ fn pending_remote_group_parts(group_id: Option<&str>) -> Option<(String, String)
     Some((collection_key.to_string(), normalized_url))
 }
 
-fn value_string(value: Option<&Value>) -> Option<String> {
-    match value {
-        Some(Value::String(text)) => {
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        }
-        Some(Value::Number(number)) => Some(number.to_string()),
-        Some(Value::Bool(flag)) => Some(flag.to_string()),
-        _ => None,
-    }
-}
-
-fn value_i64(value: Option<&Value>) -> Option<i64> {
-    match value {
-        Some(Value::Number(number)) => number
-            .as_i64()
-            .or_else(|| number.as_f64().map(|n| n as i64)),
-        Some(Value::String(text)) => {
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                trimmed.parse::<f64>().ok().map(|n| n as i64)
-            }
-        }
-        _ => None,
-    }
-}
-
-fn value_bool(value: Option<&Value>) -> bool {
-    matches!(value, Some(Value::Bool(true)))
-}
-
-fn object_field<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
-    value.as_object().and_then(|object| object.get(key))
-}
-
-fn collection_by_key(key: &str) -> Option<Collection> {
-    collections()
-        .into_iter()
-        .find(|collection| collection.key == key)
-}
-
-fn ensure_collection(key: &str) -> Result<Collection> {
-    collection_by_key(key).ok_or_else(|| Error::from_reason(format!("Unknown collection: {key}")))
-}
-
-fn normalize_video_url(value: Option<&Value>) -> Option<String> {
-    let text = value_string(value)?;
-    let mut parsed = Url::parse(&text).ok()?;
-
-    parsed.set_query(None);
-    parsed.set_fragment(None);
-    if parsed.path().starts_with("/videos/") && !parsed.path().ends_with('/') {
-        let next = format!("{}/", parsed.path());
-        parsed.set_path(&next);
-    }
-
-    if parsed.domain() == Some("jable.tv") || parsed.domain() == Some("fs1.app") {
-        let mut target = Url::parse(PRIMARY_ORIGIN).ok()?;
-        target.set_path(parsed.path());
-        return Some(target.to_string());
-    }
-
-    Some(parsed.to_string())
-}
-
-fn read_site_order(value: &Value) -> Option<i64> {
-    value_i64(object_field(value, "siteOrder"))
-        .or_else(|| value_i64(object_field(value, "site_order")))
-        .or_else(|| value_i64(object_field(value, "sort_order")))
-}
-
-fn normalize_video(value: &Value) -> Option<NormalizedVideo> {
-    let url = normalize_video_url(object_field(value, "url"))?;
-    let title = value_string(object_field(value, "title"));
-    let video = NormalizedVideo {
-        search_text: build_video_search_text(title.as_deref(), Some(&url)),
-        url,
-        title,
-        views: value_i64(object_field(value, "views")),
-        likes: value_i64(object_field(value, "likes")),
-        img: value_string(object_field(value, "img")),
-        preview: value_string(object_field(value, "preview")),
-        site_order: read_site_order(value),
-    };
-
-    Some(video)
-}
-
-fn is_cjk_search_char(char_value: char) -> bool {
-    matches!(
-      char_value as u32,
-      0x3400..=0x4dbf
-        | 0x4e00..=0x9fff
-        | 0xf900..=0xfaff
-        | 0x3040..=0x309f
-        | 0x30a0..=0x30ff
-        | 0xac00..=0xd7af
-    )
-}
-
-fn is_search_word_char(char_value: char) -> bool {
-    char_value.is_alphanumeric()
-}
-
-fn normalized_search_text(value: Option<&str>) -> String {
-    value
-        .unwrap_or("")
-        .nfkc()
-        .flat_map(|char_value| char_value.to_lowercase())
-        .collect::<String>()
-}
-
-fn search_runs(value: Option<&str>) -> Vec<String> {
-    let text = normalized_search_text(value);
-    let mut runs = Vec::new();
-    let mut current = String::new();
-    let mut current_type: Option<&str> = None;
-
-    for char_value in text.chars() {
-        let char_type = if is_cjk_search_char(char_value) {
-            Some("cjk")
-        } else if is_search_word_char(char_value) {
-            Some("word")
-        } else {
-            None
-        };
-
-        if char_type.is_none() {
-            if !current.is_empty() {
-                runs.push(current.clone());
-            }
-            current.clear();
-            current_type = None;
-            continue;
-        }
-
-        if current_type.is_some() && current_type != char_type {
-            runs.push(current.clone());
-            current.clear();
-        }
-
-        current.push(char_value);
-        current_type = char_type;
-    }
-
-    if !current.is_empty() {
-        runs.push(current);
-    }
-
-    runs
-}
-
-fn add_ngrams(tokens: &mut HashMap<String, bool>, run: &str) {
-    let chars = run.chars().collect::<Vec<char>>();
-    let max_size = SEARCH_NGRAM_MAX.min(chars.len());
-
-    for size in 1..=max_size {
-        for start in 0..=(chars.len() - size) {
-            tokens.insert(chars[start..start + size].iter().collect(), true);
-        }
-    }
-}
-
-fn compact_search_value(value: Option<&str>) -> String {
-    normalized_search_text(value)
-        .chars()
-        .filter(|char_value| is_cjk_search_char(*char_value) || is_search_word_char(*char_value))
-        .collect()
-}
-
-fn build_video_search_text(title: Option<&str>, url: Option<&str>) -> String {
-    let mut tokens = HashMap::new();
-
-    for value in [title, url] {
-        for run in search_runs(value) {
-            add_ngrams(&mut tokens, &run);
-        }
-
-        let compact = compact_search_value(value);
-        if !compact.is_empty() {
-            add_ngrams(&mut tokens, &compact);
-        }
-    }
-
-    let mut keys = tokens.keys().cloned().collect::<Vec<String>>();
-    keys.sort();
-    keys.join(" ")
-}
-
-fn search_query_tokens_for_run(run: &str) -> Vec<String> {
-    let chars = run.chars().collect::<Vec<char>>();
-    if chars.len() <= SEARCH_NGRAM_MAX {
-        return vec![run.to_string()];
-    }
-
-    let mut tokens = Vec::new();
-    for start in 0..=(chars.len() - SEARCH_NGRAM_MAX) {
-        tokens.push(chars[start..start + SEARCH_NGRAM_MAX].iter().collect());
-    }
-
-    tokens
-}
-
-fn search_text_has(search_text: &str, token: &str) -> bool {
-    search_text.split_whitespace().any(|entry| entry == token)
-}
-
-fn matches_search_term(search_text: &str, term: &str) -> bool {
-    let runs = search_runs(Some(term));
-    if runs.is_empty() {
-        return true;
-    }
-
-    runs.iter().all(|run| {
-        search_query_tokens_for_run(run)
-            .iter()
-            .all(|token| search_text_has(search_text, token))
-    })
-}
-
-fn matches_search(search_text: &str, search: Option<&str>, search_mode: &str) -> bool {
-    let Some(search) = search else {
-        return true;
-    };
-    let search = search.trim();
-    if search.is_empty() {
-        return true;
-    }
-
-    if search_mode == "phrase" {
-        let compact = compact_search_value(Some(search));
-        if compact.is_empty() {
-            return true;
-        }
-
-        return search_query_tokens_for_run(&compact)
-            .iter()
-            .all(|token| search_text_has(search_text, token));
-    }
-
-    let terms = search
-        .split_whitespace()
-        .filter(|term| !term.is_empty())
-        .collect::<Vec<&str>>();
-    if terms.is_empty() {
-        return true;
-    }
-
-    if search_mode == "all" {
-        terms
-            .iter()
-            .all(|term| matches_search_term(search_text, term))
-    } else {
-        terms
-            .iter()
-            .any(|term| matches_search_term(search_text, term))
-    }
-}
-
-fn verify_fts5(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS __jable_data_engine_fts_probe USING fts5(value);
-       DROP TABLE IF EXISTS __jable_data_engine_fts_probe;",
-    )
-    .map_err(|error| {
-        Error::from_reason(format!(
-            "SQLite FTS5 is required by the native data engine: {error}"
-        ))
-    })?;
-
-    Ok(())
-}
-
-fn ensure_column(
-    conn: &Connection,
-    table_name: &str,
-    column_name: &str,
-    definition: &str,
-) -> Result<()> {
-    let mut statement = conn
-        .prepare(&format!("PRAGMA table_info({table_name})"))
-        .map_err(to_napi_error)?;
-    let columns = statement
-        .query_map([], |row| row.get::<_, String>(1))
-        .map_err(to_napi_error)?
-        .collect::<std::result::Result<Vec<String>, _>>()
-        .map_err(to_napi_error)?;
-
-    if !columns.iter().any(|name| name == column_name) {
-        conn.execute_batch(&format!(
-            "ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"
-        ))
-        .map_err(to_napi_error)?;
-    }
-
-    Ok(())
-}
-
-fn video_search_has_expected_columns(conn: &Connection) -> Result<bool> {
-    let mut statement = conn
-        .prepare("PRAGMA table_info(video_search)")
-        .map_err(to_napi_error)?;
-    let columns = statement
-        .query_map([], |row| row.get::<_, String>(1))
-        .map_err(to_napi_error)?
-        .collect::<std::result::Result<Vec<String>, _>>()
-        .map_err(to_napi_error)?;
-
-    Ok(columns.iter().any(|name| name == "title")
-        && columns.iter().any(|name| name == "url")
-        && columns.iter().any(|name| name == "search_text"))
-}
-
 impl Engine {
     fn open(file_path: &str) -> Result<Self> {
         if let Some(parent) = Path::new(file_path).parent() {
@@ -469,12 +70,11 @@ impl Engine {
         let conn = Connection::open(file_path).map_err(to_napi_error)?;
         conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")
             .map_err(to_napi_error)?;
-        verify_fts5(&conn)?;
+        schema::verify_fts5(&conn)?;
+        schema::migrate(&conn)?;
+        schema::seed_collections(&conn)?;
 
-        let engine = Self { conn: Some(conn) };
-        engine.migrate()?;
-        engine.seed_collections()?;
-        Ok(engine)
+        Ok(Self { conn: Some(conn) })
     }
 
     fn conn(&self) -> Result<&Connection> {
@@ -491,227 +91,23 @@ impl Engine {
         Ok(())
     }
 
-    fn migrate(&self) -> Result<()> {
-        let conn = self.conn()?;
-        conn
-      .execute_batch(
-        "CREATE TABLE IF NOT EXISTS videos (
-           url TEXT PRIMARY KEY,
-           title TEXT,
-           views INTEGER,
-           likes INTEGER,
-           img TEXT,
-           preview TEXT,
-           created_at TEXT NOT NULL,
-           updated_at TEXT NOT NULL
-         );
-         CREATE TABLE IF NOT EXISTS collections (
-           key TEXT PRIMARY KEY,
-           name TEXT NOT NULL
-         );
-         CREATE TABLE IF NOT EXISTS collection_items (
-           collection_key TEXT NOT NULL,
-           video_url TEXT NOT NULL,
-           first_seen_at TEXT NOT NULL,
-           last_seen_at TEXT NOT NULL,
-           PRIMARY KEY (collection_key, video_url),
-           FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE,
-           FOREIGN KEY (video_url) REFERENCES videos(url) ON DELETE CASCADE
-         );
-         CREATE TABLE IF NOT EXISTS sync_states (
-           collection_key TEXT PRIMARY KEY,
-           completed INTEGER NOT NULL DEFAULT 0,
-           last_scraped_page INTEGER,
-           last_known_url TEXT,
-           updated_at TEXT NOT NULL,
-           FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE
-         );
-         CREATE TABLE IF NOT EXISTS sync_operations (
-           id INTEGER PRIMARY KEY AUTOINCREMENT,
-           collection_key TEXT NOT NULL,
-           sync_run_id TEXT NOT NULL,
-           action TEXT NOT NULL CHECK(action IN ('add', 'remove')),
-           video_url TEXT NOT NULL,
-           title TEXT,
-           views INTEGER,
-           likes INTEGER,
-           img TEXT,
-           preview TEXT,
-           site_order INTEGER,
-           remote_deferred INTEGER NOT NULL DEFAULT 0,
-           remote_video_id TEXT,
-           remote_fav_type TEXT,
-           source_url TEXT,
-           remote_applied_at TEXT,
-           remote_apply_error TEXT,
-           remote_apply_state TEXT NOT NULL DEFAULT 'pending',
-           remote_failed_at TEXT,
-           remote_blocked_by INTEGER,
-           remote_resolved_at TEXT,
-           remote_superseded_at TEXT,
-           remote_superseded_by_sync_run_id TEXT,
-           created_at TEXT NOT NULL,
-           reconciled_at TEXT,
-           FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE
-         );
-         CREATE INDEX IF NOT EXISTS sync_operations_run_idx ON sync_operations (collection_key, sync_run_id, reconciled_at, id);
-         DROP TABLE IF EXISTS playback_states;",
-      )
-      .map_err(to_napi_error)?;
-
-        ensure_column(conn, "collection_items", "site_order", "INTEGER")?;
-        ensure_column(
-            conn,
-            "collection_items",
-            "is_visible",
-            "INTEGER NOT NULL DEFAULT 1",
-        )?;
-        ensure_column(conn, "collection_items", "missing_at", "TEXT")?;
-        ensure_column(conn, "collection_items", "last_sync_run_id", "TEXT")?;
-        ensure_column(
-            conn,
-            "sync_operations",
-            "remote_deferred",
-            "INTEGER NOT NULL DEFAULT 0",
-        )?;
-        ensure_column(conn, "sync_operations", "remote_video_id", "TEXT")?;
-        ensure_column(conn, "sync_operations", "remote_fav_type", "TEXT")?;
-        ensure_column(conn, "sync_operations", "source_url", "TEXT")?;
-        ensure_column(conn, "sync_operations", "remote_applied_at", "TEXT")?;
-        ensure_column(conn, "sync_operations", "remote_apply_error", "TEXT")?;
-        ensure_column(
-            conn,
-            "sync_operations",
-            "remote_apply_state",
-            "TEXT NOT NULL DEFAULT 'pending'",
-        )?;
-        ensure_column(conn, "sync_operations", "remote_failed_at", "TEXT")?;
-        ensure_column(conn, "sync_operations", "remote_blocked_by", "INTEGER")?;
-        ensure_column(conn, "sync_operations", "remote_resolved_at", "TEXT")?;
-        ensure_column(conn, "sync_operations", "remote_superseded_at", "TEXT")?;
-        ensure_column(
-            conn,
-            "sync_operations",
-            "remote_superseded_by_sync_run_id",
-            "TEXT",
-        )?;
-        ensure_column(conn, "videos", "search_text", "TEXT")?;
-
-        self.backfill_remote_apply_state()?;
-        self.backfill_video_search_text()?;
-        self.ensure_video_search_index()?;
-        Ok(())
-    }
-
-    fn backfill_remote_apply_state(&self) -> Result<()> {
+    fn with_immediate_transaction<T>(&self, operation: impl FnOnce() -> Result<T>) -> Result<T> {
         self.conn()?
-            .execute(
-                "UPDATE sync_operations
-         SET remote_apply_state = 'applied'
-         WHERE remote_deferred = 1
-           AND remote_applied_at IS NOT NULL
-           AND remote_apply_state = 'pending'",
-                [],
-            )
-            .map_err(to_napi_error)?;
-        self.conn()?
-            .execute(
-                "UPDATE sync_operations
-         SET remote_apply_state = 'failed'
-         WHERE remote_deferred = 1
-           AND remote_applied_at IS NULL
-           AND remote_apply_error IS NOT NULL
-           AND remote_apply_state = 'pending'",
-                [],
-            )
-            .map_err(to_napi_error)?;
-        Ok(())
-    }
-
-    fn backfill_video_search_text(&self) -> Result<()> {
-        let conn = self.conn()?;
-        let mut statement = conn
-            .prepare("SELECT url, title FROM videos WHERE search_text IS NULL")
-            .map_err(to_napi_error)?;
-        let rows = statement
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-            })
-            .map_err(to_napi_error)?
-            .collect::<std::result::Result<Vec<(String, Option<String>)>, _>>()
+            .execute_batch("BEGIN IMMEDIATE")
             .map_err(to_napi_error)?;
 
-        let mut update = conn
-            .prepare("UPDATE videos SET search_text = ? WHERE url = ?")
-            .map_err(to_napi_error)?;
-        for (url, title) in rows {
-            update
-                .execute(params![
-                    build_video_search_text(title.as_deref(), Some(&url)),
-                    url
-                ])
-                .map_err(to_napi_error)?;
+        match operation() {
+            Ok(value) => {
+                self.conn()?
+                    .execute_batch("COMMIT")
+                    .map_err(to_napi_error)?;
+                Ok(value)
+            }
+            Err(error) => {
+                let _ = self.conn()?.execute_batch("ROLLBACK");
+                Err(error)
+            }
         }
-
-        Ok(())
-    }
-
-    fn ensure_video_search_index(&self) -> Result<()> {
-        let conn = self.conn()?;
-        conn.execute_batch(
-            "DROP TRIGGER IF EXISTS videos_ai;
-         DROP TRIGGER IF EXISTS videos_ad;
-         DROP TRIGGER IF EXISTS videos_au;",
-        )
-        .map_err(to_napi_error)?;
-
-        let index_exists: Option<String> = conn
-            .query_row(
-                "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
-                params!["table", "video_search"],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(to_napi_error)?;
-
-        if index_exists.is_some() && !video_search_has_expected_columns(conn)? {
-            conn.execute_batch("DROP TABLE video_search")
-                .map_err(to_napi_error)?;
-        }
-
-        conn
-      .execute_batch(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS video_search USING fts5(title, url, search_text, content='videos', content_rowid='rowid', tokenize='unicode61');
-         CREATE TRIGGER IF NOT EXISTS videos_ai AFTER INSERT ON videos BEGIN
-           INSERT INTO video_search(rowid, title, url, search_text) VALUES (new.rowid, new.title, new.url, new.search_text);
-         END;
-         CREATE TRIGGER IF NOT EXISTS videos_ad AFTER DELETE ON videos BEGIN
-           INSERT INTO video_search(video_search, rowid, title, url, search_text) VALUES('delete', old.rowid, old.title, old.url, old.search_text);
-         END;
-         CREATE TRIGGER IF NOT EXISTS videos_au AFTER UPDATE OF title, url, search_text ON videos BEGIN
-           INSERT INTO video_search(video_search, rowid, title, url, search_text) VALUES('delete', old.rowid, old.title, old.url, old.search_text);
-           INSERT INTO video_search(rowid, title, url, search_text) VALUES (new.rowid, new.title, new.url, new.search_text);
-         END;
-         INSERT INTO video_search(video_search) VALUES ('rebuild');",
-      )
-      .map_err(to_napi_error)?;
-
-        Ok(())
-    }
-
-    fn seed_collections(&self) -> Result<()> {
-        let conn = self.conn()?;
-        let mut statement = conn
-            .prepare("INSERT OR IGNORE INTO collections (key, name) VALUES (?, ?)")
-            .map_err(to_napi_error)?;
-
-        for collection in collections() {
-            statement
-                .execute(params![collection.key, collection.name])
-                .map_err(to_napi_error)?;
-        }
-
-        Ok(())
     }
 
     fn dispatch(&mut self, method: &str, payload: Value) -> Result<Value> {
@@ -755,37 +151,6 @@ impl Engine {
                 "Unknown native data engine method: {method}"
             ))),
         }
-    }
-
-    fn upsert_video(&self, video: &NormalizedVideo, timestamp: &str) -> Result<()> {
-        self
-      .conn()?
-      .execute(
-        "INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(url) DO UPDATE SET
-           title = COALESCE(excluded.title, videos.title),
-           views = COALESCE(excluded.views, videos.views),
-           likes = COALESCE(excluded.likes, videos.likes),
-           img = COALESCE(excluded.img, videos.img),
-           preview = COALESCE(excluded.preview, videos.preview),
-           search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,
-           updated_at = excluded.updated_at",
-        params![
-          video.url,
-          video.title,
-          video.views,
-          video.likes,
-          video.img,
-          video.preview,
-          video.search_text,
-          timestamp,
-          timestamp
-        ],
-      )
-      .map_err(to_napi_error)?;
-
-        Ok(())
     }
 
     fn record_sync_operation(
@@ -832,185 +197,6 @@ impl Engine {
         Ok(())
     }
 
-    fn list_rows(&self, collection_key: &str, options: &Value) -> Result<Vec<ListRow>> {
-        ensure_collection(collection_key)?;
-        let include_hidden = value_bool(object_field(options, "includeHidden"));
-        let requested_sort =
-            value_string(object_field(options, "sort")).unwrap_or_else(|| "site_order".to_string());
-        let sort = match requested_sort.as_str() {
-            "title" => "v.title",
-            "views" => "v.views",
-            "likes" => "v.likes",
-            "updated_at" => "v.updated_at",
-            "last_seen_at" => "ci.last_seen_at",
-            _ => "site_order",
-        };
-        let direction = match value_string(object_field(options, "direction")).as_deref() {
-            Some("asc") => "ASC",
-            Some("desc") => "DESC",
-            _ if sort == "site_order" => "ASC",
-            _ => "DESC",
-        };
-        let order_by = if sort == "site_order" {
-            format!("ci.site_order IS NULL ASC, ci.site_order {direction}, ci.last_seen_at DESC, v.url ASC")
-        } else {
-            format!("{sort} {direction}, v.url ASC")
-        };
-        let visibility = if include_hidden {
-            ""
-        } else {
-            "AND ci.is_visible = 1"
-        };
-        let sql = format!(
-            "SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,
-              v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,
-              ci.site_order, ci.is_visible, ci.missing_at, ci.last_sync_run_id, v.search_text
-       FROM collection_items ci
-       JOIN videos v ON v.url = ci.video_url
-       WHERE ci.collection_key = ? {visibility}
-       ORDER BY {order_by}"
-        );
-        let mut statement = self.conn()?.prepare(&sql).map_err(to_napi_error)?;
-        let mut rows = statement
-            .query_map(params![collection_key], |row| {
-                Ok(ListRow {
-                    url: row.get(0)?,
-                    title: row.get(1)?,
-                    views: row.get(2)?,
-                    likes: row.get(3)?,
-                    img: row.get(4)?,
-                    preview: row.get(5)?,
-                    created_at: row.get(6)?,
-                    updated_at: row.get(7)?,
-                    first_seen_at: row.get(8)?,
-                    last_seen_at: row.get(9)?,
-                    site_order: row.get(10)?,
-                    is_visible: row.get(11)?,
-                    missing_at: row.get(12)?,
-                    last_sync_run_id: row.get(13)?,
-                    search_text: row.get(14)?,
-                })
-            })
-            .map_err(to_napi_error)?
-            .collect::<std::result::Result<Vec<ListRow>, _>>()
-            .map_err(to_napi_error)?;
-
-        let search = value_string(object_field(options, "search"));
-        let search_mode =
-            value_string(object_field(options, "searchMode")).unwrap_or_else(|| "any".to_string());
-        if search.as_deref().unwrap_or("").trim().is_empty() {
-            return Ok(rows);
-        }
-
-        rows.retain(|row| {
-            matches_search(
-                row.search_text.as_deref().unwrap_or(""),
-                search.as_deref(),
-                &search_mode,
-            )
-        });
-        Ok(rows)
-    }
-
-    fn list_videos(&self, payload: Value) -> Result<Value> {
-        let collection_key = value_string(object_field(&payload, "collectionKey"))
-            .ok_or_else(|| Error::from_reason("listVideos requires collectionKey".to_string()))?;
-        let rows = self.list_rows(&collection_key, &payload)?;
-        let offset = value_i64(object_field(&payload, "offset"))
-            .unwrap_or(0)
-            .max(0) as usize;
-        let limit = value_i64(object_field(&payload, "limit"))
-            .filter(|value| *value > 0)
-            .map(|value| value as usize);
-        let end = limit
-            .map(|limit| offset + limit)
-            .unwrap_or(rows.len())
-            .min(rows.len());
-        let selected = if offset >= rows.len() {
-            &[]
-        } else {
-            &rows[offset..end]
-        };
-
-        Ok(Value::Array(selected.iter().map(list_row_json).collect()))
-    }
-
-    fn count_videos(&self, payload: Value) -> Result<Value> {
-        let collection_key = value_string(object_field(&payload, "collectionKey"))
-            .ok_or_else(|| Error::from_reason("countVideos requires collectionKey".to_string()))?;
-        Ok(json!(self.list_rows(&collection_key, &payload)?.len()))
-    }
-
-    fn get_collection_urls(&self, payload: Value) -> Result<Value> {
-        let collection_key = payload
-            .as_str()
-            .map(|value| value.to_string())
-            .or_else(|| value_string(object_field(&payload, "collectionKey")))
-            .ok_or_else(|| {
-                Error::from_reason("getCollectionUrls requires collectionKey".to_string())
-            })?;
-        ensure_collection(&collection_key)?;
-        let mut statement = self
-      .conn()?
-      .prepare("SELECT video_url FROM collection_items WHERE collection_key = ? ORDER BY last_seen_at DESC")
-      .map_err(to_napi_error)?;
-        let rows = statement
-            .query_map(params![collection_key], |row| row.get::<_, String>(0))
-            .map_err(to_napi_error)?
-            .collect::<std::result::Result<Vec<String>, _>>()
-            .map_err(to_napi_error)?;
-
-        Ok(Value::Array(rows.into_iter().map(Value::String).collect()))
-    }
-
-    fn all_collection_urls_known(&self, payload: Value) -> Result<Value> {
-        let collection_key =
-            value_string(object_field(&payload, "collectionKey")).ok_or_else(|| {
-                Error::from_reason("allCollectionUrlsKnown requires collectionKey".to_string())
-            })?;
-        ensure_collection(&collection_key)?;
-        let urls = object_field(&payload, "urls").and_then(|value| value.as_array());
-        let Some(urls) = urls else {
-            return Ok(json!(false));
-        };
-        if urls.is_empty() {
-            return Ok(json!(false));
-        }
-
-        let mut normalized = Vec::new();
-        for url in urls {
-            let Some(url) = normalize_video_url(Some(url)) else {
-                return Ok(json!(false));
-            };
-            if !normalized.iter().any(|entry| entry == &url) {
-                normalized.push(url);
-            }
-        }
-
-        if normalized.is_empty() {
-            return Ok(json!(false));
-        }
-
-        let mut known = 0;
-        let mut statement = self
-            .conn()?
-            .prepare(
-                "SELECT 1 FROM collection_items WHERE collection_key = ? AND video_url = ? LIMIT 1",
-            )
-            .map_err(to_napi_error)?;
-        for url in &normalized {
-            let row: Option<i64> = statement
-                .query_row(params![collection_key, url], |row| row.get(0))
-                .optional()
-                .map_err(to_napi_error)?;
-            if row.is_some() {
-                known += 1;
-            }
-        }
-
-        Ok(json!(known == normalized.len()))
-    }
-
     fn save_sync_page(&self, payload: Value) -> Result<Value> {
         let collection_key = value_string(object_field(&payload, "collectionKey"))
             .ok_or_else(|| Error::from_reason("saveSyncPage requires collectionKey".to_string()))?;
@@ -1041,10 +227,7 @@ impl Engine {
             false
         };
 
-        self.conn()?
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(to_napi_error)?;
-        let result = (|| -> Result<()> {
+        self.with_immediate_transaction(|| {
             for video in &normalized_rows {
                 let should_use_scraped_site_order =
                     if preserve_existing_site_order && video.site_order.is_some() {
@@ -1116,16 +299,7 @@ impl Engine {
         .map_err(to_napi_error)?;
 
             Ok(())
-        })();
-
-        if result.is_ok() {
-            self.conn()?
-                .execute_batch("COMMIT")
-                .map_err(to_napi_error)?;
-        } else {
-            let _ = self.conn()?.execute_batch("ROLLBACK");
-        }
-        result?;
+        })?;
 
         Ok(json!({
           "saved": normalized_rows.len(),
@@ -1253,10 +427,7 @@ impl Engine {
                 .map_err(to_napi_error)?;
 
             if changed == 0 && sync_run_id.is_some() {
-                self.conn()?
-                    .execute_batch("BEGIN IMMEDIATE")
-                    .map_err(to_napi_error)?;
-                let result = (|| -> Result<()> {
+                self.with_immediate_transaction(|| {
                     self.upsert_video(&video, &timestamp)?;
                     self
             .conn()?
@@ -1282,15 +453,7 @@ impl Engine {
             )
             .map_err(to_napi_error)?;
                     Ok(())
-                })();
-                if result.is_ok() {
-                    self.conn()?
-                        .execute_batch("COMMIT")
-                        .map_err(to_napi_error)?;
-                } else {
-                    let _ = self.conn()?.execute_batch("ROLLBACK");
-                }
-                result?;
+                })?;
             }
 
             self.record_sync_operation(
@@ -1311,10 +474,7 @@ impl Engine {
             }));
         }
 
-        self.conn()?
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(to_napi_error)?;
-        let result = (|| -> Result<()> {
+        self.with_immediate_transaction(|| {
             self.upsert_video(&video, &timestamp)?;
             self
         .conn()?
@@ -1351,15 +511,7 @@ impl Engine {
                 &payload,
             )?;
             Ok(())
-        })();
-        if result.is_ok() {
-            self.conn()?
-                .execute_batch("COMMIT")
-                .map_err(to_napi_error)?;
-        } else {
-            let _ = self.conn()?.execute_batch("ROLLBACK");
-        }
-        result?;
+        })?;
 
         Ok(json!({
           "action": action,
@@ -1435,10 +587,7 @@ impl Engine {
 
         let timestamp = now_iso();
         let mut applied = 0;
-        self.conn()?
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(to_napi_error)?;
-        let result = (|| -> Result<()> {
+        self.with_immediate_transaction(|| {
             for id_value in &ids {
                 let Some(id) = value_i64(Some(id_value)) else {
                     continue;
@@ -1473,15 +622,7 @@ impl Engine {
                 applied += changes;
             }
             Ok(())
-        })();
-        if result.is_ok() {
-            self.conn()?
-                .execute_batch("COMMIT")
-                .map_err(to_napi_error)?;
-        } else {
-            let _ = self.conn()?.execute_batch("ROLLBACK");
-        }
-        result?;
+        })?;
         Ok(json!(applied))
     }
 
@@ -1778,22 +919,7 @@ impl Engine {
          ORDER BY id DESC
          LIMIT 1",
                 params![&collection_key, &video_url],
-                |row| {
-                    Ok(OperationRow {
-                        id: row.get(0)?,
-                        sync_run_id: row.get(1)?,
-                        action: row.get(2)?,
-                        video_url: row.get(3)?,
-                        title: row.get(4)?,
-                        views: row.get(5)?,
-                        likes: row.get(6)?,
-                        img: row.get(7)?,
-                        preview: row.get(8)?,
-                        site_order: row.get(9)?,
-                        remote_deferred: row.get(10)?,
-                        remote_apply_state: row.get(11)?,
-                    })
-                },
+                operation_from_row,
             )
             .optional()
             .map_err(to_napi_error)?;
@@ -1802,10 +928,7 @@ impl Engine {
         };
 
         let timestamp = now_iso();
-        self.conn()?
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(to_napi_error)?;
-        let result = (|| -> Result<bool> {
+        let result = self.with_immediate_transaction(|| {
             let changes = self
                 .conn()?
                 .execute(
@@ -1872,17 +995,9 @@ impl Engine {
             self.resequence_visible_items(&collection_key)?;
 
             Ok(true)
-        })();
+        })?;
 
-        if result.is_ok() {
-            self.conn()?
-                .execute_batch("COMMIT")
-                .map_err(to_napi_error)?;
-        } else {
-            let _ = self.conn()?.execute_batch("ROLLBACK");
-        }
-
-        Ok(json!(result?))
+        Ok(json!(result))
     }
 
     fn mark_pending_remote_operation_group_removed(&self, payload: Value) -> Result<Value> {
@@ -1906,22 +1021,7 @@ impl Engine {
          ORDER BY id DESC
          LIMIT 1",
                 params![&collection_key, &video_url],
-                |row| {
-                    Ok(OperationRow {
-                        id: row.get(0)?,
-                        sync_run_id: row.get(1)?,
-                        action: row.get(2)?,
-                        video_url: row.get(3)?,
-                        title: row.get(4)?,
-                        views: row.get(5)?,
-                        likes: row.get(6)?,
-                        img: row.get(7)?,
-                        preview: row.get(8)?,
-                        site_order: row.get(9)?,
-                        remote_deferred: row.get(10)?,
-                        remote_apply_state: row.get(11)?,
-                    })
-                },
+                operation_from_row,
             )
             .optional()
             .map_err(to_napi_error)?;
@@ -1930,10 +1030,7 @@ impl Engine {
         };
 
         let timestamp = now_iso();
-        self.conn()?
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(to_napi_error)?;
-        let result = (|| -> Result<bool> {
+        let result = self.with_immediate_transaction(|| {
             let changes = self
                 .conn()?
                 .execute(
@@ -1997,17 +1094,9 @@ impl Engine {
             self.resequence_visible_items(&collection_key)?;
 
             Ok(true)
-        })();
+        })?;
 
-        if result.is_ok() {
-            self.conn()?
-                .execute_batch("COMMIT")
-                .map_err(to_napi_error)?;
-        } else {
-            let _ = self.conn()?.execute_batch("ROLLBACK");
-        }
-
-        Ok(json!(result?))
+        Ok(json!(result))
     }
 
     fn mark_pending_remote_operation_group_failed(&self, payload: Value) -> Result<Value> {
@@ -2101,22 +1190,7 @@ impl Engine {
             )
             .map_err(to_napi_error)?;
         let operations = statement
-            .query_map(params![collection_key, sync_run_id], |row| {
-                Ok(OperationRow {
-                    id: row.get(0)?,
-                    sync_run_id: row.get(1)?,
-                    action: row.get(2)?,
-                    video_url: row.get(3)?,
-                    title: row.get(4)?,
-                    views: row.get(5)?,
-                    likes: row.get(6)?,
-                    img: row.get(7)?,
-                    preview: row.get(8)?,
-                    site_order: row.get(9)?,
-                    remote_deferred: row.get(10)?,
-                    remote_apply_state: row.get(11)?,
-                })
-            })
+            .query_map(params![collection_key, sync_run_id], operation_from_row)
             .map_err(to_napi_error)?
             .collect::<std::result::Result<Vec<OperationRow>, _>>()
             .map_err(to_napi_error)?;
@@ -2136,10 +1210,7 @@ impl Engine {
             .collect::<Vec<OperationRow>>();
         latest.sort_by_key(|operation| operation.id);
 
-        self.conn()?
-            .execute_batch("BEGIN IMMEDIATE")
-            .map_err(to_napi_error)?;
-        let result = (|| -> Result<()> {
+        self.with_immediate_transaction(|| {
             for (index, operation) in latest.iter().enumerate() {
                 let site_order = operation
                     .site_order
@@ -2212,51 +1283,9 @@ impl Engine {
                 .map_err(to_napi_error)?;
 
             Ok(())
-        })();
-
-        if result.is_ok() {
-            self.conn()?
-                .execute_batch("COMMIT")
-                .map_err(to_napi_error)?;
-        } else {
-            let _ = self.conn()?.execute_batch("ROLLBACK");
-        }
-        result?;
+        })?;
 
         Ok(operations.len())
-    }
-
-    fn visible_urls_for_resequence(&self, collection_key: &str) -> Result<Vec<String>> {
-        let mut statement = self
-            .conn()?
-            .prepare(
-                "SELECT video_url
-         FROM collection_items
-         WHERE collection_key = ?
-           AND is_visible = 1
-         ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC",
-            )
-            .map_err(to_napi_error)?;
-        let rows = statement
-            .query_map(params![collection_key], |row| row.get::<_, String>(0))
-            .map_err(to_napi_error)?
-            .collect::<std::result::Result<Vec<String>, _>>()
-            .map_err(to_napi_error)?;
-        Ok(rows)
-    }
-
-    fn resequence_visible_items(&self, collection_key: &str) -> Result<()> {
-        let visible_urls = self.visible_urls_for_resequence(collection_key)?;
-        for (index, url) in visible_urls.iter().enumerate() {
-            self.conn()?
-                .execute(
-                    "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
-                    params![index as i64 + 1, collection_key, url],
-                )
-                .map_err(to_napi_error)?;
-        }
-
-        Ok(())
     }
 
     fn finish_sync(&self, payload: Value) -> Result<Value> {
@@ -2474,106 +1503,6 @@ impl Engine {
 
         Ok(json!({ "filePath": file_path, "total": total }))
     }
-}
-
-fn pending_operation_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
-    Ok(json!({
-      "id": row.get::<_, i64>(0)?,
-      "action": row.get::<_, String>(1)?,
-      "videoUrl": row.get::<_, String>(2)?,
-      "remoteVideoId": row.get::<_, Option<String>>(3)?,
-      "remoteFavType": row.get::<_, Option<String>>(4)?
-    }))
-}
-
-fn list_row_json(row: &ListRow) -> Value {
-    json!({
-      "url": row.url,
-      "title": row.title,
-      "views": row.views,
-      "likes": row.likes,
-      "img": row.img,
-      "preview": row.preview,
-      "created_at": row.created_at,
-      "updated_at": row.updated_at,
-      "first_seen_at": row.first_seen_at,
-      "last_seen_at": row.last_seen_at,
-      "site_order": row.site_order,
-      "is_visible": row.is_visible,
-      "missing_at": row.missing_at,
-      "last_sync_run_id": row.last_sync_run_id
-    })
-}
-
-fn flatten_resource(resource: &Value) -> Vec<Value> {
-    let mut rows = Vec::new();
-    let Some(data) = object_field(resource, "data").and_then(|value| value.as_array()) else {
-        return rows;
-    };
-
-    for item in data {
-        if let Some(page_data) = object_field(item, "data").and_then(|value| value.as_array()) {
-            rows.extend(page_data.iter().cloned());
-        } else if object_field(item, "url").is_some() {
-            rows.push(item.clone());
-        }
-    }
-
-    rows
-}
-
-fn export_video(row: &Value) -> Value {
-    json!({
-      "title": row.get("title").cloned().unwrap_or(Value::Null),
-      "url": row.get("url").cloned().unwrap_or(Value::Null),
-      "views": row.get("views").cloned().unwrap_or(Value::Null),
-      "likes": row.get("likes").cloned().unwrap_or(Value::Null),
-      "img": row.get("img").cloned().unwrap_or(Value::Null),
-      "preview": row.get("preview").cloned().unwrap_or(Value::Null),
-      "site_order": row.get("site_order").cloned().unwrap_or(Value::Null)
-    })
-}
-
-fn export_page(rows: &[Value], page_number: usize, exported_at: &str) -> Value {
-    let data = rows.iter().map(export_video).collect::<Vec<Value>>();
-    json!({
-      "data": data,
-      "meta": {
-        "current_page": page_number,
-        "per_page": PAGE_SIZE,
-        "count": rows.len(),
-        "first_url": rows.first().and_then(|row| row.get("url")).cloned().unwrap_or(Value::Null),
-        "last_url": rows.last().and_then(|row| row.get("url")).cloned().unwrap_or(Value::Null),
-        "exported_at": exported_at
-      }
-    })
-}
-
-fn export_meta(
-    collection: &Collection,
-    state: Option<&Value>,
-    exported_at: &str,
-    total: usize,
-    page_count: usize,
-) -> Value {
-    json!({
-      "format_version": 2,
-      "source_path": collection.source_path,
-      "source_url": format!("{PRIMARY_ORIGIN}{}", collection.source_path),
-      "exported_at": exported_at,
-      "completed": state
-        .and_then(|state| state.get("completed"))
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false),
-      "per_page": PAGE_SIZE,
-      "page_count": page_count,
-      "total": total,
-      "last_page": if page_count == 0 { Value::Null } else { json!(page_count) },
-      "last_scraped_page": state
-        .and_then(|state| state.get("last_scraped_page"))
-        .cloned()
-        .unwrap_or(Value::Null)
-    })
 }
 
 #[napi]
