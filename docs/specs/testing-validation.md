@@ -39,7 +39,7 @@ fnm exec --using 24 npm run test:electron
 | Settings normalization and persistence                                                        | `test/node/settings.test.js`                |
 | Download asset persistence and normalization                                                  | `test/node/data-engine-contract.test.js`    |
 | HLS playlist extraction, parsing, and request header helpers                                  | `test/node/download-helpers.test.js`        |
-| Rust native download engine local playlist generation, build/check/clippy coverage            | `npm run rust:ci`                           |
+| Rust native download engine adaptive concurrency, playlist generation, build/check/clippy     | `npm run rust:ci`                           |
 | IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
 | Userscript i18n guardrails                                                                    | `test/node/userscript-i18n.test.js`         |

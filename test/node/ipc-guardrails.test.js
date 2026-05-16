@@ -241,9 +241,13 @@ test('main process downloads HLS segments in bounded parallel batches', function
   const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'native-download-engine.ts'));
   const buildScript = readSource(path.join(ROOT_DIR, 'scripts', 'build-rust-engine.js'));
 
-  assert.match(source, /const DOWNLOAD_SEGMENT_CONCURRENCY = 8/);
+  assert.match(source, /const DOWNLOAD_SEGMENT_MIN_CONCURRENCY = 8/);
+  assert.match(source, /const DOWNLOAD_SEGMENT_MAX_CONCURRENCY = 32/);
+  assert.match(source, /const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3/);
   assert.match(source, /getDownloadEngine\(\)\.downloadHlsSegments/);
-  assert.match(source, /concurrency: DOWNLOAD_SEGMENT_CONCURRENCY/);
+  assert.match(source, /minConcurrency: DOWNLOAD_SEGMENT_MIN_CONCURRENCY/);
+  assert.match(source, /maxConcurrency: DOWNLOAD_SEGMENT_MAX_CONCURRENCY/);
+  assert.match(source, /sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT/);
   assert.match(source, /retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT/);
   assert.match(source, /if \(isActive && activeDownloadNativeId\) getDownloadEngine\(\)\.cancelDownload/);
   assert.match(nativeLoader, /jable_download_engine\.' \+ process\.platform \+ '-' \+ process\.arch \+ '\.node'/);

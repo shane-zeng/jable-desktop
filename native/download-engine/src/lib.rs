@@ -10,9 +10,13 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const CHUNK_SIZE: usize = 64 * 1024;
+const DEFAULT_SEGMENT_MIN_CONCURRENCY: usize = 8;
+const DEFAULT_SEGMENT_MAX_CONCURRENCY: usize = 32;
+const DEFAULT_SAMPLE_SEGMENT_COUNT: usize = 3;
+const ADAPTIVE_CONCURRENCY_TARGET_BYTES_PER_SECOND: f64 = 32.0 * 1024.0 * 1024.0;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +40,9 @@ struct DownloadRequest {
     temp_dir: String,
     headers: HashMap<String, String>,
     concurrency: Option<usize>,
+    min_concurrency: Option<usize>,
+    max_concurrency: Option<usize>,
+    sample_segment_count: Option<usize>,
     retry_limit: Option<usize>,
     target_duration: Option<f64>,
     segments: Vec<HlsSegment>,
@@ -46,6 +53,25 @@ struct DownloadRequest {
 pub struct DownloadResult {
     playlist_path: String,
     downloaded_bytes: u64,
+}
+
+struct DownloadPlan {
+    min_concurrency: usize,
+    max_concurrency: usize,
+    sample_segment_count: usize,
+}
+
+struct SegmentSample {
+    downloaded_bytes: u64,
+    elapsed: Duration,
+    count: usize,
+}
+
+struct SegmentDownloadConfig {
+    concurrency: usize,
+    start_index: usize,
+    initial_downloaded_bytes: u64,
+    retry_limit: usize,
 }
 
 type CancelMap = Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>;
@@ -361,20 +387,114 @@ fn download_keys(
     Ok(())
 }
 
+fn download_plan(request: &DownloadRequest, segment_count: usize) -> DownloadPlan {
+    let fixed_concurrency = request
+        .concurrency
+        .unwrap_or(DEFAULT_SEGMENT_MIN_CONCURRENCY)
+        .max(1);
+    let min_concurrency = request.min_concurrency.unwrap_or(fixed_concurrency).max(1);
+    let max_concurrency = request
+        .max_concurrency
+        .unwrap_or_else(|| {
+            if request.min_concurrency.is_some() {
+                DEFAULT_SEGMENT_MAX_CONCURRENCY
+            } else {
+                fixed_concurrency
+            }
+        })
+        .max(min_concurrency)
+        .max(1);
+    let sample_segment_count = if max_concurrency > min_concurrency {
+        request
+            .sample_segment_count
+            .unwrap_or(DEFAULT_SAMPLE_SEGMENT_COUNT)
+            .min(segment_count)
+    } else {
+        0
+    };
+
+    DownloadPlan {
+        min_concurrency,
+        max_concurrency,
+        sample_segment_count,
+    }
+}
+
+fn adaptive_concurrency(
+    min_concurrency: usize,
+    max_concurrency: usize,
+    sampled_bytes: u64,
+    elapsed: Duration,
+) -> usize {
+    if max_concurrency <= min_concurrency || sampled_bytes == 0 {
+        return min_concurrency;
+    }
+
+    let elapsed_seconds = elapsed.as_secs_f64();
+    if !elapsed_seconds.is_finite() || elapsed_seconds <= 0.0 {
+        return min_concurrency;
+    }
+
+    let sampled_bytes_per_second = sampled_bytes as f64 / elapsed_seconds;
+    if !sampled_bytes_per_second.is_finite() || sampled_bytes_per_second <= 0.0 {
+        return min_concurrency;
+    }
+
+    let concurrency =
+        (ADAPTIVE_CONCURRENCY_TARGET_BYTES_PER_SECOND / sampled_bytes_per_second).ceil() as usize;
+    concurrency.clamp(min_concurrency, max_concurrency)
+}
+
+fn sample_segments(
+    client: &Client,
+    headers: &HeaderMap,
+    temp_dir: &Path,
+    segments: &[HlsSegment],
+    sample_segment_count: usize,
+    retry_limit: usize,
+    cancel_flag: &AtomicBool,
+) -> Result<SegmentSample> {
+    let started_at = Instant::now();
+    let mut downloaded_bytes = 0_u64;
+
+    for (index, segment) in segments.iter().take(sample_segment_count).enumerate() {
+        let output_path = temp_dir.join(local_segment_file_name(index, &segment.url));
+        downloaded_bytes += fetch_with_retry(
+            client,
+            &segment.url,
+            headers,
+            &output_path,
+            retry_limit,
+            cancel_flag,
+        )?;
+    }
+
+    Ok(SegmentSample {
+        downloaded_bytes,
+        elapsed: started_at.elapsed(),
+        count: sample_segment_count,
+    })
+}
+
 fn download_segments(
     client: Client,
     headers: HeaderMap,
     temp_dir: PathBuf,
     segments: Vec<HlsSegment>,
-    concurrency: usize,
-    retry_limit: usize,
+    config: SegmentDownloadConfig,
     cancel_flag: Arc<AtomicBool>,
 ) -> Result<u64> {
+    let remaining_count = segments.len().saturating_sub(config.start_index);
+    if remaining_count == 0 {
+        return Ok(config.initial_downloaded_bytes);
+    }
+
     let segments = Arc::new(segments);
-    let next_index = Arc::new(AtomicUsize::new(0));
-    let downloaded_bytes = Arc::new(AtomicU64::new(0));
+    let next_index = Arc::new(AtomicUsize::new(config.start_index));
+    let downloaded_bytes = Arc::new(AtomicU64::new(config.initial_downloaded_bytes));
     let errors = Arc::new(Mutex::new(Vec::<String>::new()));
-    let worker_count = concurrency.max(1).min(segments.len());
+    let worker_count = config.concurrency.max(1).min(remaining_count);
+    let retry_limit = config.retry_limit;
     let mut handles = Vec::with_capacity(worker_count);
 
     for _ in 0..worker_count {
@@ -453,13 +573,13 @@ fn download_hls_segments(
     let temp_dir = PathBuf::from(&request.temp_dir);
     fs::create_dir_all(&temp_dir).map_err(to_napi_error)?;
     let headers = header_map(&request.headers)?;
+    let plan = download_plan(request, request.segments.len());
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
-        .pool_max_idle_per_host(request.concurrency.unwrap_or(8).max(1))
+        .pool_max_idle_per_host(plan.max_concurrency)
         .build()
         .map_err(to_napi_error)?;
     let retry_limit = request.retry_limit.unwrap_or(3).max(1);
-    let concurrency = request.concurrency.unwrap_or(8).max(1);
     let key_file_names = key_file_names(&request.segments)?;
 
     download_keys(
@@ -472,13 +592,34 @@ fn download_hls_segments(
     )?;
     ensure_not_canceled(&cancel_flag)?;
 
+    let sample = sample_segments(
+        &client,
+        &headers,
+        &temp_dir,
+        &request.segments,
+        plan.sample_segment_count,
+        retry_limit,
+        &cancel_flag,
+    )?;
+    let concurrency = adaptive_concurrency(
+        plan.min_concurrency,
+        plan.max_concurrency,
+        sample.downloaded_bytes,
+        sample.elapsed,
+    );
+    ensure_not_canceled(&cancel_flag)?;
+
     let downloaded_bytes = download_segments(
         client,
         headers,
         temp_dir.clone(),
         request.segments.clone(),
-        concurrency,
-        retry_limit,
+        SegmentDownloadConfig {
+            concurrency,
+            start_index: sample.count,
+            initial_downloaded_bytes: sample.downloaded_bytes,
+            retry_limit,
+        },
         Arc::clone(&cancel_flag),
     )?;
     ensure_not_canceled(&cancel_flag)?;
@@ -582,5 +723,46 @@ mod tests {
             local_segment_file_name(2, "https://cdn.example.test/hls/seg-0003.bin"),
             "segment-000003.ts"
         );
+    }
+
+    #[test]
+    fn chooses_adaptive_concurrency_from_sample_throughput() {
+        assert_eq!(
+            adaptive_concurrency(8, 32, 1024 * 1024, Duration::from_secs(1)),
+            32
+        );
+        assert_eq!(
+            adaptive_concurrency(8, 32, 2 * 1024 * 1024, Duration::from_secs(1)),
+            16
+        );
+        assert_eq!(
+            adaptive_concurrency(8, 32, 64 * 1024 * 1024, Duration::from_secs(1)),
+            8
+        );
+    }
+
+    #[test]
+    fn keeps_fixed_concurrency_when_no_maximum_is_requested() {
+        let request = DownloadRequest {
+            download_id: "download".to_string(),
+            temp_dir: "/tmp/download".to_string(),
+            headers: HashMap::new(),
+            concurrency: Some(8),
+            min_concurrency: None,
+            max_concurrency: None,
+            sample_segment_count: None,
+            retry_limit: Some(3),
+            target_duration: Some(6.0),
+            segments: vec![HlsSegment {
+                url: "https://cdn.example.test/hls/seg-0001.ts".to_string(),
+                duration: Some(6.0),
+                key: None,
+            }],
+        };
+        let plan = download_plan(&request, request.segments.len());
+
+        assert_eq!(plan.min_concurrency, 8);
+        assert_eq!(plan.max_concurrency, 8);
+        assert_eq!(plan.sample_segment_count, 0);
     }
 }

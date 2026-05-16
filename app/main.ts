@@ -337,7 +337,9 @@ const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
-const DOWNLOAD_SEGMENT_CONCURRENCY = 8;
+const DOWNLOAD_SEGMENT_MIN_CONCURRENCY = 8;
+const DOWNLOAD_SEGMENT_MAX_CONCURRENCY = 32;
+const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
 const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
@@ -1226,7 +1228,9 @@ async function downloadHlsSegmentsWithNative(
           downloadId: downloadId,
           tempDir: tempDir,
           headers: headers,
-          concurrency: DOWNLOAD_SEGMENT_CONCURRENCY,
+          minConcurrency: DOWNLOAD_SEGMENT_MIN_CONCURRENCY,
+          maxConcurrency: DOWNLOAD_SEGMENT_MAX_CONCURRENCY,
+          sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT,
           retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT,
           targetDuration: playlist.targetDuration,
           segments: playlist.segments

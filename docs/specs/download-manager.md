@@ -151,7 +151,9 @@ This document specifies the current Download List and local video file managemen
 - The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.
 - The active worker delegates HLS key and segment download to the Rust native download engine before FFmpeg remuxing:
   - one active video download at a time
-  - up to 8 segment requests in parallel within that active video
+  - Rust samples up to 3 segment downloads before the parallel phase
+  - segment request concurrency is selected from 8 to 32 workers based on sampled single-worker throughput
+  - the same `reqwest` client and connection pool are reused across sampled and parallel segment requests
   - 3 retries per key or segment request
   - User-Agent is always sent; Referer is the video page URL; Cookie is sent when the Electron Jable session has cookies for the origin
   - main process polls the temporary segment directory to update runtime `downloadedBytes`

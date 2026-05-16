@@ -113,7 +113,7 @@ Desktop data and search behavior:
 - Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
 - Video URLs from the fallback origin are canonicalized to `https://jable.tv` before local storage, so syncing through `https://fs1.app` does not duplicate existing rows.
 - The local data engine is the Rust native addon under `native/local-data-engine`. It opens `jable-favourites.sqlite` and preserves the IPC return shapes exposed through `app/data-engine.ts`.
-- The download engine is the Rust native addon under `native/download-engine`. Electron main passes request headers, HLS segment metadata, concurrency, retry limit, and a managed temporary directory; the addon downloads HLS keys/segments and writes a local playlist for main-owned FFmpeg remuxing.
+- The download engine is the Rust native addon under `native/download-engine`. Electron main passes request headers, HLS segment metadata, adaptive concurrency bounds, retry limit, and a managed temporary directory; the addon downloads HLS keys/segments and writes a local playlist for main-owned FFmpeg remuxing.
 - App-level collection metadata lives in `app/collections.ts`; Rust data-engine collection metadata lives in `native/local-data-engine/src/collections.rs`. Keep both definitions aligned when changing supported collections, names, or source paths.
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
@@ -183,7 +183,7 @@ Desktop app files:
 - `app/data-engine.ts`: local data engine boundary backed by the Rust native addon.
 - `app/native-download-engine.ts`: loader for the Rust HLS key/segment download addon.
 - `native/local-data-engine/`: Rust SQLite data engine. `src/lib.rs` owns the N-API bridge, engine lifecycle, transaction helper, and method dispatch. `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts/resequencing, `src/sync.rs` owns sync and outbox state transitions, `src/resource.rs` owns JSON import/export, `src/payload.rs` owns payload coercion and URL normalization, `src/collections.rs` owns collection metadata, and `src/rows.rs` owns row mapping structs/helpers.
-- `native/download-engine/`: Rust HLS download engine. It owns bounded parallel key/segment HTTP fetching, retry, cancellation flags, temporary segment writes, and local playlist generation.
+- `native/download-engine/`: Rust HLS download engine. It owns sampled adaptive concurrency, bounded parallel key/segment HTTP fetching, retry, cancellation flags, temporary segment writes, and local playlist generation.
 - `app/types/`: shared renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
 - `app/native-dist/`: built native `.node` addons loaded by Electron and unpacked from packaged apps.
