@@ -68,7 +68,7 @@ Current behavior:
 - Open, reveal, retry, cancel, and delete calls use a video URL, not renderer-provided local paths.
 - Delete verifies managed-root containment before unlinking a local file.
 - Main forwards `downloads-changed` browser messages with the current download list after download state changes.
-- Active `downloads-changed` records may include runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields while FFmpeg is running.
+- Active `downloads-changed` records may include runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields while work is running. Download speed is sampled from total downloaded bytes at most once per second and is not persisted.
 - The renderer uses `downloads-changed` to refresh Download List/source-card state and to show completion/failure toasts.
 
 ## Local Data API
