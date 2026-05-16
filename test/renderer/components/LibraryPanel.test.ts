@@ -363,6 +363,7 @@ describe('LibraryPanel', function () {
     expect(cards).toHaveLength(2);
     expect(cards[0].text()).toContain('Ready Video');
     expect(cards[0].text()).toContain('已下載');
+    expect(cards[0].text()).toContain('檔案大小：1 KB');
     expect(cards[1].text()).toContain('Missing Video');
     expect(cards[1].text()).toContain('檔案遺失');
     expect(cards[1].text()).toContain('錯誤：File removed');

@@ -101,6 +101,7 @@
     "cancel": "キャンセル",
     "reveal": "場所を表示",
     "delete": "削除",
+    "fileSize": "ファイルサイズ: {size}",
     "error": "エラー: {error}",
     "state": {
       "queued": "待機中",

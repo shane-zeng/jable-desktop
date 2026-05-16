@@ -673,20 +673,20 @@ function getDownloadStore() {
   return downloadStore;
 }
 
-function downloadRecordFileExists(record: DownloadRecord): boolean {
-  if (!record.localPath) return false;
-
+function downloadRecordFileStats(record: DownloadRecord): NodeFs.Stats | null {
+  if (!record.localPath) return null;
   try {
-    return fs.statSync(record.localPath).isFile();
+    return fs.statSync(record.localPath);
   } catch (error) {
-    return false;
+    return null;
   }
 }
 
 function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
   if (record.state !== 'ready' && record.state !== 'missing') return record;
 
-  const exists = downloadRecordFileExists(record);
+  const stats = downloadRecordFileStats(record);
+  const exists = Boolean(stats && stats.isFile());
   if (record.state === 'ready' && !exists) {
     return Object.assign({}, record, {
       state: 'missing' as const,
@@ -696,7 +696,13 @@ function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
   if (record.state === 'missing' && exists) {
     return Object.assign({}, record, {
       state: 'ready' as const,
-      error: null
+      error: null,
+      fileSizeBytes: stats ? stats.size : record.fileSizeBytes
+    });
+  }
+  if (record.state === 'ready' && exists && stats && record.fileSizeBytes !== stats.size) {
+    return Object.assign({}, record, {
+      fileSizeBytes: stats.size
     });
   }
 
@@ -936,6 +942,7 @@ async function runQueuedDownload(record: DownloadRecord) {
 
     await runFfmpegDownload(command, playlistUrl, record.videoUrl, outputPath);
     throwIfDownloadCanceled(record.videoUrl);
+    const stats = fs.statSync(outputPath);
 
     store.upsert({
       videoUrl: record.videoUrl,
@@ -943,6 +950,7 @@ async function runQueuedDownload(record: DownloadRecord) {
       progress: 1,
       error: null,
       localPath: outputPath,
+      fileSizeBytes: stats.isFile() ? stats.size : null,
       completedAt: downloadTimestamp()
     });
     notifyDownloadsChanged();

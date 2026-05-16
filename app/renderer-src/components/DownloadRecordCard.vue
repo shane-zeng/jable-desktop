@@ -25,6 +25,23 @@ function progressLabel(record: DownloadRecord) {
   if (record.state !== 'downloading' || record.progress === null) return '';
   return Math.round(record.progress * 100) + '%';
 }
+
+function fileSizeLabel(record: DownloadRecord) {
+  const size = record.fileSizeBytes;
+  if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) return '';
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = size;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value = value / 1024;
+    unitIndex += 1;
+  }
+
+  const formatted =
+    unitIndex === 0 || Number.isInteger(value) || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
+  return t('downloadList.fileSize', { size: formatted + ' ' + units[unitIndex] });
+}
 </script>
 
 <template>
@@ -52,6 +69,9 @@ function progressLabel(record: DownloadRecord) {
       </code>
       <p v-if="record.error" class="m-0 text-xs leading-5 text-[#f2b35d]">
         {{ t('downloadList.error', { error: record.error }) }}
+      </p>
+      <p v-if="fileSizeLabel(record)" class="m-0 text-xs text-[var(--muted)]">
+        {{ fileSizeLabel(record) }}
       </p>
     </div>
 

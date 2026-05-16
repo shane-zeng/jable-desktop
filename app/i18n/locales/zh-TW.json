@@ -101,6 +101,7 @@
     "cancel": "取消",
     "reveal": "顯示位置",
     "delete": "刪除",
+    "fileSize": "檔案大小：{size}",
     "error": "錯誤：{error}",
     "state": {
       "queued": "等待中",

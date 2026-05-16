@@ -101,6 +101,7 @@
     "cancel": "Cancel",
     "reveal": "Reveal",
     "delete": "Delete",
+    "fileSize": "File size: {size}",
     "error": "Error: {error}",
     "state": {
       "queued": "Queued",
