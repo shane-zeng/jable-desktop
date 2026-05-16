@@ -222,3 +222,11 @@ test('main process accepts only canonical trusted Jable video URLs for downloads
   assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:retry'\)/);
   assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:open-file'\)/);
 });
+
+test('renderer sends cloneable plain download payloads', function () {
+  const source = readSource(APP_SOURCE_PATH);
+
+  assert.match(source, /function downloadRequestVideo\(video: VideoRow\)/);
+  assert.match(source, /video: downloadRequestVideo\(video\)/);
+  assert.equal(source.includes('video: video'), false);
+});

@@ -32,6 +32,7 @@ import type {
   CollectionKey,
   CollectionToggleResult,
   DownloadRecord,
+  DownloadRequestPayload,
   DownloadRootInfo,
   DownloadState,
   ExportResource,
@@ -581,13 +582,24 @@ async function revealDownloadFile(videoUrl: string) {
   }
 }
 
+function downloadRequestVideo(video: VideoRow): DownloadRequestPayload['video'] {
+  return {
+    title: video.title,
+    url: video.url,
+    views: video.views,
+    likes: video.likes,
+    img: video.img,
+    preview: video.preview
+  };
+}
+
 async function downloadVideo(video: VideoRow) {
   if (!video || !video.url || busy.value || syncing.value) return;
 
   try {
     const result = await api.enqueueDownload({
       collectionKey: library.activeCollection.value,
-      video: video
+      video: downloadRequestVideo(video)
     });
     setStatus(
       result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
