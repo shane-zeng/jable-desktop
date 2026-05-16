@@ -89,7 +89,7 @@ npm start
 
 Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has a compact floating mode, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. If `https://jable.tv` fails to load, the app automatically falls back to `https://fs1.app` for the current session. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
 
-`npm start` builds the Rust native data engine into `app/native-dist/`, compiles the Electron runtime into `app/runtime-dist/`, and builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
+`npm start` builds the Rust native addons into `app/native-dist/`, compiles the Electron runtime into `app/runtime-dist/`, and builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
 
 ```sh
 npm run dev:renderer
@@ -113,6 +113,7 @@ Desktop data and search behavior:
 - Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
 - Video URLs from the fallback origin are canonicalized to `https://jable.tv` before local storage, so syncing through `https://fs1.app` does not duplicate existing rows.
 - The local data engine is the Rust native addon under `native/local-data-engine`. It opens `jable-favourites.sqlite` and preserves the IPC return shapes exposed through `app/data-engine.ts`.
+- The download engine is the Rust native addon under `native/download-engine`. Electron main passes request headers, HLS segment metadata, concurrency, retry limit, and a managed temporary directory; the addon downloads HLS keys/segments and writes a local playlist for main-owned FFmpeg remuxing.
 - App-level collection metadata lives in `app/collections.ts`; Rust data-engine collection metadata lives in `native/local-data-engine/src/collections.rs`. Keep both definitions aligned when changing supported collections, names, or source paths.
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
@@ -180,10 +181,12 @@ Desktop app files:
 - `app/url-policy.ts`: trusted URL origins, browser-tab protocol policy, release URL allowlist, fallback-origin rewriting, and collection URL checks.
 - `app/collections.ts`: app-level collection metadata shared by Electron runtime code.
 - `app/data-engine.ts`: local data engine boundary backed by the Rust native addon.
+- `app/native-download-engine.ts`: loader for the Rust HLS key/segment download addon.
 - `native/local-data-engine/`: Rust SQLite data engine. `src/lib.rs` owns the N-API bridge, engine lifecycle, transaction helper, and method dispatch. `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts/resequencing, `src/sync.rs` owns sync and outbox state transitions, `src/resource.rs` owns JSON import/export, `src/payload.rs` owns payload coercion and URL normalization, `src/collections.rs` owns collection metadata, and `src/rows.rs` owns row mapping structs/helpers.
+- `native/download-engine/`: Rust HLS download engine. It owns bounded parallel key/segment HTTP fetching, retry, cancellation flags, temporary segment writes, and local playlist generation.
 - `app/types/`: shared renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
-- `app/native-dist/`: built native `.node` data engine addon loaded by Electron and unpacked from packaged apps.
+- `app/native-dist/`: built native `.node` addons loaded by Electron and unpacked from packaged apps.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-src/composables/`: renderer state modules for IPC access, BrowserView bounds/tabs/navigation, local library state, sync workflow, pending remote actions, and toast status.
 - `app/renderer-src/components/`: presentational Vue components for top navigation, browser tabs, local data controls, pagination, and video cards.
@@ -211,7 +214,7 @@ Useful commands:
 - `npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
 - `npm run lint:fix`: apply safe ESLint fixes.
 - `npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
-- `npm run build:rust`: build the Rust native data engine into `app/native-dist/`.
+- `npm run build:rust`: build the Rust native data and download engines into `app/native-dist/`.
 - `npm run build:electron`: compile Electron runtime TypeScript into `app/runtime-dist/`.
 - `npm run format`: format the repository with Prettier.
 - `npm run format:check`: verify formatting without changing files.
@@ -276,9 +279,9 @@ Install dependencies once:
 npm install
 ```
 
-Packaging scripts build the Rust native data engine, Electron runtime, and Vue renderer before running `electron-builder`. The native `.node` file is included from `app/native-dist/` and unpacked through `asarUnpack`, because Electron cannot load native addons directly from inside `app.asar`.
+Packaging scripts build the Rust native addons, Electron runtime, and Vue renderer before running `electron-builder`. The native `.node` files are included from `app/native-dist/` and unpacked through `asarUnpack`, because Electron cannot load native addons directly from inside `app.asar`.
 
-macOS release packaging targets Apple Silicon only. Windows release packaging runs on a Windows x64 runner so `npm run build:rust` produces `jable_data_engine.win32-x64.node` before `electron-builder` packages the app.
+macOS release packaging targets Apple Silicon only. Windows release packaging runs on a Windows x64 runner so `npm run build:rust` produces the `jable_data_engine.win32-x64.node` and `jable_download_engine.win32-x64.node` addons before `electron-builder` packages the app.
 
 Build unpacked apps for local smoke testing:
 

@@ -1,4 +1,5 @@
 app/renderer-dist/
 coverage/
+native/**/target/
 node_modules/
 release/

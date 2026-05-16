@@ -5,6 +5,7 @@ import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeCrypto from 'node:crypto';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
+import type { NativeDownloadEngineModule } from './native-download-engine';
 import type {
   AppSettings,
   AppSettingsPatch,
@@ -168,20 +169,16 @@ type HlsPlaylist = {
   segments: HlsSegment[];
   targetDuration: number | null;
 };
-type LocalHlsSegment = {
-  fileName: string;
-  duration: number | null;
-  keyFileName: string | null;
-  keyMethod: string | null;
-  keyIv: string | null;
-};
 type DownloadHelpersModule = {
   extractHlsPlaylistUrl(html: string, pageUrl: string): string | null;
   parseHlsPlaylist(content: string, playlistUrl: string): HlsPlaylist;
-  buildLocalHlsPlaylist(segments: LocalHlsSegment[], targetDuration: number | null): string;
   videoPageRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
   hlsRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
-  ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string;
+};
+type NativeDownloadEngineInstance = InstanceType<NativeDownloadEngineModule['JableDownloadEngine']>;
+type NativeDownloadSegmentsResult = {
+  playlistPath: string;
+  downloadedBytes: number;
 };
 type DataEngineInstance = {
   close(): void;
@@ -308,6 +305,9 @@ const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModu
 const dataEngineModule = require('./data-engine') as DataEngineModule;
 const downloadHelpers = require('./download-helpers') as DownloadHelpersModule;
 const i18n = require('./i18n') as I18nModule;
+const nativeDownloadEngineModule = require('./native-download-engine') as {
+  loadNativeDownloadEngine(): NativeDownloadEngineModule;
+};
 const settingsModule = require('./settings') as SettingsModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
@@ -359,6 +359,7 @@ let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900
 let browserHtmlFullScreenTabId: string | null = null;
 let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
+let downloadEngine: NativeDownloadEngineInstance | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 const downloadQueue: string[] = [];
 const canceledDownloadUrls = new Set<string>();
@@ -366,6 +367,7 @@ const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 let activeDownloadUrl: string | null = null;
 let activeDownloadProcess: NodeChildProcess.ChildProcess | null = null;
 let activeDownloadAbortController: AbortController | null = null;
+let activeDownloadNativeId: string | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -1111,12 +1113,6 @@ function removeDownloadSegmentTempDirectory(outputPath: string) {
   } catch (error) {}
 }
 
-function downloadDelay(ms: number): Promise<void> {
-  return new Promise(function (resolve) {
-    setTimeout(resolve, ms);
-  });
-}
-
 async function fetchHlsText(
   playlistUrl: string,
   videoUrl: string,
@@ -1163,109 +1159,51 @@ async function resolveHlsMediaPlaylist(
   throw new HlsPlaylistNotFoundError();
 }
 
-function localSegmentFileName(index: number, segmentUrl: string): string {
-  let extension = '.ts';
+function downloadSegmentDirectorySize(tempDir: string): number {
+  let total = 0;
+  let entries: NodeFs.Dirent[];
   try {
-    const urlExtension = path.extname(new URL(segmentUrl).pathname).toLowerCase();
-    if (urlExtension && urlExtension.length <= 6) extension = urlExtension;
-  } catch (error) {}
+    entries = fs.readdirSync(tempDir, { withFileTypes: true });
+  } catch (error) {
+    return 0;
+  }
 
-  return 'segment-' + String(index + 1).padStart(6, '0') + extension;
-}
-
-function localKeyFileName(index: number): string {
-  return 'key-' + String(index + 1).padStart(6, '0') + '.key';
-}
-
-async function fetchDownloadBuffer(
-  targetUrl: string,
-  headers: Record<string, string>,
-  signal: AbortSignal
-): Promise<Buffer> {
-  const response = await fetch(targetUrl, { headers: headers, signal: signal });
-  if (!response.ok) throw new DownloadSegmentError('HTTP ' + response.status);
-  return Buffer.from(await response.arrayBuffer());
-}
-
-async function fetchDownloadBufferWithRetry(
-  videoUrl: string,
-  targetUrl: string,
-  headers: Record<string, string>,
-  signal: AbortSignal,
-  label: string
-): Promise<Buffer> {
-  let lastError: unknown = null;
-
-  for (let attempt = 1; attempt <= DOWNLOAD_SEGMENT_RETRY_LIMIT; attempt++) {
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
     try {
-      throwIfDownloadCanceled(videoUrl);
-      return await fetchDownloadBuffer(targetUrl, headers, signal);
-    } catch (error) {
-      if (signal.aborted || canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
-      lastError = error;
-      if (attempt < DOWNLOAD_SEGMENT_RETRY_LIMIT) await downloadDelay(attempt * 500);
-    }
+      total += fs.statSync(path.join(tempDir, entry.name)).size;
+    } catch (error) {}
   }
 
-  throw new DownloadSegmentError(label + ' failed after retries: ' + mainErrorMessage(lastError));
+  return total;
 }
 
-async function runConcurrent<T>(
-  items: T[],
-  limit: number,
-  worker: (item: T, index: number) => Promise<void>
-): Promise<void> {
-  let nextIndex = 0;
-  const errors: unknown[] = [];
-  const workerCount = Math.min(Math.max(1, limit), items.length);
-  const workers = Array.from({ length: workerCount }, async function () {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      try {
-        await worker(items[index], index);
-      } catch (error) {
-        errors.push(error);
-        nextIndex = items.length;
-      }
-    }
-  });
-
-  await Promise.all(workers);
-  if (errors.length) throw errors[0];
+function startNativeDownloadProgress(videoUrl: string, tempDir: string): ReturnType<typeof setInterval> {
+  return setInterval(function () {
+    updateDownloadRuntimeProgress(videoUrl, downloadSegmentDirectorySize(tempDir));
+  }, DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS);
 }
 
-async function writeLocalHlsKeys(
-  playlist: HlsPlaylist,
-  tempDir: string,
-  videoUrl: string,
-  headers: Record<string, string>,
-  signal: AbortSignal
-): Promise<Map<string, string>> {
-  const keyFileNames = new Map<string, string>();
-  const keyUrls: string[] = [];
-
-  for (const segment of playlist.segments) {
-    if (!segment.key) continue;
-    if (segment.key.method !== 'AES-128' || !segment.key.uri) {
-      throw new HlsPlaylistUnsupportedError('unsupported HLS key method: ' + segment.key.method);
-    }
-    if (!keyFileNames.has(segment.key.uri)) {
-      const fileName = localKeyFileName(keyUrls.length);
-      keyFileNames.set(segment.key.uri, fileName);
-      keyUrls.push(segment.key.uri);
-    }
+function parseNativeDownloadSegmentsResult(value: string): NativeDownloadSegmentsResult {
+  const result = JSON.parse(value) as Partial<NativeDownloadSegmentsResult>;
+  if (typeof result.playlistPath !== 'string' || !result.playlistPath) {
+    throw new DownloadSegmentError('native download engine did not return playlistPath');
   }
-
-  for (const keyUrl of keyUrls) {
-    const buffer = await fetchDownloadBufferWithRetry(videoUrl, keyUrl, headers, signal, 'key');
-    fs.writeFileSync(path.join(tempDir, keyFileNames.get(keyUrl) || localKeyFileName(0)), buffer);
-  }
-
-  return keyFileNames;
+  return {
+    playlistPath: result.playlistPath,
+    downloadedBytes:
+      typeof result.downloadedBytes === 'number' && Number.isFinite(result.downloadedBytes) ? result.downloadedBytes : 0
+  };
 }
 
-async function downloadHlsSegments(
+function nativeDownloadError(error: unknown): Error {
+  const message = mainErrorMessage(error);
+  if (/download canceled|AbortError/i.test(message)) return downloadCanceledError();
+  if (/unsupported HLS key method/i.test(message)) return new HlsPlaylistUnsupportedError(message);
+  return new DownloadSegmentError(message);
+}
+
+async function downloadHlsSegmentsWithNative(
   playlist: HlsPlaylist,
   videoUrl: string,
   cookieHeader: string,
@@ -1274,50 +1212,37 @@ async function downloadHlsSegments(
 ): Promise<string> {
   const tempDir = downloadSegmentTempDirectory(outputPath);
   const headers = downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader);
+  const downloadId = videoUrl;
+  let progressTimer: ReturnType<typeof setInterval> | null = null;
   removeDownloadSegmentTempDirectory(outputPath);
 
   try {
-    fs.mkdirSync(tempDir, { recursive: true });
-  } catch (error) {
-    throw downloadFileSystemError(error);
-  }
-
-  const keyFileNames = await writeLocalHlsKeys(playlist, tempDir, videoUrl, headers, signal);
-  let downloadedBytes = 0;
-
-  await runConcurrent(playlist.segments, DOWNLOAD_SEGMENT_CONCURRENCY, async function (segment, index) {
     throwIfDownloadCanceled(videoUrl);
-    const fileName = localSegmentFileName(index, segment.url);
-    const buffer = await fetchDownloadBufferWithRetry(videoUrl, segment.url, headers, signal, 'segment');
-
-    try {
-      fs.writeFileSync(path.join(tempDir, fileName), buffer);
-    } catch (error) {
-      throw downloadFileSystemError(error);
-    }
-
-    downloadedBytes += buffer.byteLength;
-    updateDownloadRuntimeProgress(videoUrl, downloadedBytes);
-  });
-
-  const localSegments = playlist.segments.map(function (segment, index): LocalHlsSegment {
-    const keyFileName = segment.key && segment.key.uri ? keyFileNames.get(segment.key.uri) || null : null;
-    return {
-      fileName: localSegmentFileName(index, segment.url),
-      duration: segment.duration,
-      keyFileName: keyFileName,
-      keyMethod: keyFileName && segment.key ? segment.key.method : null,
-      keyIv: keyFileName && segment.key ? segment.key.iv : null
-    };
-  });
-  const localPlaylistPath = path.join(tempDir, 'playlist.m3u8');
-  try {
-    fs.writeFileSync(localPlaylistPath, downloadHelpers.buildLocalHlsPlaylist(localSegments, playlist.targetDuration));
+    activeDownloadNativeId = downloadId;
+    progressTimer = startNativeDownloadProgress(videoUrl, tempDir);
+    const result = parseNativeDownloadSegmentsResult(
+      await getDownloadEngine().downloadHlsSegments(
+        JSON.stringify({
+          downloadId: downloadId,
+          tempDir: tempDir,
+          headers: headers,
+          concurrency: DOWNLOAD_SEGMENT_CONCURRENCY,
+          retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT,
+          targetDuration: playlist.targetDuration,
+          segments: playlist.segments
+        })
+      )
+    );
+    throwIfDownloadCanceled(videoUrl);
+    updateDownloadRuntimeProgress(videoUrl, result.downloadedBytes);
+    return result.playlistPath;
   } catch (error) {
-    throw downloadFileSystemError(error);
+    if (signal.aborted || canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
+    throw nativeDownloadError(error);
+  } finally {
+    if (progressTimer) clearInterval(progressTimer);
+    if (activeDownloadNativeId === downloadId) activeDownloadNativeId = null;
   }
-
-  return localPlaylistPath;
 }
 
 function runFfmpegRemux(
@@ -1450,7 +1375,7 @@ async function runQueuedDownload(record: DownloadRecord) {
     throwIfDownloadCanceled(record.videoUrl);
     const playlist = await resolveHlsMediaPlaylist(playlistUrl, record.videoUrl, cookieHeader, abortController.signal);
     throwIfDownloadCanceled(record.videoUrl);
-    const localPlaylistPath = await downloadHlsSegments(
+    const localPlaylistPath = await downloadHlsSegmentsWithNative(
       playlist,
       record.videoUrl,
       cookieHeader,
@@ -1623,6 +1548,7 @@ function cancelDownload(value: unknown): CancelDownloadResult {
   });
 
   if (isActive && activeDownloadAbortController) activeDownloadAbortController.abort();
+  if (isActive && activeDownloadNativeId) getDownloadEngine().cancelDownload(activeDownloadNativeId);
   if (isActive && activeDownloadProcess) activeDownloadProcess.kill('SIGTERM');
   notifyDownloadsChanged();
 
@@ -1751,6 +1677,15 @@ function getDatabase(): DataEngineInstance {
   }
 
   return database;
+}
+
+function getDownloadEngine(): NativeDownloadEngineInstance {
+  if (!downloadEngine) {
+    const nativeModule = nativeDownloadEngineModule.loadNativeDownloadEngine();
+    downloadEngine = new nativeModule.JableDownloadEngine();
+  }
+
+  return downloadEngine;
 }
 
 function localDataFolderPath(): string {
@@ -4057,5 +3992,8 @@ app.on('window-all-closed', function () {
 
 app.on('before-quit', function () {
   closeAllSyncWorkers();
+  if (activeDownloadAbortController) activeDownloadAbortController.abort();
+  if (activeDownloadNativeId && downloadEngine) downloadEngine.cancelDownload(activeDownloadNativeId);
+  if (activeDownloadProcess) activeDownloadProcess.kill('SIGTERM');
   if (database) database.close();
 });

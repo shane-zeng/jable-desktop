@@ -65,6 +65,7 @@ Current behavior:
 - Download root selection is persisted in settings and resolved in main process.
 - Download records are listed from the Rust data engine download asset store.
 - Enqueue and retry verify FFmpeg readiness before queueing work.
+- HLS key and segment fetching is delegated to the Rust native download engine; the main process passes request headers, segment metadata, concurrency, retry limit, and a temporary directory path.
 - Open, reveal, retry, cancel, and delete calls use a video URL, not renderer-provided local paths.
 - Delete verifies managed-root containment before unlinking a local file.
 - Main forwards `downloads-changed` browser messages with the current download list after download state changes.

@@ -60,6 +60,7 @@ export default [
       'app/ipc-normalizers.ts',
       'app/main.ts',
       'app/native-data-engine.ts',
+      'app/native-download-engine.ts',
       'app/preload.ts',
       'app/settings.ts',
       'app/sync-utils.ts',

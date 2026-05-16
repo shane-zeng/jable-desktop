@@ -136,9 +136,10 @@ This document specifies the current Download List and local video file managemen
 
 ## Download Pipeline
 
-- The main process owns all download work.
-- The FFmpeg runner is main-owned for MVP and separate from the persisted asset model.
-- Future work may move the runner behind a Rust/native boundary if process supervision or queue control needs justify it, but FFmpeg remains the external HLS pipeline.
+- The main process owns queue orchestration, Jable cookie/header collection, cancellation, and FFmpeg remux orchestration.
+- The Rust native download engine under `native/download-engine` owns HLS key and segment HTTP fetching.
+- The FFmpeg runner remains main-owned and separate from the persisted asset model.
+- Future work may move more process supervision behind a Rust/native boundary if queue control or crash isolation needs justify it, but FFmpeg remains the external remux pipeline.
 - Queue concurrency is one active video download at a time.
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.
@@ -146,15 +147,15 @@ This document specifies the current Download List and local video file managemen
 - HLS playlist extraction is implemented in `app/download-helpers.ts`.
 - The extractor supports escaped absolute `.m3u8` URLs and quoted relative `.m3u8` URLs resolved against the video page URL.
 - The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.
-- The active worker downloads HLS segment files itself before FFmpeg remuxing:
+- The active worker delegates HLS key and segment download to the Rust native download engine before FFmpeg remuxing:
   - one active video download at a time
   - up to 8 segment requests in parallel within that active video
   - 3 retries per key or segment request
   - User-Agent is always sent; Referer is the video page URL; Cookie is sent when the Electron Jable session has cookies for the origin
-  - runtime `downloadedBytes` is updated from completed segment bytes
+  - main process polls the temporary segment directory to update runtime `downloadedBytes`
   - runtime `downloadSpeedBytesPerSecond` is sampled at most once per second from total downloaded bytes to avoid inflated spikes when multiple parallel segment requests finish together
-- Downloaded segments and keys are written under a temporary `.segments` sibling directory inside the managed download root.
-- The worker writes a local `playlist.m3u8` pointing at the downloaded segment and key files.
+- Downloaded segments and keys are written by Rust under a temporary `.segments` sibling directory inside the managed download root.
+- Rust writes a local `playlist.m3u8` pointing at the downloaded segment and key files.
 - FFmpeg is spawned by main process for local remuxing with:
   - `-progress pipe:1` so the app can parse runtime download byte updates without mixing them into FFmpeg error output
   - `-allowed_extensions ALL`
@@ -176,7 +177,7 @@ This document specifies the current Download List and local video file managemen
   - filesystem failure
   - network failure
   - unknown failure
-- Active cancel aborts in-flight segment requests, kills the FFmpeg process when it is running, and marks the record failed with the localized canceled message.
+- Active cancel asks the Rust download engine to cancel in-flight segment requests, kills the FFmpeg process when it is running, and marks the record failed with the localized canceled message.
 - Queued cancel removes the record from the queue and marks it failed with the localized canceled message.
 
 ## Opening Local Files

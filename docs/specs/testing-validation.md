@@ -38,7 +38,8 @@ fnm exec --using 24 npm run test:electron
 | Browser tab policy, media serialization, shortcut detection                                   | `test/node/browser-tab-policy.test.js`      |
 | Settings normalization and persistence                                                        | `test/node/settings.test.js`                |
 | Download asset persistence and normalization                                                  | `test/node/data-engine-contract.test.js`    |
-| HLS playlist extraction, parsing, local playlist generation, and request header helpers       | `test/node/download-helpers.test.js`        |
+| HLS playlist extraction, parsing, and request header helpers                                  | `test/node/download-helpers.test.js`        |
+| Rust native download engine local playlist generation, build/check/clippy coverage            | `npm run rust:ci`                           |
 | IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
 | Userscript i18n guardrails                                                                    | `test/node/userscript-i18n.test.js`         |
@@ -61,7 +62,7 @@ fnm exec --using 24 npm run test:electron
 - Webview preload helper changes: run webview helper tests, IPC guardrail tests, and Node tests covering URL/sync helper behavior.
 - URL policy or release URL changes: run URL policy and update checker tests.
 - Settings changes: run settings tests plus renderer SettingsPanel tests.
-- Download List, FFmpeg, or download pipeline changes: run download Node tests, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring or shell/file boundary behavior changes.
+- Download List, FFmpeg, native download engine, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring or shell/file boundary behavior changes.
 - Search, migrations, sync visibility, outbox, pending remote, or import/export changes: run Node database tests, data-engine contract tests, and Rust tests.
 - Rust-native data-engine invariant changes: update and run `native/local-data-engine/src/tests.rs` through `fnm exec --using 24 npm run rust:ci`.
 - Documentation-only changes: run `fnm exec --using 24 npm run format:check`.

@@ -28,14 +28,6 @@ export type HlsPlaylist = {
   targetDuration: number | null;
 };
 
-export type LocalHlsSegment = {
-  fileName: string;
-  duration: number | null;
-  keyFileName: string | null;
-  keyMethod: string | null;
-  keyIv: string | null;
-};
-
 function hlsUrlCandidate(value: string, pageUrl: string): string | null {
   const candidate = value.replace(/\\\//g, '/').replace(/&amp;/g, '&').trim();
   if (candidate.indexOf('.m3u8') === -1) return null;
@@ -203,43 +195,6 @@ export function parseHlsPlaylist(content: string, playlistUrl: string): HlsPlayl
   };
 }
 
-function hlsDurationValue(value: number | null): string {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? String(value) : '0';
-}
-
-export function buildLocalHlsPlaylist(segments: LocalHlsSegment[], targetDuration: number | null): string {
-  const lines = [
-    '#EXTM3U',
-    '#EXT-X-VERSION:3',
-    '#EXT-X-TARGETDURATION:' + (targetDuration && targetDuration > 0 ? Math.ceil(targetDuration) : 10),
-    '#EXT-X-MEDIA-SEQUENCE:0'
-  ];
-  let previousKey = '';
-
-  for (const segment of segments) {
-    const key =
-      segment.keyMethod && segment.keyFileName
-        ? segment.keyMethod + '|' + segment.keyFileName + '|' + (segment.keyIv || '')
-        : '';
-    if (key !== previousKey) {
-      if (segment.keyMethod && segment.keyFileName) {
-        let keyLine = '#EXT-X-KEY:METHOD=' + segment.keyMethod + ',URI="' + segment.keyFileName + '"';
-        if (segment.keyIv) keyLine += ',IV=' + segment.keyIv;
-        lines.push(keyLine);
-      } else if (previousKey) {
-        lines.push('#EXT-X-KEY:METHOD=NONE');
-      }
-      previousKey = key;
-    }
-
-    lines.push('#EXTINF:' + hlsDurationValue(segment.duration) + ',');
-    lines.push(segment.fileName);
-  }
-
-  lines.push('#EXT-X-ENDLIST');
-  return lines.join('\n') + '\n';
-}
-
 export function videoPageRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string> {
   const headers: Record<string, string> = {
     accept: 'text/html,application/xhtml+xml',
@@ -258,10 +213,4 @@ export function hlsRequestHeaders(videoUrl: string, cookieHeader: string): Recor
   };
   if (cookieHeader) headers.cookie = cookieHeader;
   return headers;
-}
-
-export function ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string {
-  const headers = ['Referer: ' + videoUrl, 'User-Agent: ' + DOWNLOAD_USER_AGENT];
-  if (cookieHeader) headers.push('Cookie: ' + cookieHeader);
-  return headers.join('\r\n') + '\r\n';
 }

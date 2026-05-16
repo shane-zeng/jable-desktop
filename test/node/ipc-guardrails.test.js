@@ -238,17 +238,22 @@ test('main process streams FFmpeg download progress without persisting runtime f
 
 test('main process downloads HLS segments in bounded parallel batches', function () {
   const source = readSource(MAIN_SOURCE_PATH);
+  const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'native-download-engine.ts'));
+  const buildScript = readSource(path.join(ROOT_DIR, 'scripts', 'build-rust-engine.js'));
 
   assert.match(source, /const DOWNLOAD_SEGMENT_CONCURRENCY = 8/);
-  assert.match(source, /function runConcurrent<T>/);
-  assert.match(source, /await runConcurrent\(playlist\.segments, DOWNLOAD_SEGMENT_CONCURRENCY/);
-  assert.match(source, /fetchDownloadBufferWithRetry\(videoUrl, segment\.url, headers, signal, 'segment'\)/);
+  assert.match(source, /getDownloadEngine\(\)\.downloadHlsSegments/);
+  assert.match(source, /concurrency: DOWNLOAD_SEGMENT_CONCURRENCY/);
+  assert.match(source, /retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT/);
+  assert.match(source, /if \(isActive && activeDownloadNativeId\) getDownloadEngine\(\)\.cancelDownload/);
+  assert.match(nativeLoader, /jable_download_engine\.' \+ process\.platform \+ '-' \+ process\.arch \+ '\.node'/);
+  assert.match(buildScript, /libraryName: 'jable_download_engine'/);
 });
 
 test('main process remuxes downloaded local HLS segments with FFmpeg', function () {
   const source = readSource(MAIN_SOURCE_PATH);
 
-  assert.match(source, /const localPlaylistPath = await downloadHlsSegments/);
+  assert.match(source, /const localPlaylistPath = await downloadHlsSegmentsWithNative/);
   assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath\)/);
   assert.match(source, /'-allowed_extensions',\n\s*'ALL',\n\s*'-protocol_whitelist',\n\s*'file,crypto'/);
 });
