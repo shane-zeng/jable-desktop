@@ -46,8 +46,8 @@ This document specifies the current Download List and local video file managemen
 
 ## Persisted Store
 
-- Download records are persisted in `downloads.json` under Electron `userData`.
-- The store is owned by `app/downloads.ts` and exposed through `DownloadStore`.
+- Download records are persisted in the Rust data engine `download_assets` table.
+- Main process accesses the store through `app/data-engine.ts`.
 - Records are keyed by video URL.
 - Local Data rows are already canonicalized by the data engine before normal card downloads are started.
 - The store keeps enough metadata for Download List rendering even if the row later disappears from a collection:
@@ -155,7 +155,7 @@ This document specifies the current Download List and local video file managemen
 ## Opening Local Files
 
 - The renderer passes only a video URL to main process.
-- Main resolves the persisted record and local path from the download store.
+- Main resolves the persisted record and local path from the data engine.
 - Open and reveal actions require the record to be `ready` and the file to exist.
 - Open uses Electron `shell.openPath(filePath)`.
 - Reveal uses Electron `shell.showItemInFolder(filePath)`.
@@ -174,7 +174,6 @@ This document specifies the current Download List and local video file managemen
 
 ## Related Files
 
-- `app/downloads.ts`
 - `app/download-helpers.ts`
 - `app/main.ts`
 - `app/preload.ts`
@@ -187,7 +186,6 @@ This document specifies the current Download List and local video file managemen
 - `app/renderer-src/components/SettingsPanel.vue`
 - `app/renderer-src/components/VideoCard.vue`
 - `app/renderer-src/composables/useLibraryState.ts`
-- `test/node/downloads.test.js`
 - `test/node/download-helpers.test.js`
 - `test/renderer/components/LibraryPanel.test.ts`
 - `test/renderer/components/VideoCard.test.ts`

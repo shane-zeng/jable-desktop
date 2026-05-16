@@ -23,6 +23,7 @@ import type {
   CreateBrowserTabPayload,
   DeleteDownloadResult,
   DownloadRecord,
+  DownloadRecordPatch,
   DownloadRequestPayload,
   DownloadRootInfo,
   DownloadRootSelectionResult,
@@ -145,15 +146,6 @@ type SettingsModule = {
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
 };
-type DownloadsModule = {
-  DownloadStore: new (filePath: string) => {
-    list(): DownloadRecord[];
-    get(videoUrl: string): DownloadRecord | null;
-    upsert(patch: Partial<DownloadRecord> & { videoUrl: string }): DownloadRecord;
-    remove(videoUrl: string): boolean;
-  };
-  downloadsFilePath(userDataPath: string): string;
-};
 type DownloadHelpersModule = {
   extractHlsPlaylistUrl(html: string, pageUrl: string): string | null;
   videoPageRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
@@ -184,6 +176,10 @@ type DataEngineInstance = {
   markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean;
   finishSync(payload: FinishSyncPayload): SyncState;
   clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
+  listDownloadAssets(): DownloadRecord[];
+  getDownloadAsset(videoUrl: string): DownloadRecord | null;
+  upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord;
+  removeDownloadAsset(videoUrl: string): boolean;
   importResource(
     collectionKey: CollectionKey,
     resource: ExportResource
@@ -278,7 +274,6 @@ const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
 const dataEngineModule = require('./data-engine') as DataEngineModule;
 const downloadHelpers = require('./download-helpers') as DownloadHelpersModule;
-const downloadsModule = require('./downloads') as DownloadsModule;
 const i18n = require('./i18n') as I18nModule;
 const settingsModule = require('./settings') as SettingsModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
@@ -329,7 +324,6 @@ let browserHtmlFullScreenTabId: string | null = null;
 let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
-let downloadStore: InstanceType<DownloadsModule['DownloadStore']> | null = null;
 const downloadQueue: string[] = [];
 const canceledDownloadUrls = new Set<string>();
 let activeDownloadUrl: string | null = null;
@@ -724,12 +718,20 @@ function openDownloadRoot(): Promise<{ opened: boolean; path: string }> {
   });
 }
 
-function getDownloadStore() {
-  if (!downloadStore) {
-    downloadStore = new downloadsModule.DownloadStore(downloadsModule.downloadsFilePath(app.getPath('userData')));
-  }
+function listPersistedDownloads(): DownloadRecord[] {
+  return getDatabase().listDownloadAssets();
+}
 
-  return downloadStore;
+function getPersistedDownload(videoUrl: string): DownloadRecord | null {
+  return getDatabase().getDownloadAsset(videoUrl);
+}
+
+function upsertPersistedDownload(patch: DownloadRecordPatch): DownloadRecord {
+  return getDatabase().upsertDownloadAsset(patch);
+}
+
+function removePersistedDownload(videoUrl: string): boolean {
+  return getDatabase().removeDownloadAsset(videoUrl);
 }
 
 function downloadRecordFileStats(record: DownloadRecord): NodeFs.Stats | null {
@@ -794,12 +796,11 @@ function downloadRecordNeedsPersistence(current: DownloadRecord, next: DownloadR
 }
 
 function listDownloads(): DownloadRecord[] {
-  const store = getDownloadStore();
-  return store.list().map(function (record) {
+  return listPersistedDownloads().map(function (record) {
     const next = downloadRecordWithRuntimeState(record);
     if (!downloadRecordNeedsPersistence(record, next)) return next;
 
-    return store.upsert({
+    return upsertPersistedDownload({
       videoUrl: next.videoUrl,
       state: next.state,
       progress: next.progress,
@@ -970,10 +971,9 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
 }
 
 async function runQueuedDownload(record: DownloadRecord) {
-  const store = getDownloadStore();
   const outputPath = record.localPath || path.join(getDownloadRoot().path, videoUrlSlug(record.videoUrl) + '.mp4');
 
-  store.upsert({
+  upsertPersistedDownload({
     videoUrl: record.videoUrl,
     state: 'downloading',
     progress: null,
@@ -1006,7 +1006,7 @@ async function runQueuedDownload(record: DownloadRecord) {
       throw downloadFileSystemError(error);
     }
 
-    store.upsert({
+    upsertPersistedDownload({
       videoUrl: record.videoUrl,
       state: 'ready',
       progress: 1,
@@ -1017,7 +1017,7 @@ async function runQueuedDownload(record: DownloadRecord) {
     });
     notifyDownloadsChanged();
   } catch (error) {
-    store.upsert({
+    upsertPersistedDownload({
       videoUrl: record.videoUrl,
       state: 'failed',
       progress: null,
@@ -1035,7 +1035,7 @@ function processDownloadQueue() {
   const nextUrl = downloadQueue.shift();
   if (!nextUrl) return;
 
-  const record = getDownloadStore().get(nextUrl);
+  const record = getPersistedDownload(nextUrl);
   if (!record || record.state !== 'queued') {
     processDownloadQueue();
     return;
@@ -1062,8 +1062,7 @@ function queueDownloadRecord(record: DownloadRecord) {
 
 async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const payload = normalizeDownloadRequestPayload(value);
-  const store = getDownloadStore();
-  const existing = store.get(payload.video.url);
+  const existing = getPersistedDownload(payload.video.url);
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   const existingState = existingRecord ? existingRecord.state : null;
 
@@ -1076,7 +1075,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
 
   await ffmpegCommandForDownload();
 
-  const record = store.upsert({
+  const record = upsertPersistedDownload({
     videoUrl: payload.video.url,
     collectionKey: payload.collectionKey,
     title: payload.video.title,
@@ -1098,8 +1097,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
 
 async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const videoUrl = requiredStringValue(value, 'videoUrl', 'download:retry').trim();
-  const store = getDownloadStore();
-  const existing = videoUrl ? store.get(videoUrl) : null;
+  const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   const existingState = existingRecord ? existingRecord.state : null;
 
@@ -1113,7 +1111,7 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
 
   await ffmpegCommandForDownload();
 
-  const record = store.upsert({
+  const record = upsertPersistedDownload({
     videoUrl: existing.videoUrl,
     state: 'queued',
     progress: null,
@@ -1139,8 +1137,7 @@ function cancelDownload(value: unknown): CancelDownloadResult {
   const videoUrl = requiredStringValue(value, 'videoUrl', 'download:cancel').trim();
   if (!videoUrl) throw new Error(t('status.downloadCancelUnavailable'));
 
-  const store = getDownloadStore();
-  const existing = store.get(videoUrl);
+  const existing = getPersistedDownload(videoUrl);
   const currentRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   if (!currentRecord) throw new Error(t('status.downloadCancelUnavailable'));
 
@@ -1150,7 +1147,7 @@ function cancelDownload(value: unknown): CancelDownloadResult {
   removeQueuedDownload(videoUrl);
   if (isActive) canceledDownloadUrls.add(videoUrl);
 
-  const record = store.upsert({
+  const record = upsertPersistedDownload({
     videoUrl: videoUrl,
     state: 'failed',
     progress: null,
@@ -1215,8 +1212,7 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
 
   if (activeDownloadUrl === videoUrl) throw new Error(t('status.downloadDeleteActiveBlocked'));
 
-  const store = getDownloadStore();
-  const record = store.get(videoUrl);
+  const record = getPersistedDownload(videoUrl);
   const visibleRecord = record ? downloadRecordWithRuntimeState(record) : null;
   if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
   if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
@@ -1234,7 +1230,7 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
   if (queueIndex !== -1) downloadQueue.splice(queueIndex, 1);
 
   const deleted = deleteManagedDownloadFile(visibleRecord);
-  const removed = store.remove(videoUrl);
+  const removed = removePersistedDownload(videoUrl);
   notifyDownloadsChanged();
 
   return {
@@ -1247,7 +1243,7 @@ function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
   const videoUrl = requiredStringValue(value, 'videoUrl', 'download:open-file').trim();
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
-  const record = getDownloadStore().get(videoUrl);
+  const record = getPersistedDownload(videoUrl);
   const readyRecord = record ? downloadRecordWithFileState(record) : null;
   if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
     throw new Error(t('status.downloadFileUnavailable'));
@@ -1266,7 +1262,7 @@ function revealDownloadFile(value: unknown): RevealDownloadFileResult {
   const videoUrl = requiredStringValue(value, 'videoUrl', 'download:reveal-file').trim();
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
-  const record = getDownloadStore().get(videoUrl);
+  const record = getPersistedDownload(videoUrl);
   const readyRecord = record ? downloadRecordWithFileState(record) : null;
   if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
     throw new Error(t('status.downloadFileUnavailable'));

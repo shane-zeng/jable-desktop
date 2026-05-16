@@ -207,8 +207,7 @@ Important outbox fields:
 
 ## Download Records
 
-- Download List records are not stored in the SQLite data engine.
-- Download records are persisted in a separate `downloads.json` file under Electron `userData`.
+- Download records are stored in the Rust data engine `download_assets` table.
 - Download records are keyed by video URL and remain independent from `collection_items`.
 - Downloaded files are not included in collection JSON import/export backups.
 - Deleting or hiding a collection item does not delete a download record or local downloaded file.
@@ -221,6 +220,5 @@ Important outbox fields:
 - `test/node/data-engine-contract.test.js`
 - `native/local-data-engine/src/tests.rs`
 - `test/node/sync-utils.test.js`
-- `test/node/downloads.test.js`
 - `test/node/ipc-guardrails.test.js`
 - `test/renderer/composables/useLibraryState.test.ts`

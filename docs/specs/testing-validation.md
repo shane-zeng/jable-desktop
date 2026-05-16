@@ -37,7 +37,7 @@ fnm exec --using 24 npm run test:electron
 | URL trust, fallback rewrites, release URL allowlist                                           | `test/node/url-policy.test.js`              |
 | Browser tab policy, media serialization, shortcut detection                                   | `test/node/browser-tab-policy.test.js`      |
 | Settings normalization and persistence                                                        | `test/node/settings.test.js`                |
-| Download store persistence and normalization                                                  | `test/node/downloads.test.js`               |
+| Download asset persistence and normalization                                                  | `test/node/data-engine-contract.test.js`    |
 | HLS playlist extraction and FFmpeg header helpers                                             | `test/node/download-helpers.test.js`        |
 | IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
