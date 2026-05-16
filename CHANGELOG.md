@@ -6,6 +6,34 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.10.0] - 2026-05-16
+
+### Changed
+
+- Add bounded AJAX window for full sync
+- Introduce data engine abstraction
+- Add native data engine scaffold
+- Implement rust data engine operations
+- Verify rust data engine contract
+- Default to rust data engine
+- Document rust data engine rollout
+- Target mac arm64 and windows release builds
+- Mark TypeScript data engine deprecated
+- Harden full sync ajax prefetch
+- Surface ajax sync fallback status
+- Document generated changelog policy
+- Add pending remote operations features
+- Show sync queue progress; replay outbox sequentially
+- Make pagination input editable and add go action
+- Add app settings, UI, and persistence
+- Defer local apply for deferred remote ops
+- Add explicit Pending Sync actions (add/remove/resolve)
+- Add remove action chip and checkbox styles
+- Extract collections to app/collections.ts
+- Add implementation-backed feature specs
+- Add IPC normalizers, DB refactors, and app constants
+- Bump version to 0.10.0
+
 ## [v0.9.4] - 2026-05-16
 
 ### Changed
@@ -203,7 +231,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.0...HEAD
+[v0.10.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.4...v0.10.0
 [v0.9.4]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.3...v0.9.4
 [v0.9.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.2...v0.9.3
 [v0.9.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.8.0...v0.9.1
