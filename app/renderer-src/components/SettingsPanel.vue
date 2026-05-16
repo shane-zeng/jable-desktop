@@ -2,7 +2,14 @@
 import { computed, ref } from 'vue';
 import { MAX_BROWSER_TABS_WARNING_THRESHOLD } from '../constants';
 import { t, useI18n } from '../i18n';
-import type { AppSettings, AppSettingsPatch, CollectionKey, ExportResource, SupportedLocale } from '../../types/jable';
+import type {
+  AppSettings,
+  AppSettingsPatch,
+  CollectionKey,
+  ExportResource,
+  FfmpegStatus,
+  SupportedLocale
+} from '../../types/jable';
 
 type ImportDetectionSource = 'metadata' | 'filename' | 'unknown';
 type ImportDetection = {
@@ -14,6 +21,7 @@ const props = defineProps<{
   active: boolean;
   busy: boolean;
   settings: AppSettings;
+  ffmpegStatus: FfmpegStatus | null;
   databasePath: string | null;
 }>();
 
@@ -21,6 +29,9 @@ const emit = defineEmits<{
   'update-settings': [patch: AppSettingsPatch];
   'change-locale': [locale: SupportedLocale];
   'reset-tabs-width': [];
+  'refresh-ffmpeg': [];
+  'choose-ffmpeg': [];
+  'clear-ffmpeg': [];
   'open-data-folder': [];
   'check-updates': [];
   'import-json': [payload: { collectionKey: CollectionKey; resource: ExportResource }];
@@ -58,6 +69,22 @@ const importDetectionLabel = computed(function () {
   return detection.source === 'metadata'
     ? t('settings.data.importDetectionMetadata', { collection: t('collections.' + detection.collectionKey) })
     : t('settings.data.importDetectionFilename', { collection: t('collections.' + detection.collectionKey) });
+});
+
+const ffmpegStateLabel = computed(function () {
+  const state = props.ffmpegStatus ? props.ffmpegStatus.state : 'missing';
+  return t('settings.downloads.ffmpeg.state.' + state);
+});
+
+const ffmpegSourceLabel = computed(function () {
+  const source = props.ffmpegStatus ? props.ffmpegStatus.source : null;
+  if (source === 'manual') return t('settings.downloads.ffmpeg.sourceManual');
+  if (source === 'path') return t('settings.downloads.ffmpeg.sourcePath');
+  return t('settings.downloads.ffmpeg.sourceNone');
+});
+
+const ffmpegStatusClass = computed(function () {
+  return props.ffmpegStatus && props.ffmpegStatus.state === 'detected' ? 'text-[#78d17f]' : 'text-[#f2b35d]';
 });
 
 function eventValue(event: Event) {
@@ -304,6 +331,72 @@ function confirmImport() {
               />
               <span>{{ t('settings.sync.autoReplayDescription') }}</span>
             </label>
+          </div>
+        </section>
+
+        <section class="grid gap-3 border-t border-[var(--panel-border)] pt-4">
+          <h2 class="text-base font-bold">{{ t('settings.downloads.title') }}</h2>
+          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
+            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.ffmpeg.label') }}</span>
+            <div class="grid gap-2">
+              <div class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="font-semibold" :class="ffmpegStatusClass" data-test="settings-ffmpeg-state">
+                  {{ ffmpegStateLabel }}
+                </span>
+                <span class="text-[var(--muted)]">{{ ffmpegSourceLabel }}</span>
+              </div>
+              <code
+                class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]"
+                data-test="settings-ffmpeg-path"
+              >
+                {{
+                  (ffmpegStatus && ffmpegStatus.path) ||
+                  settings.ffmpegPath ||
+                  t('settings.downloads.ffmpeg.pathUnavailable')
+                }}
+              </code>
+              <p
+                v-if="ffmpegStatus && ffmpegStatus.version"
+                class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]"
+              >
+                {{ ffmpegStatus.version }}
+              </p>
+              <p
+                v-if="ffmpegStatus && ffmpegStatus.error && ffmpegStatus.state !== 'missing'"
+                class="m-0 max-w-[680px] text-xs leading-5 text-[#f2b35d]"
+              >
+                {{ ffmpegStatus.error }}
+              </p>
+              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+                {{ t('settings.downloads.ffmpeg.description') }}
+              </p>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-test="settings-ffmpeg-refresh"
+                  :disabled="busy"
+                  @click="emit('refresh-ffmpeg')"
+                >
+                  {{ t('settings.downloads.ffmpeg.checkAgain') }}
+                </button>
+                <button
+                  type="button"
+                  data-test="settings-ffmpeg-choose"
+                  :disabled="busy"
+                  @click="emit('choose-ffmpeg')"
+                >
+                  {{ t('settings.downloads.ffmpeg.chooseBinary') }}
+                </button>
+                <button
+                  type="button"
+                  data-test="settings-ffmpeg-clear"
+                  :disabled="busy || !settings.ffmpegPath"
+                  @click="emit('clear-ffmpeg')"
+                >
+                  {{ t('settings.downloads.ffmpeg.usePath') }}
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 

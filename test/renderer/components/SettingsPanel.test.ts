@@ -8,7 +8,8 @@ const settings: AppSettings = {
   maxBrowserTabs: 22,
   compactBrowserTabs: true,
   fullSyncAjaxWindowSize: 5,
-  autoReplayDeferredSyncOperations: false
+  autoReplayDeferredSyncOperations: false,
+  ffmpegPath: null
 };
 
 function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | null = '/tmp/jable-favourites.sqlite') {
@@ -17,6 +18,13 @@ function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | nul
       active: true,
       busy: false,
       databasePath: databasePath,
+      ffmpegStatus: {
+        state: 'missing',
+        source: null,
+        path: null,
+        version: null,
+        error: null
+      },
       settings: Object.assign({}, settings, overrides || {})
     }
   });
@@ -46,6 +54,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('一般');
     expect(wrapper.text()).toContain('瀏覽器');
     expect(wrapper.text()).toContain('同步');
+    expect(wrapper.text()).toContain('下載');
     expect(wrapper.text()).toContain('資料');
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
@@ -60,6 +69,9 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-auto-replay"]').setValue(true);
     expect(wrapper.emitted('update-settings')).toContainEqual([{ autoReplayDeferredSyncOperations: true }]);
+
+    await wrapper.get('[data-test="settings-ffmpeg-refresh"]').trigger('click');
+    expect(wrapper.emitted('refresh-ffmpeg')).toEqual([[]]);
 
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);

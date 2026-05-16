@@ -21,6 +21,13 @@ function clampInteger(value: unknown, fallback: number, min: number, max: number
   return Math.max(min, Math.min(max, Math.round(number)));
 }
 
+function normalizeNullableString(value: unknown): string | null {
+  if (value === null || typeof value === 'undefined') return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
 export function normalizeAppSettings(value: unknown): AppSettings {
   const record = isRecord(value) ? value : {};
 
@@ -38,7 +45,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.min,
       FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.max
     ),
-    autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations)
+    autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations),
+    ffmpegPath: normalizeNullableString(record.ffmpegPath)
   };
 }
 
@@ -68,6 +76,9 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   }
   if (Object.prototype.hasOwnProperty.call(value, 'autoReplayDeferredSyncOperations')) {
     patch.autoReplayDeferredSyncOperations = Boolean(value.autoReplayDeferredSyncOperations);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'ffmpegPath')) {
+    patch.ffmpegPath = normalizeNullableString(value.ffmpegPath);
   }
 
   return patch;

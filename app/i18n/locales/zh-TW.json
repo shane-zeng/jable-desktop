@@ -139,6 +139,26 @@
         "fast": "快速"
       }
     },
+    "downloads": {
+      "title": "下載",
+      "ffmpeg": {
+        "label": "FFmpeg",
+        "description": "下載功能需要安裝 FFmpeg。",
+        "checkAgain": "重新檢查",
+        "chooseBinary": "選擇執行檔",
+        "usePath": "使用 PATH",
+        "pathUnavailable": "尚未偵測到 FFmpeg",
+        "sourceManual": "手動指定",
+        "sourcePath": "系統 PATH",
+        "sourceNone": "未設定",
+        "state": {
+          "detected": "已偵測",
+          "missing": "未安裝",
+          "invalid_path": "路徑無效",
+          "unsupported": "無法使用"
+        }
+      }
+    },
     "data": {
       "title": "資料",
       "importJson": "匯入 JSON",
@@ -213,6 +233,14 @@
     "importFailed": "匯入失敗：{error}",
     "settingsSaved": "設定已更新",
     "settingsSaveFailed": "儲存設定失敗：{error}",
+    "ffmpegStatusUnknown": "尚未檢查 FFmpeg 狀態",
+    "ffmpegDetected": "FFmpeg 可用：{version}",
+    "ffmpegMissing": "需要安裝 FFmpeg",
+    "ffmpegInvalidPath": "FFmpeg 路徑無效：{error}",
+    "ffmpegUnsupported": "FFmpeg 無法使用：{error}",
+    "ffmpegCheckFailed": "檢查 FFmpeg 失敗：{error}",
+    "ffmpegPathSelectFailed": "選擇 FFmpeg 失敗：{error}",
+    "ffmpegPathClearFailed": "清除 FFmpeg 路徑失敗：{error}",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
     "checkingUpdates": "正在檢查更新…",
@@ -283,7 +311,8 @@
     "media": "媒體"
   },
   "dialog": {
-    "exportJson": "匯出 JSON"
+    "exportJson": "匯出 JSON",
+    "chooseFfmpeg": "選擇 FFmpeg 執行檔"
   },
   "errors": {
     "maxTabs": "最多只能開啟 {count} 個瀏覽器分頁",

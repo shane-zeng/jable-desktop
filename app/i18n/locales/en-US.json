@@ -139,6 +139,26 @@
         "fast": "Fast"
       }
     },
+    "downloads": {
+      "title": "Downloads",
+      "ffmpeg": {
+        "label": "FFmpeg",
+        "description": "Downloads require FFmpeg.",
+        "checkAgain": "Check Again",
+        "chooseBinary": "Choose Binary",
+        "usePath": "Use PATH",
+        "pathUnavailable": "FFmpeg has not been detected",
+        "sourceManual": "Manual path",
+        "sourcePath": "System PATH",
+        "sourceNone": "Not configured",
+        "state": {
+          "detected": "Detected",
+          "missing": "Not installed",
+          "invalid_path": "Invalid path",
+          "unsupported": "Unavailable"
+        }
+      }
+    },
     "data": {
       "title": "Data",
       "importJson": "Import JSON",
@@ -213,6 +233,14 @@
     "importFailed": "Import failed: {error}",
     "settingsSaved": "Settings updated",
     "settingsSaveFailed": "Failed to save settings: {error}",
+    "ffmpegStatusUnknown": "FFmpeg status has not been checked yet",
+    "ffmpegDetected": "FFmpeg is available: {version}",
+    "ffmpegMissing": "FFmpeg is required",
+    "ffmpegInvalidPath": "FFmpeg path is invalid: {error}",
+    "ffmpegUnsupported": "FFmpeg is unavailable: {error}",
+    "ffmpegCheckFailed": "FFmpeg check failed: {error}",
+    "ffmpegPathSelectFailed": "Failed to choose FFmpeg: {error}",
+    "ffmpegPathClearFailed": "Failed to clear FFmpeg path: {error}",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "checkingUpdates": "Checking for updates...",
@@ -283,7 +311,8 @@
     "media": "media"
   },
   "dialog": {
-    "exportJson": "Export JSON"
+    "exportJson": "Export JSON",
+    "chooseFfmpeg": "Choose FFmpeg Binary"
   },
   "errors": {
     "maxTabs": "You can open at most {count} browser tabs",

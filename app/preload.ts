@@ -21,6 +21,21 @@ const jableApp: JableAppApi = {
   setLocale: function (locale) {
     return ipcRenderer.invoke('app:set-locale', locale);
   },
+  getFfmpegStatus: function () {
+    return ipcRenderer.invoke('app:get-ffmpeg-status');
+  },
+  refreshFfmpegStatus: function () {
+    return ipcRenderer.invoke('app:refresh-ffmpeg-status');
+  },
+  chooseFfmpegPath: function () {
+    return ipcRenderer.invoke('app:choose-ffmpeg-path');
+  },
+  setFfmpegPath: function (filePath) {
+    return ipcRenderer.invoke('app:set-ffmpeg-path', filePath);
+  },
+  clearFfmpegPath: function () {
+    return ipcRenderer.invoke('app:clear-ffmpeg-path');
+  },
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
   },

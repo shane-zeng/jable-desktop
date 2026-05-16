@@ -32,6 +32,7 @@ import type {
   CollectionKey,
   CollectionToggleResult,
   ExportResource,
+  FfmpegStatus,
   LibraryVideoMenuAction,
   LibraryVideoMenuPayload,
   SyncPagePayload,
@@ -52,6 +53,7 @@ const browserTabsCompact = ref(false);
 const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
 const appSettings = ref<AppSettings>(Object.assign({}, DEFAULT_APP_SETTINGS));
+const ffmpegStatus = ref<FfmpegStatus | null>(null);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
@@ -408,6 +410,58 @@ function resetBrowserTabsWidth() {
   setStatus(i18n.t('status.settingsSaved'), 'success');
 }
 
+function ffmpegStatusTone(status: FfmpegStatus | null) {
+  return status && status.state === 'detected' ? 'success' : 'warning';
+}
+
+function ffmpegStatusMessage(status: FfmpegStatus | null) {
+  if (!status) return i18n.t('status.ffmpegStatusUnknown');
+  if (status.state === 'detected') {
+    return i18n.t('status.ffmpegDetected', { version: status.version || status.path || 'ffmpeg' });
+  }
+  if (status.state === 'invalid_path') {
+    return i18n.t('status.ffmpegInvalidPath', { error: status.error || i18n.t('status.unknownError') });
+  }
+  if (status.state === 'unsupported') {
+    return i18n.t('status.ffmpegUnsupported', { error: status.error || i18n.t('status.unknownError') });
+  }
+  return i18n.t('status.ffmpegMissing');
+}
+
+async function refreshFfmpegStatus() {
+  try {
+    ffmpegStatus.value = await api.refreshFfmpegStatus();
+    setStatus(ffmpegStatusMessage(ffmpegStatus.value), ffmpegStatusTone(ffmpegStatus.value));
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.ffmpegCheckFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function chooseFfmpegPath() {
+  try {
+    const result = await api.chooseFfmpegPath();
+    ffmpegStatus.value = result;
+    if (result.canceled) return;
+    applyAppSettings(await api.getSettings());
+    setStatus(ffmpegStatusMessage(ffmpegStatus.value), ffmpegStatusTone(ffmpegStatus.value));
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.ffmpegPathSelectFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function clearFfmpegPath() {
+  try {
+    ffmpegStatus.value = await api.clearFfmpegPath();
+    applyAppSettings(await api.getSettings());
+    setStatus(ffmpegStatusMessage(ffmpegStatus.value), ffmpegStatusTone(ffmpegStatus.value));
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.ffmpegPathClearFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
 async function openLocalDataFolder() {
   if (busy.value || syncing.value) return;
 
@@ -458,6 +512,7 @@ onMounted(async function () {
   browserTabsWidth.value = loadBrowserTabsWidth();
   appInfo.value = await api.getAppInfo();
   applyAppSettings(await api.getSettings());
+  ffmpegStatus.value = await api.getFfmpegStatus();
   const legacyCompact = loadLegacyBrowserTabsCompact();
   if (legacyCompact !== null) {
     applyAppSettings(await api.updateSettings({ compactBrowserTabs: legacyCompact }));
@@ -571,10 +626,14 @@ onMounted(async function () {
         :active="activeView === 'settings'"
         :busy="busy || syncing"
         :settings="appSettings"
+        :ffmpeg-status="ffmpegStatus"
         :database-path="appInfo && appInfo.databasePath"
         @update-settings="updateAppSettings"
         @change-locale="changeLocale"
         @reset-tabs-width="resetBrowserTabsWidth"
+        @refresh-ffmpeg="refreshFfmpegStatus"
+        @choose-ffmpeg="chooseFfmpegPath"
+        @clear-ffmpeg="clearFfmpegPath"
         @open-data-folder="openLocalDataFolder"
         @check-updates="checkForUpdates"
         @import-json="importJsonToCollection"

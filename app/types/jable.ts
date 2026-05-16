@@ -9,6 +9,8 @@ export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 export type LibraryTabKey = CollectionKey | 'pending_remote';
 export type CollectionAction = 'add' | 'remove';
 export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
+export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsupported';
+export type FfmpegStatusSource = 'path' | 'manual' | null;
 
 export interface CollectionDefinition {
   url: string;
@@ -121,9 +123,22 @@ export interface AppSettings {
   compactBrowserTabs: boolean;
   fullSyncAjaxWindowSize: number;
   autoReplayDeferredSyncOperations: boolean;
+  ffmpegPath: string | null;
 }
 
 export type AppSettingsPatch = Partial<AppSettings>;
+
+export interface FfmpegStatus {
+  state: FfmpegStatusState;
+  source: FfmpegStatusSource;
+  path: string | null;
+  version: string | null;
+  error: string | null;
+}
+
+export interface FfmpegPathSelectionResult extends FfmpegStatus {
+  canceled?: boolean;
+}
 
 export interface BrowserNavigationState {
   tabId?: string | null;
@@ -378,6 +393,11 @@ export interface JableAppApi {
   getSettings(): Promise<AppSettings>;
   updateSettings(patch: AppSettingsPatch): Promise<AppSettings>;
   setLocale(locale: string): Promise<{ locale: SupportedLocale }>;
+  getFfmpegStatus(): Promise<FfmpegStatus>;
+  refreshFfmpegStatus(): Promise<FfmpegStatus>;
+  chooseFfmpegPath(): Promise<FfmpegPathSelectionResult>;
+  setFfmpegPath(filePath: string | null): Promise<FfmpegStatus>;
+  clearFfmpegPath(): Promise<FfmpegStatus>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;

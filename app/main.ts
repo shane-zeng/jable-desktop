@@ -1,6 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
+import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type {
@@ -20,6 +21,8 @@ import type {
   CreateBrowserTabPayload,
   ExportJsonFileResult,
   ExportResource,
+  FfmpegPathSelectionResult,
+  FfmpegStatus,
   FinishSyncPayload,
   LibraryVideoMenuPayload,
   ListVideosOptions,
@@ -243,6 +246,7 @@ type UpdateCheckOptions = { manual?: boolean };
 type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 const electron: typeof Electron = require('electron');
+const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
@@ -275,6 +279,8 @@ const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
+const FFMPEG_CHECK_TIMEOUT_MS = 5000;
+const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -410,6 +416,129 @@ function updateAppSettings(patch: unknown): AppSettings {
   notifyBrowserTabsChanged();
   forwardBrowserMessage('settings-changed', settings);
   return settings;
+}
+
+function ffmpegVersion(command: string): Promise<{ version: string; path: string }> {
+  return new Promise(function (resolve, reject) {
+    childProcess.execFile(
+      command,
+      ['-version'],
+      {
+        timeout: FFMPEG_CHECK_TIMEOUT_MS,
+        windowsHide: true
+      },
+      function (error, stdout) {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        const firstLine = String(stdout || '').split(/\r?\n/)[0] || 'ffmpeg';
+        resolve({
+          version: firstLine,
+          path: command
+        });
+      }
+    );
+  });
+}
+
+function ffmpegPathErrorStatus(filePath: string, error: unknown): FfmpegStatus {
+  return {
+    state: 'invalid_path',
+    source: 'manual',
+    path: filePath,
+    version: null,
+    error: mainErrorMessage(error)
+  };
+}
+
+async function getFfmpegStatus(): Promise<FfmpegStatus> {
+  const manualPath = getAppSettings().ffmpegPath;
+
+  if (manualPath) {
+    const resolvedPath = path.resolve(manualPath);
+
+    try {
+      const stat = fs.statSync(resolvedPath);
+      if (!stat.isFile()) return ffmpegPathErrorStatus(resolvedPath, new Error('Selected path is not a file'));
+    } catch (error) {
+      return ffmpegPathErrorStatus(resolvedPath, error);
+    }
+
+    try {
+      const result = await ffmpegVersion(resolvedPath);
+      return {
+        state: 'detected',
+        source: 'manual',
+        path: result.path,
+        version: result.version,
+        error: null
+      };
+    } catch (error) {
+      return {
+        state: 'unsupported',
+        source: 'manual',
+        path: resolvedPath,
+        version: null,
+        error: mainErrorMessage(error)
+      };
+    }
+  }
+
+  try {
+    const result = await ffmpegVersion(FFMPEG_COMMAND);
+    return {
+      state: 'detected',
+      source: 'path',
+      path: result.path,
+      version: result.version,
+      error: null
+    };
+  } catch (error) {
+    return {
+      state: 'missing',
+      source: null,
+      path: null,
+      version: null,
+      error: mainErrorMessage(error)
+    };
+  }
+}
+
+function setFfmpegPath(value: unknown): Promise<FfmpegStatus> {
+  const filePath = typeof value === 'string' && value.trim() ? path.resolve(value.trim()) : null;
+  updateAppSettings({ ffmpegPath: filePath });
+  return getFfmpegStatus();
+}
+
+function clearFfmpegPath(): Promise<FfmpegStatus> {
+  updateAppSettings({ ffmpegPath: null });
+  return getFfmpegStatus();
+}
+
+async function chooseFfmpegPath(): Promise<FfmpegPathSelectionResult> {
+  const dialogOptions = {
+    title: t('dialog.chooseFfmpeg'),
+    properties: ['openFile'] as Electron.OpenDialogOptions['properties'],
+    filters:
+      process.platform === 'win32'
+        ? [
+            { name: 'FFmpeg', extensions: ['exe'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
+        : [{ name: 'All Files', extensions: ['*'] }]
+  };
+  const result =
+    mainWindow && !mainWindow.isDestroyed()
+      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || !result.filePaths.length) {
+    return Object.assign(await getFfmpegStatus(), { canceled: true });
+  }
+
+  return setFfmpegPath(result.filePaths[0]);
 }
 
 function getDatabase(): DataEngineInstance {
@@ -2421,6 +2550,26 @@ function registerIpcHandlers() {
     return {
       locale: setCurrentLocale(locale)
     };
+  });
+
+  ipcMain.handle('app:get-ffmpeg-status', function () {
+    return getFfmpegStatus();
+  });
+
+  ipcMain.handle('app:refresh-ffmpeg-status', function () {
+    return getFfmpegStatus();
+  });
+
+  ipcMain.handle('app:choose-ffmpeg-path', function () {
+    return chooseFfmpegPath();
+  });
+
+  ipcMain.handle('app:set-ffmpeg-path', function (_event, filePath) {
+    return setFfmpegPath(filePath);
+  });
+
+  ipcMain.handle('app:clear-ffmpeg-path', function () {
+    return clearFfmpegPath();
   });
 
   ipcMain.handle('app:open-local-data-folder', function () {

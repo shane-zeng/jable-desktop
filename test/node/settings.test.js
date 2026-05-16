@@ -20,7 +20,8 @@ test('app settings store returns defaults and persists updates', function () {
     maxBrowserTabs: 14,
     compactBrowserTabs: false,
     fullSyncAjaxWindowSize: 3,
-    autoReplayDeferredSyncOperations: false
+    autoReplayDeferredSyncOperations: false,
+    ffmpegPath: null
   });
 
   assert.deepEqual(
@@ -28,13 +29,15 @@ test('app settings store returns defaults and persists updates', function () {
       maxBrowserTabs: 22,
       compactBrowserTabs: true,
       fullSyncAjaxWindowSize: 5,
-      autoReplayDeferredSyncOperations: true
+      autoReplayDeferredSyncOperations: true,
+      ffmpegPath: '/usr/local/bin/ffmpeg'
     }),
     {
       maxBrowserTabs: 22,
       compactBrowserTabs: true,
       fullSyncAjaxWindowSize: 5,
-      autoReplayDeferredSyncOperations: true
+      autoReplayDeferredSyncOperations: true,
+      ffmpegPath: '/usr/local/bin/ffmpeg'
     }
   );
 
@@ -43,6 +46,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().compactBrowserTabs, true);
   assert.equal(secondStore.get().fullSyncAjaxWindowSize, 5);
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
+  assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
 });
 
 test('app settings patch clamps user-facing limits', function () {
@@ -67,4 +71,14 @@ test('app settings patch clamps user-facing limits', function () {
       fullSyncAjaxWindowSize: 1
     }
   );
+});
+
+test('app settings normalize optional ffmpeg path', function () {
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ ffmpegPath: '  /opt/homebrew/bin/ffmpeg  ' }), {
+    ffmpegPath: '/opt/homebrew/bin/ffmpeg'
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ ffmpegPath: '' }), {
+    ffmpegPath: null
+  });
 });
