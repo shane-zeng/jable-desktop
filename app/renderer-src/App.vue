@@ -636,6 +636,7 @@ onMounted(async function () {
         :active-collection="library.activeCollection.value"
         :active-tab="library.activeTab.value"
         :busy="libraryBusy"
+        :ffmpeg-ready="ffmpegStatus ? ffmpegStatus.state === 'detected' : false"
         :full-sync-label="library.fullSyncButtonLabel.value"
         :pending-count="library.pendingCount.value"
         :pending-groups="library.pendingGroups.value"

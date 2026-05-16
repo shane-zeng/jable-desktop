@@ -16,6 +16,7 @@ describe('LibraryPanel', function () {
         activeCollection: 'favourites',
         activeTab: 'favourites',
         busy: false,
+        ffmpegReady: true,
         fullSyncLabel: 'Full Sync',
         pendingCount: 0,
         pendingGroups: [],
@@ -49,6 +50,7 @@ describe('LibraryPanel', function () {
         activeCollection: 'favourites',
         activeTab: 'favourites',
         busy: false,
+        ffmpegReady: true,
         fullSyncLabel: 'フル同期',
         pendingCount: 0,
         pendingGroups: [],
@@ -91,6 +93,7 @@ describe('LibraryPanel', function () {
         activeCollection: 'favourites',
         activeTab: 'favourites',
         busy: false,
+        ffmpegReady: true,
         fullSyncLabel: '完整同步',
         pendingCount: 0,
         pendingGroups: [],
@@ -128,6 +131,7 @@ describe('LibraryPanel', function () {
         activeCollection: 'favourites',
         activeTab: 'pending_remote',
         busy: false,
+        ffmpegReady: true,
         fullSyncLabel: '完整同步',
         pendingCount: 1,
         pendingGroups: [
@@ -203,5 +207,59 @@ describe('LibraryPanel', function () {
     expect(wrapper.emitted('add-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
     expect(wrapper.emitted('remove-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
     expect(wrapper.emitted('resolve-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
+  });
+
+  it('renders download list setup and empty states without collection controls', function () {
+    const setupRequired = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'downloads',
+        busy: false,
+        ffmpegReady: false,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '0 筆下載',
+        pageLabel: '第 1 / 1 頁',
+        rows: [],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    expect(setupRequired.text()).toContain('下載清單');
+    expect(setupRequired.get('[data-test="download-list-setup-required"]').text()).toBe('需要安裝 FFmpeg');
+    expect(setupRequired.find('[data-test="library-filters"]').exists()).toBe(false);
+    expect(setupRequired.text()).not.toContain('快速同步');
+    expect(setupRequired.find('[data-test="pagination-page-input"]').exists()).toBe(false);
+
+    const empty = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'downloads',
+        busy: false,
+        ffmpegReady: true,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '0 筆下載',
+        pageLabel: '第 1 / 1 頁',
+        rows: [],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    expect(empty.get('[data-test="download-list-empty"]').text()).toBe('目前沒有下載項目');
   });
 });

@@ -49,6 +49,16 @@ const activeTabKey = computed(function () {
       {{ collection.name }}
     </button>
     <button
+      class="segmented-tab min-h-8"
+      :class="{ 'is-active': activeTabKey === 'downloads' }"
+      type="button"
+      role="tab"
+      :aria-selected="activeTabKey === 'downloads'"
+      @click="emit('select', 'downloads')"
+    >
+      {{ t('downloadList.tab') }}
+    </button>
+    <button
       v-if="props.pendingCount"
       class="segmented-tab min-h-8"
       :class="{ 'is-active': activeTabKey === 'pending_remote' }"

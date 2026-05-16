@@ -171,6 +171,31 @@ describe('useLibraryState', function () {
     }
   });
 
+  it('switches to the download list without querying collection rows', async function () {
+    const api = createPagedApi(makeRows(PAGE_SIZE + 1));
+    const setup = createState(api);
+
+    try {
+      await setup.state.refreshVideos();
+      await setup.state.goToPage(2);
+      api.countVideos.mockClear();
+      api.listVideos.mockClear();
+
+      await setup.state.selectTab('downloads');
+
+      expect(setup.state.activeTab.value).toBe('downloads');
+      expect(setup.state.activeCollection.value).toBe('favourites');
+      expect(setup.state.currentPage.value).toBe(1);
+      expect(setup.state.rows.value).toEqual([]);
+      expect(setup.state.totalRows.value).toBe(0);
+      expect(setup.state.countLabel.value).toBe('0 筆下載');
+      expect(api.countVideos).not.toHaveBeenCalled();
+      expect(api.listVideos).not.toHaveBeenCalled();
+    } finally {
+      setup.stop();
+    }
+  });
+
   it('uses updated search and direction values when watched filters change', async function () {
     const api = {
       countVideos: vi.fn().mockResolvedValue(0),

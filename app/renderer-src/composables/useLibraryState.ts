@@ -57,8 +57,12 @@ export function useLibraryState(api: JableAppApi) {
     return activeTab.value === 'pending_remote';
   });
 
+  const isDownloadsTab = computed(function () {
+    return activeTab.value === 'downloads';
+  });
+
   const totalPages = computed(function () {
-    if (isPendingTab.value) return 1;
+    if (isPendingTab.value || isDownloadsTab.value) return 1;
     return Math.max(1, Math.ceil(totalRows.value / PAGE_SIZE));
   });
 
@@ -68,6 +72,7 @@ export function useLibraryState(api: JableAppApi) {
 
   const countLabel = computed(function () {
     if (isPendingTab.value) return t('pendingRemote.count', { total: pendingGroups.value.length });
+    if (isDownloadsTab.value) return t('downloadList.count', { total: totalRows.value });
     return t('library.count', { total: totalRows.value, pageSize: PAGE_SIZE });
   });
 
@@ -95,6 +100,12 @@ export function useLibraryState(api: JableAppApi) {
   async function refreshVideos() {
     if (isPendingTab.value) {
       await refreshPendingGroups();
+      return;
+    }
+    if (isDownloadsTab.value) {
+      rows.value = [];
+      totalRows.value = 0;
+      currentPage.value = 1;
       return;
     }
 
@@ -140,6 +151,13 @@ export function useLibraryState(api: JableAppApi) {
   }
 
   async function selectTab(tabKey: string) {
+    if (tabKey === 'downloads') {
+      activeTab.value = 'downloads';
+      currentPage.value = 1;
+      await refreshVideos();
+      return;
+    }
+
     if (tabKey === 'pending_remote') {
       activeTab.value = 'pending_remote';
       currentPage.value = 1;
@@ -155,7 +173,7 @@ export function useLibraryState(api: JableAppApi) {
   }
 
   async function goToPage(page: number) {
-    if (isPendingTab.value) return;
+    if (isPendingTab.value || isDownloadsTab.value) return;
 
     const nextPage = Math.max(1, Math.min(totalPages.value, page));
     if (nextPage === currentPage.value) return;
@@ -165,7 +183,7 @@ export function useLibraryState(api: JableAppApi) {
   }
 
   watch([search, searchMode, sort, direction], function () {
-    if (isPendingTab.value) return;
+    if (isPendingTab.value || isDownloadsTab.value) return;
 
     currentPage.value = 1;
     refreshVideos();
@@ -176,6 +194,7 @@ export function useLibraryState(api: JableAppApi) {
     activeCollection: activeCollection,
     currentCollection: currentCollection,
     isPendingTab: isPendingTab,
+    isDownloadsTab: isDownloadsTab,
     currentPage: currentPage,
     rows: rows,
     pendingGroups: pendingGroups,

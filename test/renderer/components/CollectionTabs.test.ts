@@ -25,6 +25,7 @@ describe('CollectionTabs', function () {
     expect(tabs[1].text()).toBe('稍後觀看');
     expect(tabs[1].attributes('aria-selected')).toBe('true');
     expect(tabs[1].classes()).toContain('is-active');
+    expect(tabs[2].text()).toBe('下載清單');
 
     await tabs[0].trigger('click');
 
@@ -45,6 +46,7 @@ describe('CollectionTabs', function () {
 
     expect(tabs[0].text()).toBe('Favourites');
     expect(tabs[1].text()).toBe('Watch Later');
+    expect(tabs[2].text()).toBe('Download List');
   });
 
   it('shows the pending remote tab with a count badge', async function () {
@@ -58,15 +60,33 @@ describe('CollectionTabs', function () {
 
     const tabs = wrapper.findAll('[role="tab"]');
 
-    expect(tabs[2].text()).toContain('待同步');
-    expect(tabs[2].text()).toContain('3');
+    expect(tabs[3].text()).toContain('待同步');
+    expect(tabs[3].text()).toContain('3');
+    expect(tabs[3].attributes('aria-selected')).toBe('true');
+    expect(tabs[3].classes()).toEqual(expect.arrayContaining(['segmented-tab', 'is-active']));
+    expect(tabs[3].find('.pending-count-badge').exists()).toBe(true);
+    expect(tabs[3].find('.pending-count-badge').text()).toBe('3');
+
+    await tabs[3].trigger('click');
+
+    expect(wrapper.emitted('select')).toEqual([['pending_remote']]);
+  });
+
+  it('emits the download list tab selection', async function () {
+    const wrapper = mount(CollectionTabs, {
+      props: {
+        activeCollection: 'favourites',
+        activeTab: 'downloads',
+        pendingCount: 0
+      }
+    });
+
+    const tabs = wrapper.findAll('[role="tab"]');
     expect(tabs[2].attributes('aria-selected')).toBe('true');
-    expect(tabs[2].classes()).toEqual(expect.arrayContaining(['segmented-tab', 'is-active']));
-    expect(tabs[2].find('.pending-count-badge').exists()).toBe(true);
-    expect(tabs[2].find('.pending-count-badge').text()).toBe('3');
+    expect(tabs[2].classes()).toContain('is-active');
 
     await tabs[2].trigger('click');
 
-    expect(wrapper.emitted('select')).toEqual([['pending_remote']]);
+    expect(wrapper.emitted('select')).toEqual([['downloads']]);
   });
 });

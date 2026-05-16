@@ -90,6 +90,12 @@
     },
     "sequenceStep": "{action}{state}"
   },
+  "downloadList": {
+    "tab": "ダウンロード一覧",
+    "count": "{total} 件のダウンロード",
+    "setupRequired": "FFmpeg が必要です",
+    "empty": "ダウンロードはまだありません"
+  },
   "pagination": {
     "prev": "前へ",
     "next": "次へ",

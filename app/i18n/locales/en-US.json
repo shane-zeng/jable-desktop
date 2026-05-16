@@ -90,6 +90,12 @@
     },
     "sequenceStep": "{action} {state}"
   },
+  "downloadList": {
+    "tab": "Download List",
+    "count": "{total} downloads",
+    "setupRequired": "FFmpeg is required",
+    "empty": "No downloads yet"
+  },
   "pagination": {
     "prev": "Previous",
     "next": "Next",

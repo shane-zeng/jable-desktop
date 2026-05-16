@@ -21,6 +21,7 @@ defineProps<{
   activeCollection: CollectionKey;
   activeTab: LibraryTabKey;
   busy: boolean;
+  ffmpegReady: boolean;
   fullSyncLabel: string;
   pendingCount: number;
   pendingGroups: PendingRemoteOperationGroup[];
@@ -87,7 +88,7 @@ function updateDirection(event: Event) {
         @select="emit('select-tab', $event)"
       />
 
-      <div v-if="activeTab !== 'pending_remote'" class="flex flex-wrap justify-end gap-2">
+      <div v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'" class="flex flex-wrap justify-end gap-2">
         <button class="primary" type="button" :disabled="busy" @click="emit('quick-sync')">
           {{ t('library.quickSync') }}
         </button>
@@ -98,7 +99,7 @@ function updateDirection(event: Event) {
     </div>
 
     <div
-      v-if="activeTab !== 'pending_remote'"
+      v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'"
       class="grid grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
       data-test="library-filters"
     >
@@ -142,7 +143,9 @@ function updateDirection(event: Event) {
       :class="
         activeTab === 'pending_remote'
           ? '[grid-template-columns:minmax(0,1fr)]'
-          : '[grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]'
+          : activeTab === 'downloads'
+            ? '[grid-template-columns:minmax(0,1fr)]'
+            : '[grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]'
       "
     >
       <template v-if="activeTab === 'pending_remote'">
@@ -163,6 +166,16 @@ function updateDirection(event: Event) {
           />
         </template>
       </template>
+      <template v-else-if="activeTab === 'downloads'">
+        <div v-if="!ffmpegReady" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
+          <p class="m-0 text-sm font-semibold text-[var(--text)]" data-test="download-list-setup-required">
+            {{ t('downloadList.setupRequired') }}
+          </p>
+        </div>
+        <div v-else class="col-span-full px-3 py-8 text-center text-[var(--muted)]" data-test="download-list-empty">
+          {{ t('downloadList.empty') }}
+        </div>
+      </template>
       <div v-else-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
         {{ t('library.empty') }}
       </div>
@@ -179,7 +192,7 @@ function updateDirection(event: Event) {
     </div>
 
     <PaginationControls
-      v-if="activeTab !== 'pending_remote'"
+      v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'"
       :busy="busy"
       :current-page="currentPage"
       :total-pages="totalPages"
