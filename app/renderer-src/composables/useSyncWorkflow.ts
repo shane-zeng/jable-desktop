@@ -139,7 +139,7 @@ export function useSyncWorkflow(options: {
     const collection = collectionName(collectionKey);
     const queuedFailures = result.queuedOperationsFailed || 0;
     const queuedSkipped = result.queuedOperationsSkipped || 0;
-    const totalRows = typeof visibleRows === 'number' ? visibleRows : result.totalRows;
+    const totalRows = mode === 'full' && typeof visibleRows === 'number' ? visibleRows : result.totalRows;
 
     function withAjaxFallback(status: string) {
       if (!result.ajaxFallbackReason) return status;
