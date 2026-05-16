@@ -53,6 +53,7 @@ const emit = defineEmits<{
   'open-download': [videoUrl: string];
   'reveal-download': [videoUrl: string];
   'retry-download': [videoUrl: string];
+  'cancel-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
   'download-video': [video: VideoRow];
   'open-video': [url: string];
@@ -196,6 +197,7 @@ function updateDirection(event: Event) {
             @open-page="emit('open-video', $event)"
             @reveal="emit('reveal-download', $event)"
             @retry="emit('retry-download', $event)"
+            @cancel="emit('cancel-download', $event)"
             @delete="emit('delete-download', $event)"
           />
         </template>

@@ -184,6 +184,11 @@ export interface DeleteDownloadResult {
   canceled?: boolean;
 }
 
+export interface CancelDownloadResult {
+  canceled: boolean;
+  record: DownloadRecord;
+}
+
 export interface DownloadRequestPayload {
   collectionKey: CollectionKey;
   video: VideoRow;
@@ -460,6 +465,7 @@ export interface JableAppApi {
   listDownloads(): Promise<DownloadRecord[]>;
   enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
   retryDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
+  cancelDownload(videoUrl: string): Promise<CancelDownloadResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
   revealDownloadFile(videoUrl: string): Promise<RevealDownloadFileResult>;
   deleteDownload(videoUrl: string): Promise<DeleteDownloadResult>;

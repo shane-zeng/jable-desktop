@@ -580,6 +580,19 @@ async function retryDownload(videoUrl: string) {
   }
 }
 
+async function cancelDownload(videoUrl: string) {
+  if (!videoUrl || busy.value || syncing.value) return;
+
+  try {
+    await api.cancelDownload(videoUrl);
+    setStatus(i18n.t('status.downloadCanceled'), 'success');
+    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadCancelFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
 async function deleteDownload(videoUrl: string) {
   if (!videoUrl || busy.value || syncing.value) return;
 
@@ -752,6 +765,7 @@ onMounted(async function () {
         @open-download="openDownloadFile"
         @reveal-download="revealDownloadFile"
         @retry-download="retryDownload"
+        @cancel-download="cancelDownload"
         @delete-download="deleteDownload"
         @download-video="downloadVideo"
         @add-pending-group="addPendingRemoteOperationGroup"

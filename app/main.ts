@@ -17,6 +17,7 @@ import type {
   BrowserTabMenuPayload,
   BrowserTabMutedPayload,
   BrowserTabsState,
+  CancelDownloadResult,
   CollectionAction,
   CollectionKey,
   CreateBrowserTabPayload,
@@ -326,7 +327,9 @@ let databasePath: string | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 let downloadStore: InstanceType<DownloadsModule['DownloadStore']> | null = null;
 const downloadQueue: string[] = [];
+const canceledDownloadUrls = new Set<string>();
 let activeDownloadUrl: string | null = null;
+let activeDownloadProcess: NodeChildProcess.ChildProcess | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -382,6 +385,25 @@ function downloadErrorMessage(error: unknown): string {
     message = message.replace(new RegExp(escapeRegExp(rootPath), 'g'), '[download root]');
   }
   return message;
+}
+
+class DownloadCanceledError extends Error {
+  constructor() {
+    super(t('status.downloadCanceled'));
+    this.name = 'DownloadCanceledError';
+  }
+}
+
+function downloadCanceledError() {
+  return new DownloadCanceledError();
+}
+
+function isDownloadCanceledError(error: unknown): boolean {
+  return error instanceof DownloadCanceledError;
+}
+
+function throwIfDownloadCanceled(videoUrl: string) {
+  if (canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
 }
 
 function normalizeBrowserNavigationUrl(value: unknown): string {
@@ -807,6 +829,12 @@ function ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string {
   return headers.join('\r\n') + '\r\n';
 }
 
+function removePartialDownloadFile(outputPath: string) {
+  try {
+    fs.unlinkSync(outputPath + '.part');
+  } catch (error) {}
+}
+
 function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: string, outputPath: string): Promise<void> {
   return cookieHeaderForUrl(videoUrl).then(function (cookieHeader) {
     return new Promise(function (resolve, reject) {
@@ -814,6 +842,13 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
       try {
         fs.unlinkSync(tempPath);
       } catch (error) {}
+
+      try {
+        throwIfDownloadCanceled(videoUrl);
+      } catch (error) {
+        reject(error);
+        return;
+      }
 
       const child = childProcess.spawn(
         command,
@@ -840,17 +875,31 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
       );
       let stderr = '';
 
+      activeDownloadProcess = child;
       child.stderr.on('data', function (chunk) {
         stderr = (stderr + String(chunk)).slice(-4000);
       });
-      child.on('error', reject);
+      child.on('error', function (error) {
+        if (activeDownloadProcess === child) activeDownloadProcess = null;
+        reject(error);
+      });
       child.on('close', function (code) {
+        if (activeDownloadProcess === child) activeDownloadProcess = null;
+
+        if (canceledDownloadUrls.has(videoUrl)) {
+          removePartialDownloadFile(outputPath);
+          reject(downloadCanceledError());
+          return;
+        }
+
         if (code !== 0) {
+          removePartialDownloadFile(outputPath);
           reject(new Error(stderr.trim() || 'FFmpeg exited with code ' + code));
           return;
         }
 
         try {
+          throwIfDownloadCanceled(videoUrl);
           fs.renameSync(tempPath, outputPath);
           resolve();
         } catch (error) {
@@ -875,13 +924,18 @@ async function runQueuedDownload(record: DownloadRecord) {
   notifyDownloadsChanged();
 
   try {
+    throwIfDownloadCanceled(record.videoUrl);
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     const command = await ffmpegCommandForDownload();
+    throwIfDownloadCanceled(record.videoUrl);
     const html = await fetchVideoPageHtml(record.videoUrl);
+    throwIfDownloadCanceled(record.videoUrl);
     const playlistUrl = extractHlsPlaylistUrl(html, record.videoUrl);
     if (!playlistUrl) throw new Error('HLS playlist was not found');
+    throwIfDownloadCanceled(record.videoUrl);
 
     await runFfmpegDownload(command, playlistUrl, record.videoUrl, outputPath);
+    throwIfDownloadCanceled(record.videoUrl);
 
     store.upsert({
       videoUrl: record.videoUrl,
@@ -897,9 +951,11 @@ async function runQueuedDownload(record: DownloadRecord) {
       videoUrl: record.videoUrl,
       state: 'failed',
       progress: null,
-      error: downloadErrorMessage(error)
+      error: isDownloadCanceledError(error) ? t('status.downloadCanceled') : downloadErrorMessage(error)
     });
     notifyDownloadsChanged();
+  } finally {
+    canceledDownloadUrls.delete(record.videoUrl);
   }
 }
 
@@ -997,6 +1053,45 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
   return {
     record: record,
     queued: true
+  };
+}
+
+function removeQueuedDownload(videoUrl: string): boolean {
+  const queueIndex = downloadQueue.indexOf(videoUrl);
+  if (queueIndex === -1) return false;
+  downloadQueue.splice(queueIndex, 1);
+  return true;
+}
+
+function cancelDownload(value: unknown): CancelDownloadResult {
+  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:cancel').trim();
+  if (!videoUrl) throw new Error(t('status.downloadCancelUnavailable'));
+
+  const store = getDownloadStore();
+  const existing = store.get(videoUrl);
+  const currentRecord = existing ? downloadRecordWithFileState(existing) : null;
+  if (!currentRecord) throw new Error(t('status.downloadCancelUnavailable'));
+
+  const isActive = activeDownloadUrl === videoUrl;
+  if (!isActive && currentRecord.state !== 'queued') throw new Error(t('status.downloadCancelUnavailable'));
+
+  removeQueuedDownload(videoUrl);
+  if (isActive) canceledDownloadUrls.add(videoUrl);
+
+  const record = store.upsert({
+    videoUrl: videoUrl,
+    state: 'failed',
+    progress: null,
+    error: t('status.downloadCanceled'),
+    completedAt: null
+  });
+
+  if (isActive && activeDownloadProcess) activeDownloadProcess.kill('SIGTERM');
+  notifyDownloadsChanged();
+
+  return {
+    canceled: true,
+    record: record
   };
 }
 
@@ -3173,6 +3268,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('download:retry', function (_event, videoUrl) {
     return retryDownload(videoUrl);
+  });
+
+  ipcMain.handle('download:cancel', function (_event, videoUrl) {
+    return cancelDownload(videoUrl);
   });
 
   ipcMain.handle('download:open-file', function (_event, videoUrl) {

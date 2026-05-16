@@ -11,6 +11,7 @@ const emit = defineEmits<{
   'open-page': [videoUrl: string];
   reveal: [videoUrl: string];
   retry: [videoUrl: string];
+  cancel: [videoUrl: string];
   delete: [videoUrl: string];
 }>();
 
@@ -86,6 +87,15 @@ function progressLabel(record: DownloadRecord) {
         @click="emit('retry', record.videoUrl)"
       >
         {{ t('downloadList.retry') }}
+      </button>
+      <button
+        v-if="record.state === 'queued' || record.state === 'downloading'"
+        type="button"
+        class="danger min-h-7 px-2 py-1 text-xs"
+        data-test="download-record-cancel"
+        @click="emit('cancel', record.videoUrl)"
+      >
+        {{ t('downloadList.cancel') }}
       </button>
       <button
         v-if="record.state === 'ready' || record.state === 'failed' || record.state === 'missing'"

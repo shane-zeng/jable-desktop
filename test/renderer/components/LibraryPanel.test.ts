@@ -383,4 +383,71 @@ describe('LibraryPanel', function () {
       ['https://jable.tv/videos/missing/']
     ]);
   });
+
+  it('emits cancel actions for queued and active download records', async function () {
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'downloads',
+        busy: false,
+        ffmpegReady: true,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '2 筆下載',
+        pageLabel: '第 1 / 1 頁',
+        downloads: [
+          {
+            videoUrl: 'https://jable.tv/videos/queued/',
+            collectionKey: 'favourites',
+            title: 'Queued Video',
+            img: null,
+            localPath: '/tmp/queued.mp4',
+            state: 'queued',
+            progress: null,
+            fileSizeBytes: null,
+            error: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: null
+          },
+          {
+            videoUrl: 'https://jable.tv/videos/downloading/',
+            collectionKey: 'watch_later',
+            title: 'Downloading Video',
+            img: null,
+            localPath: '/tmp/downloading.mp4',
+            state: 'downloading',
+            progress: 0.42,
+            fileSizeBytes: null,
+            error: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: null
+          }
+        ],
+        rows: [],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    const cards = wrapper.findAll('[data-test="download-record-card"]');
+    expect(cards[0].text()).toContain('等待中');
+    expect(cards[1].text()).toContain('下載中');
+    expect(cards[1].text()).toContain('42%');
+
+    await cards[0].get('[data-test="download-record-cancel"]').trigger('click');
+    await cards[1].get('[data-test="download-record-cancel"]').trigger('click');
+
+    expect(wrapper.emitted('cancel-download')).toEqual([
+      ['https://jable.tv/videos/queued/'],
+      ['https://jable.tv/videos/downloading/']
+    ]);
+  });
 });

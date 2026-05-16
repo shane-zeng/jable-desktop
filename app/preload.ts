@@ -60,6 +60,9 @@ const jableApp: JableAppApi = {
   retryDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:retry', videoUrl);
   },
+  cancelDownload: function (videoUrl) {
+    return ipcRenderer.invoke('download:cancel', videoUrl);
+  },
   openDownloadFile: function (videoUrl) {
     return ipcRenderer.invoke('download:open-file', videoUrl);
   },
