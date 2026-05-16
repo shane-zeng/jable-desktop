@@ -13,6 +13,7 @@
     "build:renderer": "vite build --config vite.renderer.config.mjs",
     "prebuild:electron": "npm run check:node",
     "build:electron": "tsc -p tsconfig.electron.json",
+    "build:rust": "node scripts/build-rust-engine.js",
     "build": "npm run build:electron && npm run build:renderer",
     "prelint": "npm run check:node",
     "lint": "eslint .",
@@ -80,7 +81,11 @@
     "files": [
       "app/runtime-dist/**/*",
       "app/renderer-dist/**/*",
+      "app/native-dist/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "app/native-dist/**/*.node"
     ],
     "asar": true,
     "mac": {

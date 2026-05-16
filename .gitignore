@@ -4,4 +4,6 @@ playwright-report/
 test-results/
 app/renderer-dist/
 app/runtime-dist/
+app/native-dist/
+native/local-data-engine/target/
 **/.DS_Store
