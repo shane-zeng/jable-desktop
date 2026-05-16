@@ -676,6 +676,20 @@ function getDownloadRoot(): DownloadRootInfo {
   };
 }
 
+function ensureDownloadRootReady() {
+  const root = getDownloadRoot();
+
+  try {
+    fs.mkdirSync(root.path, { recursive: true });
+    if (!fs.statSync(root.path).isDirectory()) {
+      throw new Error('Download location is not a directory');
+    }
+    fs.accessSync(root.path, fs.constants.W_OK);
+  } catch (error) {
+    throw new Error(t('status.downloadErrorFileSystem', { error: sanitizedDownloadErrorDetail(error) }));
+  }
+}
+
 function setDownloadRoot(value: unknown): DownloadRootInfo {
   const rootPath = typeof value === 'string' && value.trim() ? path.resolve(value.trim()) : null;
   updateAppSettings({ downloadRoot: rootPath });
@@ -1086,6 +1100,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
   }
 
   await ffmpegCommandForDownload();
+  ensureDownloadRootReady();
 
   const record = upsertPersistedDownload({
     videoUrl: payload.video.url,
@@ -1122,6 +1137,7 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
   }
 
   await ffmpegCommandForDownload();
+  ensureDownloadRootReady();
 
   const record = upsertPersistedDownload({
     videoUrl: existing.videoUrl,

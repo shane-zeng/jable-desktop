@@ -34,6 +34,7 @@ This document specifies the current Download List and local video file managemen
 - Users can choose a custom download root from Settings > Downloads.
 - The selected root is persisted through app settings.
 - Settings can open the current download root in the OS file manager.
+- Download start and retry actions create the selected root if needed, then verify it is a writable directory before queueing work.
 - Download output paths are created by main process only; the renderer never submits local file paths for download, open, reveal, or delete operations.
 - Current generated MP4 paths use:
 

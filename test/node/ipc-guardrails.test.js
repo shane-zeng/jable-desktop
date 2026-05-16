@@ -189,3 +189,16 @@ test('main process persists managed-root-relative download paths', function () {
   assert.equal(source.includes('function downloadOutputPath'), false);
   assert.equal(source.includes('localPath: outputPath'), false);
 });
+
+test('main process validates the download root before queueing work', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /function ensureDownloadRootReady/);
+  assert.match(source, /fs\.mkdirSync\(root\.path, \{ recursive: true \}\)/);
+  assert.match(source, /fs\.statSync\(root\.path\)\.isDirectory\(\)/);
+  assert.match(source, /fs\.accessSync\(root\.path, fs\.constants\.W_OK\)/);
+  assert.match(
+    source,
+    /await ffmpegCommandForDownload\(\);\n\s+ensureDownloadRootReady\(\);\n\n\s+const record = upsertPersistedDownload/
+  );
+});
