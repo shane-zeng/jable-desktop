@@ -301,6 +301,7 @@
     "downloadCanceled": "Download canceled",
     "downloadCancelFailed": "Failed to cancel download: {error}",
     "downloadCancelUnavailable": "This download item cannot be canceled",
+    "downloadInterrupted": "Download did not finish; please retry",
     "downloadDeleted": "Download item deleted",
     "downloadDeleteFailed": "Failed to delete download item: {error}",
     "downloadDeleteActiveBlocked": "Download is in progress and cannot be deleted",

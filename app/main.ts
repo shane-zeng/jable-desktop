@@ -709,8 +709,23 @@ function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
   return record;
 }
 
+function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord {
+  const fileRecord = downloadRecordWithFileState(record);
+  if (fileRecord.state !== 'queued' && fileRecord.state !== 'downloading') return fileRecord;
+
+  const isActive = activeDownloadUrl === fileRecord.videoUrl;
+  const isQueued = downloadQueue.indexOf(fileRecord.videoUrl) !== -1;
+  if (isActive || isQueued) return fileRecord;
+
+  return Object.assign({}, fileRecord, {
+    state: 'failed' as const,
+    progress: null,
+    error: t('status.downloadInterrupted')
+  });
+}
+
 function listDownloads(): DownloadRecord[] {
-  return getDownloadStore().list().map(downloadRecordWithFileState);
+  return getDownloadStore().list().map(downloadRecordWithRuntimeState);
 }
 
 function notifyDownloadsChanged() {
@@ -1002,11 +1017,12 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const payload = normalizeDownloadRequestPayload(value);
   const store = getDownloadStore();
   const existing = store.get(payload.video.url);
-  const existingState = existing ? downloadRecordWithFileState(existing).state : null;
+  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
+  const existingState = existingRecord ? existingRecord.state : null;
 
-  if (existing && (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready')) {
+  if (existingRecord && (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready')) {
     return {
-      record: downloadRecordWithFileState(existing),
+      record: existingRecord,
       queued: false
     };
   }
@@ -1037,12 +1053,13 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const videoUrl = requiredStringValue(value, 'videoUrl', 'download:retry').trim();
   const store = getDownloadStore();
   const existing = videoUrl ? store.get(videoUrl) : null;
-  const existingState = existing ? downloadRecordWithFileState(existing).state : null;
+  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
+  const existingState = existingRecord ? existingRecord.state : null;
 
   if (!existing) throw new Error(t('status.downloadFileUnavailable'));
-  if (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready') {
+  if (existingRecord && (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready')) {
     return {
-      record: downloadRecordWithFileState(existing),
+      record: existingRecord,
       queued: false
     };
   }
@@ -1077,7 +1094,7 @@ function cancelDownload(value: unknown): CancelDownloadResult {
 
   const store = getDownloadStore();
   const existing = store.get(videoUrl);
-  const currentRecord = existing ? downloadRecordWithFileState(existing) : null;
+  const currentRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   if (!currentRecord) throw new Error(t('status.downloadCancelUnavailable'));
 
   const isActive = activeDownloadUrl === videoUrl;
@@ -1153,7 +1170,7 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
 
   const store = getDownloadStore();
   const record = store.get(videoUrl);
-  const visibleRecord = record ? downloadRecordWithFileState(record) : null;
+  const visibleRecord = record ? downloadRecordWithRuntimeState(record) : null;
   if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
   if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
 

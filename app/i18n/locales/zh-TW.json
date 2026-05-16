@@ -301,6 +301,7 @@
     "downloadCanceled": "已取消下載",
     "downloadCancelFailed": "取消下載失敗：{error}",
     "downloadCancelUnavailable": "此下載項目無法取消",
+    "downloadInterrupted": "下載未完成，請重試",
     "downloadDeleted": "已刪除下載項目",
     "downloadDeleteFailed": "刪除下載項目失敗：{error}",
     "downloadDeleteActiveBlocked": "下載進行中，無法刪除",

@@ -301,6 +301,7 @@
     "downloadCanceled": "ダウンロードをキャンセルしました",
     "downloadCancelFailed": "ダウンロードをキャンセルできませんでした: {error}",
     "downloadCancelUnavailable": "このダウンロード項目はキャンセルできません",
+    "downloadInterrupted": "ダウンロードが完了していません。再試行してください",
     "downloadDeleted": "ダウンロード項目を削除しました",
     "downloadDeleteFailed": "ダウンロード項目を削除できませんでした: {error}",
     "downloadDeleteActiveBlocked": "ダウンロード中のため削除できません",
