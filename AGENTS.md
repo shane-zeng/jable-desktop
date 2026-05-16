@@ -11,7 +11,9 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/browser-tab-policy.ts`: pure tab policy helpers for web preferences, media state serialization, close target selection, shortcut detection, and visual-order tab cycling.
 - `app/sync-utils.ts`: shared pagination helper logic for sync flows.
 - `app/url-policy.ts`: trusted URL origins, safe browser URL protocol checks, GitHub release URL allowlist, fallback-origin rewriting, and collection URL checks.
-- `app/database.ts`: SQLite schema, migrations, FTS5 search, upsert logic, sync state, visibility state, and JSON import/export.
+- `app/data-engine.ts`: local data engine boundary. The default implementation is the Rust native addon; `JABLE_DATA_ENGINE=ts` keeps the legacy TypeScript SQLite engine available for regression comparison.
+- `app/database.ts`: legacy TypeScript SQLite engine for schema/migration/search/import/export parity tests.
+- `native/local-data-engine/`: Rust SQLite data engine, migrations, FTS/search tokenization, sync operation reducer, outbox state, and JSON import/export.
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
@@ -72,7 +74,7 @@ ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the
 
 Avoid dependencies, bundlers, or broad abstractions unless the script or desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
 
-For desktop main/preload/database code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep database migrations, search behavior, sync visibility rules, and JSON import/export centralized in `app/database.ts`.
+For desktop main/preload code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep local data API shape centralized in `app/data-engine.ts`, and keep production database migrations, search behavior, sync visibility rules, and JSON import/export centralized in `native/local-data-engine/`. Mirror behavior in `app/database.ts` when the legacy TypeScript engine is used by tests.
 
 For renderer code, use Vue single-file components under `app/renderer-src/`, TypeScript where the renderer already uses it, Tailwind utilities for layout/state styling, and `window.jableApp` as the only renderer-to-main boundary. Treat `app/types/jable.ts` as the IPC contract.
 
@@ -82,7 +84,7 @@ For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep 
 
 Local lists are loaded through paginated `listVideos` calls plus matching `countVideos` queries. When adding filters, search options, sort options, or pagination behavior, keep both query paths in sync.
 
-Local search uses SQLite FTS5. Changes to search tokenization, migrations, filters, sort behavior, or visibility rules should be covered in `test/node/database.test.js`.
+Local search uses SQLite FTS5. Changes to search tokenization, migrations, filters, sort behavior, or visibility rules should be covered in `test/node/database.test.js` for the legacy engine and `test/node/data-engine-contract.test.js` for the shared TypeScript/Rust contract.
 
 Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, and `docs/development.md`.
 

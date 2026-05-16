@@ -6,6 +6,11 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+### Changed
+
+- Move the desktop local data engine to a Rust native addon with the TypeScript SQLite engine retained behind `JABLE_DATA_ENGINE=ts`.
+- Build and package the Rust data engine through `npm run build:rust` and unpack the native `.node` addon for Electron.
+
 ## [v0.9.4] - 2026-05-16
 
 ### Changed

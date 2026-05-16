@@ -20,7 +20,9 @@ function cargoBinary() {
   try {
     return childProcess.execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch (error) {
-    throw new Error('Rust cargo is required to build the native data engine. Install Rust and rerun npm run build:rust.');
+    throw new Error(
+      'Rust cargo is required to build the native data engine. Install Rust and rerun npm run build:rust.'
+    );
   }
 }
 
