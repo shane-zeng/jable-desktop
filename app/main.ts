@@ -3,6 +3,8 @@
 import type * as Electron from 'electron';
 import type * as NodePath from 'node:path';
 import type {
+  AppSettings,
+  AppSettingsPatch,
   BrowserDiagnosis,
   BrowserBounds,
   BrowserNavigatePayload,
@@ -120,6 +122,14 @@ type DeferredSyncOperationApplyResult = {
   failed: SyncQueuedOperationFailure[];
 };
 type SyncQueueProgressInput = Omit<SyncQueueProgressPayload, 'collectionKey' | 'mode' | 'syncRunId'>;
+type SettingsModule = {
+  AppSettingsStore: new (filePath: string) => {
+    get(): AppSettings;
+    update(patch: AppSettingsPatch): AppSettings;
+  };
+  normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
+  settingsFilePath(userDataPath: string): string;
+};
 type DataEngineInstance = {
   close(): void;
   listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[];
@@ -234,6 +244,7 @@ const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
 const dataEngineModule = require('./data-engine') as DataEngineModule;
 const i18n = require('./i18n') as I18nModule;
+const settingsModule = require('./settings') as SettingsModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
 const COLLECTIONS = dataEngineModule.COLLECTIONS;
@@ -256,7 +267,6 @@ const serializedMediaState = browserTabPolicy.serializedMediaState;
 const DEFAULT_JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
 const JABLE_HOME_URL = configuredHomeUrl();
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
-const MAX_BROWSER_TABS = 14;
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
@@ -280,6 +290,7 @@ let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900
 let browserHtmlFullScreenTabId: string | null = null;
 let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
+let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -528,7 +539,8 @@ function normalizeSyncResultPayload(value: unknown, channel: string): FinishSync
     ajaxFallbackReason: optionalStringField(record, 'ajaxFallbackReason', channel) || null,
     ajaxRetryCount: optionalNumberField(record, 'ajaxRetryCount', channel) || 0,
     queuedOperationsApplied: optionalNumberField(record, 'queuedOperationsApplied', channel) || 0,
-    queuedOperationsFailed: optionalNumberField(record, 'queuedOperationsFailed', channel) || 0
+    queuedOperationsFailed: optionalNumberField(record, 'queuedOperationsFailed', channel) || 0,
+    queuedOperationsSkipped: optionalNumberField(record, 'queuedOperationsSkipped', channel) || 0
   };
 }
 
@@ -678,10 +690,44 @@ function normalizeBrowserSyncCollectionPayload(payload: unknown): {
   };
 }
 
+function browserSyncCollectionPayloadWithSettings(payload: {
+  tabId: string | null;
+  options: SyncBrowserCollectionOptions;
+}): {
+  tabId: string | null;
+  options: SyncBrowserCollectionOptions;
+} {
+  return {
+    tabId: payload.tabId,
+    options: Object.assign({}, payload.options, {
+      ajaxWindowSize: getAppSettings().fullSyncAjaxWindowSize
+    })
+  };
+}
+
 function setCurrentLocale(locale: unknown): SupportedLocale {
   currentLocale = i18n.normalizeLocale(locale);
   if (app.isReady()) installApplicationMenu();
   return currentLocale;
+}
+
+function getSettingsStore() {
+  if (!settingsStore) {
+    settingsStore = new settingsModule.AppSettingsStore(settingsModule.settingsFilePath(app.getPath('userData')));
+  }
+
+  return settingsStore;
+}
+
+function getAppSettings(): AppSettings {
+  return getSettingsStore().get();
+}
+
+function updateAppSettings(patch: unknown): AppSettings {
+  const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
+  notifyBrowserTabsChanged();
+  forwardBrowserMessage('settings-changed', settings);
+  return settings;
 }
 
 function getDatabase(): DataEngineInstance {
@@ -1070,9 +1116,10 @@ function scheduleBackgroundUpdateCheck() {
 function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
   const normalizedOptions = options || {};
   const targetUrl = normalizeBrowserNavigationUrl(normalizedOptions.url);
+  const maxTabs = getAppSettings().maxBrowserTabs;
 
-  if (browserTabs.length >= MAX_BROWSER_TABS) {
-    throw new Error(t('errors.maxTabs', { count: MAX_BROWSER_TABS }));
+  if (browserTabs.length >= maxTabs) {
+    throw new Error(t('errors.maxTabs', { count: maxTabs }));
   }
 
   const kind: BrowserTabKind = normalizedOptions.kind === 'sync' ? 'sync' : 'normal';
@@ -1842,11 +1889,19 @@ async function syncBrowserCollectionInWorker(payload: {
 
     keepWorker = resultWithWorker.completed === false && resultWithWorker.incompleteReason === 'batch-limit';
 
-    if (!keepWorker && shouldApplyDeferredSyncOperations(resultWithWorker)) {
+    if (
+      !keepWorker &&
+      shouldApplyDeferredSyncOperations(resultWithWorker) &&
+      getAppSettings().autoReplayDeferredSyncOperations
+    ) {
       const applied = await applyDeferredSyncOperationsInWorker(worker, payload.options);
       resultWithWorker.queuedOperationsApplied = applied.applied;
       resultWithWorker.queuedOperationsFailed = applied.failed;
       resultWithWorker.queuedOperationFailures = applied.failures;
+    } else if (!keepWorker && shouldApplyDeferredSyncOperations(resultWithWorker)) {
+      const skipped = getDatabase().listDeferredSyncOutboxOperations(payload.options.collectionKey).length;
+      resultWithWorker.queuedOperationsSkipped = skipped;
+      if (skipped) notifyPendingCollectionOperationsChanged();
     }
 
     return resultWithWorker;
@@ -1907,7 +1962,7 @@ function serializeBrowserTab(tab: BrowserTab) {
 function browserTabsState(): BrowserTabsState {
   return {
     activeTabId: activeBrowserTabId,
-    maxTabs: MAX_BROWSER_TABS,
+    maxTabs: getAppSettings().maxBrowserTabs,
     tabs: browserTabs.map(serializeBrowserTab)
   };
 }
@@ -2405,7 +2460,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
 
   items.push({
     label: t('context.newTab'),
-    enabled: browserTabs.length < MAX_BROWSER_TABS,
+    enabled: browserTabs.length < getAppSettings().maxBrowserTabs,
     click: function () {
       safeCreateBrowserTab({ url: JABLE_HOME_URL, active: true });
     }
@@ -2431,7 +2486,7 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
   const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.newTab'),
-      enabled: browserTabs.length < MAX_BROWSER_TABS,
+      enabled: browserTabs.length < getAppSettings().maxBrowserTabs,
       click: function () {
         safeCreateBrowserTab({ url: JABLE_HOME_URL, active: true });
       }
@@ -2521,7 +2576,7 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
     },
     {
       label: t('context.openNewTab'),
-      enabled: browserTabs.length < MAX_BROWSER_TABS,
+      enabled: browserTabs.length < getAppSettings().maxBrowserTabs,
       click: function () {
         forwardBrowserMessage('library-video-menu-action', {
           action: 'open-new',
@@ -2629,6 +2684,14 @@ function registerIpcHandlers() {
       locale: currentLocale,
       systemLocale: app.getLocale()
     };
+  });
+
+  ipcMain.handle('app:get-settings', function () {
+    return getAppSettings();
+  });
+
+  ipcMain.handle('app:update-settings', function (_event, patch) {
+    return updateAppSettings(patch);
   });
 
   ipcMain.handle('app:set-locale', function (_event, locale) {
@@ -2782,7 +2845,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle('browser:sync-collection', function (_event, payload) {
     const normalizedPayload = normalizeBrowserSyncCollectionPayload(payload);
-    return syncBrowserCollectionInWorker(normalizedPayload);
+    return syncBrowserCollectionInWorker(browserSyncCollectionPayloadWithSettings(normalizedPayload));
   });
 
   ipcMain.handle('browser:diagnose', function (_event, payload) {

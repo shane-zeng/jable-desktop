@@ -12,6 +12,12 @@ const jableApp: JableAppApi = {
   getAppInfo: function () {
     return ipcRenderer.invoke('app:info');
   },
+  getSettings: function () {
+    return ipcRenderer.invoke('app:get-settings');
+  },
+  updateSettings: function (patch) {
+    return ipcRenderer.invoke('app:update-settings', patch);
+  },
   setLocale: function (locale) {
     return ipcRenderer.invoke('app:set-locale', locale);
   },

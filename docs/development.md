@@ -100,13 +100,13 @@ Desktop sync behavior:
 
 - **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known. It is intended for routine incremental updates after an initial full sync.
 - **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run.
-- Full sync writes page 1 first, then can fetch remaining pages through a conservative `get_block` AJAX sliding window. The AJAX path uses low concurrency, per-page jitter, retry/backoff for soft-rate-limit symptoms such as 403/429/5xx/timeouts/empty responses, validates active page number, last-page stability, first-page stability, expected page size, and duplicate URLs before writing prefetched rows, and reports the fallback reason when it switches to sequential paging.
+- Full sync writes page 1 first, then can fetch remaining pages through a conservative `get_block` AJAX sliding window. The AJAX path uses the user-configured Settings acceleration level, per-page jitter, retry/backoff for soft-rate-limit symptoms such as 403/429/5xx/timeouts/empty responses, validates active page number, last-page stability, first-page stability, expected page size, and duplicate URLs before writing prefetched rows, and reports the fallback reason when it switches to sequential paging.
 - Sync runs in a dedicated background browser worker. Failed full runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - The webview scraper saves each page through `db:save-sync-page` and emits `sync-page` messages while it paginates. The renderer displays progress and calls `finishSync` after the worker returns.
-- Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; during active sync they are deferred into the ordered `sync_operations` outbox, then replayed after sync. Outside active sync, successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
-- The Rust data engine owns persisted outbox state. Deferred rows move through `pending`, `applied`, `failed`, `blocked`, `resolved`, and `superseded`; the webview only performs Jable AJAX with the current cookie/session. Automatic replay still runs in operation order and stops after the first failed operation, marking later pending rows as blocked. The main process replays the outbox one operation at a time so it can emit `sync-queue-progress` updates and keep the renderer progress bar accurate.
+- Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; during active sync they are deferred into the ordered `sync_operations` outbox. Outside active sync, successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
+- The Rust data engine owns persisted outbox state. Deferred rows move through `pending`, `applied`, `failed`, `blocked`, `resolved`, and `superseded`; the webview only performs Jable AJAX with the current cookie/session. Automatic replay is controlled by Settings and is off by default. When enabled, replay still runs in operation order and stops after the first failed operation, marking later pending rows as blocked. The main process replays the outbox one operation at a time so it can emit `sync-queue-progress` updates and keep the renderer progress bar accurate.
 - The renderer's global Pending Sync tab is backed by `listPendingRemoteOperationGroups()`, which groups unresolved outbox rows by `collectionKey + videoUrl` and exposes the final intended action rather than raw operation rows. Manual resend uses `preparePendingRemoteOperationRetry()` and sends only the group's final add/remove state; success marks the group `resolved`, while a later clean full sync marks older failed/blocked rows `superseded`.
-- JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
+- JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Renderer import UX lives in Settings > Data, preselects a collection from `meta.source_path`, `meta.source_url`, or filename when possible, and still requires a final target collection before calling `importJson({ collectionKey, resource })`.
 
 Desktop data and search behavior:
 
@@ -122,6 +122,7 @@ Desktop data and search behavior:
 
 Browser and tab behavior:
 
+- User-facing app settings are stored in `settings.json` under Electron `userData` through `app/settings.ts`. Keep `app/types/jable.ts`, `app/preload.ts`, main IPC handlers, `SettingsPanel.vue`, and `test/node/settings.test.js` aligned when adding or changing settings.
 - Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 - `app/browser-tab-policy.ts` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
@@ -138,10 +139,10 @@ Renderer behavior:
 
 - `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
 - `app/main.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and main-process normalizers aligned when adding IPC calls.
-- `app/renderer-src/App.vue` coordinates the two top-level views, browser messages, sync orchestration, import/export, toast status, and full-sync continuation state.
+- `app/renderer-src/App.vue` coordinates the browser view, local data view, settings page, browser messages, sync orchestration, import/export, toast status, and full-sync continuation state.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
 - `useLibraryState` owns collection/pending-tab selection, pagination, search mode, sorting, pending remote operation groups, refresh token cancellation, and the pending full-sync continuation label.
-- Browser compact-mode and tab rail width are stored in renderer `localStorage` using constants from `app/renderer-src/constants.ts`.
+- Browser compact-mode is stored in shared app settings. Tab rail width remains a renderer-local `localStorage` preference because it only affects layout.
 - The renderer stylesheet is intentionally dark-mode-only. If appearance modes are reintroduced, keep `styles.css`, persisted preferences, and any docs in sync.
 
 Localization behavior:
@@ -218,12 +219,13 @@ Test coverage map:
 - `test/node/ad-blocker.test.js`: Jable ad request matching, popup navigation suppression, environment switches, and Electron listener installation.
 - `test/node/ad-cosmetic-policy.test.js`: DOM container removal for blocked ad cards, sponsor rows, and modal wrappers.
 - `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
+- `test/node/settings.test.js`: app settings defaults, persistence, and user-facing limit clamping.
 - `test/node/sync-utils.test.js`: numeric pager selection.
 - `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
 - `native/local-data-engine/src/tests.rs`: Rust-native data-engine invariants that should not depend only on addon contract coverage, including URL normalization, site-order import aliases, search token matching, outbox grouping, resolved groups, and full-sync superseded state.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
-- `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, browser tab create/activate/close IPC, and import/export happy path.
+- `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, settings IPC, browser tab create/activate/close IPC, and import/export happy path.
 
 GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
 
@@ -249,12 +251,13 @@ Manual checks:
 - Quick sync both favourites and watch-later lists after a completed full sync.
 - Full sync a list and confirm local ordering matches the Jable page order.
 - For large lists, confirm the bounded AJAX full-sync path completes or falls back to sequential paging without hiding old rows on incomplete runs.
+- Change Settings > Sync acceleration and confirm full sync still completes or falls back cleanly; keep automatic post-sync replay off by default unless explicitly testing queue progress.
 - Search with `any`, `all`, and `phrase` modes and confirm title/URL filtering still matches README examples.
-- Switch desktop language between Traditional Chinese, English, and Japanese. Confirm the top bar, local data controls, pagination, video metadata labels, toast messages, application menu, page context menu, tab context menu, and export dialog title update.
+- Switch desktop language between Traditional Chinese, English, and Japanese from Settings. Confirm the top bar, settings page, local data controls, pagination, video metadata labels, toast messages, application menu, page context menu, tab context menu, and export dialog title update.
 - Restart the app after changing language and confirm the `jable-desktop:locale` preference is preserved.
 - In Tampermonkey, verify the userscript floating export UI on favourites and watch-later pages. Switch between **繁中**, **EN**, and **日本語**, confirm the button label changes immediately, and confirm progress/error labels follow the selected language.
-- Import an existing userscript JSON export and verify rows appear in the matching tab.
-- Export JSON and confirm the `{ data: [...], meta: {...} }` shape is preserved.
+- Import an existing userscript JSON export from Settings > Data, confirm source detection or manual target selection, and verify rows appear in the selected collection.
+- Export JSON from Settings > Data and confirm the `{ data: [...], meta: {...} }` shape is preserved.
 
 ### Desktop Packaging
 

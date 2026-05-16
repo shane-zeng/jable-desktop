@@ -35,6 +35,7 @@
     "reload": "重新整理",
     "browser": "瀏覽器",
     "library": "本機資料",
+    "settings": "設定",
     "diagnose": "診斷",
     "mainViews": "主要檢視"
   },
@@ -110,6 +111,54 @@
     "quick": "快速同步",
     "full": "完整同步"
   },
+  "settings": {
+    "aria": "應用程式設定",
+    "title": "設定",
+    "subtitle": "調整瀏覽器、同步與資料匯入匯出的行為。",
+    "general": {
+      "title": "一般"
+    },
+    "browser": {
+      "title": "瀏覽器",
+      "maxTabs": "最多開啟分頁數",
+      "maxTabsWarning": "分頁越多會保留更多頁面狀態，但也會使用更多記憶體，可能影響影片播放與同步速度。",
+      "compactTabs": "緊湊分頁列",
+      "compactTabsDescription": "啟動時使用較窄的分頁列。",
+      "tabWidth": "分頁列寬度",
+      "resetTabWidth": "重設寬度"
+    },
+    "sync": {
+      "title": "同步",
+      "acceleration": "完整同步加速程度",
+      "accelerationDescription": "數值越高，完整同步會同時預抓更多頁面；大清單會更快，但更可能遇到 timeout 或 Jable 暫時拒絕請求。",
+      "fastWarning": "快速模式較容易遇到 403、429 或 timeout；失敗時會改用保守逐頁同步。",
+      "autoReplay": "同步後自動送出變更",
+      "autoReplayDescription": "關閉時，同步期間的收藏與稍後觀看變更會留在待同步清單，由你手動重送最終狀態。",
+      "speed": {
+        "safe": "保守",
+        "standard": "標準",
+        "fast": "快速"
+      }
+    },
+    "data": {
+      "title": "資料",
+      "importJson": "匯入 JSON",
+      "chooseJson": "選擇 JSON",
+      "importDetectionMetadata": "從檔案內容判斷：{collection}",
+      "importDetectionFilename": "從檔名推測：{collection}",
+      "importDetectionUnknown": "無法判斷來源清單，請選擇要匯入的目標。",
+      "importRows": "{count} 筆",
+      "importTarget": "匯入到",
+      "importTargetPlaceholder": "選擇目標清單",
+      "confirmImport": "確認匯入",
+      "importParseFailed": "無法讀取 JSON：{error}",
+      "exportJson": "匯出 JSON",
+      "exportTarget": "匯出清單",
+      "exportAction": "匯出",
+      "databasePath": "本機資料庫位置",
+      "databasePathUnavailable": "尚未建立資料庫"
+    }
+  },
   "status": {
     "unknownError": "未知錯誤",
     "browserOpenFailed": "開啟影片失敗：{error}",
@@ -133,6 +182,7 @@
     "firstPageRequired": "{collection} {mode}未開始：無法確認或切回第 1 頁",
     "syncChangedDuringRun": "{collection} {mode}已處理：已比對操作表並套用 {count} 筆操作；因同步期間清單有手動操作，已略過缺漏隱藏",
     "syncQueuedOperationsFailed": "{collection} 同步已完成，但有 {count} 筆操作無法送到 Jable；請到「待同步」查看並重送最終狀態",
+    "syncQueuedOperationsSkipped": "{collection} 同步已完成，{count} 筆變更已保留在「待同步」，可稍後手動重送最終狀態",
     "pendingRemoteResolved": "待同步項目已成功送到 Jable",
     "pendingRemoteRetryFailed": "重送待同步項目失敗：{error}",
     "syncIncomplete": "{collection} {mode}未完整完成：{reason}",
@@ -154,6 +204,8 @@
     "exportFailed": "匯出失敗：{error}",
     "imported": "已匯入 {count} 筆到 {collection}",
     "importFailed": "匯入失敗：{error}",
+    "settingsSaved": "設定已更新",
+    "settingsSaveFailed": "儲存設定失敗：{error}",
     "newTabFailed": "新增分頁失敗：{error}",
     "activateTabFailed": "切換分頁失敗：{error}",
     "closeTabFailed": "關閉分頁失敗：{error}",

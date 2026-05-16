@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
+import SettingsPanel from './components/SettingsPanel.vue';
 import TopBar from './components/TopBar.vue';
 import {
   BROWSER_TABS_DEFAULT_WIDTH,
@@ -9,7 +10,7 @@ import {
   BROWSER_TABS_MAX_WIDTH,
   BROWSER_TABS_MIN_WIDTH,
   BROWSER_TABS_WIDTH_STORAGE_KEY,
-  COLLECTIONS,
+  DEFAULT_APP_SETTINGS,
   DEFAULT_BROWSER_URL
 } from './constants';
 import { useBrowserBounds } from './composables/useBrowserBounds';
@@ -17,13 +18,14 @@ import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
 import { useI18n } from './i18n';
 import type {
+  AppSettings,
+  AppSettingsPatch,
   AppInfo,
   AppView,
   BrowserMessage,
   BrowserNavigationState,
   BrowserTabMenuPayload,
   BrowserTabsState,
-  CollectionDefinition,
   CollectionKey,
   CollectionToggleResult,
   ExportResource,
@@ -55,6 +57,7 @@ const syncing = ref(false);
 const browserTabsCompact = ref(false);
 const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
+const appSettings = ref<AppSettings>(Object.assign({}, DEFAULT_APP_SETTINGS));
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let activeSyncRunId: string | null = null;
@@ -146,17 +149,28 @@ function waitForSyncReturningNotice() {
   });
 }
 
-function loadBrowserTabsCompact() {
+function loadLegacyBrowserTabsCompact() {
   const value = localStorage.getItem(BROWSER_TABS_COMPACT_STORAGE_KEY);
   if (value !== null) return value === 'true';
 
-  return localStorage.getItem('jable-desktop:browser-tabs-collapsed') === 'true';
+  const collapsed = localStorage.getItem('jable-desktop:browser-tabs-collapsed');
+  return collapsed === null ? null : collapsed === 'true';
 }
 
-function setBrowserTabsCompact(value: boolean) {
+function clearLegacyBrowserTabsCompact() {
+  localStorage.removeItem(BROWSER_TABS_COMPACT_STORAGE_KEY);
+  localStorage.removeItem('jable-desktop:browser-tabs-collapsed');
+}
+
+async function setBrowserTabsCompact(value: boolean) {
   browserTabsCompact.value = Boolean(value);
-  localStorage.setItem(BROWSER_TABS_COMPACT_STORAGE_KEY, browserTabsCompact.value ? 'true' : 'false');
   browser.scheduleResize();
+  try {
+    applyAppSettings(await api.updateSettings({ compactBrowserTabs: browserTabsCompact.value }));
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
+  }
 }
 
 function clampBrowserTabsWidth(value: unknown) {
@@ -187,10 +201,6 @@ function syncModeName(mode: SyncMode) {
 
 function createSyncRunId(mode: SyncMode, collectionKey: CollectionKey) {
   return [mode, collectionKey, Date.now(), Math.random().toString(36).slice(2)].join(':');
-}
-
-function currentCollection(): CollectionDefinition {
-  return COLLECTIONS[library.activeCollection.value];
 }
 
 function collectionName(collectionKey: CollectionKey) {
@@ -280,6 +290,10 @@ function updateSyncQueueProgress(progress: SyncQueueProgressPayload) {
 function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'browser-tabs-changed') {
     browser.applyTabsState(message.args[0] as BrowserTabsState);
+  }
+
+  if (message.channel === 'settings-changed') {
+    applyAppSettings(message.args[0] as AppSettings);
   }
 
   if (message.channel === 'browser-error') {
@@ -380,6 +394,7 @@ function resultStatus(
   const name = syncModeName(mode);
   const collection = collectionName(collectionKey);
   const queuedFailures = result.queuedOperationsFailed || 0;
+  const queuedSkipped = result.queuedOperationsSkipped || 0;
   const totalRows = typeof visibleRows === 'number' ? visibleRows : result.totalRows;
 
   function withAjaxFallback(status: string) {
@@ -397,6 +412,15 @@ function resultStatus(
       i18n.t('status.syncQueuedOperationsFailed', {
         collection: collection,
         count: queuedFailures
+      })
+    );
+  }
+
+  if (queuedSkipped > 0) {
+    return withAjaxFallback(
+      i18n.t('status.syncQueuedOperationsSkipped', {
+        collection: collection,
+        count: queuedSkipped
       })
     );
   }
@@ -535,7 +559,9 @@ async function syncCollection(mode: SyncMode) {
 
     setStatus(
       resultStatus(collectionKey, mode, result, finishState, finalVisibleRows),
-      result.queuedOperationsFailed || result.ajaxFallbackReason ? 'warning' : undefined,
+      result.queuedOperationsFailed || result.queuedOperationsSkipped || result.ajaxFallbackReason
+        ? 'warning'
+        : undefined,
       {
         sticky: result.completed === false
       }
@@ -550,13 +576,13 @@ async function syncCollection(mode: SyncMode) {
   }
 }
 
-async function exportActiveCollection() {
+async function exportCollection(collectionKey: CollectionKey) {
   if (busy.value || syncing.value) return;
 
   busy.value = true;
 
   try {
-    const result = await api.exportJsonFile(library.activeCollection.value);
+    const result = await api.exportJsonFile(collectionKey);
 
     if (result && result.canceled) {
       setStatus(i18n.t('status.exportCanceled'));
@@ -564,7 +590,7 @@ async function exportActiveCollection() {
     }
 
     setStatus(
-      i18n.t('status.exported', { filename: (result && result.filename) || currentCollection().filename }),
+      i18n.t('status.exported', { filename: (result && result.filename) || collectionKey + '.json' }),
       'success'
     );
   } catch (error) {
@@ -575,23 +601,23 @@ async function exportActiveCollection() {
   }
 }
 
-async function importJsonFile(file: File | null) {
-  if (!file || busy.value) return;
+async function importJsonToCollection(payload: { collectionKey: CollectionKey; resource: ExportResource }) {
+  if (busy.value) return;
 
   busy.value = true;
 
   try {
-    const text = await file.text();
-    const resource = JSON.parse(text);
     const result = await api.importJson({
-      collectionKey: library.activeCollection.value,
-      resource: resource as ExportResource
+      collectionKey: payload.collectionKey,
+      resource: payload.resource
     });
 
-    library.currentPage.value = 1;
-    await library.refreshVideos();
+    if (library.activeCollection.value === payload.collectionKey) {
+      library.currentPage.value = 1;
+      await library.refreshVideos();
+    }
     setStatus(
-      i18n.t('status.imported', { count: result.imported, collection: collectionName(library.activeCollection.value) }),
+      i18n.t('status.imported', { count: result.imported, collection: collectionName(payload.collectionKey) }),
       'success'
     );
   } catch (error) {
@@ -693,6 +719,30 @@ async function showLibraryVideoMenu(payload: LibraryVideoMenuPayload) {
   }
 }
 
+function applyAppSettings(settings: AppSettings) {
+  appSettings.value = settings;
+  browserTabsCompact.value = Boolean(settings.compactBrowserTabs);
+  browser.scheduleResize();
+}
+
+async function updateAppSettings(patch: AppSettingsPatch) {
+  try {
+    applyAppSettings(await api.updateSettings(patch));
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+function changeLocale(locale: string) {
+  i18n.setLocale(locale);
+}
+
+function resetBrowserTabsWidth() {
+  setBrowserTabsWidth(BROWSER_TABS_DEFAULT_WIDTH);
+  setStatus(i18n.t('status.settingsSaved'), 'success');
+}
+
 async function syncMainLocale(locale: string) {
   try {
     await api.setLocale(locale);
@@ -707,9 +757,14 @@ watch(i18n.locale, function (locale) {
 });
 
 onMounted(async function () {
-  browserTabsCompact.value = loadBrowserTabsCompact();
   browserTabsWidth.value = loadBrowserTabsWidth();
   appInfo.value = await api.getAppInfo();
+  applyAppSettings(await api.getSettings());
+  const legacyCompact = loadLegacyBrowserTabsCompact();
+  if (legacyCompact !== null) {
+    applyAppSettings(await api.updateSettings({ compactBrowserTabs: legacyCompact }));
+    clearLegacyBrowserTabsCompact();
+  }
   i18n.initializeLocale(appInfo.value.systemLocale || appInfo.value.locale);
   await syncMainLocale(i18n.locale.value);
   mainLocaleSynced = true;
@@ -799,8 +854,6 @@ onMounted(async function () {
         @select-tab="selectLibraryTab"
         @quick-sync="syncCollection('quick')"
         @full-sync="syncCollection('full')"
-        @import-file="importJsonFile"
-        @export-json="exportActiveCollection"
         @update:search="library.search.value = $event"
         @update:search-mode="library.searchMode.value = $event"
         @update:sort="library.sort.value = $event"
@@ -812,6 +865,18 @@ onMounted(async function () {
         @open-video="openInBrowser"
         @open-video-new-tab="openInNewBrowserTab"
         @video-context-menu="showLibraryVideoMenu"
+      />
+
+      <SettingsPanel
+        :active="activeView === 'settings'"
+        :busy="busy || syncing"
+        :settings="appSettings"
+        :database-path="appInfo && appInfo.databasePath"
+        @update-settings="updateAppSettings"
+        @change-locale="changeLocale"
+        @reset-tabs-width="resetBrowserTabsWidth"
+        @import-json="importJsonToCollection"
+        @export-json="exportCollection"
       />
     </main>
   </div>

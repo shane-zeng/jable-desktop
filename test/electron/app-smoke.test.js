@@ -95,10 +95,26 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     });
     expect(appInfo.databasePath).toContain(userDataDir);
 
+    await window.getByRole('button', { name: /Settings|設定/ }).click();
+    await expect(window.locator('[data-test="settings-panel"]')).toBeVisible();
+
+    const defaultSettings = await window.evaluate(function () {
+      return globalThis.jableApp.getSettings();
+    });
+    expect(defaultSettings.autoReplayDeferredSyncOperations).toBe(false);
+    expect(defaultSettings.maxBrowserTabs).toBe(14);
+
+    const updatedSettings = await window.evaluate(function () {
+      return globalThis.jableApp.updateSettings({ maxBrowserTabs: 6, fullSyncAjaxWindowSize: 5 });
+    });
+    expect(updatedSettings.maxBrowserTabs).toBe(6);
+    expect(updatedSettings.fullSyncAjaxWindowSize).toBe(5);
+
     const initialTabs = await window.evaluate(function () {
       return globalThis.jableApp.listBrowserTabs();
     });
     expect(initialTabs.tabs.length).toBe(1);
+    expect(initialTabs.maxTabs).toBe(6);
 
     const createdTabs = await window.evaluate(function (url) {
       return globalThis.jableApp.createBrowserTab({ url: url + 'tab', active: true });

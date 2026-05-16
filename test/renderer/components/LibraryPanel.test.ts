@@ -33,7 +33,7 @@ describe('LibraryPanel', function () {
 
     expect(wrapper.text()).toContain('Quick Sync');
     expect(wrapper.text()).toContain('Full Sync');
-    expect(wrapper.text()).toContain('Import JSON');
+    expect(wrapper.text()).not.toContain('Import JSON');
     expect(wrapper.text()).toContain('No local data yet');
     expect(wrapper.find('input[type="search"]').attributes('placeholder')).toBe('Search title or URL');
     expect(wrapper.find('[aria-label="Search Mode"]').text()).toContain('Any Word');
@@ -67,7 +67,7 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('お気に入り');
     expect(wrapper.text()).toContain('クイック同期');
     expect(wrapper.text()).toContain('フル同期');
-    expect(wrapper.text()).toContain('Import JSON');
+    expect(wrapper.text()).not.toContain('Import JSON');
     expect(wrapper.text()).toContain('ローカルデータはまだありません');
     expect(wrapper.text()).toContain('ページ');
     expect(wrapper.text()).toContain('/ 1');

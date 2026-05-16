@@ -59,6 +59,7 @@ export default [
       'app/main.ts',
       'app/native-data-engine.ts',
       'app/preload.ts',
+      'app/settings.ts',
       'app/sync-utils.ts',
       'app/update-checker.ts',
       'app/url-policy.ts',

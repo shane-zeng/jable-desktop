@@ -15,6 +15,7 @@ function readSource(filePath) {
 
 test('main process uses preload IPC for browser page requests', function () {
   const source = readSource(MAIN_SOURCE_PATH);
+  const preloadSource = readSource(path.join(__dirname, '..', '..', 'app', 'preload.ts'));
   const forbiddenMethod = 'execute' + 'JavaScript';
   const removedGlobal = 'jableDesktop' + 'Scraper';
 
@@ -22,6 +23,10 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.equal(source.includes(removedGlobal), false);
   assert.match(source, /browser:sync-collection-request/);
   assert.match(source, /browser:diagnose-request/);
+  assert.match(source, /app:get-settings/);
+  assert.match(source, /app:update-settings/);
+  assert.match(preloadSource, /getSettings/);
+  assert.match(preloadSource, /updateSettings/);
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
@@ -51,8 +56,12 @@ test('webview pager fallback uses Jable get_block requests and page-number from 
 
 test('full sync can use a bounded ajax sliding window with sequential fallback', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const mainSource = readSource(MAIN_SOURCE_PATH);
 
-  assert.match(source, /const FULL_SYNC_AJAX_WINDOW_SIZE = 3/);
+  assert.match(source, /const DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE = 3/);
+  assert.match(source, /const MAX_FULL_SYNC_AJAX_WINDOW_SIZE = 5/);
+  assert.match(source, /function normalizeAjaxWindowSize/);
+  assert.match(mainSource, /ajaxWindowSize: getAppSettings\(\)\.fullSyncAjaxWindowSize/);
   assert.match(source, /const FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS = 500/);
   assert.match(source, /const FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS = 1500/);
   assert.match(source, /const FULL_SYNC_AJAX_MAX_RETRIES = 3/);
@@ -77,7 +86,8 @@ test('main process replays queued collection operations after recoverable incomp
   assert.match(source, /function shouldApplyDeferredSyncOperations/);
   assert.match(source, /result\.incompleteReason === 'login-required'/);
   assert.match(source, /result\.incompleteReason === 'batch-limit'/);
-  assert.match(source, /if \(!keepWorker && shouldApplyDeferredSyncOperations\(resultWithWorker\)\)/);
+  assert.match(source, /getAppSettings\(\)\.autoReplayDeferredSyncOperations/);
+  assert.match(source, /resultWithWorker\.queuedOperationsSkipped = skipped/);
   assert.equal(source.includes('!keepWorker && resultWithWorker.completed'), false);
 });
 
@@ -98,6 +108,7 @@ test('renderer reports queued operation failures through the pending remote tab 
   assert.match(mainSource, /queuedOperationFailures = applied\.failures/);
   assert.match(source, /const finalVisibleRows = await api\.countVideos\(\{ collectionKey: collectionKey \}\)/);
   assert.match(source, /resultStatus\(collectionKey, mode, result, finishState, finalVisibleRows\)/);
+  assert.match(source, /status\.syncQueuedOperationsSkipped/);
   assert.match(source, /await library\.refreshPendingGroups\(\)/);
   assert.match(source, /retryPendingRemoteOperationGroup/);
 });

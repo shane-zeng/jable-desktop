@@ -4,7 +4,7 @@ export type SortDirection = 'asc' | 'desc';
 export type SearchMode = 'any' | 'all' | 'phrase';
 export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
-export type AppView = 'browser' | 'library';
+export type AppView = 'browser' | 'library' | 'settings';
 export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 export type LibraryTabKey = CollectionKey | 'pending_remote';
 export type CollectionAction = 'add' | 'remove';
@@ -116,6 +116,15 @@ export interface BrowserTabsState {
   tabs: BrowserTabState[];
 }
 
+export interface AppSettings {
+  maxBrowserTabs: number;
+  compactBrowserTabs: boolean;
+  fullSyncAjaxWindowSize: number;
+  autoReplayDeferredSyncOperations: boolean;
+}
+
+export type AppSettingsPatch = Partial<AppSettings>;
+
 export interface BrowserNavigationState {
   tabId?: string | null;
   canGoBack: boolean;
@@ -186,6 +195,7 @@ export interface SyncBrowserCollectionOptions {
   startPage: number | null;
   stopOnKnownPage: boolean;
   batchLimit: number | null;
+  ajaxWindowSize?: number;
 }
 
 export interface SyncPagePayload {
@@ -289,6 +299,7 @@ export interface SyncResult {
   ajaxRetryCount?: number;
   queuedOperationsApplied?: number;
   queuedOperationsFailed?: number;
+  queuedOperationsSkipped?: number;
   queuedOperationFailures?: SyncQueuedOperationFailure[];
 }
 
@@ -352,6 +363,8 @@ export interface BrowserMessage {
 
 export interface JableAppApi {
   getAppInfo(): Promise<AppInfo>;
+  getSettings(): Promise<AppSettings>;
+  updateSettings(patch: AppSettingsPatch): Promise<AppSettings>;
   setLocale(locale: string): Promise<{ locale: SupportedLocale }>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;
   countVideos(options: ListVideosOptions): Promise<number>;

@@ -75,7 +75,7 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 
 ## 同期待ち
 
-同期中に Jable ページ上で追加または削除を行った場合、App はその操作をいったんローカル outbox に保存し、ページ取得が終わった後で Jable に送信します。
+同期中に Jable ページ上で追加または削除を行った場合、App はその操作をいったんローカル outbox に保存します。既定では自動送信せず、「同期待ち」に残して手動確認できるようにします。設定で「同期後に変更を自動送信」を有効にした場合のみ、ページ取得が終わった後で順番に Jable に送信します。
 
 同期後に outbox を処理している間は、右上の status toast が進捗バー付きで表示され続け、キュー済み操作が完了するか最初の再送失敗で停止するまで進捗を確認できます。
 
@@ -109,12 +109,25 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 
 初回のフル同期後は、日常的な更新にクイック同期を使用できます。
 
+## 設定
+
+設定画面では以下を調整できます。
+
+- 表示言語
+- 最大タブ数。推奨値を超えるとメモリ使用量と再生性能への注意を表示
+- フル同期の加速: 保守、標準、高速
+- 同期中に発生したお気に入りと後で見るの変更を同期後に自動送信するか
+- JSON Import、JSON Export、ローカルデータベースの場所
+
+高速モードは同時に先読みするページ数を増やすため、大きなリストに向いています。timeout、403、429 が発生した場合は保守的なページ単位同期へ fallback します。
+
 ## Import と Export
 
-- JSON backup を Export
-- JSON backup を Import
+- 設定 > データ から JSON backup を Export
+- 設定 > データ から JSON backup を Import
 - `site_order` を保持
 - 旧 Tampermonkey export files と互換
+- JSON に source metadata が含まれる場合はお気に入りまたは後で見るを自動選択します。判定できない場合は Import 先を手動で選択してください
 
 ## データとログイン状態
 

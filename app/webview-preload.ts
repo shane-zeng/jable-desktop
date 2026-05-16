@@ -109,7 +109,8 @@ const SEL_TITLES = 'div.detail h6.title a';
 const SEL_PAGER = 'ul.pagination';
 const SEL_PAGER_LINKS = 'ul.pagination a.page-link';
 const SITE_PAGE_SIZE = 24;
-const FULL_SYNC_AJAX_WINDOW_SIZE = 3;
+const DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE = 3;
+const MAX_FULL_SYNC_AJAX_WINDOW_SIZE = 5;
 const FULL_SYNC_AJAX_FETCH_TIMEOUT_MS = 15000;
 const FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS = 500;
 const FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS = 1500;
@@ -150,6 +151,12 @@ function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
   if (target instanceof Node && target.parentElement) return target.parentElement;
   return null;
+}
+
+function normalizeAjaxWindowSize(value: unknown) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE;
+  return Math.max(1, Math.min(MAX_FULL_SYNC_AJAX_WINDOW_SIZE, Math.round(number)));
 }
 
 function absUrl(href: string, base?: string) {
@@ -1643,6 +1650,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   const siteOrderOffset = Number(syncOptions.siteOrderOffset) || 0;
   const startPage = Number(syncOptions.startPage) || null;
   const batchLimit = Number(syncOptions.batchLimit) || null;
+  const ajaxWindowSize = normalizeAjaxWindowSize(syncOptions.ajaxWindowSize);
   let totalRows = 0;
   let totalPages = 0;
   let logicalPage = currentPageNumber() || startPage || 1;
@@ -1779,7 +1787,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     }
 
     const workers: Promise<void>[] = [];
-    for (let i = 0; i < Math.min(FULL_SYNC_AJAX_WINDOW_SIZE, pageNumbers.length); i++) {
+    for (let i = 0; i < Math.min(ajaxWindowSize, pageNumbers.length); i++) {
       workers.push(worker());
     }
 

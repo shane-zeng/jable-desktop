@@ -17,10 +17,6 @@ const emit = defineEmits<{
 }>();
 
 const i18n = useI18n();
-
-function updateLocale(event: Event) {
-  i18n.setLocale((event.target as HTMLSelectElement).value);
-}
 </script>
 
 <template>
@@ -92,18 +88,16 @@ function updateLocale(event: Event) {
     </div>
 
     <div class="flex flex-wrap items-center justify-end gap-2 max-[1180px]:col-span-full max-[1180px]:justify-start">
-      <label class="sr-only" for="app-locale-select">{{ i18n.t('locale.label') }}</label>
-      <select
-        id="app-locale-select"
-        class="h-[34px] w-[132px] text-sm"
-        :aria-label="i18n.t('locale.label')"
-        :value="i18n.locale.value"
-        @change="updateLocale"
+      <button
+        class="min-h-[34px] min-w-[84px] font-bold"
+        :class="{ primary: activeView === 'settings' }"
+        type="button"
+        data-test="settings-view-button"
+        :aria-pressed="activeView === 'settings'"
+        @click="emit('set-view', 'settings')"
       >
-        <option v-for="option in i18n.localeOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
+        {{ i18n.t('topBar.settings') }}
+      </button>
       <button type="button" hidden @click="emit('diagnose')">{{ i18n.t('topBar.diagnose') }}</button>
     </div>
   </header>

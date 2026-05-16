@@ -35,6 +35,7 @@
     "reload": "再読み込み",
     "browser": "ブラウザー",
     "library": "ローカルデータ",
+    "settings": "設定",
     "diagnose": "診断",
     "mainViews": "メインビュー"
   },
@@ -110,6 +111,54 @@
     "quick": "クイック同期",
     "full": "フル同期"
   },
+  "settings": {
+    "aria": "アプリ設定",
+    "title": "設定",
+    "subtitle": "ブラウザー、同期、Import、Export の動作を調整します。",
+    "general": {
+      "title": "一般"
+    },
+    "browser": {
+      "title": "ブラウザー",
+      "maxTabs": "最大タブ数",
+      "maxTabsWarning": "タブが多いほどページ状態を保持できますが、メモリ使用量が増え、動画再生や同期速度に影響する場合があります。",
+      "compactTabs": "コンパクトなタブレール",
+      "compactTabsDescription": "起動時に幅の狭いタブレールを使います。",
+      "tabWidth": "タブレール幅",
+      "resetTabWidth": "幅をリセット"
+    },
+    "sync": {
+      "title": "同期",
+      "acceleration": "フル同期の加速",
+      "accelerationDescription": "値が高いほどフル同期で同時に先読みするページが増えます。大きなリストは速くなりますが、timeout や Jable の一時的な拒否が起きやすくなります。",
+      "fastWarning": "高速モードでは 403、429、timeout が起きやすくなります。その場合は保守的なページ単位同期に切り替えます。",
+      "autoReplay": "同期後に変更を自動送信",
+      "autoReplayDescription": "オフの場合、同期中のお気に入りと後で見るの変更は同期待ちに残り、最終状態を手動で再送信できます。",
+      "speed": {
+        "safe": "保守",
+        "standard": "標準",
+        "fast": "高速"
+      }
+    },
+    "data": {
+      "title": "データ",
+      "importJson": "Import JSON",
+      "chooseJson": "JSON を選択",
+      "importDetectionMetadata": "ファイル内容から判定: {collection}",
+      "importDetectionFilename": "ファイル名から推測: {collection}",
+      "importDetectionUnknown": "元のリストを判定できません。Import 先のリストを選択してください。",
+      "importRows": "{count} 件",
+      "importTarget": "Import 先",
+      "importTargetPlaceholder": "Import 先リストを選択",
+      "confirmImport": "Import を確定",
+      "importParseFailed": "JSON を読み込めませんでした: {error}",
+      "exportJson": "Export JSON",
+      "exportTarget": "Export するリスト",
+      "exportAction": "Export",
+      "databasePath": "ローカルデータベースの場所",
+      "databasePathUnavailable": "データベースはまだ作成されていません"
+    }
+  },
   "status": {
     "unknownError": "不明なエラー",
     "browserOpenFailed": "動画を開けませんでした: {error}",
@@ -133,6 +182,7 @@
     "firstPageRequired": "{collection} の {mode} を開始できませんでした: 1 ページ目を確認または表示できませんでした。",
     "syncChangedDuringRun": "{collection} の {mode} を処理しました: 操作ログから {count} 件を照合して適用しました。同期中に手動操作があったため、見つからない項目の非表示処理は省略しました。",
     "syncQueuedOperationsFailed": "{collection} の同期は完了しましたが、{count} 件の操作を Jable に送信できませんでした。「同期待ち」で最終状態を再送信してください。",
+    "syncQueuedOperationsSkipped": "{collection} の同期が完了しました。{count} 件の変更は「同期待ち」に保持され、あとで最終状態を手動で再送信できます。",
     "pendingRemoteResolved": "同期待ち項目を Jable に送信しました。",
     "pendingRemoteRetryFailed": "同期待ち項目の再送信に失敗しました: {error}",
     "syncIncomplete": "{collection} の {mode} は完了しませんでした: {reason}",
@@ -154,6 +204,8 @@
     "exportFailed": "Export に失敗しました: {error}",
     "imported": "{count} 件を {collection} に Import しました",
     "importFailed": "Import に失敗しました: {error}",
+    "settingsSaved": "設定を更新しました",
+    "settingsSaveFailed": "設定を保存できませんでした: {error}",
     "newTabFailed": "タブを作成できませんでした: {error}",
     "activateTabFailed": "タブを切り替えられませんでした: {error}",
     "closeTabFailed": "タブを閉じられませんでした: {error}",

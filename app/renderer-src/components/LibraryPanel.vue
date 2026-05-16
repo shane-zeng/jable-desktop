@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import CollectionTabs from './CollectionTabs.vue';
 import PaginationControls from './PaginationControls.vue';
 import PendingRemoteOperationCard from './PendingRemoteOperationCard.vue';
@@ -40,8 +39,6 @@ const emit = defineEmits<{
   'select-tab': [tabKey: string];
   'quick-sync': [];
   'full-sync': [];
-  'import-file': [file: File];
-  'export-json': [];
   'update:search': [value: string];
   'update:search-mode': [value: SearchMode];
   'update:sort': [value: SortKey];
@@ -54,19 +51,6 @@ const emit = defineEmits<{
   'retry-pending-group': [groupId: string];
   'video-context-menu': [payload: LibraryVideoMenuPayload];
 }>();
-
-const importFile = ref<HTMLInputElement | null>(null);
-
-function chooseImportFile() {
-  if (importFile.value) importFile.value.click();
-}
-
-function handleImportFile(event: Event) {
-  const target = event.target as HTMLInputElement;
-  const file = target.files ? target.files[0] : null;
-  if (file) emit('import-file', file);
-  target.value = '';
-}
 
 function inputValue(event: Event) {
   return (event.target as HTMLInputElement | HTMLSelectElement).value;
@@ -108,9 +92,6 @@ function updateDirection(event: Event) {
         <button type="button" :disabled="busy" @click="emit('full-sync')">
           {{ fullSyncLabel }}
         </button>
-        <button type="button" :disabled="busy" @click="chooseImportFile">{{ t('library.importJson') }}</button>
-        <button type="button" :disabled="busy" @click="emit('export-json')">{{ t('library.exportJson') }}</button>
-        <input ref="importFile" type="file" accept="application/json,.json" hidden @change="handleImportFile" />
       </div>
     </div>
 

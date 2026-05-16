@@ -75,7 +75,7 @@ Large lists are accelerated in the background with a bounded AJAX window. If the
 
 ## Pending Sync
 
-If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox and sends them back to Jable after page scraping finishes.
+If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox. By default it does not send them automatically; they stay in Pending Sync for manual review. If you enable "Automatically Send Changes After Sync" in Settings, the app sends them back to Jable in order after page scraping finishes.
 
 When the app is replaying that outbox after sync, the top-right status toast stays visible with a progress bar until the queued actions finish or the first replay failure stops the run.
 
@@ -109,12 +109,25 @@ Please verify the download source is this project's GitHub Releases.
 
 After the first full sync, use Quick Sync for routine incremental updates.
 
+## Settings
+
+The Settings page controls:
+
+- Interface language
+- Maximum open browser tabs, with a memory and playback warning above the recommended range
+- Full Sync acceleration: Safe, Standard, or Fast
+- Whether sync-time favourite and watch-later changes are sent automatically after sync
+- JSON import, JSON export, and the local database path
+
+Fast mode prefetches more pages at once and helps large lists. If it hits timeout, 403, or 429 responses, the app falls back to conservative page-by-page sync.
+
 ## Import And Export
 
-- Export JSON backups
-- Import JSON backups
+- Export JSON backups from Settings > Data
+- Import JSON backups from Settings > Data
 - Preserve `site_order`
 - Compatible with legacy Tampermonkey export files
+- When a JSON file includes source metadata, the app preselects Favourites or Watch Later; if the source cannot be detected, choose the import target manually
 
 ## Data And Login State
 

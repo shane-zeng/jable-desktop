@@ -12,6 +12,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/sync-utils.ts`: shared pagination helper logic for sync flows.
 - `app/url-policy.ts`: trusted URL origins, safe browser URL protocol checks, GitHub release URL allowlist, fallback-origin rewriting, and collection URL checks.
 - `app/data-engine.ts`: local data engine boundary. The default implementation is the Rust native addon; `JABLE_DATA_ENGINE=ts` keeps the legacy TypeScript SQLite engine available for regression comparison.
+- `app/settings.ts`: shared app settings persistence under Electron `userData`, including browser tab limits, browser tab compact mode, full-sync acceleration, and automatic outbox replay preference.
 - `app/database.ts`: legacy TypeScript SQLite engine for schema/migration/search/import/export parity tests.
 - `native/local-data-engine/`: Rust SQLite data engine, migrations, FTS/search tokenization, sync operation reducer, outbox state, and JSON import/export.
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
@@ -80,6 +81,8 @@ For desktop main/preload code, use TypeScript source compiled to CommonJS runtim
 
 For renderer code, use Vue single-file components under `app/renderer-src/`, TypeScript where the renderer already uses it, Tailwind utilities for layout/state styling, and `window.jableApp` as the only renderer-to-main boundary. Treat `app/types/jable.ts` as the IPC contract.
 
+For user-facing app settings, keep the shared contract aligned across `app/types/jable.ts`, `app/settings.ts`, `app/main.ts`, `app/preload.ts`, renderer settings UI, and tests. Settings belong in the Electron `userData` JSON store unless they are data-engine state or backup data.
+
 For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. When changing tab behavior, keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 
 ## Data, Sync, and JSON Rules
@@ -92,7 +95,11 @@ Rust native data-engine behavior must also be covered directly in `native/local-
 
 Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, and `docs/development.md`.
 
+Desktop JSON import UI must require an explicit target collection. It may preselect favourites or watch-later from JSON `meta.source_path`, `meta.source_url`, or filename hints, but the final `collectionKey` passed to the data engine must come from the confirmed UI target.
+
 Quick sync starts at page 1 and stops after a page where every row is already known. Full sync rebuilds `site_order`, marks missing rows invisible only after a completed full run, and supports batch continuation. Keep partial-run behavior conservative so failed or paused syncs do not hide old local rows.
+
+Automatic post-sync outbox replay is a user setting and defaults off. When changing sync replay behavior, preserve manual Pending Sync resend and the ordered replay guardrails for the enabled case.
 
 ## Localization and Documentation
 
@@ -113,7 +120,7 @@ Keep documentation split by audience:
 
 ## Testing Guidelines
 
-Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine changes, especially migrations, search, sync reducers, and outbox state. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes and shared settings persistence. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine changes, especially migrations, search, sync reducers, and outbox state. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, settings IPC, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
 
 GitHub Actions run formatting checks, linting, typechecking, tests, and renderer builds on pushes and pull requests. Release workflows also run formatting checks and the same full quality gate before packaging unsigned artifacts.
 
@@ -123,7 +130,7 @@ Verify relevant behavior after changes:
 - Pagination is clicked through without duplicate exported URLs.
 - JSON and CSV output still include `title`, `url`, `views`, and `likes`; desktop JSON backups also preserve `site_order`.
 - Both favourites and watch-later pages produce the expected filenames.
-- The desktop app can open Jable, preserve login after restart when the server-side session remains valid, sync both collections, search local data, and import/export JSON.
+- The desktop app can open Jable, preserve login after restart when the server-side session remains valid, sync both collections, search local data, persist settings, and import/export JSON from the settings page.
 - Browser tabs, context menus, keyboard shortcuts, fullscreen video, compact tab mode, and `WebContentsView` bounds still behave as documented in `docs/shortcuts.md` and `docs/development.md`.
 
 ## Commit & Pull Request Guidelines
