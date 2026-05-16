@@ -262,6 +262,8 @@ npm install
 
 Packaging scripts build the Rust native data engine, Electron runtime, and Vue renderer before running `electron-builder`. The native `.node` file is included from `app/native-dist/` and unpacked through `asarUnpack`, because Electron cannot load native addons directly from inside `app.asar`.
 
+macOS release packaging targets Apple Silicon only. Windows release packaging runs on a Windows x64 runner so `npm run build:rust` produces `jable_data_engine.win32-x64.node` before `electron-builder` packages the app.
+
 Build unpacked apps for local smoke testing:
 
 ```sh
@@ -289,7 +291,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow checks formatting, runs `npm run check`, builds unsigned macOS artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
+The workflow checks formatting, runs `npm run check`, builds unsigned macOS arm64 artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows x64 artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
 
 The macOS and Windows workflow artifacts uploaded between build jobs and the release job are retained for 1 day only. The draft GitHub release assets are the durable release downloads.
 
@@ -317,8 +319,8 @@ The token is used only by the changelog checkout and push steps. Avoid granting 
 
 Expected draft release artifacts:
 
-- macOS `.dmg`
-- macOS `.zip`
+- macOS arm64 `.dmg`
+- macOS arm64 `.zip`
 - Windows `.exe`
 - Windows `.zip`
 

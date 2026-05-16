@@ -36,10 +36,10 @@
     "test:renderer": "vitest run --config vitest.renderer.config.mjs",
     "test:electron": "npm run build && playwright test --config playwright.electron.config.mjs",
     "test:all": "npm test && npm run test:renderer",
-    "pack:mac": "npm run build && electron-builder --mac --dir",
+    "pack:mac": "npm run build && electron-builder --mac --dir --arm64",
     "pack:win": "npm run build && electron-builder --win --dir --x64",
-    "dist:mac": "npm run build && electron-builder --mac dmg zip --x64 --arm64 --publish never",
-    "dist:mac:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --x64 --arm64 --publish never",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip --arm64 --publish never",
+    "dist:mac:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --publish never",
     "dist:win": "npm run build && electron-builder --win nsis zip --x64 --publish never",
     "dist:win:unsigned": "npm run build && electron-builder --win nsis zip --x64 --publish never"
   },
