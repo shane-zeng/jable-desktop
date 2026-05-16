@@ -154,6 +154,11 @@ type DownloadsModule = {
   };
   downloadsFilePath(userDataPath: string): string;
 };
+type DownloadHelpersModule = {
+  extractHlsPlaylistUrl(html: string, pageUrl: string): string | null;
+  videoPageRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
+  ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string;
+};
 type DataEngineInstance = {
   close(): void;
   listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[];
@@ -272,6 +277,7 @@ const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
 const dataEngineModule = require('./data-engine') as DataEngineModule;
+const downloadHelpers = require('./download-helpers') as DownloadHelpersModule;
 const downloadsModule = require('./downloads') as DownloadsModule;
 const i18n = require('./i18n') as I18nModule;
 const settingsModule = require('./settings') as SettingsModule;
@@ -302,8 +308,6 @@ const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-const DOWNLOAD_USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -869,46 +873,9 @@ async function cookieHeaderForUrl(targetUrl: string): Promise<string> {
     .join('; ');
 }
 
-function hlsUrlCandidate(value: string, pageUrl: string): string | null {
-  const candidate = value.replace(/\\\//g, '/').replace(/&amp;/g, '&').trim();
-  if (candidate.indexOf('.m3u8') === -1) return null;
-
-  try {
-    return new URL(candidate, pageUrl).toString();
-  } catch (error) {
-    return null;
-  }
-}
-
-function extractHlsPlaylistUrl(html: string, pageUrl: string): string | null {
-  const candidates = new Set<string>();
-  const normalizedHtml = html.replace(/\\\//g, '/');
-  const absoluteMatches = normalizedHtml.match(/https?:\/\/[^"'<>\\\s]+\.m3u8[^"'<>\\\s]*/g) || [];
-
-  for (let i = 0; i < absoluteMatches.length; i++) {
-    const candidate = hlsUrlCandidate(absoluteMatches[i], pageUrl);
-    if (candidate) candidates.add(candidate);
-  }
-
-  const quotedPattern = /["']([^"']+\.m3u8[^"']*)["']/g;
-  let match = quotedPattern.exec(normalizedHtml);
-  while (match) {
-    const candidate = hlsUrlCandidate(match[1], pageUrl);
-    if (candidate) candidates.add(candidate);
-    match = quotedPattern.exec(normalizedHtml);
-  }
-
-  return candidates.values().next().value || null;
-}
-
 async function fetchVideoPageHtml(videoUrl: string): Promise<string> {
   const cookieHeader = await cookieHeaderForUrl(videoUrl);
-  const headers: Record<string, string> = {
-    accept: 'text/html,application/xhtml+xml',
-    referer: new URL(videoUrl).origin + '/',
-    'user-agent': DOWNLOAD_USER_AGENT
-  };
-  if (cookieHeader) headers.cookie = cookieHeader;
+  const headers = downloadHelpers.videoPageRequestHeaders(videoUrl, cookieHeader);
 
   const response = await fetch(videoUrl, { headers: headers });
   if (!response.ok) throw new DownloadHttpError(response.status);
@@ -919,12 +886,6 @@ async function ffmpegCommandForDownload(): Promise<string> {
   const status = await getFfmpegStatus();
   if (status.state !== 'detected') throw new Error(t('status.ffmpegMissing'));
   return status.path || FFMPEG_COMMAND;
-}
-
-function ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string {
-  const headers = ['Referer: ' + videoUrl, 'User-Agent: ' + DOWNLOAD_USER_AGENT];
-  if (cookieHeader) headers.push('Cookie: ' + cookieHeader);
-  return headers.join('\r\n') + '\r\n';
 }
 
 function removePartialDownloadFile(outputPath: string) {
@@ -956,7 +917,7 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
           '-loglevel',
           'error',
           '-headers',
-          ffmpegHeaderBlock(videoUrl, cookieHeader),
+          downloadHelpers.ffmpegHeaderBlock(videoUrl, cookieHeader),
           '-protocol_whitelist',
           'file,http,https,tcp,tls,crypto',
           '-i',
@@ -1032,7 +993,7 @@ async function runQueuedDownload(record: DownloadRecord) {
     throwIfDownloadCanceled(record.videoUrl);
     const html = await fetchVideoPageHtml(record.videoUrl);
     throwIfDownloadCanceled(record.videoUrl);
-    const playlistUrl = extractHlsPlaylistUrl(html, record.videoUrl);
+    const playlistUrl = downloadHelpers.extractHlsPlaylistUrl(html, record.videoUrl);
     if (!playlistUrl) throw new HlsPlaylistNotFoundError();
     throwIfDownloadCanceled(record.videoUrl);
 
