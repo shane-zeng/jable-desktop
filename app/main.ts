@@ -732,6 +732,23 @@ function openDownloadRoot(): Promise<{ opened: boolean; path: string }> {
   });
 }
 
+function shouldBypassShellOpenForTests(): boolean {
+  return process.env.JABLE_DESKTOP_TEST_BYPASS_SHELL_OPEN === '1';
+}
+
+function openShellPath(filePath: string): Promise<void> {
+  if (shouldBypassShellOpenForTests()) return Promise.resolve();
+
+  return shell.openPath(filePath).then(function (errorMessage: string) {
+    if (errorMessage) throw new Error(errorMessage);
+  });
+}
+
+function revealShellPath(filePath: string) {
+  if (shouldBypassShellOpenForTests()) return;
+  shell.showItemInFolder(filePath);
+}
+
 function listPersistedDownloads(): DownloadRecord[] {
   return getDatabase().listDownloadAssets();
 }
@@ -1292,8 +1309,7 @@ function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
   const filePath = resolveManagedDownloadPath(readyRecord.localPath);
   if (!filePath) throw new Error(t('status.downloadFileUnavailable'));
 
-  return shell.openPath(filePath).then(function (errorMessage: string) {
-    if (errorMessage) throw new Error(errorMessage);
+  return openShellPath(filePath).then(function () {
     return {
       opened: true,
       path: filePath
@@ -1313,7 +1329,7 @@ function revealDownloadFile(value: unknown): RevealDownloadFileResult {
   const filePath = resolveManagedDownloadPath(readyRecord.localPath);
   if (!filePath) throw new Error(t('status.downloadFileUnavailable'));
 
-  shell.showItemInFolder(filePath);
+  revealShellPath(filePath);
   return {
     revealed: true,
     path: filePath

@@ -6,9 +6,40 @@ const os = require('node:os');
 const path = require('node:path');
 const { _electron: electron, expect, test } = require('@playwright/test');
 const electronPath = require('electron');
+const dataEngine = require('../../app/runtime-dist/data-engine.js');
 
 function createTempUserDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'jable-electron-smoke-'));
+}
+
+function seedDownloadAsset(userDataDir) {
+  const downloadRoot = path.join(userDataDir, 'downloads');
+  const relativePath = 'favourites/electron-smoke-download.mp4';
+  const filePath = path.join(downloadRoot, 'favourites', 'electron-smoke-download.mp4');
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, 'smoke download file');
+
+  const engine = dataEngine.createDataEngine(path.join(userDataDir, 'jable-favourites.sqlite'));
+  try {
+    engine.upsertDownloadAsset({
+      videoUrl: 'https://jable.tv/videos/electron-smoke-download/',
+      collectionKey: 'favourites',
+      title: 'Electron smoke download',
+      localPath: relativePath,
+      state: 'ready',
+      progress: 1,
+      fileSizeBytes: fs.statSync(filePath).size,
+      error: null,
+      completedAt: '2026-05-17T00:00:00.000Z'
+    });
+  } finally {
+    engine.close();
+  }
+
+  return {
+    filePath: filePath,
+    videoUrl: 'https://jable.tv/videos/electron-smoke-download/'
+  };
 }
 
 function startSmokeServer() {
@@ -71,6 +102,7 @@ async function findPreloadBridgeWindow(electronApp) {
 
 test('desktop app starts and exposes the preload IPC bridge', async function () {
   const userDataDir = createTempUserDataDir();
+  const seededDownload = seedDownloadAsset(userDataDir);
   const smokeServer = await startSmokeServer();
   let electronApp = null;
 
@@ -81,6 +113,7 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       cwd: process.cwd(),
       env: Object.assign({}, process.env, {
         ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+        JABLE_DESKTOP_TEST_BYPASS_SHELL_OPEN: '1',
         JABLE_DESKTOP_TEST_HOME_URL: smokeServer.url,
         JABLE_DESKTOP_TEST_USER_DATA_DIR: userDataDir
       })
@@ -103,6 +136,45 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     });
     expect(defaultSettings.autoReplayDeferredSyncOperations).toBe(false);
     expect(defaultSettings.maxBrowserTabs).toBe(14);
+
+    const initialDownloads = await window.evaluate(function () {
+      return globalThis.jableApp.listDownloads();
+    });
+    expect(initialDownloads.length).toBe(1);
+    expect(initialDownloads[0].state).toBe('ready');
+
+    const openedDownload = await window.evaluate(function (videoUrl) {
+      return globalThis.jableApp.openDownloadFile(videoUrl);
+    }, seededDownload.videoUrl);
+    expect(openedDownload).toEqual({
+      opened: true,
+      path: seededDownload.filePath
+    });
+
+    const revealedDownload = await window.evaluate(function (videoUrl) {
+      return globalThis.jableApp.revealDownloadFile(videoUrl);
+    }, seededDownload.videoUrl);
+    expect(revealedDownload).toEqual({
+      revealed: true,
+      path: seededDownload.filePath
+    });
+
+    fs.unlinkSync(seededDownload.filePath);
+    const missingOpenResult = await window.evaluate(async function (videoUrl) {
+      try {
+        await globalThis.jableApp.openDownloadFile(videoUrl);
+        return { opened: true, message: null };
+      } catch (error) {
+        return { opened: false, message: error instanceof Error ? error.message : String(error) };
+      }
+    }, seededDownload.videoUrl);
+    expect(missingOpenResult.opened).toBe(false);
+    expect(missingOpenResult.message).toMatch(/Downloaded file is unavailable|下載檔案無法使用/);
+
+    const missingDownloads = await window.evaluate(function () {
+      return globalThis.jableApp.listDownloads();
+    });
+    expect(missingDownloads[0].state).toBe('missing');
 
     const updatedSettings = await window.evaluate(function () {
       return globalThis.jableApp.updateSettings({ maxBrowserTabs: 6, fullSyncAjaxWindowSize: 5 });

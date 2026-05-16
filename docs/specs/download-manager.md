@@ -196,6 +196,7 @@ This document specifies the current Download List and local video file managemen
 - `app/renderer-src/components/VideoCard.vue`
 - `app/renderer-src/composables/useLibraryState.ts`
 - `test/node/download-helpers.test.js`
+- `test/electron/app-smoke.test.js`
 - `test/renderer/components/LibraryPanel.test.ts`
 - `test/renderer/components/VideoCard.test.ts`
 - `test/renderer/composables/useLibraryState.test.ts`
