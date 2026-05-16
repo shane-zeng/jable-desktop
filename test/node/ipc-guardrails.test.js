@@ -91,15 +91,15 @@ test('webview deferred operation replay retries once and preserves outbox order 
   assert.match(source, /break;\n\s*}\n\s*}/);
 });
 
-test('renderer reports queued operation failures outside the toast and counts final visible rows', function () {
+test('renderer reports queued operation failures through the pending remote tab and counts final visible rows', function () {
   const source = readSource(APP_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
 
   assert.match(mainSource, /queuedOperationFailures = applied\.failures/);
   assert.match(source, /const finalVisibleRows = await api\.countVideos\(\{ collectionKey: collectionKey \}\)/);
   assert.match(source, /resultStatus\(collectionKey, mode, result, finishState, finalVisibleRows\)/);
-  assert.match(source, /showQueuedFailureDialog\(collectionKey, result\)/);
-  assert.match(source, /class="app-modal-url-list"/);
+  assert.match(source, /await library\.refreshPendingGroups\(\)/);
+  assert.match(source, /retryPendingRemoteOperationGroup/);
 });
 
 test('sync queue and finalization phases surface renderer status updates', function () {

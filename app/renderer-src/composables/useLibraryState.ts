@@ -5,7 +5,9 @@ import type {
   CollectionKey,
   FullSyncContinuation,
   JableAppApi,
+  LibraryTabKey,
   ListVideosOptions,
+  PendingRemoteOperationGroup,
   SearchMode,
   SortDirection,
   SortKey,
@@ -34,9 +36,11 @@ function isCollectionKey(value: string): value is CollectionKey {
 }
 
 export function useLibraryState(api: JableAppApi) {
+  const activeTab = ref<LibraryTabKey>('favourites');
   const activeCollection = ref<CollectionKey>('favourites');
   const currentPage = ref(1);
   const rows = ref<VideoRow[]>([]);
+  const pendingGroups = ref<PendingRemoteOperationGroup[]>([]);
   const totalRows = ref(0);
   const search = ref('');
   const searchMode = ref<SearchMode>('any');
@@ -49,7 +53,12 @@ export function useLibraryState(api: JableAppApi) {
     return COLLECTIONS[activeCollection.value];
   });
 
+  const isPendingTab = computed(function () {
+    return activeTab.value === 'pending_remote';
+  });
+
   const totalPages = computed(function () {
+    if (isPendingTab.value) return 1;
     return Math.max(1, Math.ceil(totalRows.value / PAGE_SIZE));
   });
 
@@ -58,6 +67,7 @@ export function useLibraryState(api: JableAppApi) {
   });
 
   const countLabel = computed(function () {
+    if (isPendingTab.value) return t('pendingRemote.count', { total: pendingGroups.value.length });
     return t('library.count', { total: totalRows.value, pageSize: PAGE_SIZE });
   });
 
@@ -70,7 +80,24 @@ export function useLibraryState(api: JableAppApi) {
     return pending ? t('library.continueFullSync') : t('library.fullSync');
   });
 
+  async function refreshPendingGroups() {
+    const token = ++refreshToken;
+    const groups = await api.listPendingRemoteOperationGroups();
+
+    if (token !== refreshToken) return;
+
+    pendingGroups.value = Array.isArray(groups) ? groups : [];
+    if (activeTab.value === 'pending_remote' && pendingGroups.value.length === 0) {
+      activeTab.value = activeCollection.value;
+    }
+  }
+
   async function refreshVideos() {
+    if (isPendingTab.value) {
+      await refreshPendingGroups();
+      return;
+    }
+
     const token = ++refreshToken;
     const safeSort = normalizeSort(sort.value);
     const safeSearchMode = normalizeSearchMode(searchMode.value);
@@ -106,9 +133,21 @@ export function useLibraryState(api: JableAppApi) {
   async function selectCollection(collectionKey: string) {
     if (!isCollectionKey(collectionKey)) return;
 
+    activeTab.value = collectionKey;
     activeCollection.value = collectionKey;
     currentPage.value = 1;
     await refreshVideos();
+  }
+
+  async function selectTab(tabKey: string) {
+    if (tabKey === 'pending_remote') {
+      activeTab.value = 'pending_remote';
+      currentPage.value = 1;
+      await refreshPendingGroups();
+      return;
+    }
+
+    await selectCollection(tabKey);
   }
 
   function resetPage() {
@@ -116,6 +155,8 @@ export function useLibraryState(api: JableAppApi) {
   }
 
   async function goToPage(page: number) {
+    if (isPendingTab.value) return;
+
     const nextPage = Math.max(1, Math.min(totalPages.value, page));
     if (nextPage === currentPage.value) return;
 
@@ -124,16 +165,24 @@ export function useLibraryState(api: JableAppApi) {
   }
 
   watch([search, searchMode, sort, direction], function () {
+    if (isPendingTab.value) return;
+
     currentPage.value = 1;
     refreshVideos();
   });
 
   return {
+    activeTab: activeTab,
     activeCollection: activeCollection,
     currentCollection: currentCollection,
+    isPendingTab: isPendingTab,
     currentPage: currentPage,
     rows: rows,
+    pendingGroups: pendingGroups,
     totalRows: totalRows,
+    pendingCount: computed(function () {
+      return pendingGroups.value.length;
+    }),
     pageRows: pageRows,
     totalPages: totalPages,
     countLabel: countLabel,
@@ -145,7 +194,9 @@ export function useLibraryState(api: JableAppApi) {
     fullSyncContinuation: fullSyncContinuation,
     fullSyncButtonLabel: fullSyncButtonLabel,
     refreshVideos: refreshVideos,
+    refreshPendingGroups: refreshPendingGroups,
     selectCollection: selectCollection,
+    selectTab: selectTab,
     resetPage: resetPage,
     goToPage: goToPage
   };

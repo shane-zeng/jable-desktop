@@ -2,12 +2,15 @@
 import { ref } from 'vue';
 import CollectionTabs from './CollectionTabs.vue';
 import PaginationControls from './PaginationControls.vue';
+import PendingRemoteOperationCard from './PendingRemoteOperationCard.vue';
 import VideoCard from './VideoCard.vue';
 import { DIRECTION_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
 import { t } from '../i18n';
 import type {
   CollectionKey,
+  LibraryTabKey,
   LibraryVideoMenuPayload,
+  PendingRemoteOperationGroup,
   SearchMode,
   SortDirection,
   SortKey,
@@ -17,8 +20,11 @@ import type {
 defineProps<{
   active: boolean;
   activeCollection: CollectionKey;
+  activeTab: LibraryTabKey;
   busy: boolean;
   fullSyncLabel: string;
+  pendingCount: number;
+  pendingGroups: PendingRemoteOperationGroup[];
   search: string;
   searchMode: SearchMode;
   sort: SortKey;
@@ -31,7 +37,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'select-collection': [collectionKey: string];
+  'select-tab': [tabKey: string];
   'quick-sync': [];
   'full-sync': [];
   'import-file': [file: File];
@@ -44,6 +50,7 @@ const emit = defineEmits<{
   'next-page': [];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
+  'retry-pending-group': [groupId: string];
   'video-context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 
@@ -86,9 +93,14 @@ function updateDirection(event: Event) {
     <div
       class="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-3.5 py-2.5 max-[1180px]:flex-wrap"
     >
-      <CollectionTabs :active-collection="activeCollection" @select="emit('select-collection', $event)" />
+      <CollectionTabs
+        :active-collection="activeCollection"
+        :active-tab="activeTab"
+        :pending-count="pendingCount"
+        @select="emit('select-tab', $event)"
+      />
 
-      <div class="flex flex-wrap justify-end gap-2">
+      <div v-if="activeTab !== 'pending_remote'" class="flex flex-wrap justify-end gap-2">
         <button class="primary" type="button" :disabled="busy" @click="emit('quick-sync')">
           {{ t('library.quickSync') }}
         </button>
@@ -102,6 +114,7 @@ function updateDirection(event: Event) {
     </div>
 
     <div
+      v-if="activeTab !== 'pending_remote'"
       class="grid grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
       data-test="library-filters"
     >
@@ -141,8 +154,25 @@ function updateDirection(event: Event) {
 
     <div
       class="grid min-h-0 content-start gap-3 overflow-auto p-3.5 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]"
+      :class="activeTab === 'pending_remote' ? '[grid-template-columns:minmax(0,1fr)]' : ''"
     >
-      <div v-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
+      <template v-if="activeTab === 'pending_remote'">
+        <div v-if="!pendingGroups.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
+          {{ t('pendingRemote.empty') }}
+        </div>
+        <template v-else>
+          <PendingRemoteOperationCard
+            v-for="group in pendingGroups"
+            :key="group.groupId"
+            :group="group"
+            :busy="busy"
+            @retry="emit('retry-pending-group', $event)"
+            @open="emit('open-video', $event)"
+            @open-new="emit('open-video-new-tab', $event)"
+          />
+        </template>
+      </template>
+      <div v-else-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
         {{ t('library.empty') }}
       </div>
       <template v-else>
@@ -158,6 +188,7 @@ function updateDirection(event: Event) {
     </div>
 
     <PaginationControls
+      v-if="activeTab !== 'pending_remote'"
       :busy="busy"
       :current-page="currentPage"
       :total-pages="totalPages"

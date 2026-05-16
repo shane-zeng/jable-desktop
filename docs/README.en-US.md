@@ -73,6 +73,16 @@ After syncing, videos can be searched and sorted locally without repeatedly load
 
 Large lists are accelerated in the background with a bounded AJAX window. If the website response does not validate, the app automatically falls back to normal sequential paging.
 
+## Pending Sync
+
+If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox and sends them back to Jable after page scraping finishes.
+
+If replaying those actions fails, the Local Data view shows a global Pending Sync tab. This tab does not expose raw database operation rows. Instead, it groups by video and shows the final intended state, such as "should be added" or "should be removed". If the same video was added, removed, and added again, it appears once with an operation sequence summary.
+
+You can resend the final state for any video in Pending Sync. A successful resend removes that video from the list; a failed resend keeps it visible and updates the error. This fixes whether the video belongs to the remote list, but it does not try to restore the original remote ordering. The next Full Sync reads the website order again and brings the local `site_order` back in line.
+
+When a later Full Sync completes without new replay failures, older pending items are treated as superseded by the full website snapshot and the Pending Sync tab hides automatically.
+
 ## Installation
 
 1. Download the latest release from GitHub Releases

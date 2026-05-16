@@ -11,7 +11,9 @@ describe('CollectionTabs', function () {
   it('marks the active local collection visibly and semantically', async function () {
     const wrapper = mount(CollectionTabs, {
       props: {
-        activeCollection: 'watch_later'
+        activeCollection: 'watch_later',
+        activeTab: 'watch_later',
+        pendingCount: 0
       }
     });
 
@@ -33,7 +35,9 @@ describe('CollectionTabs', function () {
     setLocale('en-US', false);
     const wrapper = mount(CollectionTabs, {
       props: {
-        activeCollection: 'watch_later'
+        activeCollection: 'watch_later',
+        activeTab: 'watch_later',
+        pendingCount: 0
       }
     });
 
@@ -41,5 +45,25 @@ describe('CollectionTabs', function () {
 
     expect(tabs[0].text()).toBe('Favourites');
     expect(tabs[1].text()).toBe('Watch Later');
+  });
+
+  it('shows the pending remote tab with a count badge', async function () {
+    const wrapper = mount(CollectionTabs, {
+      props: {
+        activeCollection: 'favourites',
+        activeTab: 'pending_remote',
+        pendingCount: 3
+      }
+    });
+
+    const tabs = wrapper.findAll('[role="tab"]');
+
+    expect(tabs[2].text()).toContain('待同步');
+    expect(tabs[2].text()).toContain('3');
+    expect(tabs[2].attributes('aria-selected')).toBe('true');
+
+    await tabs[2].trigger('click');
+
+    expect(wrapper.emitted('select')).toEqual([['pending_remote']]);
   });
 });

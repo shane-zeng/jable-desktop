@@ -47,6 +47,35 @@ struct OperationRow {
     site_order: Option<i64>,
 }
 
+struct PendingRemoteOperationRow {
+    id: i64,
+    collection_key: String,
+    action: String,
+    video_url: String,
+    title: Option<String>,
+    views: Option<i64>,
+    likes: Option<i64>,
+    img: Option<String>,
+    preview: Option<String>,
+    remote_apply_state: String,
+    remote_apply_error: Option<String>,
+}
+
+struct PendingRemoteOperationGroup {
+    group_id: String,
+    collection_key: String,
+    video_url: String,
+    title: Option<String>,
+    views: Option<i64>,
+    likes: Option<i64>,
+    img: Option<String>,
+    preview: Option<String>,
+    final_action: String,
+    state: String,
+    error: Option<String>,
+    sequence: Vec<Value>,
+}
+
 struct ListRow {
     url: String,
     title: Option<String>,
@@ -96,6 +125,18 @@ fn now_iso() -> String {
 
 fn now_millis() -> i64 {
     (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
+}
+
+fn pending_remote_group_id(collection_key: &str, video_url: &str) -> String {
+    format!("{collection_key}\t{video_url}")
+}
+
+fn pending_remote_group_parts(group_id: Option<&str>) -> Option<(String, String)> {
+    let group_id = group_id?;
+    let (collection_key, video_url) = group_id.split_once('\t')?;
+    ensure_collection(collection_key).ok()?;
+    let normalized_url = normalize_video_url(Some(&json!(video_url)))?;
+    Some((collection_key.to_string(), normalized_url))
 }
 
 fn value_string(value: Option<&Value>) -> Option<String> {
@@ -501,6 +542,12 @@ impl Engine {
            source_url TEXT,
            remote_applied_at TEXT,
            remote_apply_error TEXT,
+           remote_apply_state TEXT NOT NULL DEFAULT 'pending',
+           remote_failed_at TEXT,
+           remote_blocked_by INTEGER,
+           remote_resolved_at TEXT,
+           remote_superseded_at TEXT,
+           remote_superseded_by_sync_run_id TEXT,
            created_at TEXT NOT NULL,
            reconciled_at TEXT,
            FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE
@@ -530,10 +577,52 @@ impl Engine {
         ensure_column(conn, "sync_operations", "source_url", "TEXT")?;
         ensure_column(conn, "sync_operations", "remote_applied_at", "TEXT")?;
         ensure_column(conn, "sync_operations", "remote_apply_error", "TEXT")?;
+        ensure_column(
+            conn,
+            "sync_operations",
+            "remote_apply_state",
+            "TEXT NOT NULL DEFAULT 'pending'",
+        )?;
+        ensure_column(conn, "sync_operations", "remote_failed_at", "TEXT")?;
+        ensure_column(conn, "sync_operations", "remote_blocked_by", "INTEGER")?;
+        ensure_column(conn, "sync_operations", "remote_resolved_at", "TEXT")?;
+        ensure_column(conn, "sync_operations", "remote_superseded_at", "TEXT")?;
+        ensure_column(
+            conn,
+            "sync_operations",
+            "remote_superseded_by_sync_run_id",
+            "TEXT",
+        )?;
         ensure_column(conn, "videos", "search_text", "TEXT")?;
 
+        self.backfill_remote_apply_state()?;
         self.backfill_video_search_text()?;
         self.ensure_video_search_index()?;
+        Ok(())
+    }
+
+    fn backfill_remote_apply_state(&self) -> Result<()> {
+        self.conn()?
+            .execute(
+                "UPDATE sync_operations
+         SET remote_apply_state = 'applied'
+         WHERE remote_deferred = 1
+           AND remote_applied_at IS NOT NULL
+           AND remote_apply_state = 'pending'",
+                [],
+            )
+            .map_err(to_napi_error)?;
+        self.conn()?
+            .execute(
+                "UPDATE sync_operations
+         SET remote_apply_state = 'failed'
+         WHERE remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_error IS NOT NULL
+           AND remote_apply_state = 'pending'",
+                [],
+            )
+            .map_err(to_napi_error)?;
         Ok(())
     }
 
@@ -639,6 +728,16 @@ impl Engine {
                 self.mark_deferred_sync_operations_applied(payload)
             }
             "markDeferredSyncOperationFailed" => self.mark_deferred_sync_operation_failed(payload),
+            "listPendingRemoteOperationGroups" => self.list_pending_remote_operation_groups(),
+            "preparePendingRemoteOperationRetry" => {
+                self.prepare_pending_remote_operation_retry(payload)
+            }
+            "markPendingRemoteOperationGroupResolved" => {
+                self.mark_pending_remote_operation_group_resolved(payload)
+            }
+            "markPendingRemoteOperationGroupFailed" => {
+                self.mark_pending_remote_operation_group_failed(payload)
+            }
             "finishSync" => self.finish_sync(payload),
             "clearSyncState" => self.clear_sync_state(payload),
             "importResource" => self.import_resource(payload),
@@ -1246,6 +1345,7 @@ impl Engine {
          AND sync_run_id = ?
          AND remote_deferred = 1
          AND remote_applied_at IS NULL
+         AND remote_apply_state = 'pending'
        ORDER BY id ASC"
         } else {
             "SELECT id, action, video_url, remote_video_id, remote_fav_type
@@ -1253,6 +1353,7 @@ impl Engine {
        WHERE collection_key = ?
          AND remote_deferred = 1
          AND remote_applied_at IS NULL
+         AND remote_apply_state = 'pending'
        ORDER BY id ASC"
         };
         let mut statement = self.conn()?.prepare(sql).map_err(to_napi_error)?;
@@ -1302,7 +1403,11 @@ impl Engine {
                     self.conn()?
                         .execute(
                             "UPDATE sync_operations
-               SET remote_applied_at = ?, remote_apply_error = NULL
+               SET remote_applied_at = ?,
+                   remote_apply_error = NULL,
+                   remote_apply_state = 'applied',
+                   remote_failed_at = NULL,
+                   remote_blocked_by = NULL
                WHERE collection_key = ? AND sync_run_id = ? AND id = ?",
                             params![timestamp, collection_key, sync_run_id, id],
                         )
@@ -1311,7 +1416,11 @@ impl Engine {
                     self.conn()?
                         .execute(
                             "UPDATE sync_operations
-               SET remote_applied_at = ?, remote_apply_error = NULL
+               SET remote_applied_at = ?,
+                   remote_apply_error = NULL,
+                   remote_apply_state = 'applied',
+                   remote_failed_at = NULL,
+                   remote_blocked_by = NULL
                WHERE collection_key = ? AND id = ?",
                             params![timestamp, collection_key, id],
                         )
@@ -1340,27 +1449,338 @@ impl Engine {
             .ok_or_else(|| Error::from_reason("mark failed requires id".to_string()))?;
         let message = value_string(object_field(&payload, "message"))
             .unwrap_or_else(|| "Failed to apply queued operation".to_string());
+        let timestamp = now_iso();
         let changes = if let Some(sync_run_id) = sync_run_id.as_deref() {
             self.conn()?
                 .execute(
                     "UPDATE sync_operations
-           SET remote_apply_error = ?
+           SET remote_apply_error = ?,
+               remote_apply_state = 'failed',
+               remote_failed_at = ?,
+               remote_blocked_by = NULL
            WHERE collection_key = ? AND sync_run_id = ? AND id = ?",
-                    params![message, collection_key, sync_run_id, id],
+                    params![message, timestamp, collection_key, sync_run_id, id],
                 )
                 .map_err(to_napi_error)?
         } else {
             self.conn()?
                 .execute(
                     "UPDATE sync_operations
-           SET remote_apply_error = ?
+           SET remote_apply_error = ?,
+               remote_apply_state = 'failed',
+               remote_failed_at = ?,
+               remote_blocked_by = NULL
            WHERE collection_key = ? AND id = ?",
-                    params![message, collection_key, id],
+                    params![message, timestamp, collection_key, id],
                 )
                 .map_err(to_napi_error)?
         };
 
+        if changes > 0 {
+            if let Some(sync_run_id) = sync_run_id.as_deref() {
+                self.conn()?
+                    .execute(
+                        "UPDATE sync_operations
+             SET remote_apply_error = ?,
+                 remote_apply_state = 'blocked',
+                 remote_blocked_by = ?
+             WHERE collection_key = ?
+               AND sync_run_id = ?
+               AND id > ?
+               AND remote_deferred = 1
+               AND remote_applied_at IS NULL
+               AND remote_apply_state = 'pending'",
+                        params![
+                            "Blocked by earlier failed operation",
+                            id,
+                            collection_key,
+                            sync_run_id,
+                            id
+                        ],
+                    )
+                    .map_err(to_napi_error)?;
+            } else {
+                self.conn()?
+                    .execute(
+                        "UPDATE sync_operations
+             SET remote_apply_error = ?,
+                 remote_apply_state = 'blocked',
+                 remote_blocked_by = ?
+             WHERE collection_key = ?
+               AND id > ?
+               AND remote_deferred = 1
+               AND remote_applied_at IS NULL
+               AND remote_apply_state = 'pending'",
+                        params![
+                            "Blocked by earlier failed operation",
+                            id,
+                            collection_key,
+                            id
+                        ],
+                    )
+                    .map_err(to_napi_error)?;
+            }
+        }
+
         Ok(json!(changes > 0))
+    }
+
+    fn list_pending_remote_operation_groups(&self) -> Result<Value> {
+        let mut statement = self
+            .conn()?
+            .prepare(
+                "SELECT so.id, so.collection_key, so.action, so.video_url,
+                COALESCE(so.title, v.title) AS title,
+                COALESCE(so.views, v.views) AS views,
+                COALESCE(so.likes, v.likes) AS likes,
+                COALESCE(so.img, v.img) AS img,
+                COALESCE(so.preview, v.preview) AS preview,
+                so.remote_apply_state, so.remote_apply_error
+         FROM sync_operations so
+         LEFT JOIN videos v ON v.url = so.video_url
+         WHERE so.remote_deferred = 1
+           AND so.remote_applied_at IS NULL
+           AND so.remote_apply_state IN ('failed', 'blocked', 'pending')
+         ORDER BY so.collection_key ASC, so.video_url ASC, so.id ASC",
+            )
+            .map_err(to_napi_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(PendingRemoteOperationRow {
+                    id: row.get(0)?,
+                    collection_key: row.get(1)?,
+                    action: row.get(2)?,
+                    video_url: row.get(3)?,
+                    title: row.get(4)?,
+                    views: row.get(5)?,
+                    likes: row.get(6)?,
+                    img: row.get(7)?,
+                    preview: row.get(8)?,
+                    remote_apply_state: row.get(9)?,
+                    remote_apply_error: row.get(10)?,
+                })
+            })
+            .map_err(to_napi_error)?
+            .collect::<std::result::Result<Vec<PendingRemoteOperationRow>, _>>()
+            .map_err(to_napi_error)?;
+
+        let mut grouped: HashMap<String, PendingRemoteOperationGroup> = HashMap::new();
+        let mut order: Vec<String> = Vec::new();
+        for row in rows {
+            let group_id = pending_remote_group_id(&row.collection_key, &row.video_url);
+            if !grouped.contains_key(&group_id) {
+                order.push(group_id.clone());
+                grouped.insert(
+                    group_id.clone(),
+                    PendingRemoteOperationGroup {
+                        group_id: group_id.clone(),
+                        collection_key: row.collection_key.clone(),
+                        video_url: row.video_url.clone(),
+                        title: row.title.clone(),
+                        views: row.views,
+                        likes: row.likes,
+                        img: row.img.clone(),
+                        preview: row.preview.clone(),
+                        final_action: row.action.clone(),
+                        state: row.remote_apply_state.clone(),
+                        error: row.remote_apply_error.clone(),
+                        sequence: Vec::new(),
+                    },
+                );
+            }
+
+            let Some(group) = grouped.get_mut(&group_id) else {
+                continue;
+            };
+            group.final_action = row.action.clone();
+            group.sequence.push(json!({
+              "id": row.id,
+              "action": row.action,
+              "state": row.remote_apply_state,
+              "error": row.remote_apply_error
+            }));
+            if row.remote_apply_state == "failed" {
+                group.state = "failed".to_string();
+                group.error = row.remote_apply_error.clone();
+            } else if group.state != "failed" {
+                group.state = row.remote_apply_state.clone();
+                if row.remote_apply_error.is_some() {
+                    group.error = row.remote_apply_error.clone();
+                }
+            }
+            if row.title.is_some() {
+                group.title = row.title.clone();
+            }
+            if row.views.is_some() {
+                group.views = row.views;
+            }
+            if row.likes.is_some() {
+                group.likes = row.likes;
+            }
+            if row.img.is_some() {
+                group.img = row.img.clone();
+            }
+            if row.preview.is_some() {
+                group.preview = row.preview.clone();
+            }
+        }
+
+        let groups = order
+            .into_iter()
+            .filter_map(|group_id| grouped.remove(&group_id))
+            .map(|group| {
+                json!({
+                  "groupId": group.group_id,
+                  "collectionKey": group.collection_key,
+                  "videoUrl": group.video_url,
+                  "title": group.title,
+                  "views": group.views,
+                  "likes": group.likes,
+                  "img": group.img,
+                  "preview": group.preview,
+                  "finalAction": group.final_action,
+                  "state": group.state,
+                  "error": group.error,
+                  "operationCount": group.sequence.len(),
+                  "sequence": group.sequence
+                })
+            })
+            .collect::<Vec<Value>>();
+
+        Ok(Value::Array(groups))
+    }
+
+    fn prepare_pending_remote_operation_retry(&self, payload: Value) -> Result<Value> {
+        let group_id = value_string(object_field(&payload, "groupId")).ok_or_else(|| {
+            Error::from_reason("Pending operation group requires groupId".to_string())
+        })?;
+        let (collection_key, video_url) =
+            pending_remote_group_parts(Some(&group_id)).ok_or_else(|| {
+                Error::from_reason("Pending operation group was not found".to_string())
+            })?;
+        let row = self
+            .conn()?
+            .query_row(
+                "SELECT id, action, video_url, remote_video_id, remote_fav_type
+         FROM sync_operations
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')
+         ORDER BY id DESC
+         LIMIT 1",
+                params![&collection_key, &video_url],
+                pending_operation_from_row,
+            )
+            .optional()
+            .map_err(to_napi_error)?
+            .ok_or_else(|| {
+                Error::from_reason("Pending operation group was not found".to_string())
+            })?;
+
+        let mut result = row;
+        if let Some(object) = result.as_object_mut() {
+            object.insert("groupId".to_string(), json!(group_id));
+            object.insert("collectionKey".to_string(), json!(collection_key));
+            object.insert("resolved".to_string(), json!(false));
+        }
+        Ok(result)
+    }
+
+    fn mark_pending_remote_operation_group_resolved(&self, payload: Value) -> Result<Value> {
+        let group_id = value_string(object_field(&payload, "groupId")).ok_or_else(|| {
+            Error::from_reason("Pending operation group requires groupId".to_string())
+        })?;
+        let Some((collection_key, video_url)) = pending_remote_group_parts(Some(&group_id)) else {
+            return Ok(json!(false));
+        };
+        let changes = self
+            .conn()?
+            .execute(
+                "UPDATE sync_operations
+         SET remote_apply_state = 'resolved',
+             remote_resolved_at = ?,
+             remote_apply_error = NULL,
+             remote_failed_at = NULL,
+             remote_blocked_by = NULL
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+                params![now_iso(), &collection_key, &video_url],
+            )
+            .map_err(to_napi_error)?;
+        Ok(json!(changes > 0))
+    }
+
+    fn mark_pending_remote_operation_group_failed(&self, payload: Value) -> Result<Value> {
+        let group_id = value_string(object_field(&payload, "groupId")).ok_or_else(|| {
+            Error::from_reason("Pending operation group requires groupId".to_string())
+        })?;
+        let Some((collection_key, video_url)) = pending_remote_group_parts(Some(&group_id)) else {
+            return Ok(json!(false));
+        };
+        let message = value_string(object_field(&payload, "message"))
+            .unwrap_or_else(|| "Failed to apply queued operation".to_string());
+        let latest_id = self
+            .conn()?
+            .query_row(
+                "SELECT id
+         FROM sync_operations
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')
+         ORDER BY id DESC
+         LIMIT 1",
+                params![&collection_key, &video_url],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(to_napi_error)?;
+        let Some(latest_id) = latest_id else {
+            return Ok(json!(false));
+        };
+
+        let changes = self
+            .conn()?
+            .execute(
+                "UPDATE sync_operations
+         SET remote_apply_state = 'failed',
+             remote_apply_error = ?,
+             remote_failed_at = ?,
+             remote_blocked_by = NULL
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND id = ?",
+                params![message, now_iso(), &collection_key, &video_url, latest_id],
+            )
+            .map_err(to_napi_error)?;
+        Ok(json!(changes > 0))
+    }
+
+    fn supersede_pending_remote_operations(
+        &self,
+        collection_key: &str,
+        sync_run_id: &str,
+        timestamp: &str,
+    ) -> Result<usize> {
+        self.conn()?
+            .execute(
+                "UPDATE sync_operations
+         SET remote_apply_state = 'superseded',
+             remote_superseded_at = ?,
+             remote_superseded_by_sync_run_id = ?
+         WHERE collection_key = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked')",
+                params![timestamp, sync_run_id, collection_key],
+            )
+            .map_err(to_napi_error)
     }
 
     fn reconcile_sync_operations(
@@ -1542,6 +1962,8 @@ impl Engine {
             .or_else(|| value_string(object_field(result, "mode")));
         let sync_run_id = value_string(object_field(&payload, "syncRunId"))
             .or_else(|| value_string(object_field(result, "syncRunId")));
+        let queued_operations_failed =
+            value_i64(object_field(result, "queuedOperationsFailed")).unwrap_or(0);
 
         self
       .conn()?
@@ -1576,6 +1998,11 @@ impl Engine {
 
         let mutations_reconciled =
             self.reconcile_sync_operations(&collection_key, sync_run_id.as_deref(), &timestamp)?;
+        if mode.as_deref() == Some("full") && completed && queued_operations_failed == 0 {
+            if let Some(sync_run_id) = sync_run_id.as_deref() {
+                self.supersede_pending_remote_operations(&collection_key, sync_run_id, &timestamp)?;
+            }
+        }
         let mut state = self.get_sync_state(&collection_key)?.ok_or_else(|| {
             Error::from_reason(format!(
                 "Sync state was not saved for collection: {collection_key}"
@@ -1709,11 +2136,7 @@ impl Engine {
         let rows = rows_value.as_array().cloned().unwrap_or_default();
         let state = self.get_sync_state(&collection_key)?;
         let exported_at = now_iso();
-        let page_count = if rows.is_empty() {
-            0
-        } else {
-            (rows.len() + PAGE_SIZE - 1) / PAGE_SIZE
-        };
+        let page_count = rows.len().div_ceil(PAGE_SIZE);
         let pages = rows
             .chunks(PAGE_SIZE)
             .enumerate()
@@ -1888,3 +2311,6 @@ impl JableDataEngine {
         "rust-native".to_string()
     }
 }
+
+#[cfg(test)]
+mod tests;

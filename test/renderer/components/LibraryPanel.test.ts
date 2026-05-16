@@ -14,8 +14,11 @@ describe('LibraryPanel', function () {
       props: {
         active: true,
         activeCollection: 'favourites',
+        activeTab: 'favourites',
         busy: false,
         fullSyncLabel: 'Full Sync',
+        pendingCount: 0,
+        pendingGroups: [],
         search: '',
         searchMode: 'any',
         sort: 'site_order',
@@ -44,8 +47,11 @@ describe('LibraryPanel', function () {
       props: {
         active: true,
         activeCollection: 'favourites',
+        activeTab: 'favourites',
         busy: false,
         fullSyncLabel: 'フル同期',
+        pendingCount: 0,
+        pendingGroups: [],
         search: '',
         searchMode: 'any',
         sort: 'site_order',
@@ -74,5 +80,57 @@ describe('LibraryPanel', function () {
     expect(wrapper.find('[aria-label="検索モード"]').text()).toContain('いずれかの語');
     expect(wrapper.find('[aria-label="並び替え"]').text()).toContain('サイト順');
     expect(wrapper.find('[aria-label="並び順"]').text()).toContain('昇順');
+  });
+
+  it('renders pending remote groups without collection controls', async function () {
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'pending_remote',
+        busy: false,
+        fullSyncLabel: '完整同步',
+        pendingCount: 1,
+        pendingGroups: [
+          {
+            groupId: 'favourites\thttps://jable.tv/videos/pending/',
+            collectionKey: 'favourites',
+            videoUrl: 'https://jable.tv/videos/pending/',
+            title: 'Pending Video',
+            views: null,
+            likes: null,
+            img: null,
+            preview: null,
+            finalAction: 'add',
+            state: 'failed',
+            error: 'HTTP 500',
+            operationCount: 2,
+            sequence: [
+              { id: 1, action: 'remove', state: 'failed', error: 'HTTP 500' },
+              { id: 2, action: 'add', state: 'blocked', error: 'Blocked by earlier failed operation' }
+            ]
+          }
+        ],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '1 筆待同步',
+        pageLabel: '第 1 / 1 頁',
+        rows: [],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    expect(wrapper.text()).toContain('Pending Video');
+    expect(wrapper.text()).toContain('應加入');
+    expect(wrapper.text()).toContain('HTTP 500');
+    expect(wrapper.find('[data-test="library-filters"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('快速同步');
+
+    await wrapper.find('[data-test="pending-remote-card"] button').trigger('click');
+
+    expect(wrapper.emitted('retry-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
   });
 });

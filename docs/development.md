@@ -104,6 +104,8 @@ Desktop sync behavior:
 - Sync runs in a dedicated background browser worker. Failed full runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - The webview scraper saves each page through `db:save-sync-page` and emits `sync-page` messages while it paginates. The renderer displays progress and calls `finishSync` after the worker returns.
 - Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; during active sync they are deferred into the ordered `sync_operations` outbox, then replayed after sync. Outside active sync, successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
+- The Rust data engine owns persisted outbox state. Deferred rows move through `pending`, `applied`, `failed`, `blocked`, `resolved`, and `superseded`; the webview only performs Jable AJAX with the current cookie/session. Automatic replay still runs in operation order and stops after the first failed operation, marking later pending rows as blocked.
+- The renderer's global Pending Sync tab is backed by `listPendingRemoteOperationGroups()`, which groups unresolved outbox rows by `collectionKey + videoUrl` and exposes the final intended action rather than raw operation rows. Manual resend uses `preparePendingRemoteOperationRetry()` and sends only the group's final add/remove state; success marks the group `resolved`, while a later clean full sync marks older failed/blocked rows `superseded`.
 - JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
 Desktop data and search behavior:
@@ -111,10 +113,9 @@ Desktop data and search behavior:
 - Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
 - Video URLs from the fallback origin are canonicalized to `https://jable.tv` before local storage, so syncing through `https://fs1.app` does not duplicate existing rows.
 - The default local data engine is the Rust native addon under `native/local-data-engine`. It opens the same `jable-favourites.sqlite` file and preserves the existing IPC return shapes. Set `JABLE_DATA_ENGINE=ts` only for regression comparison against the legacy TypeScript SQLite engine.
-- The next Rust boundary should stay local-data focused: persisted operation-outbox retry scheduling and consistency audit/repair are better Rust candidates than moving Jable DOM scraping or official API replay out of the webview session.
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
-- Database migration creates `videos`, `collections`, `collection_items`, and `sync_states`; adds `site_order`, `is_visible`, `missing_at`, `last_sync_run_id`, and `videos.search_text`; verifies the FTS table columns; recreates triggers when needed; and rebuilds the index if search text changed or FTS objects are missing.
+- Database migration creates `videos`, `collections`, `collection_items`, and `sync_states`; adds `site_order`, `is_visible`, `missing_at`, `last_sync_run_id`, `videos.search_text`, and outbox state columns such as `remote_apply_state`, `remote_failed_at`, `remote_blocked_by`, `remote_resolved_at`, and `remote_superseded_at`; verifies the FTS table columns; recreates triggers when needed; and rebuilds the index if search text changed or FTS objects are missing.
 - Direct collection adds from Jable page actions use a negative `site_order` fallback until the next full sync rebuilds site ordering.
 - Desktop JSON file export streams pages to a temporary file, yields between batches, and atomically renames the file when complete. Keep cleanup paths covered when changing export behavior.
 
@@ -138,7 +139,7 @@ Renderer behavior:
 - `app/main.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and main-process normalizers aligned when adding IPC calls.
 - `app/renderer-src/App.vue` coordinates the two top-level views, browser messages, sync orchestration, import/export, toast status, and full-sync continuation state.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
-- `useLibraryState` owns collection selection, pagination, search mode, sorting, refresh token cancellation, and the pending full-sync continuation label.
+- `useLibraryState` owns collection/pending-tab selection, pagination, search mode, sorting, pending remote operation groups, refresh token cancellation, and the pending full-sync continuation label.
 - Browser compact-mode and tab rail width are stored in renderer `localStorage` using constants from `app/renderer-src/constants.ts`.
 - The renderer stylesheet is intentionally dark-mode-only. If appearance modes are reintroduced, keep `styles.css`, persisted preferences, and any docs in sync.
 

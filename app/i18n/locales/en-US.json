@@ -67,6 +67,31 @@
     "count": "{total} items · {pageSize} per page",
     "page": "Page {current} / {total}"
   },
+  "pendingRemote": {
+    "tab": "Pending Sync",
+    "count": "{total} pending",
+    "empty": "No pending remote changes",
+    "collection": "List",
+    "finalState": "Final State",
+    "syncState": "Sync State",
+    "error": "Error",
+    "sequence": "Operation Sequence",
+    "retry": "Resend Final State",
+    "finalAction": {
+      "add": "Should be added",
+      "remove": "Should be removed"
+    },
+    "action": {
+      "add": "Add",
+      "remove": "Remove"
+    },
+    "state": {
+      "pending": "Waiting",
+      "failed": "Failed",
+      "blocked": "Not sent"
+    },
+    "sequenceStep": "{action} {state}"
+  },
   "pagination": {
     "prev": "Previous",
     "next": "Next"
@@ -101,12 +126,9 @@
     "fullSyncPaused": "{collection} {mode} paused: this batch scanned {pages} pages and {rows} items. You can continue full sync.",
     "firstPageRequired": "{collection} {mode} did not start: could not confirm or return to page 1.",
     "syncChangedDuringRun": "{collection} {mode} processed: reconciled {count} operations from the operation log. Missing-item hiding was skipped because manual operations happened during sync.",
-    "syncQueuedOperationsFailed": "{collection} sync finished, but {count} queued operations could not be sent to Jable. They were kept in the operation log for later handling.",
-    "syncQueueFailureTitle": "Queued operations were not sent",
-    "syncQueueFailureSummary": "{collection} sync finished, but replaying the operation log failed: {error}. To preserve operation order, the following {count} operations were not sent to Jable.",
-    "syncQueueFailureFailedUrl": "Failed operation URL",
-    "syncQueueFailureBlockedUrls": "Unsent later operation URLs",
-    "syncQueueFailureClose": "Close",
+    "syncQueuedOperationsFailed": "{collection} sync finished, but {count} operations could not be sent to Jable. Review Pending Sync and resend the final state.",
+    "pendingRemoteResolved": "The pending item was sent to Jable.",
+    "pendingRemoteRetryFailed": "Failed to resend the pending item: {error}",
     "syncIncomplete": "{collection} {mode} did not complete: {reason}",
     "syncIncompleteAfterAjaxFallback": "{collection} {mode} did not complete: {reason}. AJAX prefetch previously hit {ajaxReason}, then switched to conservative page-by-page sync.",
     "syncAjaxFallbackResult": "{status} (AJAX prefetch hit {reason}; switched to conservative page-by-page sync after {retries} retries.)",

@@ -6,6 +6,8 @@ import type {
   ExportResource,
   FinishSyncPayload,
   ListVideosOptions,
+  PendingRemoteOperationGroup,
+  PendingRemoteOperationRetryResult,
   SyncPagePayload,
   SyncState,
   VideoRow
@@ -77,6 +79,10 @@ export type DataEngine = {
     id: unknown,
     message: unknown
   ): boolean;
+  listPendingRemoteOperationGroups(): PendingRemoteOperationGroup[];
+  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationRetryResult;
+  markPendingRemoteOperationGroupResolved(groupId: string): boolean;
+  markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean;
   finishSync(payload: FinishSyncPayload): SyncState;
   clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
   importResource(
@@ -160,6 +166,22 @@ class RustDataEngine implements DataEngine {
       id: id,
       message: message
     });
+  }
+
+  listPendingRemoteOperationGroups(): PendingRemoteOperationGroup[] {
+    return this.callNative('listPendingRemoteOperationGroups', {});
+  }
+
+  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationRetryResult {
+    return this.callNative('preparePendingRemoteOperationRetry', { groupId: groupId });
+  }
+
+  markPendingRemoteOperationGroupResolved(groupId: string): boolean {
+    return this.callNative('markPendingRemoteOperationGroupResolved', { groupId: groupId });
+  }
+
+  markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean {
+    return this.callNative('markPendingRemoteOperationGroupFailed', { groupId: groupId, message: message });
   }
 
   finishSync(payload: FinishSyncPayload): SyncState {

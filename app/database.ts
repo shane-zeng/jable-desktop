@@ -19,6 +19,9 @@ import type {
   ExportResource,
   ExportVideoRow,
   ListVideosOptions,
+  PendingRemoteOperationGroup,
+  PendingRemoteOperationRetryResult,
+  PendingRemoteOperationState,
   SearchMode,
   SyncState,
   VideoRow
@@ -65,6 +68,7 @@ type SyncResultInput = {
   lastKnownUrl?: unknown;
   mode?: unknown;
   syncRunId?: unknown;
+  queuedOperationsFailed?: unknown;
 };
 type FinishSyncInput = {
   collectionKey: CollectionKey;
@@ -101,6 +105,16 @@ type PendingSyncOperationRow = {
   video_url: string;
   remote_video_id: string | null;
   remote_fav_type: string | null;
+};
+type PendingRemoteOperationRow = PendingSyncOperationRow & {
+  collection_key: CollectionKey;
+  title: string | null;
+  views: number | null;
+  likes: number | null;
+  img: string | null;
+  preview: string | null;
+  remote_apply_state: PendingRemoteOperationState;
+  remote_apply_error: string | null;
 };
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
@@ -480,6 +494,22 @@ function pendingSyncOperationFromRow(row: PendingSyncOperationRow): PendingSyncO
   };
 }
 
+function pendingRemoteGroupId(collectionKey: CollectionKey, videoUrl: string): string {
+  return collectionKey + '\t' + videoUrl;
+}
+
+function pendingRemoteGroupParts(groupId: unknown): { collectionKey: CollectionKey; videoUrl: string } | null {
+  const text = String(groupId || '');
+  const separator = text.indexOf('\t');
+  if (separator <= 0) return null;
+
+  const collectionKey = text.slice(0, separator);
+  if (collectionKey !== 'favourites' && collectionKey !== 'watch_later') return null;
+
+  const videoUrl = normalizeVideoUrl(text.slice(separator + 1));
+  return videoUrl ? { collectionKey: collectionKey, videoUrl: videoUrl } : null;
+}
+
 /**
  * @param {string} run
  * @returns {string[]}
@@ -739,6 +769,12 @@ class JableDatabase {
         '  source_url TEXT,',
         '  remote_applied_at TEXT,',
         '  remote_apply_error TEXT,',
+        "  remote_apply_state TEXT NOT NULL DEFAULT 'pending',",
+        '  remote_failed_at TEXT,',
+        '  remote_blocked_by INTEGER,',
+        '  remote_resolved_at TEXT,',
+        '  remote_superseded_at TEXT,',
+        '  remote_superseded_by_sync_run_id TEXT,',
         '  created_at TEXT NOT NULL,',
         '  reconciled_at TEXT,',
         '  FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE',
@@ -757,8 +793,39 @@ class JableDatabase {
     this.ensureColumn('sync_operations', 'source_url', 'TEXT');
     this.ensureColumn('sync_operations', 'remote_applied_at', 'TEXT');
     this.ensureColumn('sync_operations', 'remote_apply_error', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_apply_state', "TEXT NOT NULL DEFAULT 'pending'");
+    this.ensureColumn('sync_operations', 'remote_failed_at', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_blocked_by', 'INTEGER');
+    this.ensureColumn('sync_operations', 'remote_resolved_at', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_superseded_at', 'TEXT');
+    this.ensureColumn('sync_operations', 'remote_superseded_by_sync_run_id', 'TEXT');
     this.ensureColumn('videos', 'search_text', 'TEXT');
+    this.backfillRemoteApplyState();
     this.ensureVideoSearchIndex(this.backfillVideoSearchText());
+  }
+
+  backfillRemoteApplyState() {
+    this.db
+      .prepare(
+        [
+          "UPDATE sync_operations SET remote_apply_state = 'applied'",
+          'WHERE remote_deferred = 1',
+          '  AND remote_applied_at IS NOT NULL',
+          "  AND remote_apply_state = 'pending'"
+        ].join(' ')
+      )
+      .run();
+    this.db
+      .prepare(
+        [
+          "UPDATE sync_operations SET remote_apply_state = 'failed'",
+          'WHERE remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          '  AND remote_apply_error IS NOT NULL',
+          "  AND remote_apply_state = 'pending'"
+        ].join(' ')
+      )
+      .run();
   }
 
   backfillVideoSearchText(): boolean {
@@ -1245,6 +1312,7 @@ class JableDatabase {
           '  AND sync_run_id = ?',
           '  AND remote_deferred = 1',
           '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state = 'pending'",
           'ORDER BY id ASC'
         ].join(' ')
       )
@@ -1264,6 +1332,7 @@ class JableDatabase {
           'WHERE collection_key = ?',
           '  AND remote_deferred = 1',
           '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state = 'pending'",
           'ORDER BY id ASC'
         ].join(' ')
       )
@@ -1279,7 +1348,8 @@ class JableDatabase {
     const update = this.db.prepare(
       [
         'UPDATE sync_operations',
-        'SET remote_applied_at = ?, remote_apply_error = NULL',
+        "SET remote_applied_at = ?, remote_apply_error = NULL, remote_apply_state = 'applied',",
+        '  remote_failed_at = NULL, remote_blocked_by = NULL',
         'WHERE collection_key = ?',
         syncRunId ? '  AND sync_run_id = ?' : '',
         '  AND id = ?'
@@ -1323,7 +1393,7 @@ class JableDatabase {
     const update = this.db.prepare(
       [
         'UPDATE sync_operations',
-        'SET remote_apply_error = ?',
+        "SET remote_apply_error = ?, remote_apply_state = 'failed', remote_failed_at = ?, remote_blocked_by = NULL",
         'WHERE collection_key = ?',
         syncRunId ? '  AND sync_run_id = ?' : '',
         '  AND id = ?'
@@ -1332,11 +1402,224 @@ class JableDatabase {
         .join(' ')
     );
     const messageText = normalizeText(message) || 'Failed to apply queued operation';
+    const timestamp = nowIso();
     const result = syncRunId
-      ? update.run(messageText, collectionKey, syncRunId, operationId)
-      : update.run(messageText, collectionKey, operationId);
+      ? update.run(messageText, timestamp, collectionKey, syncRunId, operationId)
+      : update.run(messageText, timestamp, collectionKey, operationId);
+
+    if (result.changes) {
+      const blockLater = this.db.prepare(
+        [
+          'UPDATE sync_operations',
+          "SET remote_apply_error = ?, remote_apply_state = 'blocked', remote_blocked_by = ?",
+          'WHERE collection_key = ?',
+          syncRunId ? '  AND sync_run_id = ?' : '',
+          '  AND id > ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state = 'pending'"
+        ]
+          .filter(Boolean)
+          .join(' ')
+      );
+      if (syncRunId) {
+        blockLater.run('Blocked by earlier failed operation', operationId, collectionKey, syncRunId, operationId);
+      } else {
+        blockLater.run('Blocked by earlier failed operation', operationId, collectionKey, operationId);
+      }
+    }
 
     return Boolean(result.changes);
+  }
+
+  listPendingRemoteOperationGroups(): PendingRemoteOperationGroup[] {
+    const rows = this.db
+      .prepare(
+        [
+          'SELECT so.id, so.collection_key, so.action, so.video_url,',
+          '  COALESCE(so.title, v.title) AS title,',
+          '  COALESCE(so.views, v.views) AS views,',
+          '  COALESCE(so.likes, v.likes) AS likes,',
+          '  COALESCE(so.img, v.img) AS img,',
+          '  COALESCE(so.preview, v.preview) AS preview,',
+          '  so.remote_video_id, so.remote_fav_type, so.remote_apply_state, so.remote_apply_error',
+          'FROM sync_operations so',
+          'LEFT JOIN videos v ON v.url = so.video_url',
+          'WHERE so.remote_deferred = 1',
+          '  AND so.remote_applied_at IS NULL',
+          "  AND so.remote_apply_state IN ('failed', 'blocked', 'pending')",
+          'ORDER BY so.collection_key ASC, so.video_url ASC, so.id ASC'
+        ].join(' ')
+      )
+      .all() as PendingRemoteOperationRow[];
+    const grouped: Record<string, PendingRemoteOperationGroup> = {};
+    const order: string[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const groupId = pendingRemoteGroupId(row.collection_key, row.video_url);
+      let group = grouped[groupId];
+
+      if (!group) {
+        group = {
+          groupId: groupId,
+          collectionKey: row.collection_key,
+          videoUrl: row.video_url,
+          title: row.title,
+          views: row.views,
+          likes: row.likes,
+          img: row.img,
+          preview: row.preview,
+          finalAction: row.action,
+          state: row.remote_apply_state,
+          error: row.remote_apply_error,
+          operationCount: 0,
+          sequence: []
+        };
+        grouped[groupId] = group;
+        order.push(groupId);
+      }
+
+      group.finalAction = row.action;
+      group.operationCount += 1;
+      group.sequence.push({
+        id: row.id,
+        action: row.action,
+        state: row.remote_apply_state,
+        error: row.remote_apply_error
+      });
+
+      if (row.remote_apply_state === 'failed') {
+        group.state = 'failed';
+        group.error = row.remote_apply_error;
+      } else if (group.state !== 'failed') {
+        group.state = row.remote_apply_state;
+        if (row.remote_apply_error) group.error = row.remote_apply_error;
+      }
+      group.title = row.title || group.title;
+      group.views = row.views === null ? group.views : row.views;
+      group.likes = row.likes === null ? group.likes : row.likes;
+      group.img = row.img || group.img;
+      group.preview = row.preview || group.preview;
+    }
+
+    return order.map(function (groupId) {
+      return grouped[groupId];
+    });
+  }
+
+  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationRetryResult {
+    const parts = pendingRemoteGroupParts(groupId);
+    if (!parts) throw new Error('Pending operation group was not found');
+
+    const row = this.db
+      .prepare(
+        [
+          'SELECT id, action, video_url, remote_video_id, remote_fav_type',
+          'FROM sync_operations',
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+          'ORDER BY id DESC',
+          'LIMIT 1'
+        ].join(' ')
+      )
+      .get(parts.collectionKey, parts.videoUrl) as PendingSyncOperationRow | undefined;
+
+    if (!row) throw new Error('Pending operation group was not found');
+    return {
+      groupId: pendingRemoteGroupId(parts.collectionKey, row.video_url),
+      collectionKey: parts.collectionKey,
+      videoUrl: row.video_url,
+      action: row.action,
+      resolved: false,
+      remoteVideoId: row.remote_video_id,
+      remoteFavType: row.remote_fav_type,
+      id: row.id
+    };
+  }
+
+  markPendingRemoteOperationGroupResolved(groupId: string): boolean {
+    const parts = pendingRemoteGroupParts(groupId);
+    if (!parts) return false;
+
+    const result = this.db
+      .prepare(
+        [
+          'UPDATE sync_operations',
+          "SET remote_apply_state = 'resolved', remote_resolved_at = ?, remote_apply_error = NULL,",
+          '  remote_failed_at = NULL, remote_blocked_by = NULL',
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
+        ].join(' ')
+      )
+      .run(nowIso(), parts.collectionKey, parts.videoUrl);
+
+    return Boolean(result.changes);
+  }
+
+  markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean {
+    const parts = pendingRemoteGroupParts(groupId);
+    if (!parts) return false;
+
+    const latest = this.db
+      .prepare(
+        [
+          'SELECT id',
+          'FROM sync_operations',
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+          'ORDER BY id DESC',
+          'LIMIT 1'
+        ].join(' ')
+      )
+      .get(parts.collectionKey, parts.videoUrl) as { id: number } | undefined;
+    if (!latest) return false;
+
+    const result = this.db
+      .prepare(
+        [
+          'UPDATE sync_operations',
+          "SET remote_apply_state = 'failed', remote_apply_error = ?, remote_failed_at = ?, remote_blocked_by = NULL",
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND id = ?'
+        ].join(' ')
+      )
+      .run(
+        normalizeText(message) || 'Failed to apply queued operation',
+        nowIso(),
+        parts.collectionKey,
+        parts.videoUrl,
+        latest.id
+      );
+
+    return Boolean(result.changes);
+  }
+
+  supersedePendingRemoteOperations(collectionKey: CollectionKey, syncRunId: string, timestamp: string): number {
+    const result = this.db
+      .prepare(
+        [
+          'UPDATE sync_operations',
+          "SET remote_apply_state = 'superseded', remote_superseded_at = ?, remote_superseded_by_sync_run_id = ?",
+          'WHERE collection_key = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state IN ('failed', 'blocked')"
+        ].join(' ')
+      )
+      .run(timestamp, syncRunId, collectionKey);
+
+    return Number(result.changes || 0);
   }
 
   reconcileSyncOperations(collectionKey: CollectionKey, syncRunId: string | null, timestamp: string): number {
@@ -1688,6 +1971,7 @@ class JableDatabase {
     const completed = result.completed === false ? 0 : 1;
     const mode = normalizeText(payload.mode || result.mode);
     const syncRunId = normalizeText(payload.syncRunId || result.syncRunId);
+    const queuedOperationsFailed = normalizeNumber(result.queuedOperationsFailed) || 0;
     let hidden = 0;
     let mutationsReconciled = 0;
 
@@ -1721,6 +2005,9 @@ class JableDatabase {
     }
 
     mutationsReconciled = this.reconcileSyncOperations(collectionKey, syncRunId, timestamp);
+    if (mode === 'full' && completed && syncRunId && queuedOperationsFailed === 0) {
+      this.supersedePendingRemoteOperations(collectionKey, syncRunId, timestamp);
+    }
 
     const state = this.getSyncState(collectionKey);
     if (!state) throw new Error('Sync state was not saved for collection: ' + collectionKey);

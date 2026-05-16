@@ -43,6 +43,32 @@ function startSmokeServer() {
   });
 }
 
+async function findPreloadBridgeWindow(electronApp) {
+  const startedAt = Date.now();
+  const timeoutMs = 30000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const windows = electronApp.windows();
+    for (const window of windows) {
+      const hasBridge = await window
+        .evaluate(function () {
+          return Boolean(globalThis.jableApp);
+        })
+        .catch(function () {
+          return false;
+        });
+
+      if (hasBridge) return window;
+    }
+
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 100);
+    });
+  }
+
+  throw new Error('Timed out waiting for the renderer window preload IPC bridge.');
+}
+
 test('desktop app starts and exposes the preload IPC bridge', async function () {
   const userDataDir = createTempUserDataDir();
   const smokeServer = await startSmokeServer();
@@ -60,10 +86,7 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       })
     });
 
-    const window = await electronApp.firstWindow();
-    await window.waitForFunction(function () {
-      return Boolean(globalThis.jableApp);
-    });
+    const window = await findPreloadBridgeWindow(electronApp);
 
     await expect(window).toHaveTitle(/Jable/i);
 

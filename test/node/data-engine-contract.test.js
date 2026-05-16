@@ -161,13 +161,90 @@ for (const kind of ENGINE_KINDS) {
     );
     assert.equal(engine.markDeferredSyncOperationsApplied('favourites', null, [outbox[0].id]), 1);
     assert.equal(engine.markDeferredSyncOperationFailed('favourites', null, outbox[1].id, 'Temporary failure'), true);
-    assert.deepEqual(
-      engine.listDeferredSyncOutboxOperations('favourites').map(function (operation) {
-        return operation.videoUrl;
-      }),
-      ['https://jable.tv/videos/delta/']
-    );
+    assert.equal(engine.listDeferredSyncOutboxOperations('favourites').length, 0);
+
+    const pendingGroups = engine.listPendingRemoteOperationGroups();
+    assert.equal(pendingGroups.length, 1);
+    assert.equal(pendingGroups[0].videoUrl, 'https://jable.tv/videos/delta/');
+    assert.equal(pendingGroups[0].finalAction, 'add');
+    assert.equal(pendingGroups[0].state, 'failed');
+    assert.equal(engine.preparePendingRemoteOperationRetry(pendingGroups[0].groupId).remoteVideoId, '4');
+    assert.equal(engine.markPendingRemoteOperationGroupResolved(pendingGroups[0].groupId), true);
+    assert.equal(engine.listPendingRemoteOperationGroups().length, 0);
   });
+
+  test(
+    'data engine contract: pending remote groups keep final intent and full sync supersedes old failures (' +
+      kind +
+      ')',
+    function (t) {
+      const { engine } = createEngine(t, kind);
+      const syncRunId = 'pending-final-intent';
+
+      engine.applyCollectionToggle({
+        collectionKey: 'watch_later',
+        action: 'add',
+        syncRunId: syncRunId,
+        deferRemote: true,
+        remoteVideoId: '10',
+        remoteFavType: '1',
+        video: { title: 'Flip', url: 'https://jable.tv/videos/flip/' }
+      });
+      engine.applyCollectionToggle({
+        collectionKey: 'watch_later',
+        action: 'remove',
+        syncRunId: syncRunId,
+        deferRemote: true,
+        remoteVideoId: '10',
+        remoteFavType: '1',
+        video: { title: 'Flip', url: 'https://jable.tv/videos/flip/' }
+      });
+      engine.applyCollectionToggle({
+        collectionKey: 'watch_later',
+        action: 'add',
+        syncRunId: syncRunId,
+        deferRemote: true,
+        remoteVideoId: '10',
+        remoteFavType: '1',
+        video: { title: 'Flip', url: 'https://jable.tv/videos/flip/' }
+      });
+
+      const outbox = engine.listDeferredSyncOutboxOperations('watch_later');
+      assert.equal(engine.markDeferredSyncOperationFailed('watch_later', null, outbox[0].id, 'HTTP 500'), true);
+
+      let groups = engine.listPendingRemoteOperationGroups();
+      assert.equal(groups.length, 1);
+      assert.equal(groups[0].finalAction, 'add');
+      assert.equal(groups[0].operationCount, 3);
+      assert.deepEqual(
+        groups[0].sequence.map(function (step) {
+          return step.action + ':' + step.state;
+        }),
+        ['add:failed', 'remove:blocked', 'add:blocked']
+      );
+
+      engine.finishSync({
+        collectionKey: 'watch_later',
+        mode: 'full',
+        syncRunId: 'clean-full-run',
+        result: {
+          completed: true,
+          mode: 'full',
+          syncRunId: 'clean-full-run',
+          incompleteReason: null,
+          stoppedByKnownPage: false,
+          totalPages: 1,
+          totalRows: 0,
+          lastScrapedPage: 1,
+          lastKnownUrl: null,
+          queuedOperationsFailed: 0
+        }
+      });
+
+      groups = engine.listPendingRemoteOperationGroups();
+      assert.equal(groups.length, 0);
+    }
+  );
 
   test('data engine contract: import and streamed export (' + kind + ')', async function (t) {
     const { dir, engine } = createEngine(t, kind);

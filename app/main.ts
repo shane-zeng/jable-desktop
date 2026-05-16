@@ -21,6 +21,8 @@ import type {
   ImportJsonPayload,
   LibraryVideoMenuPayload,
   ListVideosOptions,
+  PendingRemoteOperationGroup,
+  PendingRemoteOperationRetryResult,
   SearchMode,
   SortDirection,
   SortKey,
@@ -135,6 +137,10 @@ type DataEngineInstance = {
     id: unknown,
     message: unknown
   ): boolean;
+  listPendingRemoteOperationGroups(): PendingRemoteOperationGroup[];
+  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationRetryResult;
+  markPendingRemoteOperationGroupResolved(groupId: string): boolean;
+  markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean;
   finishSync(payload: FinishSyncPayload): SyncState;
   clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
   importResource(
@@ -520,7 +526,9 @@ function normalizeSyncResultPayload(value: unknown, channel: string): FinishSync
     lastScrapedPage: nullableNumberField(record, 'lastScrapedPage', channel),
     lastKnownUrl: optionalStringField(record, 'lastKnownUrl', channel) || null,
     ajaxFallbackReason: optionalStringField(record, 'ajaxFallbackReason', channel) || null,
-    ajaxRetryCount: optionalNumberField(record, 'ajaxRetryCount', channel) || 0
+    ajaxRetryCount: optionalNumberField(record, 'ajaxRetryCount', channel) || 0,
+    queuedOperationsApplied: optionalNumberField(record, 'queuedOperationsApplied', channel) || 0,
+    queuedOperationsFailed: optionalNumberField(record, 'queuedOperationsFailed', channel) || 0
   };
 }
 
@@ -1694,7 +1702,15 @@ async function applyDeferredSyncOperationsInWorker(
   const failedRows = Array.isArray(normalized.failed) ? normalized.failed : [];
 
   for (let i = 0; i < failedRows.length; i++) {
-    getDatabase().markDeferredSyncOperationFailed(options.collectionKey, null, failedRows[i].id, failedRows[i].message);
+    if (!failedRows[i].blocked) {
+      getDatabase().markDeferredSyncOperationFailed(
+        options.collectionKey,
+        null,
+        failedRows[i].id,
+        failedRows[i].message
+      );
+      break;
+    }
   }
 
   notifyPendingCollectionOperationsChanged();
@@ -1706,6 +1722,57 @@ async function applyDeferredSyncOperationsInWorker(
   });
 
   return { applied: applied, failed: failedRows.length, failures: failedRows };
+}
+
+async function retryPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationRetryResult> {
+  const operation = getDatabase().preparePendingRemoteOperationRetry(groupId);
+  const worker = createSyncWorker(operation.collectionKey, 'pending-remote-retry:' + Date.now());
+
+  try {
+    const loadedUrl = await loadSyncWorkerCollection(worker);
+    if (!urlPolicy.isJableCollectionUrl(operation.collectionKey, loadedUrl)) {
+      throw new Error(t('status.loginRequired', { collection: t('collections.' + operation.collectionKey) }));
+    }
+
+    const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
+      worker.webContents,
+      'browser:apply-deferred-sync-operations-request',
+      {
+        operations: [
+          {
+            id: operation.id || 0,
+            action: operation.action,
+            videoUrl: operation.videoUrl,
+            remoteVideoId: operation.remoteVideoId || null,
+            remoteFavType: operation.remoteFavType || null
+          }
+        ]
+      },
+      BROWSER_SYNC_REQUEST_TIMEOUT_MS
+    );
+    const normalized = (result || {}) as DeferredSyncOperationApplyResult;
+    const failed = Array.isArray(normalized.failed) ? normalized.failed[0] : null;
+
+    if (failed) {
+      getDatabase().markPendingRemoteOperationGroupFailed(groupId, failed.message);
+      notifyPendingCollectionOperationsChanged();
+      return Object.assign({}, operation, {
+        resolved: false,
+        error: failed.message || t('status.unknownError')
+      });
+    }
+
+    getDatabase().markPendingRemoteOperationGroupResolved(groupId);
+    notifyPendingCollectionOperationsChanged();
+    return Object.assign({}, operation, { resolved: true, error: null });
+  } catch (error) {
+    const message = mainErrorMessage(error);
+    getDatabase().markPendingRemoteOperationGroupFailed(groupId, message);
+    notifyPendingCollectionOperationsChanged();
+    return Object.assign({}, operation, { resolved: false, error: message });
+  } finally {
+    closeSyncWorker(worker.id, 'Pending remote retry finished');
+  }
 }
 
 function shouldApplyDeferredSyncOperations(result: SyncResult) {
@@ -2606,6 +2673,16 @@ function registerIpcHandlers() {
 
   ipcMain.handle('db:export-json-file', function (_event, collectionKey) {
     return exportJsonFile(normalizeCollectionKey(collectionKey, 'db:export-json-file'));
+  });
+
+  ipcMain.handle('db:list-pending-remote-operation-groups', function () {
+    return getDatabase().listPendingRemoteOperationGroups();
+  });
+
+  ipcMain.handle('db:retry-pending-remote-operation-group', function (_event, groupId) {
+    return retryPendingRemoteOperationGroup(
+      requiredStringValue(groupId, 'groupId', 'db:retry-pending-remote-operation-group')
+    );
   });
 
   ipcMain.handle('library:show-video-menu', function (_event, payload) {

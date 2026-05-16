@@ -32,7 +32,6 @@ import type {
   SyncMode,
   SyncPagePayload,
   SyncProgressPayload,
-  SyncQueuedOperationFailure,
   SyncQueueProgressPayload,
   SyncResult,
   SyncState,
@@ -44,13 +43,6 @@ const api = useJableApi();
 const i18n = useI18n();
 const activeView = ref<AppView>('browser');
 const toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
-const queuedFailureDialog = ref<{
-  collection: string;
-  failedMessage: string;
-  failedUrl: string;
-  blockedUrls: string[];
-  urlText: string;
-} | null>(null);
 const busy = ref(false);
 const syncing = ref(false);
 const browserTabsCompact = ref(false);
@@ -102,10 +94,6 @@ function hideToast() {
   }
 
   toast.value = null;
-}
-
-function closeQueuedFailureDialog() {
-  queuedFailureDialog.value = null;
 }
 
 function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info', options?: { sticky?: boolean }) {
@@ -182,52 +170,6 @@ function currentCollection(): CollectionDefinition {
 
 function collectionName(collectionKey: CollectionKey) {
   return i18n.t('collections.' + collectionKey);
-}
-
-function uniqueUrls(urls: string[]) {
-  const seen: Record<string, boolean> = {};
-  const result: string[] = [];
-
-  for (let i = 0; i < urls.length; i++) {
-    const url = urls[i];
-    if (!url || seen[url]) continue;
-    seen[url] = true;
-    result.push(url);
-  }
-
-  return result;
-}
-
-function queuedOperationFailures(result: SyncResult): SyncQueuedOperationFailure[] {
-  return Array.isArray(result.queuedOperationFailures) ? result.queuedOperationFailures : [];
-}
-
-function showQueuedFailureDialog(collectionKey: CollectionKey, result: SyncResult) {
-  const failures = queuedOperationFailures(result);
-  if (!failures.length) return;
-
-  const firstFailure =
-    failures.find(function (failure) {
-      return !failure.blocked;
-    }) || failures[0];
-  const blockedUrls = uniqueUrls(
-    failures
-      .filter(function (failure) {
-        return failure.blocked;
-      })
-      .map(function (failure) {
-        return failure.url;
-      })
-  );
-  const failedUrl = firstFailure.url || '';
-
-  queuedFailureDialog.value = {
-    collection: collectionName(collectionKey),
-    failedMessage: firstFailure.message || i18n.t('status.unknownError'),
-    failedUrl: failedUrl,
-    blockedUrls: blockedUrls,
-    urlText: blockedUrls.join('\n')
-  };
 }
 
 async function openInBrowser(url: string) {
@@ -551,7 +493,7 @@ async function syncCollection(mode: SyncMode) {
     await waitForSyncReturningNotice();
     setActiveView('library');
     await library.refreshVideos();
-    showQueuedFailureDialog(collectionKey, result);
+    await library.refreshPendingGroups();
 
     setStatus(
       resultStatus(collectionKey, mode, result, finishState, finalVisibleRows),
@@ -625,8 +567,31 @@ async function diagnoseLayout() {
   setStatus(await browser.diagnose());
 }
 
-async function selectCollection(collectionKey: string) {
-  await library.selectCollection(collectionKey);
+async function selectLibraryTab(tabKey: string) {
+  await library.selectTab(tabKey);
+}
+
+async function retryPendingRemoteOperationGroup(groupId: string) {
+  busy.value = true;
+  try {
+    const result = await api.retryPendingRemoteOperationGroup(groupId);
+    await library.refreshPendingGroups();
+    if (result.resolved) {
+      setStatus(i18n.t('status.pendingRemoteResolved'), 'success');
+    } else {
+      setStatus(
+        i18n.t('status.pendingRemoteRetryFailed', { error: result.error || i18n.t('status.unknownError') }),
+        'error',
+        {
+          sticky: true
+        }
+      );
+    }
+  } catch (error) {
+    setStatus(i18n.t('status.pendingRemoteRetryFailed', { error: errorMessage(error) }), 'error', { sticky: true });
+  } finally {
+    busy.value = false;
+  }
 }
 
 async function newBrowserTab() {
@@ -714,6 +679,7 @@ onMounted(async function () {
   browser.scheduleResize();
   await browser.refreshTabs();
   await library.refreshVideos();
+  await library.refreshPendingGroups();
   browser.scheduleResize();
 });
 </script>
@@ -738,56 +704,6 @@ onMounted(async function () {
       </div>
     </Transition>
 
-    <Transition name="app-modal">
-      <div v-if="queuedFailureDialog" class="app-modal-backdrop">
-        <section class="app-modal" role="dialog" aria-modal="true" aria-labelledby="sync-queue-failure-title">
-          <header class="space-y-2">
-            <h2 id="sync-queue-failure-title" class="text-base font-bold">
-              {{ i18n.t('status.syncQueueFailureTitle') }}
-            </h2>
-            <p class="text-sm leading-6 text-[var(--muted)]">
-              {{
-                i18n.t('status.syncQueueFailureSummary', {
-                  collection: queuedFailureDialog.collection,
-                  error: queuedFailureDialog.failedMessage,
-                  count: queuedFailureDialog.blockedUrls.length
-                })
-              }}
-            </p>
-          </header>
-
-          <div class="space-y-3">
-            <div v-if="queuedFailureDialog.failedUrl" class="space-y-1">
-              <h3 class="text-xs font-bold text-[var(--muted)]">
-                {{ i18n.t('status.syncQueueFailureFailedUrl') }}
-              </h3>
-              <p class="break-all rounded-md bg-[var(--segmented)] px-3 py-2 text-xs leading-5">
-                {{ queuedFailureDialog.failedUrl }}
-              </p>
-            </div>
-
-            <div v-if="queuedFailureDialog.blockedUrls.length" class="space-y-1">
-              <h3 class="text-xs font-bold text-[var(--muted)]">
-                {{ i18n.t('status.syncQueueFailureBlockedUrls') }}
-              </h3>
-              <textarea
-                class="app-modal-url-list"
-                readonly
-                :aria-label="i18n.t('status.syncQueueFailureBlockedUrls')"
-                :value="queuedFailureDialog.urlText"
-              ></textarea>
-            </div>
-          </div>
-
-          <footer class="flex justify-end">
-            <button type="button" @click="closeQueuedFailureDialog">
-              {{ i18n.t('status.syncQueueFailureClose') }}
-            </button>
-          </footer>
-        </section>
-      </div>
-    </Transition>
-
     <main class="relative block h-full min-h-0 overflow-hidden">
       <BrowserPanel
         :active="activeView === 'browser'"
@@ -809,8 +725,11 @@ onMounted(async function () {
       <LibraryPanel
         :active="activeView === 'library'"
         :active-collection="library.activeCollection.value"
+        :active-tab="library.activeTab.value"
         :busy="libraryBusy"
         :full-sync-label="library.fullSyncButtonLabel.value"
+        :pending-count="library.pendingCount.value"
+        :pending-groups="library.pendingGroups.value"
         :search="library.search.value"
         :search-mode="library.searchMode.value"
         :sort="library.sort.value"
@@ -820,7 +739,7 @@ onMounted(async function () {
         :rows="pageRows"
         :current-page="library.currentPage.value"
         :total-pages="library.totalPages.value"
-        @select-collection="selectCollection"
+        @select-tab="selectLibraryTab"
         @quick-sync="syncCollection('quick')"
         @full-sync="syncCollection('full')"
         @import-file="importJsonFile"
@@ -831,6 +750,7 @@ onMounted(async function () {
         @update:direction="library.direction.value = $event"
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
+        @retry-pending-group="retryPendingRemoteOperationGroup"
         @open-video="openInBrowser"
         @open-video-new-tab="openInNewBrowserTab"
         @video-context-menu="showLibraryVideoMenu"

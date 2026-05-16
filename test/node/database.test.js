@@ -994,8 +994,6 @@ test('deferred sync operations are listed and marked after remote apply', functi
   assert.equal(operations[0].remoteVideoId, '123');
   assert.equal(operations[1].action, 'remove');
   assert.equal(operations[1].remoteVideoId, '456');
-  const secondOperationId = operations[1].id;
-
   assert.equal(db.markDeferredSyncOperationsApplied('favourites', syncRunId, [operations[0].id]), 1);
   assert.equal(
     db.markDeferredSyncOperationFailed('favourites', syncRunId, operations[1].id, 'Remote operation failed'),
@@ -1003,11 +1001,15 @@ test('deferred sync operations are listed and marked after remote apply', functi
   );
 
   operations = db.listDeferredSyncOperations('favourites', syncRunId);
-  assert.equal(operations.length, 1);
-  assert.equal(operations[0].id, secondOperationId);
+  assert.equal(operations.length, 0);
+
+  const pendingGroups = db.listPendingRemoteOperationGroups();
+  assert.equal(pendingGroups.length, 1);
+  assert.equal(pendingGroups[0].videoUrl, 'https://jable.tv/videos/queued-remove/');
+  assert.equal(pendingGroups[0].finalAction, 'remove');
 });
 
-test('deferred sync outbox keeps failed operations for a later retry', function (t) {
+test('deferred sync outbox exposes failed operations as pending remote groups', function (t) {
   const db = createTestDatabase(t);
 
   db.applyCollectionToggle({
@@ -1028,9 +1030,20 @@ test('deferred sync outbox keeps failed operations for a later retry', function 
   assert.equal(db.markDeferredSyncOperationFailed('favourites', null, firstAttempt[0].id, 'Temporary failure'), true);
 
   const retryAttempt = db.listDeferredSyncOutboxOperations('favourites');
-  assert.equal(retryAttempt.length, 1);
-  assert.equal(retryAttempt[0].id, firstAttempt[0].id);
-  assert.equal(db.markDeferredSyncOperationsApplied('favourites', null, [retryAttempt[0].id]), 1);
+  assert.equal(retryAttempt.length, 0);
+
+  let groups = db.listPendingRemoteOperationGroups();
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].finalAction, 'add');
+  assert.equal(groups[0].state, 'failed');
+  assert.equal(groups[0].error, 'Temporary failure');
+
+  const retry = db.preparePendingRemoteOperationRetry(groups[0].groupId);
+  assert.equal(retry.action, 'add');
+  assert.equal(retry.remoteVideoId, '111');
+  assert.equal(db.markPendingRemoteOperationGroupResolved(groups[0].groupId), true);
+  groups = db.listPendingRemoteOperationGroups();
+  assert.equal(groups.length, 0);
   assert.equal(db.listDeferredSyncOutboxOperations('favourites').length, 0);
 });
 

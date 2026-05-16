@@ -67,6 +67,31 @@
     "count": "{total} 件 · 1ページ {pageSize} 件",
     "page": "ページ {current} / {total}"
   },
+  "pendingRemote": {
+    "tab": "同期待ち",
+    "count": "{total} 件の同期待ち",
+    "empty": "同期待ちの項目はありません",
+    "collection": "リスト",
+    "finalState": "最終状態",
+    "syncState": "同期状態",
+    "error": "エラー",
+    "sequence": "操作履歴",
+    "retry": "最終状態を再送信",
+    "finalAction": {
+      "add": "追加されるべき",
+      "remove": "削除されるべき"
+    },
+    "action": {
+      "add": "追加",
+      "remove": "削除"
+    },
+    "state": {
+      "pending": "送信待ち",
+      "failed": "送信失敗",
+      "blocked": "未送信"
+    },
+    "sequenceStep": "{action}{state}"
+  },
   "pagination": {
     "prev": "前へ",
     "next": "次へ"
@@ -101,12 +126,9 @@
     "fullSyncPaused": "{collection} の {mode} を一時停止しました: このバッチは {pages} ページ、{rows} 件を処理しました。フル同期を続行できます。",
     "firstPageRequired": "{collection} の {mode} を開始できませんでした: 1 ページ目を確認または表示できませんでした。",
     "syncChangedDuringRun": "{collection} の {mode} を処理しました: 操作ログから {count} 件を照合して適用しました。同期中に手動操作があったため、見つからない項目の非表示処理は省略しました。",
-    "syncQueuedOperationsFailed": "{collection} の同期は完了しましたが、{count} 件のキュー済み操作を Jable に送信できませんでした。後で処理できるよう操作ログに保持しました。",
-    "syncQueueFailureTitle": "キュー済み操作を送信できませんでした",
-    "syncQueueFailureSummary": "{collection} の同期完了後に操作ログを処理中、エラーが発生しました: {error}。操作順を保つため、後続の {count} 件は Jable に送信していません。",
-    "syncQueueFailureFailedUrl": "失敗した操作 URL",
-    "syncQueueFailureBlockedUrls": "未送信の後続操作 URL",
-    "syncQueueFailureClose": "閉じる",
+    "syncQueuedOperationsFailed": "{collection} の同期は完了しましたが、{count} 件の操作を Jable に送信できませんでした。「同期待ち」で最終状態を再送信してください。",
+    "pendingRemoteResolved": "同期待ち項目を Jable に送信しました。",
+    "pendingRemoteRetryFailed": "同期待ち項目の再送信に失敗しました: {error}",
     "syncIncomplete": "{collection} の {mode} は完了しませんでした: {reason}",
     "syncIncompleteAfterAjaxFallback": "{collection} の {mode} は完了しませんでした: {reason}。先に AJAX 先読みで {ajaxReason} が発生したため、保守的なページ単位同期に切り替えました。",
     "syncAjaxFallbackResult": "{status}（AJAX 先読みで {reason} が発生したため、保守的なページ単位同期に切り替えました。再試行 {retries} 回）",

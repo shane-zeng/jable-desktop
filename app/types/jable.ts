@@ -6,6 +6,9 @@ export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
 export type AppView = 'browser' | 'library';
 export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
+export type LibraryTabKey = CollectionKey | 'pending_remote';
+export type CollectionAction = 'add' | 'remove';
+export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
 
 export interface CollectionDefinition {
   url: string;
@@ -225,6 +228,41 @@ export interface SyncQueuedOperationFailure {
   blocked: boolean;
 }
 
+export interface PendingRemoteOperationStep {
+  id: number;
+  action: CollectionAction;
+  state: PendingRemoteOperationState;
+  error: string | null;
+}
+
+export interface PendingRemoteOperationGroup {
+  groupId: string;
+  collectionKey: CollectionKey;
+  videoUrl: string;
+  title: string | null;
+  views: number | null;
+  likes: number | null;
+  img: string | null;
+  preview: string | null;
+  finalAction: CollectionAction;
+  state: PendingRemoteOperationState;
+  error: string | null;
+  operationCount: number;
+  sequence: PendingRemoteOperationStep[];
+}
+
+export interface PendingRemoteOperationRetryResult {
+  groupId: string;
+  collectionKey: CollectionKey;
+  videoUrl: string;
+  action: CollectionAction;
+  id?: number;
+  remoteVideoId?: string | null;
+  remoteFavType?: string | null;
+  resolved: boolean;
+  error?: string | null;
+}
+
 export interface CollectionToggleResult {
   tabId?: string | null;
   collectionKey: CollectionKey;
@@ -323,6 +361,8 @@ export interface JableAppApi {
   importJson(payload: ImportJsonPayload): Promise<{ imported: number; collectionKey: CollectionKey }>;
   exportJson(collectionKey: CollectionKey): Promise<ExportResource>;
   exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult>;
+  listPendingRemoteOperationGroups(): Promise<PendingRemoteOperationGroup[]>;
+  retryPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationRetryResult>;
   listBrowserTabs(): Promise<BrowserTabsState>;
   showBrowserTabMenu(payload: BrowserTabMenuPayload): Promise<{ shown: boolean }>;
   showLibraryVideoMenu(payload: LibraryVideoMenuPayload): Promise<{ shown: boolean }>;

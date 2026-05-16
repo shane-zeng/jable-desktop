@@ -42,6 +42,12 @@ const jableApp: JableAppApi = {
   exportJsonFile: function (collectionKey) {
     return ipcRenderer.invoke('db:export-json-file', collectionKey);
   },
+  listPendingRemoteOperationGroups: function () {
+    return ipcRenderer.invoke('db:list-pending-remote-operation-groups');
+  },
+  retryPendingRemoteOperationGroup: function (groupId) {
+    return ipcRenderer.invoke('db:retry-pending-remote-operation-group', groupId);
+  },
   listBrowserTabs: function () {
     return ipcRenderer.invoke('browser:list-tabs');
   },

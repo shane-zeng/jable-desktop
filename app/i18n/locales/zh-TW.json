@@ -67,6 +67,31 @@
     "count": "{total} 筆 · 每頁 {pageSize} 筆",
     "page": "第 {current} / {total} 頁"
   },
+  "pendingRemote": {
+    "tab": "待同步",
+    "count": "{total} 筆待同步",
+    "empty": "目前沒有待同步項目",
+    "collection": "清單",
+    "finalState": "最終狀態",
+    "syncState": "同步狀態",
+    "error": "錯誤",
+    "sequence": "操作序列",
+    "retry": "重送最終狀態",
+    "finalAction": {
+      "add": "應加入",
+      "remove": "應移除"
+    },
+    "action": {
+      "add": "加入",
+      "remove": "移除"
+    },
+    "state": {
+      "pending": "等待送出",
+      "failed": "送出失敗",
+      "blocked": "未送出"
+    },
+    "sequenceStep": "{action}{state}"
+  },
   "pagination": {
     "prev": "上一頁",
     "next": "下一頁"
@@ -101,12 +126,9 @@
     "fullSyncPaused": "{collection} {mode}已暫停：本批 {pages} 頁、{rows} 筆，可繼續完整同步",
     "firstPageRequired": "{collection} {mode}未開始：無法確認或切回第 1 頁",
     "syncChangedDuringRun": "{collection} {mode}已處理：已比對操作表並套用 {count} 筆操作；因同步期間清單有手動操作，已略過缺漏隱藏",
-    "syncQueuedOperationsFailed": "{collection} 同步已完成，但有 {count} 筆排隊操作無法送到 Jable；已保留在操作表等待後續處理",
-    "syncQueueFailureTitle": "排隊操作未送出",
-    "syncQueueFailureSummary": "{collection} 同步完成後消化操作表時發生錯誤：{error}。為了保留操作順序，後續 {count} 筆操作未送到 Jable。",
-    "syncQueueFailureFailedUrl": "失敗操作 URL",
-    "syncQueueFailureBlockedUrls": "未送出的後續操作 URL",
-    "syncQueueFailureClose": "關閉",
+    "syncQueuedOperationsFailed": "{collection} 同步已完成，但有 {count} 筆操作無法送到 Jable；請到「待同步」查看並重送最終狀態",
+    "pendingRemoteResolved": "待同步項目已成功送到 Jable",
+    "pendingRemoteRetryFailed": "重送待同步項目失敗：{error}",
     "syncIncomplete": "{collection} {mode}未完整完成：{reason}",
     "syncIncompleteAfterAjaxFallback": "{collection} {mode}未完整完成：{reason}。AJAX 預抓先前遇到 {ajaxReason}，已改用保守逐頁同步。",
     "syncAjaxFallbackResult": "{status}（AJAX 預抓曾遇到 {reason}，已改用保守逐頁同步；重試 {retries} 次）",

@@ -2,14 +2,16 @@
 import { computed } from 'vue';
 import { COLLECTIONS } from '../constants';
 import { t } from '../i18n';
-import type { CollectionKey } from '../../types/jable';
+import type { CollectionKey, LibraryTabKey } from '../../types/jable';
 
 const props = defineProps<{
   activeCollection: CollectionKey;
+  activeTab?: LibraryTabKey;
+  pendingCount?: number;
 }>();
 
 const emit = defineEmits<{
-  select: [collectionKey: CollectionKey];
+  select: [tabKey: LibraryTabKey];
 }>();
 
 const collectionEntries = computed(function () {
@@ -19,6 +21,10 @@ const collectionEntries = computed(function () {
       name: t('collections.' + key)
     };
   });
+});
+
+const activeTabKey = computed(function () {
+  return props.activeTab || props.activeCollection;
 });
 </script>
 
@@ -33,14 +39,28 @@ const collectionEntries = computed(function () {
       :key="collection.key"
       class="segmented-tab min-h-8"
       :class="{
-        'is-active': props.activeCollection === collection.key
+        'is-active': activeTabKey === collection.key
       }"
       type="button"
       role="tab"
-      :aria-selected="props.activeCollection === collection.key"
+      :aria-selected="activeTabKey === collection.key"
       @click="emit('select', collection.key)"
     >
       {{ collection.name }}
+    </button>
+    <button
+      v-if="props.pendingCount"
+      class="segmented-tab min-h-8"
+      :class="{ 'is-active': activeTabKey === 'pending_remote' }"
+      type="button"
+      role="tab"
+      :aria-selected="activeTabKey === 'pending_remote'"
+      @click="emit('select', 'pending_remote')"
+    >
+      {{ t('pendingRemote.tab') }}
+      <span class="ml-1 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+        {{ props.pendingCount }}
+      </span>
     </button>
   </div>
 </template>
