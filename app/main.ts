@@ -2,7 +2,6 @@
 
 import type * as Electron from 'electron';
 import type * as NodeChildProcess from 'node:child_process';
-import type * as NodeCrypto from 'node:crypto';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type { NativeDownloadEngineModule } from './native-download-engine';
@@ -297,7 +296,6 @@ type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 const electron: typeof Electron = require('electron');
 const childProcess: typeof NodeChildProcess = require('node:child_process');
-const nodeCrypto: typeof NodeCrypto = require('node:crypto');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
@@ -987,10 +985,33 @@ function videoUrlSlug(videoUrl: string): string {
   }
 }
 
+function usedDownloadRelativePaths(excludeVideoUrl: string): Set<string> {
+  const used = new Set<string>();
+  const records = listPersistedDownloads();
+
+  for (const record of records) {
+    if (record.videoUrl === excludeVideoUrl || !record.localPath) continue;
+    used.add(path.normalize(record.localPath));
+  }
+
+  return used;
+}
+
 function downloadOutputRelativePath(payload: DownloadRequestPayload): string {
-  const hash = nodeCrypto.createHash('sha1').update(payload.video.url).digest('hex').slice(0, 10);
   const name = sanitizeDownloadFileName(payload.video.title || videoUrlSlug(payload.video.url));
-  return path.join(payload.collectionKey, name + '-' + hash + '.mp4');
+  const usedPaths = usedDownloadRelativePaths(payload.video.url);
+
+  for (let index = 1; index <= 9999; index++) {
+    const candidateName = index === 1 ? name : name + ' (' + index + ')';
+    const relativePath = path.join(payload.collectionKey, candidateName + '.mp4');
+    const filePath = resolveManagedDownloadPath(relativePath);
+    if (!filePath) continue;
+    if (usedPaths.has(path.normalize(relativePath))) continue;
+    if (fs.existsSync(filePath) || fs.existsSync(filePath + '.part')) continue;
+    return relativePath;
+  }
+
+  throw new Error('Unable to choose a download filename');
 }
 
 function resolveManagedDownloadPath(fileRelativePath: string | null): string | null {

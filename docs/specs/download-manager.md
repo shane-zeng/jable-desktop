@@ -39,13 +39,14 @@ This document specifies the current Download List and local video file managemen
 - Current generated MP4 paths use:
 
 ```text
-<downloadRoot>/<collectionKey>/<sanitized-title>-<url-sha1-prefix>.mp4
+<downloadRoot>/<collectionKey>/<sanitized-title>.mp4
 ```
 
+- When the generated path is already used by another download record or existing local file, main process appends a numeric suffix such as ` (2)` before `.mp4`.
 - Persisted `localPath` values store only the managed-root-relative path:
 
 ```text
-<collectionKey>/<sanitized-title>-<url-sha1-prefix>.mp4
+<collectionKey>/<sanitized-title>.mp4
 ```
 
 - The data engine rejects absolute, drive-root, traversal, empty-component, and colon-containing persisted file paths.

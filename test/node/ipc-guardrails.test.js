@@ -171,7 +171,11 @@ test('main process persists managed-root-relative download paths', function () {
   const source = readSource(MAIN_SOURCE_PATH);
 
   assert.match(source, /function downloadOutputRelativePath/);
-  assert.match(source, /return path\.join\(payload\.collectionKey, name \+ '-' \+ hash \+ '\.mp4'\)/);
+  assert.match(source, /function usedDownloadRelativePaths/);
+  assert.match(source, /const candidateName = index === 1 \? name : name \+ ' \(' \+ index \+ '\)'/);
+  assert.match(source, /path\.join\(payload\.collectionKey, candidateName \+ '\.mp4'\)/);
+  assert.match(source, /fs\.existsSync\(filePath\) \|\| fs\.existsSync\(filePath \+ '\.part'\)/);
+  assert.equal(source.includes("createHash('sha1')"), false);
   assert.match(source, /function resolveManagedDownloadPath/);
   assert.match(source, /path\.isAbsolute\(fileRelativePath\)/);
   assert.match(source, /path\.resolve\(downloadRootPath, fileRelativePath\)/);
