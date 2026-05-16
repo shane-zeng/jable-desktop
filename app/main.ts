@@ -745,6 +745,7 @@ function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
   if (record.state === 'ready' && !exists) {
     return Object.assign({}, record, {
       state: 'missing' as const,
+      fileSizeBytes: null,
       error: null
     });
   }
@@ -779,8 +780,29 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
   });
 }
 
+function downloadRecordNeedsPersistence(current: DownloadRecord, next: DownloadRecord): boolean {
+  return (
+    current.state !== next.state ||
+    current.progress !== next.progress ||
+    current.error !== next.error ||
+    current.fileSizeBytes !== next.fileSizeBytes
+  );
+}
+
 function listDownloads(): DownloadRecord[] {
-  return getDownloadStore().list().map(downloadRecordWithRuntimeState);
+  const store = getDownloadStore();
+  return store.list().map(function (record) {
+    const next = downloadRecordWithRuntimeState(record);
+    if (!downloadRecordNeedsPersistence(record, next)) return next;
+
+    return store.upsert({
+      videoUrl: next.videoUrl,
+      state: next.state,
+      progress: next.progress,
+      error: next.error,
+      fileSizeBytes: next.fileSizeBytes
+    });
+  });
 }
 
 function notifyDownloadsChanged() {
