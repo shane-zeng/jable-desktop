@@ -370,10 +370,12 @@ describe('LibraryPanel', function () {
     await cards[0].get('button').trigger('click');
     await cards[0].get('[data-test="download-record-reveal"]').trigger('click');
     await cards[0].get('[data-test="download-record-delete"]').trigger('click');
+    await cards[1].get('[data-test="download-record-open-page"]').trigger('click');
     await cards[1].get('[data-test="download-record-retry"]').trigger('click');
     await cards[1].get('[data-test="download-record-delete"]').trigger('click');
 
     expect(wrapper.emitted('open-download')).toEqual([['https://jable.tv/videos/ready/']]);
+    expect(wrapper.emitted('open-video')).toEqual([['https://jable.tv/videos/missing/']]);
     expect(wrapper.emitted('reveal-download')).toEqual([['https://jable.tv/videos/ready/']]);
     expect(wrapper.emitted('retry-download')).toEqual([['https://jable.tv/videos/missing/']]);
     expect(wrapper.emitted('delete-download')).toEqual([

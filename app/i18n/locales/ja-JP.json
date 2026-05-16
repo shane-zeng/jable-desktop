@@ -96,6 +96,7 @@
     "setupRequired": "FFmpeg が必要です",
     "empty": "ダウンロードはまだありません",
     "unknownCollection": "不明なリスト",
+    "openPage": "ページを開く",
     "retry": "再試行",
     "reveal": "場所を表示",
     "delete": "削除",

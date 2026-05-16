@@ -96,6 +96,7 @@
     "setupRequired": "FFmpeg is required",
     "empty": "No downloads yet",
     "unknownCollection": "Unknown list",
+    "openPage": "Open Page",
     "retry": "Retry",
     "reveal": "Reveal",
     "delete": "Delete",

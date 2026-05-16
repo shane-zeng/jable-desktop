@@ -193,6 +193,7 @@ function updateDirection(event: Event) {
             :key="record.videoUrl"
             :record="record"
             @open="emit('open-download', $event)"
+            @open-page="emit('open-video', $event)"
             @reveal="emit('reveal-download', $event)"
             @retry="emit('retry-download', $event)"
             @delete="emit('delete-download', $event)"

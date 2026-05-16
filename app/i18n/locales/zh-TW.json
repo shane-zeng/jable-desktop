@@ -96,6 +96,7 @@
     "setupRequired": "需要安裝 FFmpeg",
     "empty": "目前沒有下載項目",
     "unknownCollection": "未知清單",
+    "openPage": "開啟頁面",
     "retry": "重試",
     "reveal": "顯示位置",
     "delete": "刪除",
