@@ -73,7 +73,6 @@ struct PendingRemoteOperationGroup {
     likes: Option<i64>,
     img: Option<String>,
     preview: Option<String>,
-    final_action: String,
     state: String,
     error: Option<String>,
     sequence: Vec<Value>,
@@ -734,6 +733,12 @@ impl Engine {
             "listPendingRemoteOperationGroups" => self.list_pending_remote_operation_groups(),
             "preparePendingRemoteOperationRetry" => {
                 self.prepare_pending_remote_operation_retry(payload)
+            }
+            "markPendingRemoteOperationGroupAdded" => {
+                self.mark_pending_remote_operation_group_added(payload)
+            }
+            "markPendingRemoteOperationGroupRemoved" => {
+                self.mark_pending_remote_operation_group_removed(payload)
             }
             "markPendingRemoteOperationGroupResolved" => {
                 self.mark_pending_remote_operation_group_resolved(payload)
@@ -1621,7 +1626,6 @@ impl Engine {
                         likes: row.likes,
                         img: row.img.clone(),
                         preview: row.preview.clone(),
-                        final_action: row.action.clone(),
                         state: row.remote_apply_state.clone(),
                         error: row.remote_apply_error.clone(),
                         sequence: Vec::new(),
@@ -1632,7 +1636,6 @@ impl Engine {
             let Some(group) = grouped.get_mut(&group_id) else {
                 continue;
             };
-            group.final_action = row.action.clone();
             group.sequence.push(json!({
               "id": row.id,
               "action": row.action,
@@ -1678,7 +1681,6 @@ impl Engine {
                   "likes": group.likes,
                   "img": group.img,
                   "preview": group.preview,
-                  "finalAction": group.final_action,
                   "state": group.state,
                   "error": group.error,
                   "operationCount": group.sequence.len(),
@@ -1729,6 +1731,34 @@ impl Engine {
     }
 
     fn mark_pending_remote_operation_group_resolved(&self, payload: Value) -> Result<Value> {
+        let group_id = value_string(object_field(&payload, "groupId")).ok_or_else(|| {
+            Error::from_reason("Pending operation group requires groupId".to_string())
+        })?;
+        let Some((collection_key, video_url)) = pending_remote_group_parts(Some(&group_id)) else {
+            return Ok(json!(false));
+        };
+        let changes = self
+            .conn()?
+            .execute(
+                "UPDATE sync_operations
+         SET remote_apply_state = 'resolved',
+             remote_resolved_at = ?,
+             remote_apply_error = NULL,
+             remote_failed_at = NULL,
+             remote_blocked_by = NULL
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+                params![now_iso(), &collection_key, &video_url],
+            )
+            .map_err(to_napi_error)?;
+
+        Ok(json!(changes > 0))
+    }
+
+    fn mark_pending_remote_operation_group_added(&self, payload: Value) -> Result<Value> {
         let group_id = value_string(object_field(&payload, "groupId")).ok_or_else(|| {
             Error::from_reason("Pending operation group requires groupId".to_string())
         })?;
@@ -1814,33 +1844,9 @@ impl Engine {
             };
             self.upsert_video(&video, &timestamp)?;
 
-            if latest.action == "remove" {
-                self.conn()?
-                    .execute(
-                        "INSERT INTO collection_items (
-                 collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id
-               )
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?)
-               ON CONFLICT(collection_key, video_url) DO UPDATE SET
-                 last_seen_at = excluded.last_seen_at,
-                 is_visible = 0,
-                 missing_at = excluded.missing_at,
-                 last_sync_run_id = excluded.last_sync_run_id",
-                        params![
-                            &collection_key,
-                            &latest.video_url,
-                            &timestamp,
-                            &timestamp,
-                            site_order,
-                            &timestamp,
-                            &latest.sync_run_id
-                        ],
-                    )
-                    .map_err(to_napi_error)?;
-            } else {
-                self.conn()?
-                    .execute(
-                        "INSERT INTO collection_items (
+            self.conn()?
+                .execute(
+                    "INSERT INTO collection_items (
                  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id
                )
                VALUES (?, ?, ?, ?, ?, 1, NULL, ?)
@@ -1853,17 +1859,149 @@ impl Engine {
                  is_visible = 1,
                  missing_at = NULL,
                  last_sync_run_id = excluded.last_sync_run_id",
-                        params![
-                            &collection_key,
-                            &latest.video_url,
-                            &timestamp,
-                            &timestamp,
-                            site_order,
-                            &latest.sync_run_id
-                        ],
+                    params![
+                        &collection_key,
+                        &latest.video_url,
+                        &timestamp,
+                        &timestamp,
+                        site_order,
+                        &latest.sync_run_id
+                    ],
+                )
+                .map_err(to_napi_error)?;
+
+            let visible_urls = self.visible_urls_for_resequence(&collection_key)?;
+            for (index, url) in visible_urls.iter().enumerate() {
+                self.conn()?
+                    .execute(
+                        "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
+                        params![index as i64 + 1, &collection_key, url],
                     )
                     .map_err(to_napi_error)?;
             }
+
+            Ok(true)
+        })();
+
+        if result.is_ok() {
+            self.conn()?
+                .execute_batch("COMMIT")
+                .map_err(to_napi_error)?;
+        } else {
+            let _ = self.conn()?.execute_batch("ROLLBACK");
+        }
+
+        Ok(json!(result?))
+    }
+
+    fn mark_pending_remote_operation_group_removed(&self, payload: Value) -> Result<Value> {
+        let group_id = value_string(object_field(&payload, "groupId")).ok_or_else(|| {
+            Error::from_reason("Pending operation group requires groupId".to_string())
+        })?;
+        let Some((collection_key, video_url)) = pending_remote_group_parts(Some(&group_id)) else {
+            return Ok(json!(false));
+        };
+        let latest = self
+            .conn()?
+            .query_row(
+                "SELECT id, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,
+             remote_deferred, remote_apply_state
+         FROM sync_operations
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')
+         ORDER BY id DESC
+         LIMIT 1",
+                params![&collection_key, &video_url],
+                |row| {
+                    Ok(OperationRow {
+                        id: row.get(0)?,
+                        sync_run_id: row.get(1)?,
+                        action: row.get(2)?,
+                        video_url: row.get(3)?,
+                        title: row.get(4)?,
+                        views: row.get(5)?,
+                        likes: row.get(6)?,
+                        img: row.get(7)?,
+                        preview: row.get(8)?,
+                        site_order: row.get(9)?,
+                        remote_deferred: row.get(10)?,
+                        remote_apply_state: row.get(11)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(to_napi_error)?;
+        let Some(latest) = latest else {
+            return Ok(json!(false));
+        };
+
+        let timestamp = now_iso();
+        self.conn()?
+            .execute_batch("BEGIN IMMEDIATE")
+            .map_err(to_napi_error)?;
+        let result = (|| -> Result<bool> {
+            let changes = self
+                .conn()?
+                .execute(
+                    "UPDATE sync_operations
+         SET remote_apply_state = 'resolved',
+             remote_resolved_at = ?,
+             remote_apply_error = NULL,
+             remote_failed_at = NULL,
+             remote_blocked_by = NULL
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+                    params![&timestamp, &collection_key, &video_url],
+                )
+                .map_err(to_napi_error)?;
+            if changes == 0 {
+                return Ok(false);
+            }
+
+            let site_order = latest.site_order.unwrap_or_else(|| -now_millis());
+            let video = NormalizedVideo {
+                url: latest.video_url.clone(),
+                title: latest.title.clone(),
+                views: latest.views,
+                likes: latest.likes,
+                img: latest.img.clone(),
+                preview: latest.preview.clone(),
+                site_order: Some(site_order),
+                search_text: build_video_search_text(
+                    latest.title.as_deref(),
+                    Some(&latest.video_url),
+                ),
+            };
+            self.upsert_video(&video, &timestamp)?;
+
+            self.conn()?
+                .execute(
+                    "INSERT INTO collection_items (
+                 collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id
+               )
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+               ON CONFLICT(collection_key, video_url) DO UPDATE SET
+                 last_seen_at = excluded.last_seen_at,
+                 is_visible = 0,
+                 missing_at = excluded.missing_at,
+                 last_sync_run_id = excluded.last_sync_run_id",
+                    params![
+                        &collection_key,
+                        &latest.video_url,
+                        &timestamp,
+                        &timestamp,
+                        site_order,
+                        &timestamp,
+                        &latest.sync_run_id
+                    ],
+                )
+                .map_err(to_napi_error)?;
 
             let visible_urls = self.visible_urls_for_resequence(&collection_key)?;
             for (index, url) in visible_urls.iter().enumerate() {
@@ -1951,8 +2089,9 @@ impl Engine {
          WHERE collection_key = ?
            AND remote_deferred = 1
            AND remote_applied_at IS NULL
-           AND remote_apply_state IN ('failed', 'blocked')",
-                params![timestamp, sync_run_id, collection_key],
+           AND remote_apply_state IN ('pending', 'failed', 'blocked')
+           AND (sync_run_id IS NULL OR sync_run_id <> ?)",
+                params![timestamp, sync_run_id, collection_key, sync_run_id],
             )
             .map_err(to_napi_error)
     }

@@ -255,18 +255,16 @@ export interface PendingRemoteOperationGroup {
   likes: number | null;
   img: string | null;
   preview: string | null;
-  finalAction: CollectionAction;
   state: PendingRemoteOperationState;
   error: string | null;
   operationCount: number;
   sequence: PendingRemoteOperationStep[];
 }
 
-export interface PendingRemoteOperationRetryResult {
+export interface PendingRemoteOperationActionResult {
   groupId: string;
   collectionKey: CollectionKey;
   videoUrl: string;
-  action: CollectionAction;
   id?: number;
   remoteVideoId?: string | null;
   remoteFavType?: string | null;
@@ -376,7 +374,9 @@ export interface JableAppApi {
   exportJson(collectionKey: CollectionKey): Promise<ExportResource>;
   exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult>;
   listPendingRemoteOperationGroups(): Promise<PendingRemoteOperationGroup[]>;
-  retryPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationRetryResult>;
+  addPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult>;
+  removePendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult>;
+  resolvePendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult>;
   listBrowserTabs(): Promise<BrowserTabsState>;
   showBrowserTabMenu(payload: BrowserTabMenuPayload): Promise<{ shown: boolean }>;
   showLibraryVideoMenu(payload: LibraryVideoMenuPayload): Promise<{ shown: boolean }>;

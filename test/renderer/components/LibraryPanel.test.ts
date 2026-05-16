@@ -136,11 +136,10 @@ describe('LibraryPanel', function () {
             collectionKey: 'favourites',
             videoUrl: 'https://jable.tv/videos/pending/',
             title: 'Pending Video',
-            views: null,
-            likes: null,
+            views: 1234,
+            likes: 56,
             img: null,
             preview: null,
-            finalAction: 'add',
             state: 'failed',
             error: 'HTTP 500',
             operationCount: 2,
@@ -163,7 +162,6 @@ describe('LibraryPanel', function () {
     });
 
     expect(wrapper.text()).toContain('Pending Video');
-    expect(wrapper.text()).toContain('應加入');
     expect(wrapper.text()).toContain('HTTP 500');
     expect(wrapper.get('[data-test="library-grid"]').classes()).toContain('[grid-template-columns:minmax(0,1fr)]');
     expect(wrapper.get('[data-test="library-grid"]').classes()).not.toContain(
@@ -174,21 +172,31 @@ describe('LibraryPanel', function () {
     expect(wrapper.get('[data-test="pending-remote-card"]').classes()).toContain(
       'grid-cols-[132px_minmax(0,1fr)_max-content]'
     );
+    expect(wrapper.get('[data-test="pending-remote-card"] > div:last-child').classes()).toContain('flex-col');
     const summary = wrapper.get('[data-test="pending-remote-summary"]');
+    const metadata = wrapper.get('[data-test="pending-remote-metadata"]');
+    expect(metadata.text()).toContain(Number(1234).toLocaleString('zh-TW'));
+    expect(metadata.text()).toContain('views');
+    expect(metadata.text()).toContain(Number(56).toLocaleString('zh-TW'));
+    expect(metadata.text()).toContain('likes');
     expect(summary.text()).toContain('清單');
     expect(summary.text()).toContain('影片收藏');
-    expect(summary.text()).toContain('最終狀態');
-    expect(summary.text()).toContain('應加入');
     expect(summary.text()).toContain('同步狀態');
     expect(summary.text()).toContain('送出失敗');
-    expect(summary.find('.pending-chip-add').exists()).toBe(true);
     expect(summary.find('.pending-chip-failed').exists()).toBe(true);
     expect(wrapper.get('[data-test="pending-remote-sequence"]').text()).toContain('操作序列');
     expect(wrapper.get('[data-test="pending-remote-sequence"]').find('.max-h-16').exists()).toBe(true);
     expect(wrapper.find('[data-test="pending-remote-card"] button').classes()).toContain('success');
 
-    await wrapper.find('[data-test="pending-remote-card"] button').trigger('click');
+    const buttons = wrapper.findAll('[data-test="pending-remote-card"] button');
+    expect(buttons).toHaveLength(3);
+    expect(buttons[1].classes()).toContain('danger');
+    await buttons[0].trigger('click');
+    await buttons[1].trigger('click');
+    await buttons[2].trigger('click');
 
-    expect(wrapper.emitted('retry-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
+    expect(wrapper.emitted('add-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
+    expect(wrapper.emitted('remove-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
+    expect(wrapper.emitted('resolve-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
   });
 });

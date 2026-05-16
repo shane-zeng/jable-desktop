@@ -19,8 +19,8 @@ import type {
   ExportResource,
   ExportVideoRow,
   ListVideosOptions,
+  PendingRemoteOperationActionResult,
   PendingRemoteOperationGroup,
-  PendingRemoteOperationRetryResult,
   PendingRemoteOperationState,
   SearchMode,
   SyncState,
@@ -1472,7 +1472,6 @@ class JableDatabase {
           likes: row.likes,
           img: row.img,
           preview: row.preview,
-          finalAction: row.action,
           state: row.remote_apply_state,
           error: row.remote_apply_error,
           operationCount: 0,
@@ -1482,7 +1481,6 @@ class JableDatabase {
         order.push(groupId);
       }
 
-      group.finalAction = row.action;
       group.operationCount += 1;
       group.sequence.push({
         id: row.id,
@@ -1510,7 +1508,7 @@ class JableDatabase {
     });
   }
 
-  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationRetryResult {
+  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationActionResult {
     const parts = pendingRemoteGroupParts(groupId);
     if (!parts) throw new Error('Pending operation group was not found');
 
@@ -1535,7 +1533,6 @@ class JableDatabase {
       groupId: pendingRemoteGroupId(parts.collectionKey, row.video_url),
       collectionKey: parts.collectionKey,
       videoUrl: row.video_url,
-      action: row.action,
       resolved: false,
       remoteVideoId: row.remote_video_id,
       remoteFavType: row.remote_fav_type,
@@ -1544,6 +1541,28 @@ class JableDatabase {
   }
 
   markPendingRemoteOperationGroupResolved(groupId: string): boolean {
+    const parts = pendingRemoteGroupParts(groupId);
+    if (!parts) return false;
+
+    const result = this.db
+      .prepare(
+        [
+          'UPDATE sync_operations',
+          "SET remote_apply_state = 'resolved', remote_resolved_at = ?, remote_apply_error = NULL,",
+          '  remote_failed_at = NULL, remote_blocked_by = NULL',
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
+        ].join(' ')
+      )
+      .run(nowIso(), parts.collectionKey, parts.videoUrl);
+
+    return Boolean(result.changes);
+  }
+
+  markPendingRemoteOperationGroupAdded(groupId: string): boolean {
     const parts = pendingRemoteGroupParts(groupId);
     if (!parts) return false;
 
@@ -1610,6 +1629,106 @@ class JableDatabase {
         '  last_sync_run_id = excluded.last_sync_run_id'
       ].join(' ')
     );
+    const selectVisibleOrder = this.db.prepare(
+      [
+        'SELECT video_url',
+        'FROM collection_items',
+        'WHERE collection_key = ?',
+        '  AND is_visible = 1',
+        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
+      ].join(' ')
+    );
+    const updateSiteOrder = this.db.prepare(
+      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
+    );
+
+    this.db.exec('BEGIN IMMEDIATE');
+
+    try {
+      const result = updateResolved.run(timestamp, parts.collectionKey, parts.videoUrl);
+      if (!result.changes) {
+        this.db.exec('ROLLBACK');
+        return false;
+      }
+
+      const siteOrder = latest.site_order === null ? -Date.now() : latest.site_order;
+      upsertVideo.run(
+        latest.video_url,
+        latest.title,
+        latest.views,
+        latest.likes,
+        latest.img,
+        latest.preview,
+        buildVideoSearchText(latest.title, latest.video_url),
+        timestamp,
+        timestamp
+      );
+
+      upsertVisibleItem.run(parts.collectionKey, latest.video_url, timestamp, timestamp, siteOrder, latest.sync_run_id);
+
+      const visibleRows = selectVisibleOrder.all(parts.collectionKey) as VideoUrlRow[];
+      for (let i = 0; i < visibleRows.length; i++) {
+        updateSiteOrder.run(i + 1, parts.collectionKey, visibleRows[i].video_url);
+      }
+
+      this.db.exec('COMMIT');
+      return true;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  markPendingRemoteOperationGroupRemoved(groupId: string): boolean {
+    const parts = pendingRemoteGroupParts(groupId);
+    if (!parts) return false;
+
+    const latest = this.db
+      .prepare(
+        [
+          'SELECT id, collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,',
+          '  remote_deferred, remote_apply_state, remote_video_id, remote_fav_type',
+          'FROM sync_operations',
+          'WHERE collection_key = ?',
+          '  AND video_url = ?',
+          '  AND remote_deferred = 1',
+          '  AND remote_applied_at IS NULL',
+          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+          'ORDER BY id DESC',
+          'LIMIT 1'
+        ].join(' ')
+      )
+      .get(parts.collectionKey, parts.videoUrl) as SyncOperationRow | undefined;
+
+    if (!latest) return false;
+
+    const timestamp = nowIso();
+    const updateResolved = this.db.prepare(
+      [
+        'UPDATE sync_operations',
+        "SET remote_apply_state = 'resolved', remote_resolved_at = ?, remote_apply_error = NULL,",
+        '  remote_failed_at = NULL, remote_blocked_by = NULL',
+        'WHERE collection_key = ?',
+        '  AND video_url = ?',
+        '  AND remote_deferred = 1',
+        '  AND remote_applied_at IS NULL',
+        "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
+      ].join(' ')
+    );
+    const upsertVideo = this.db.prepare(
+      [
+        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'ON CONFLICT(url) DO UPDATE SET',
+        '  title = COALESCE(excluded.title, videos.title),',
+        '  views = COALESCE(excluded.views, videos.views),',
+        '  likes = COALESCE(excluded.likes, videos.likes),',
+        '  img = COALESCE(excluded.img, videos.img),',
+        '  preview = COALESCE(excluded.preview, videos.preview),',
+        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
+        '  updated_at = excluded.updated_at'
+      ].join(' ')
+    );
     const upsertHiddenItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',
@@ -1657,27 +1776,15 @@ class JableDatabase {
         timestamp,
         timestamp
       );
-
-      if (latest.action === 'remove') {
-        upsertHiddenItem.run(
-          parts.collectionKey,
-          latest.video_url,
-          timestamp,
-          timestamp,
-          siteOrder,
-          timestamp,
-          latest.sync_run_id
-        );
-      } else {
-        upsertVisibleItem.run(
-          parts.collectionKey,
-          latest.video_url,
-          timestamp,
-          timestamp,
-          siteOrder,
-          latest.sync_run_id
-        );
-      }
+      upsertHiddenItem.run(
+        parts.collectionKey,
+        latest.video_url,
+        timestamp,
+        timestamp,
+        siteOrder,
+        timestamp,
+        latest.sync_run_id
+      );
 
       const visibleRows = selectVisibleOrder.all(parts.collectionKey) as VideoUrlRow[];
       for (let i = 0; i < visibleRows.length; i++) {
@@ -1743,10 +1850,11 @@ class JableDatabase {
           'WHERE collection_key = ?',
           '  AND remote_deferred = 1',
           '  AND remote_applied_at IS NULL',
-          "  AND remote_apply_state IN ('failed', 'blocked')"
+          "  AND remote_apply_state IN ('pending', 'failed', 'blocked')",
+          '  AND (sync_run_id IS NULL OR sync_run_id <> ?)'
         ].join(' ')
       )
-      .run(timestamp, syncRunId, collectionKey);
+      .run(timestamp, syncRunId, collectionKey, syncRunId);
 
     return Number(result.changes || 0);
   }

@@ -1006,7 +1006,6 @@ test('deferred sync operations are listed and marked after remote apply', functi
   const pendingGroups = db.listPendingRemoteOperationGroups();
   assert.equal(pendingGroups.length, 1);
   assert.equal(pendingGroups[0].videoUrl, 'https://jable.tv/videos/queued-remove/');
-  assert.equal(pendingGroups[0].finalAction, 'remove');
 });
 
 test('deferred sync outbox exposes failed operations as pending remote groups', function (t) {
@@ -1034,17 +1033,55 @@ test('deferred sync outbox exposes failed operations as pending remote groups', 
 
   let groups = db.listPendingRemoteOperationGroups();
   assert.equal(groups.length, 1);
-  assert.equal(groups[0].finalAction, 'add');
   assert.equal(groups[0].state, 'failed');
   assert.equal(groups[0].error, 'Temporary failure');
 
   const retry = db.preparePendingRemoteOperationRetry(groups[0].groupId);
-  assert.equal(retry.action, 'add');
   assert.equal(retry.remoteVideoId, '111');
-  assert.equal(db.markPendingRemoteOperationGroupResolved(groups[0].groupId), true);
+  assert.equal(db.markPendingRemoteOperationGroupAdded(groups[0].groupId), true);
   groups = db.listPendingRemoteOperationGroups();
   assert.equal(groups.length, 0);
   assert.equal(db.listDeferredSyncOutboxOperations('favourites').length, 0);
+  assert.deepEqual(
+    db.listVideos('favourites').map(function (row) {
+      return row.url;
+    }),
+    ['https://jable.tv/videos/old-failed/']
+  );
+});
+
+test('deferred sync pending remote remove hides local row after remote success', function (t) {
+  const db = createTestDatabase(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    mode: 'full',
+    syncRunId: 'seed',
+    page: 1,
+    url: 'https://jable.tv/my/favourites/videos/',
+    rows: [{ title: 'Remove Later', url: 'https://jable.tv/videos/remove-later/', siteOrder: 1 }]
+  });
+  db.applyCollectionToggle({
+    collectionKey: 'favourites',
+    action: 'remove',
+    syncRunId: 'remove-run',
+    deferRemote: true,
+    deferLocal: true,
+    remoteVideoId: '222',
+    remoteFavType: '0',
+    video: {
+      title: 'Remove Later',
+      url: 'https://jable.tv/videos/remove-later/'
+    }
+  });
+
+  const groups = db.listPendingRemoteOperationGroups();
+  assert.equal(groups.length, 1);
+  const retry = db.preparePendingRemoteOperationRetry(groups[0].groupId);
+  assert.equal(retry.remoteVideoId, '222');
+  assert.equal(db.markPendingRemoteOperationGroupRemoved(groups[0].groupId), true);
+  assert.equal(db.listPendingRemoteOperationGroups().length, 0);
+  assert.equal(db.listVideos('favourites').length, 0);
 });
 
 test('migration rebuilds the local full text index for existing videos', function (t) {

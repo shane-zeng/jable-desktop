@@ -15,6 +15,7 @@ import type {
   BrowserTabMutedPayload,
   BrowserTabPayload,
   BrowserTabsState,
+  CollectionAction,
   CollectionKey,
   CreateBrowserTabPayload,
   ExportJsonFileResult,
@@ -23,8 +24,8 @@ import type {
   ImportJsonPayload,
   LibraryVideoMenuPayload,
   ListVideosOptions,
+  PendingRemoteOperationActionResult,
   PendingRemoteOperationGroup,
-  PendingRemoteOperationRetryResult,
   SearchMode,
   SortDirection,
   SortKey,
@@ -149,7 +150,9 @@ type DataEngineInstance = {
     message: unknown
   ): boolean;
   listPendingRemoteOperationGroups(): PendingRemoteOperationGroup[];
-  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationRetryResult;
+  preparePendingRemoteOperationRetry(groupId: string): PendingRemoteOperationActionResult;
+  markPendingRemoteOperationGroupAdded(groupId: string): boolean;
+  markPendingRemoteOperationGroupRemoved(groupId: string): boolean;
   markPendingRemoteOperationGroupResolved(groupId: string): boolean;
   markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean;
   finishSync(payload: FinishSyncPayload): SyncState;
@@ -1799,7 +1802,10 @@ async function applyDeferredSyncOperationsInWorker(
   return { applied: applied, failed: 0, failures: [] };
 }
 
-async function retryPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationRetryResult> {
+async function applyPendingRemoteOperationGroup(
+  groupId: string,
+  action: CollectionAction
+): Promise<PendingRemoteOperationActionResult> {
   const operation = getDatabase().preparePendingRemoteOperationRetry(groupId);
   const worker = createSyncWorker(operation.collectionKey, 'pending-remote-retry:' + Date.now());
 
@@ -1816,7 +1822,7 @@ async function retryPendingRemoteOperationGroup(groupId: string): Promise<Pendin
         operations: [
           {
             id: operation.id || 0,
-            action: operation.action,
+            action: action,
             videoUrl: operation.videoUrl,
             remoteVideoId: operation.remoteVideoId || null,
             remoteFavType: operation.remoteFavType || null
@@ -1837,7 +1843,11 @@ async function retryPendingRemoteOperationGroup(groupId: string): Promise<Pendin
       });
     }
 
-    getDatabase().markPendingRemoteOperationGroupResolved(groupId);
+    if (action === 'remove') {
+      getDatabase().markPendingRemoteOperationGroupRemoved(groupId);
+    } else {
+      getDatabase().markPendingRemoteOperationGroupAdded(groupId);
+    }
     notifyPendingCollectionOperationsChanged();
     return Object.assign({}, operation, { resolved: true, error: null });
   } catch (error) {
@@ -1848,6 +1858,21 @@ async function retryPendingRemoteOperationGroup(groupId: string): Promise<Pendin
   } finally {
     closeSyncWorker(worker.id, 'Pending remote retry finished');
   }
+}
+
+async function addPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult> {
+  return applyPendingRemoteOperationGroup(groupId, 'add');
+}
+
+async function removePendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult> {
+  return applyPendingRemoteOperationGroup(groupId, 'remove');
+}
+
+function resolvePendingRemoteOperationGroup(groupId: string): PendingRemoteOperationActionResult {
+  const operation = getDatabase().preparePendingRemoteOperationRetry(groupId);
+  const resolved = getDatabase().markPendingRemoteOperationGroupResolved(groupId);
+  notifyPendingCollectionOperationsChanged();
+  return Object.assign({}, operation, { resolved: resolved, error: null });
 }
 
 function shouldApplyDeferredSyncOperations(result: SyncResult) {
@@ -2731,7 +2756,7 @@ function registerIpcHandlers() {
       if (activeRun) {
         if (normalizedPayload.deferRemote !== true) {
           markActiveSyncMutated(normalizedPayload.collectionKey as CollectionKey);
-        } else if (!getAppSettings().autoReplayDeferredSyncOperations) {
+        } else {
           normalizedPayload.deferLocal = true;
         }
         normalizedPayload.syncRunId = activeRun.syncRunId;
@@ -2772,9 +2797,21 @@ function registerIpcHandlers() {
     return getDatabase().listPendingRemoteOperationGroups();
   });
 
-  ipcMain.handle('db:retry-pending-remote-operation-group', function (_event, groupId) {
-    return retryPendingRemoteOperationGroup(
-      requiredStringValue(groupId, 'groupId', 'db:retry-pending-remote-operation-group')
+  ipcMain.handle('db:add-pending-remote-operation-group', function (_event, groupId) {
+    return addPendingRemoteOperationGroup(
+      requiredStringValue(groupId, 'groupId', 'db:add-pending-remote-operation-group')
+    );
+  });
+
+  ipcMain.handle('db:remove-pending-remote-operation-group', function (_event, groupId) {
+    return removePendingRemoteOperationGroup(
+      requiredStringValue(groupId, 'groupId', 'db:remove-pending-remote-operation-group')
+    );
+  });
+
+  ipcMain.handle('db:resolve-pending-remote-operation-group', function (_event, groupId) {
+    return resolvePendingRemoteOperationGroup(
+      requiredStringValue(groupId, 'groupId', 'db:resolve-pending-remote-operation-group')
     );
   });
 

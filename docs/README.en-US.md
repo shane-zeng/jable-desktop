@@ -75,15 +75,15 @@ Large lists are accelerated in the background with a bounded AJAX window. If the
 
 ## Pending Sync
 
-If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox. By default it does not send them automatically; they stay in Pending Sync for manual review and do not change the normal local list until a resend succeeds. If you enable "Automatically Send Changes After Sync" in Settings, the app sends them back to Jable in order after page scraping finishes.
+If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox and does not change the normal local list. By default it does not send them automatically; they stay in Pending Sync for manual review. If you enable "Automatically Send Changes After Sync" in Settings, the app sends them back to Jable in original operation order after page scraping finishes. Local data updates only after Jable reports success.
 
 When the app is replaying that outbox after sync, the top-right status toast stays visible with a progress bar until the queued actions finish or the first replay failure stops the run.
 
-If replaying those actions fails, the Local Data view shows a global Pending Sync tab. This tab does not expose raw database operation rows. Instead, it groups by video and shows the final intended state, such as "should be added" or "should be removed". If the same video was added, removed, and added again, it appears once with an operation sequence summary.
+If replaying those actions fails, or automatic sending is off, the Local Data view shows a global Pending Sync tab. This tab does not expose raw database operation rows and does not infer a final state. It groups unconfirmed sync operations by video and shows the list, sync state, latest error, and operation sequence summary.
 
-You can resend the final state for any video in Pending Sync. A successful resend removes that video from the list; a failed resend keeps it visible and updates the error. This fixes whether the video belongs to the remote list, but it does not try to restore the original remote ordering. The next Full Sync reads the website order again and brings the local `site_order` back in line.
+For any video in Pending Sync, you can click "Add" or "Remove" to run an explicit AJAX action against the corresponding Jable list. Success updates local data and removes the pending item. If you already handled it on Jable, or do not want the app to send anything, click "Resolved" to clear only the local pending state; the normal local list will converge with the site on the next Full Sync.
 
-When a later Full Sync completes without new replay failures, older pending items are treated as superseded by the full website snapshot and the Pending Sync tab hides automatically.
+When a later Full Sync completes without new replay failures, pending items left by previous sync runs are treated as superseded by the full website snapshot and the Pending Sync tab hides automatically. Items created during that same sync run still stay pending first.
 
 ## Installation
 
@@ -116,7 +116,7 @@ The Settings page controls:
 - Interface language
 - Maximum open browser tabs, with a memory and playback warning above the recommended range
 - Full Sync acceleration: Safe, Standard, or Fast
-- Whether sync-time favourite and watch-later changes are sent automatically after sync
+- Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
 - JSON import, JSON export, and the local database path
 
 Fast mode prefetches more pages at once and helps large lists. If it hits timeout, 403, or 429 responses, the app falls back to conservative page-by-page sync.

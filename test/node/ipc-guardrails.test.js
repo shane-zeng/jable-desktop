@@ -111,7 +111,9 @@ test('renderer reports queued operation failures through the pending remote tab 
   assert.match(source, /resultStatus\(collectionKey, mode, result, finishState, finalVisibleRows\)/);
   assert.match(source, /status\.syncQueuedOperationsSkipped/);
   assert.match(source, /await library\.refreshPendingGroups\(\)/);
-  assert.match(source, /retryPendingRemoteOperationGroup/);
+  assert.match(source, /addPendingRemoteOperationGroup/);
+  assert.match(source, /removePendingRemoteOperationGroup/);
+  assert.match(source, /resolvePendingRemoteOperationGroup/);
 });
 
 test('sync queue and finalization phases surface renderer status updates', function () {

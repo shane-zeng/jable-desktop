@@ -642,17 +642,17 @@ async function selectLibraryTab(tabKey: string) {
   await library.selectTab(tabKey);
 }
 
-async function retryPendingRemoteOperationGroup(groupId: string) {
+async function addPendingRemoteOperationGroup(groupId: string) {
   busy.value = true;
   try {
-    const result = await api.retryPendingRemoteOperationGroup(groupId);
+    const result = await api.addPendingRemoteOperationGroup(groupId);
     await library.refreshPendingGroups();
     if (result.resolved) {
       await library.refreshVideos();
-      setStatus(i18n.t('status.pendingRemoteResolved'), 'success');
+      setStatus(i18n.t('status.pendingRemoteAdded'), 'success');
     } else {
       setStatus(
-        i18n.t('status.pendingRemoteRetryFailed', { error: result.error || i18n.t('status.unknownError') }),
+        i18n.t('status.pendingRemoteAddFailed', { error: result.error || i18n.t('status.unknownError') }),
         'error',
         {
           sticky: true
@@ -660,7 +660,50 @@ async function retryPendingRemoteOperationGroup(groupId: string) {
       );
     }
   } catch (error) {
-    setStatus(i18n.t('status.pendingRemoteRetryFailed', { error: errorMessage(error) }), 'error', { sticky: true });
+    setStatus(i18n.t('status.pendingRemoteAddFailed', { error: errorMessage(error) }), 'error', { sticky: true });
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function removePendingRemoteOperationGroup(groupId: string) {
+  busy.value = true;
+  try {
+    const result = await api.removePendingRemoteOperationGroup(groupId);
+    await library.refreshPendingGroups();
+    if (result.resolved) {
+      await library.refreshVideos();
+      setStatus(i18n.t('status.pendingRemoteRemoved'), 'success');
+    } else {
+      setStatus(
+        i18n.t('status.pendingRemoteRemoveFailed', { error: result.error || i18n.t('status.unknownError') }),
+        'error',
+        {
+          sticky: true
+        }
+      );
+    }
+  } catch (error) {
+    setStatus(i18n.t('status.pendingRemoteRemoveFailed', { error: errorMessage(error) }), 'error', { sticky: true });
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function resolvePendingRemoteOperationGroup(groupId: string) {
+  busy.value = true;
+  try {
+    const result = await api.resolvePendingRemoteOperationGroup(groupId);
+    await library.refreshPendingGroups();
+    if (result.resolved) {
+      setStatus(i18n.t('status.pendingRemoteResolved'), 'success');
+    } else {
+      setStatus(i18n.t('status.pendingRemoteResolveFailed'), 'error', { sticky: true });
+    }
+  } catch (error) {
+    setStatus(i18n.t('status.pendingRemoteResolveFailedWithError', { error: errorMessage(error) }), 'error', {
+      sticky: true
+    });
   } finally {
     busy.value = false;
   }
@@ -868,7 +911,9 @@ onMounted(async function () {
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @go-page="library.goToPage($event)"
-        @retry-pending-group="retryPendingRemoteOperationGroup"
+        @add-pending-group="addPendingRemoteOperationGroup"
+        @remove-pending-group="removePendingRemoteOperationGroup"
+        @resolve-pending-group="resolvePendingRemoteOperationGroup"
         @open-video="openInBrowser"
         @open-video-new-tab="openInNewBrowserTab"
         @video-context-menu="showLibraryVideoMenu"

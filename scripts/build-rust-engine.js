@@ -44,5 +44,12 @@ function runCargoBuild() {
 
 runCargoBuild();
 fs.mkdirSync(nativeDistDir, { recursive: true });
-fs.copyFileSync(path.join(releaseDir, dynamicLibraryName()), path.join(nativeDistDir, outputName));
+const outputPath = path.join(nativeDistDir, outputName);
+fs.copyFileSync(path.join(releaseDir, dynamicLibraryName()), outputPath);
+if (process.platform === 'darwin') {
+  childProcess.execFileSync('codesign', ['--force', '--sign', '-', outputPath], {
+    cwd: rootDir,
+    stdio: 'inherit'
+  });
+}
 console.log('Built native data engine: app/native-dist/' + outputName);

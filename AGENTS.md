@@ -99,7 +99,7 @@ Desktop JSON import UI must require an explicit target collection. It may presel
 
 Quick sync starts at page 1 and stops after a page where every row is already known. Full sync rebuilds `site_order`, marks missing rows invisible only after a completed full run, and supports batch continuation. Keep partial-run behavior conservative so failed or paused syncs do not hide old local rows.
 
-Automatic post-sync outbox replay is a user setting and defaults off. When replay is off, deferred remote operations must stay in Pending Sync and must not alter the normal local list until Jable AJAX success marks the group applied or resolved. When changing sync replay behavior, preserve manual Pending Sync resend and the ordered replay guardrails for the enabled case.
+Automatic post-sync outbox replay is a user setting and defaults off. Deferred remote operations must never alter the normal local list until Jable AJAX success marks the operation applied. Pending Sync must not infer a final intended state from operation order; manual handling is explicit `Add`, explicit `Remove`, or local-only `Resolved`. When changing sync replay behavior, preserve the original-order replay guardrails for the enabled case.
 
 ## Localization and Documentation
 

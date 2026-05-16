@@ -112,6 +112,7 @@ for (const kind of ENGINE_KINDS) {
       action: 'remove',
       syncRunId: syncRunId,
       deferRemote: true,
+      deferLocal: true,
       remoteVideoId: '2',
       remoteFavType: '0',
       video: { title: 'Beta', url: 'https://jable.tv/videos/beta/' }
@@ -121,6 +122,7 @@ for (const kind of ENGINE_KINDS) {
       action: 'add',
       syncRunId: syncRunId,
       deferRemote: true,
+      deferLocal: true,
       remoteVideoId: '4',
       remoteFavType: '0',
       video: { title: 'Delta', url: 'https://jable.tv/videos/delta/' }
@@ -132,6 +134,22 @@ for (const kind of ENGINE_KINDS) {
         return operation.action + ':' + operation.videoUrl;
       }),
       ['remove:https://jable.tv/videos/beta/', 'add:https://jable.tv/videos/delta/']
+    );
+    assert.deepEqual(
+      engine.listVideos('favourites').map(function (row) {
+        return row.url;
+      }),
+      ['https://jable.tv/videos/alpha/', 'https://jable.tv/videos/beta/', 'https://jable.tv/videos/gamma/']
+    );
+    assert.equal(
+      engine.markDeferredSyncOperationsApplied(
+        'favourites',
+        null,
+        outbox.map(function (operation) {
+          return operation.id;
+        })
+      ),
+      2
     );
 
     const state = engine.finishSync({
@@ -159,17 +177,7 @@ for (const kind of ENGINE_KINDS) {
       }),
       ['https://jable.tv/videos/delta/', 'https://jable.tv/videos/alpha/', 'https://jable.tv/videos/gamma/']
     );
-    assert.equal(engine.markDeferredSyncOperationsApplied('favourites', null, [outbox[0].id]), 1);
-    assert.equal(engine.markDeferredSyncOperationFailed('favourites', null, outbox[1].id, 'Temporary failure'), true);
     assert.equal(engine.listDeferredSyncOutboxOperations('favourites').length, 0);
-
-    const pendingGroups = engine.listPendingRemoteOperationGroups();
-    assert.equal(pendingGroups.length, 1);
-    assert.equal(pendingGroups[0].videoUrl, 'https://jable.tv/videos/delta/');
-    assert.equal(pendingGroups[0].finalAction, 'add');
-    assert.equal(pendingGroups[0].state, 'failed');
-    assert.equal(engine.preparePendingRemoteOperationRetry(pendingGroups[0].groupId).remoteVideoId, '4');
-    assert.equal(engine.markPendingRemoteOperationGroupResolved(pendingGroups[0].groupId), true);
     assert.equal(engine.listPendingRemoteOperationGroups().length, 0);
   });
 
@@ -232,8 +240,47 @@ for (const kind of ENGINE_KINDS) {
 
     let groups = engine.listPendingRemoteOperationGroups();
     assert.equal(groups.length, 1);
-    assert.equal(groups[0].finalAction, 'remove');
     assert.equal(engine.markPendingRemoteOperationGroupResolved(groups[0].groupId), true);
+    assert.deepEqual(
+      engine.listVideos('favourites').map(function (row) {
+        return row.url;
+      }),
+      ['https://jable.tv/videos/keep-local/']
+    );
+
+    engine.applyCollectionToggle({
+      collectionKey: 'favourites',
+      action: 'remove',
+      syncRunId: 'defer-local-remove-success',
+      deferRemote: true,
+      deferLocal: true,
+      remoteVideoId: '30',
+      remoteFavType: '0',
+      video: { title: 'Keep Local', url: 'https://jable.tv/videos/keep-local/' }
+    });
+    engine.finishSync({
+      collectionKey: 'favourites',
+      mode: 'full',
+      syncRunId: 'defer-local-remove-success',
+      result: {
+        completed: true,
+        mode: 'full',
+        syncRunId: 'defer-local-remove-success',
+        incompleteReason: null,
+        stoppedByKnownPage: false,
+        totalPages: 1,
+        totalRows: 1,
+        lastScrapedPage: 1,
+        lastKnownUrl: 'https://jable.tv/videos/keep-local/',
+        queuedOperationsSkipped: 1
+      }
+    });
+    groups = engine.listPendingRemoteOperationGroups();
+    const removeGroup = groups.find(function (group) {
+      return group.videoUrl === 'https://jable.tv/videos/keep-local/';
+    });
+    assert.ok(removeGroup);
+    assert.equal(engine.markPendingRemoteOperationGroupRemoved(removeGroup.groupId), true);
     assert.equal(engine.listVideos('favourites').length, 0);
 
     const addResult = engine.applyCollectionToggle({
@@ -275,8 +322,7 @@ for (const kind of ENGINE_KINDS) {
       return group.videoUrl === 'https://jable.tv/videos/add-later/';
     });
     assert.ok(addGroup);
-    assert.equal(addGroup.finalAction, 'add');
-    assert.equal(engine.markPendingRemoteOperationGroupResolved(addGroup.groupId), true);
+    assert.equal(engine.markPendingRemoteOperationGroupAdded(addGroup.groupId), true);
     assert.deepEqual(
       engine.listVideos('watch_later').map(function (row) {
         return row.url;
@@ -286,7 +332,7 @@ for (const kind of ENGINE_KINDS) {
   });
 
   test(
-    'data engine contract: pending remote groups keep final intent and full sync supersedes old failures (' +
+    'data engine contract: pending remote groups keep operation sequence and full sync supersedes old failures (' +
       kind +
       ')',
     function (t) {
@@ -323,17 +369,34 @@ for (const kind of ENGINE_KINDS) {
 
       const outbox = engine.listDeferredSyncOutboxOperations('watch_later');
       assert.equal(engine.markDeferredSyncOperationFailed('watch_later', null, outbox[0].id, 'HTTP 500'), true);
+      engine.applyCollectionToggle({
+        collectionKey: 'watch_later',
+        action: 'add',
+        syncRunId: 'older-pending-run',
+        deferRemote: true,
+        remoteVideoId: '11',
+        remoteFavType: '1',
+        video: { title: 'Old Pending', url: 'https://jable.tv/videos/old-pending/' }
+      });
 
       let groups = engine.listPendingRemoteOperationGroups();
-      assert.equal(groups.length, 1);
-      assert.equal(groups[0].finalAction, 'add');
-      assert.equal(groups[0].operationCount, 3);
+      assert.equal(groups.length, 2);
+      const failedGroup = groups.find(function (group) {
+        return group.videoUrl === 'https://jable.tv/videos/flip/';
+      });
+      assert.ok(failedGroup);
+      assert.equal(failedGroup.operationCount, 3);
       assert.deepEqual(
-        groups[0].sequence.map(function (step) {
+        failedGroup.sequence.map(function (step) {
           return step.action + ':' + step.state;
         }),
         ['add:failed', 'remove:blocked', 'add:blocked']
       );
+      const pendingGroup = groups.find(function (group) {
+        return group.videoUrl === 'https://jable.tv/videos/old-pending/';
+      });
+      assert.ok(pendingGroup);
+      assert.equal(pendingGroup.state, 'pending');
 
       engine.finishSync({
         collectionKey: 'watch_later',

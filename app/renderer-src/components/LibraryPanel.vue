@@ -48,7 +48,9 @@ const emit = defineEmits<{
   'go-page': [page: number];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
-  'retry-pending-group': [groupId: string];
+  'add-pending-group': [groupId: string];
+  'remove-pending-group': [groupId: string];
+  'resolve-pending-group': [groupId: string];
   'video-context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 
@@ -153,7 +155,9 @@ function updateDirection(event: Event) {
             :key="group.groupId"
             :group="group"
             :busy="busy"
-            @retry="emit('retry-pending-group', $event)"
+            @add="emit('add-pending-group', $event)"
+            @remove="emit('remove-pending-group', $event)"
+            @resolve="emit('resolve-pending-group', $event)"
             @open="emit('open-video', $event)"
             @open-new="emit('open-video-new-tab', $event)"
           />

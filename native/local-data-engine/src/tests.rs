@@ -109,6 +109,86 @@ fn search_text_matches_cjk_ascii_and_phrase_queries() {
 }
 
 #[test]
+fn applied_deferred_local_operations_reconcile_after_finish_sync() {
+    let mut engine = test_engine("defer-local-applied");
+
+    engine
+        .save_sync_page(json!({
+            "collectionKey": "favourites",
+            "mode": "full",
+            "syncRunId": "applied-run",
+            "page": 1,
+            "url": "https://jable.tv/my/favourites/videos/",
+            "rows": [
+                {
+                    "title": "Alpha",
+                    "url": "https://jable.tv/videos/alpha/",
+                    "siteOrder": 1
+                }
+            ]
+        }))
+        .expect("sync page should save");
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "add",
+            "syncRunId": "applied-run",
+            "deferRemote": true,
+            "deferLocal": true,
+            "remoteVideoId": "40",
+            "remoteFavType": "0",
+            "video": {
+                "title": "Delta",
+                "url": "https://jable.tv/videos/delta/"
+            }
+        }))
+        .expect("add should queue without local apply");
+    assert_eq!(
+        visible_urls(&engine, "favourites"),
+        vec!["https://jable.tv/videos/alpha/"]
+    );
+
+    let operation_id = first_outbox_id(&engine, "favourites");
+    assert_eq!(
+        engine
+            .mark_deferred_sync_operations_applied(json!({
+                "collectionKey": "favourites",
+                "ids": [operation_id]
+            }))
+            .expect("operation should mark applied"),
+        json!(1)
+    );
+    engine
+        .finish_sync(json!({
+            "collectionKey": "favourites",
+            "mode": "full",
+            "syncRunId": "applied-run",
+            "result": {
+                "completed": true,
+                "mode": "full",
+                "syncRunId": "applied-run",
+                "incompleteReason": null,
+                "stoppedByKnownPage": false,
+                "totalPages": 1,
+                "totalRows": 1,
+                "lastScrapedPage": 1,
+                "lastKnownUrl": "https://jable.tv/videos/alpha/",
+                "queuedOperationsApplied": 1
+            }
+        }))
+        .expect("finish should reconcile applied deferred operation");
+    assert_eq!(
+        visible_urls(&engine, "favourites"),
+        vec![
+            "https://jable.tv/videos/delta/".to_string(),
+            "https://jable.tv/videos/alpha/".to_string()
+        ]
+    );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
 fn deferred_local_operations_wait_for_remote_resolution() {
     let mut engine = test_engine("defer-local-resolution");
 
@@ -184,13 +264,69 @@ fn deferred_local_operations_wait_for_remote_resolution() {
         .cloned()
         .expect("pending groups should be an array");
     assert_eq!(groups.len(), 1);
-    assert_eq!(groups[0].get("finalAction"), Some(&json!("remove")));
     assert_eq!(
         engine
             .mark_pending_remote_operation_group_resolved(
                 json!({ "groupId": group_id(&groups[0]) })
             )
             .expect("remove group should resolve"),
+        json!(true)
+    );
+    assert_eq!(
+        visible_urls(&engine, "favourites"),
+        vec!["https://jable.tv/videos/keep-local/"]
+    );
+
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "remove",
+            "syncRunId": "defer-local-remove-success",
+            "deferRemote": true,
+            "deferLocal": true,
+            "remoteVideoId": "30",
+            "remoteFavType": "0",
+            "video": {
+                "title": "Keep Local",
+                "url": "https://jable.tv/videos/keep-local/"
+            }
+        }))
+        .expect("remove should queue again without local apply");
+    engine
+        .finish_sync(json!({
+            "collectionKey": "favourites",
+            "mode": "full",
+            "syncRunId": "defer-local-remove-success",
+            "result": {
+                "completed": true,
+                "mode": "full",
+                "syncRunId": "defer-local-remove-success",
+                "incompleteReason": null,
+                "stoppedByKnownPage": false,
+                "totalPages": 1,
+                "totalRows": 1,
+                "lastScrapedPage": 1,
+                "lastKnownUrl": "https://jable.tv/videos/keep-local/",
+                "queuedOperationsSkipped": 1
+            }
+        }))
+        .expect("finish should keep pending remove out of local list");
+    let groups = engine
+        .list_pending_remote_operation_groups()
+        .expect("pending groups should list")
+        .as_array()
+        .cloned()
+        .expect("pending groups should be an array");
+    let remove_group = groups
+        .iter()
+        .find(|group| group.get("videoUrl") == Some(&json!("https://jable.tv/videos/keep-local/")))
+        .expect("remove group should remain pending");
+    assert_eq!(
+        engine
+            .mark_pending_remote_operation_group_removed(
+                json!({ "groupId": group_id(remove_group) })
+            )
+            .expect("remove group should hide locally"),
         json!(true)
     );
     assert!(visible_urls(&engine, "favourites").is_empty());
@@ -246,11 +382,10 @@ fn deferred_local_operations_wait_for_remote_resolution() {
         .iter()
         .find(|group| group.get("videoUrl") == Some(&json!("https://jable.tv/videos/add-later/")))
         .expect("add group should remain pending");
-    assert_eq!(add_group.get("finalAction"), Some(&json!("add")));
     assert_eq!(
         engine
-            .mark_pending_remote_operation_group_resolved(json!({ "groupId": group_id(add_group) }))
-            .expect("add group should resolve"),
+            .mark_pending_remote_operation_group_added(json!({ "groupId": group_id(add_group) }))
+            .expect("add group should add"),
         json!(true)
     );
     assert_eq!(
@@ -262,7 +397,7 @@ fn deferred_local_operations_wait_for_remote_resolution() {
 }
 
 #[test]
-fn pending_remote_groups_keep_final_intent_and_resolve_as_a_group() {
+fn pending_remote_groups_keep_sequence_and_resolve_as_a_group() {
     let mut engine = test_engine("pending-final-intent");
 
     for action in ["add", "remove", "add"] {
@@ -308,7 +443,6 @@ fn pending_remote_groups_keep_final_intent_and_resolve_as_a_group() {
         group.get("videoUrl"),
         Some(&json!("https://jable.tv/videos/flip/"))
     );
-    assert_eq!(group.get("finalAction"), Some(&json!("add")));
     assert_eq!(group.get("state"), Some(&json!("failed")));
     assert_eq!(group.get("error"), Some(&json!("HTTP 500")));
     assert_eq!(group.get("operationCount"), Some(&json!(3)));
@@ -327,7 +461,6 @@ fn pending_remote_groups_keep_final_intent_and_resolve_as_a_group() {
     let retry = engine
         .prepare_pending_remote_operation_retry(json!({ "groupId": group_id(group) }))
         .expect("retry operation should prepare");
-    assert_eq!(retry.get("action"), Some(&json!("add")));
     assert_eq!(retry.get("remoteVideoId"), Some(&json!("10")));
     assert_eq!(retry.get("remoteFavType"), Some(&json!("1")));
 
@@ -377,6 +510,20 @@ fn full_sync_supersedes_old_failed_and_blocked_remote_groups() {
             "message": "Temporary failure"
         }))
         .expect("operation should mark failed");
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "add",
+            "syncRunId": "older-pending-run",
+            "deferRemote": true,
+            "remoteVideoId": "21",
+            "remoteFavType": "0",
+            "video": {
+                "title": "Old Pending",
+                "url": "https://jable.tv/videos/old-pending/"
+            }
+        }))
+        .expect("old pending operation should queue");
     assert_eq!(
         engine
             .list_pending_remote_operation_groups()
@@ -384,7 +531,7 @@ fn full_sync_supersedes_old_failed_and_blocked_remote_groups() {
             .as_array()
             .expect("pending groups should be an array")
             .len(),
-        1
+        2
     );
 
     engine
@@ -413,7 +560,7 @@ fn full_sync_supersedes_old_failed_and_blocked_remote_groups() {
             .expect("pending groups should list"),
         json!([])
     );
-    assert_eq!(count_operations_with_state(&engine, "superseded"), 2);
+    assert_eq!(count_operations_with_state(&engine, "superseded"), 3);
 
     remove_temp_database(&mut engine);
 }

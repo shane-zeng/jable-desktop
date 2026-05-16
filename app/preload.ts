@@ -51,8 +51,14 @@ const jableApp: JableAppApi = {
   listPendingRemoteOperationGroups: function () {
     return ipcRenderer.invoke('db:list-pending-remote-operation-groups');
   },
-  retryPendingRemoteOperationGroup: function (groupId) {
-    return ipcRenderer.invoke('db:retry-pending-remote-operation-group', groupId);
+  addPendingRemoteOperationGroup: function (groupId) {
+    return ipcRenderer.invoke('db:add-pending-remote-operation-group', groupId);
+  },
+  removePendingRemoteOperationGroup: function (groupId) {
+    return ipcRenderer.invoke('db:remove-pending-remote-operation-group', groupId);
+  },
+  resolvePendingRemoteOperationGroup: function (groupId) {
+    return ipcRenderer.invoke('db:resolve-pending-remote-operation-group', groupId);
   },
   listBrowserTabs: function () {
     return ipcRenderer.invoke('browser:list-tabs');
