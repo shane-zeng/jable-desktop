@@ -98,8 +98,8 @@ npm run start:dev
 
 Desktop sync behavior:
 
-- **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known. It is intended for routine incremental updates after an initial full sync.
-- **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run.
+- **快速同步** navigates to page 1, updates scanned rows, and stops after a page where every row is already known. Its completion status reports rows scanned in the current run, not the final local collection count, because unscanned existing rows remain visible. It is intended for routine incremental updates after an initial full sync.
+- **完整同步** navigates to page 1, updates all visible site rows, rebuilds `site_order`, and hides local rows not seen in a completed full run. Its completion status reports the final visible local row count after sync finalization.
 - Full sync writes page 1 first, then can fetch remaining pages through a conservative `get_block` AJAX sliding window. The AJAX path uses the user-configured Settings acceleration level, per-page jitter, retry/backoff for soft-rate-limit symptoms such as 403/429/5xx/timeouts/empty responses, validates active page number, last-page stability, first-page stability, expected page size, and duplicate URLs before writing prefetched rows, and reports the fallback reason when it switches to sequential paging.
 - Sync runs in a dedicated background browser worker. Failed full runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - The webview scraper saves each page through `db:save-sync-page` and emits `sync-page` messages while it paginates. The renderer displays progress and calls `finishSync` after the worker returns.

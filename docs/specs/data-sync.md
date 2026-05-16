@@ -112,6 +112,8 @@ Important outbox fields:
 - Quick sync stops after a page where every row is already known.
 - Quick sync does not hide unscanned local rows.
 - Quick sync is intended for routine incremental updates after an initial full sync.
+- Quick sync completion status reports the number of rows scanned in the current sync run.
+- Quick sync completion status must not use the final local collection count, because unscanned existing rows remain visible.
 
 ## Full Sync
 
@@ -119,6 +121,7 @@ Important outbox fields:
 - Full sync scans through the last reachable page.
 - A completed full sync rebuilds visible site order.
 - A completed full sync hides currently visible rows not touched by the completed sync run.
+- Completed full sync status reports the final visible local row count after sync finalization.
 - An incomplete full sync does not hide rows missing from the sync run.
 - Full sync can continue in batches through renderer continuation state.
 - Sync tabs are locked while sync is active.
