@@ -14,6 +14,7 @@ It opens Jable inside the app and syncs favourites and watch-later lists into lo
 - Quick sync and full sync modes
 - SQLite FTS5 local search
 - JSON import/export
+- Download List and local video file management
 - Traditional Chinese, English, and Japanese UI
 - macOS and Windows support
 
@@ -85,6 +86,38 @@ For any video in Pending Sync, you can click "Add" or "Remove" to run an explici
 
 When a later Full Sync completes without new replay failures, pending items left by previous sync runs are treated as superseded by the full website snapshot and the Pending Sync tab hides automatically. Items created during that same sync run still stay pending first.
 
+## Download List And FFmpeg
+
+Downloads require FFmpeg to be installed locally. The first release does not bundle FFmpeg and does not install it automatically.
+
+After installing FFmpeg, open Settings > Downloads:
+
+- Click Check Again to let the app detect FFmpeg from `PATH`
+- Or click Choose FFmpeg to manually select the `ffmpeg` binary
+- Use the same section to choose the download folder if needed
+
+### macOS
+
+If you use Homebrew:
+
+```zsh
+brew install ffmpeg
+```
+
+After installation, return to the app settings page and click Check Again. If the app still cannot detect FFmpeg, manually choose the `ffmpeg` binary installed by Homebrew.
+
+### Windows
+
+If you use winget:
+
+```powershell
+winget install Gyan.FFmpeg
+```
+
+You can also download an FFmpeg build, extract it, add its `bin` folder to `PATH`, or manually choose `ffmpeg.exe` in the app settings page.
+
+Downloaded videos appear in the Download List tab under Local Data. Ready items can be opened with the system default player, revealed in the file manager, opened back on Jable, retried after failure, or explicitly deleted from local storage.
+
 ## Installation
 
 1. Download the latest release from GitHub Releases
@@ -117,6 +150,7 @@ The Settings page controls:
 - Maximum open browser tabs, with a memory and playback warning above the recommended range
 - Full Sync acceleration: Safe, Standard, or Fast
 - Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
+- FFmpeg status, Check Again, manual FFmpeg selection, and the download folder location
 - JSON import, JSON export, the local database path, and opening the local data folder in Finder or File Explorer
 - Manual update checks
 
