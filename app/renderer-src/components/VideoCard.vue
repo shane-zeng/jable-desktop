@@ -12,6 +12,7 @@ const emit = defineEmits<{
   open: [url: string];
   'open-new': [url: string];
   download: [video: VideoRow];
+  'retry-download': [videoUrl: string];
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 const i18n = useI18n();
@@ -112,6 +113,10 @@ function downloadVideo(event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
   if (downloadButtonDisabled.value) return;
+  if (props.downloadRecord && (props.downloadRecord.state === 'failed' || props.downloadRecord.state === 'missing')) {
+    emit('retry-download', props.downloadRecord.videoUrl);
+    return;
+  }
   emit('download', props.video);
 }
 </script>

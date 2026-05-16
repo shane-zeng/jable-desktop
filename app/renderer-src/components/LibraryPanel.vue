@@ -282,6 +282,7 @@ function downloadRecordForVideo(video: VideoRow) {
           @open="emit('open-video', $event)"
           @open-new="emit('open-video-new-tab', $event)"
           @download="emit('download-video', $event)"
+          @retry-download="emit('retry-download', $event)"
           @context-menu="emit('video-context-menu', $event)"
         />
       </template>

@@ -218,7 +218,7 @@ describe('VideoCard', function () {
     expect(wrapper.emitted('download')).toBeUndefined();
   });
 
-  it('allows failed downloads to be retried from the source card', async function () {
+  it('emits retry for failed downloads from the source card', async function () {
     const video = makeVideo();
     const wrapper = mount(VideoCard, {
       props: {
@@ -237,7 +237,8 @@ describe('VideoCard', function () {
 
     await button.trigger('click');
 
-    expect(wrapper.emitted('download')).toEqual([[video]]);
+    expect(wrapper.emitted('retry-download')).toEqual([[video.url]]);
+    expect(wrapper.emitted('download')).toBeUndefined();
   });
 
   it('renders English aria labels and sync metadata', function () {

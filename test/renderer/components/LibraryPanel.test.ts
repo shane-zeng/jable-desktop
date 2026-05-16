@@ -242,7 +242,8 @@ describe('LibraryPanel', function () {
 
     await buttons[1].trigger('click');
 
-    expect(wrapper.emitted('download-video')).toEqual([[failedVideo]]);
+    expect(wrapper.emitted('retry-download')).toEqual([[failedVideo.url]]);
+    expect(wrapper.emitted('download-video')).toBeUndefined();
   });
 
   it('renders pending remote groups without collection controls', async function () {
