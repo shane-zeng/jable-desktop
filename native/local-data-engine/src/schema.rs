@@ -81,6 +81,24 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
            reconciled_at TEXT,
            FOREIGN KEY (collection_key) REFERENCES collections(key) ON DELETE CASCADE
          );
+         CREATE TABLE IF NOT EXISTS download_assets (
+           video_url TEXT PRIMARY KEY,
+           collection_key TEXT,
+           status TEXT NOT NULL CHECK(status IN ('queued', 'downloading', 'failed', 'ready', 'missing')),
+           file_relative_path TEXT,
+           format TEXT,
+           title TEXT,
+           img TEXT,
+           preview TEXT,
+           size_bytes INTEGER,
+           duration_seconds REAL,
+           progress REAL,
+           error TEXT,
+           downloaded_at TEXT,
+           last_checked_at TEXT,
+           created_at TEXT NOT NULL,
+           updated_at TEXT NOT NULL
+         );
          CREATE INDEX IF NOT EXISTS sync_operations_run_idx ON sync_operations (collection_key, sync_run_id, reconciled_at, id);
          DROP TABLE IF EXISTS playback_states;",
       )

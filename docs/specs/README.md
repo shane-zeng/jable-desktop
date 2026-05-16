@@ -29,7 +29,6 @@ Use source code and tests as the final source of truth when a user guide, change
 - `app/webview-preload.ts`
 - `app/webview-preload-helpers.ts`
 - `app/data-engine.ts`
-- `app/database.ts`
 - `app/downloads.ts`
 - `app/download-helpers.ts`
 - `app/renderer-src/App.vue`

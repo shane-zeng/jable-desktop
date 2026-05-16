@@ -9,7 +9,6 @@ const path = require('node:path');
 const dataEngine = require('../../app/runtime-dist/data-engine');
 const { withoutExportedAt } = require('./helpers/export-resource');
 
-const ENGINE_KINDS = ['ts'];
 const nativeAddonPath = path.join(
   __dirname,
   '..',
@@ -19,22 +18,16 @@ const nativeAddonPath = path.join(
   'jable_data_engine.' + process.platform + '-' + process.arch + '.node'
 );
 
-if (process.env.JABLE_TEST_RUST_ENGINE === '1' || fs.existsSync(nativeAddonPath)) {
-  ENGINE_KINDS.push('rust');
-}
+const ENGINE_KINDS = fs.existsSync(nativeAddonPath) ? ['rust'] : [];
 
-function createEngine(t, kind) {
+function createEngine(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-engine-'));
   const dbPath = path.join(dir, 'test.sqlite');
-  const previousKind = process.env.JABLE_DATA_ENGINE;
 
-  process.env.JABLE_DATA_ENGINE = kind;
   const engine = dataEngine.createDataEngine(dbPath);
 
   t.after(function () {
     engine.close();
-    if (typeof previousKind === 'undefined') delete process.env.JABLE_DATA_ENGINE;
-    else process.env.JABLE_DATA_ENGINE = previousKind;
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
@@ -43,7 +36,7 @@ function createEngine(t, kind) {
 
 for (const kind of ENGINE_KINDS) {
   test('data engine contract: sync pages and list queries (' + kind + ')', function (t) {
-    const { engine } = createEngine(t, kind);
+    const { engine } = createEngine(t);
 
     engine.saveSyncPage({
       collectionKey: 'favourites',
@@ -80,7 +73,7 @@ for (const kind of ENGINE_KINDS) {
   });
 
   test('data engine contract: operation outbox and finish sync ordering (' + kind + ')', function (t) {
-    const { engine } = createEngine(t, kind);
+    const { engine } = createEngine(t);
     const syncRunId = 'contract-full-run';
 
     engine.saveSyncPage({
@@ -170,7 +163,7 @@ for (const kind of ENGINE_KINDS) {
   });
 
   test('data engine contract: deferred local operations wait for remote resolution (' + kind + ')', function (t) {
-    const { engine } = createEngine(t, kind);
+    const { engine } = createEngine(t);
 
     engine.saveSyncPage({
       collectionKey: 'favourites',
@@ -324,7 +317,7 @@ for (const kind of ENGINE_KINDS) {
       kind +
       ')',
     function (t) {
-      const { engine } = createEngine(t, kind);
+      const { engine } = createEngine(t);
       const syncRunId = 'pending-final-intent';
 
       engine.applyCollectionToggle({
@@ -409,8 +402,78 @@ for (const kind of ENGINE_KINDS) {
     }
   );
 
+  test(
+    'data engine contract: download assets are keyed by video URL and survive collection changes (' + kind + ')',
+    function (t) {
+      const { engine } = createEngine(t);
+
+      const ready = engine.upsertDownloadAsset({
+        videoUrl: 'https://fs1.app/videos/download-me/?source=contract',
+        collectionKey: 'favourites',
+        title: 'Download Me',
+        img: 'https://example.test/cover.jpg',
+        localPath: 'Jable Downloads/download-me.mp4',
+        state: 'ready',
+        progress: 1,
+        fileSizeBytes: 2048,
+        error: null,
+        completedAt: '2026-05-17T00:00:00.000Z'
+      });
+
+      assert.equal(ready.videoUrl, 'https://jable.tv/videos/download-me/');
+      assert.equal(ready.collectionKey, 'favourites');
+      assert.equal(ready.title, 'Download Me');
+      assert.equal(ready.localPath, 'Jable Downloads/download-me.mp4');
+      assert.equal(ready.state, 'ready');
+      assert.equal(ready.progress, 1);
+      assert.equal(ready.fileSizeBytes, 2048);
+      assert.equal(ready.completedAt, '2026-05-17T00:00:00.000Z');
+      assert.equal(engine.getDownloadAsset('https://jable.tv/videos/download-me/').title, 'Download Me');
+
+      const failed = engine.upsertDownloadAsset({
+        videoUrl: 'https://jable.tv/videos/download-me/',
+        state: 'failed',
+        progress: null,
+        error: 'HTTP 403',
+        completedAt: null
+      });
+
+      assert.equal(failed.title, 'Download Me');
+      assert.equal(failed.localPath, 'Jable Downloads/download-me.mp4');
+      assert.equal(failed.state, 'failed');
+      assert.equal(failed.progress, null);
+      assert.equal(failed.error, 'HTTP 403');
+      assert.equal(failed.completedAt, null);
+
+      engine.applyCollectionToggle({
+        collectionKey: 'favourites',
+        action: 'add',
+        video: { title: 'Download Me', url: 'https://jable.tv/videos/download-me/' }
+      });
+      assert.equal(engine.listVideos('favourites').length, 1);
+
+      engine.applyCollectionToggle({
+        collectionKey: 'favourites',
+        action: 'remove',
+        video: { title: 'Download Me', url: 'https://jable.tv/videos/download-me/' }
+      });
+      assert.equal(engine.listVideos('favourites').length, 0);
+      assert.equal(engine.getDownloadAsset('https://jable.tv/videos/download-me/').state, 'failed');
+
+      assert.deepEqual(
+        engine.listDownloadAssets().map(function (record) {
+          return record.videoUrl;
+        }),
+        ['https://jable.tv/videos/download-me/']
+      );
+      assert.equal(engine.removeDownloadAsset('https://jable.tv/videos/download-me/'), true);
+      assert.equal(engine.removeDownloadAsset('https://jable.tv/videos/download-me/'), false);
+      assert.equal(engine.getDownloadAsset('https://jable.tv/videos/download-me/'), null);
+    }
+  );
+
   test('data engine contract: import and streamed export (' + kind + ')', async function (t) {
-    const { dir, engine } = createEngine(t, kind);
+    const { dir, engine } = createEngine(t);
     const filePath = path.join(dir, 'export.json');
 
     const imported = engine.importResource('watch_later', {
@@ -454,15 +517,11 @@ test('data engine defaults to rust when the native addon is available', function
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-engine-default-'));
   const dbPath = path.join(dir, 'test.sqlite');
-  const previousKind = process.env.JABLE_DATA_ENGINE;
-  delete process.env.JABLE_DATA_ENGINE;
 
   const engine = dataEngine.createDataEngine(dbPath);
 
   t.after(function () {
     engine.close();
-    if (typeof previousKind === 'undefined') delete process.env.JABLE_DATA_ENGINE;
-    else process.env.JABLE_DATA_ENGINE = previousKind;
     fs.rmSync(dir, { recursive: true, force: true });
   });
 

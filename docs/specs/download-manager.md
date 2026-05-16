@@ -125,6 +125,8 @@ This document specifies the current Download List and local video file managemen
 ## Download Pipeline
 
 - The main process owns all download work.
+- The FFmpeg runner is main-owned for MVP and separate from the persisted asset model.
+- Future work may move the runner behind a Rust/native boundary if process supervision or queue control needs justify it, but FFmpeg remains the external HLS pipeline.
 - Queue concurrency is one active video download at a time.
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.

@@ -28,29 +28,29 @@ fnm exec --using 24 npm run test:electron
 
 ## Automated Coverage Map
 
-| Area                                                                                               | Tests                                       |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Legacy SQLite engine, migrations, sync visibility, search, import/export, streamed export, toggles | `test/node/database.test.js`                |
-| Rust/TypeScript data-engine contract                                                               | `test/node/data-engine-contract.test.js`    |
-| Rust-native data invariants                                                                        | `native/local-data-engine/src/tests.rs`     |
-| Pagination helper behavior                                                                         | `test/node/sync-utils.test.js`              |
-| URL trust, fallback rewrites, release URL allowlist                                                | `test/node/url-policy.test.js`              |
-| Browser tab policy, media serialization, shortcut detection                                        | `test/node/browser-tab-policy.test.js`      |
-| Settings normalization and persistence                                                             | `test/node/settings.test.js`                |
-| Download store persistence and normalization                                                       | `test/node/downloads.test.js`               |
-| HLS playlist extraction and FFmpeg header helpers                                                  | `test/node/download-helpers.test.js`        |
-| IPC payload normalization                                                                          | `test/node/ipc-normalizers.test.js`         |
-| Desktop i18n key parity and fallback behavior                                                      | `test/node/i18n.test.js`                    |
-| Userscript i18n guardrails                                                                         | `test/node/userscript-i18n.test.js`         |
-| Update checking                                                                                    | `test/node/update-checker.test.js`          |
-| Ad request blocking                                                                                | `test/node/ad-blocker.test.js`              |
-| Cosmetic ad filtering                                                                              | `test/node/ad-cosmetic-policy.test.js`      |
-| Webview preload pure helpers                                                                       | `test/node/webview-preload-helpers.test.js` |
-| Main/preload IPC guardrails                                                                        | `test/node/ipc-guardrails.test.js`          |
-| Renderer i18n                                                                                      | `test/renderer/i18n/index.test.ts`          |
-| Renderer components                                                                                | `test/renderer/components/*.test.ts`        |
-| Renderer composables                                                                               | `test/renderer/composables/*.test.ts`       |
-| Electron startup, preload bridge, settings IPC, tab IPC, import/export smoke                       | `test/electron/app-smoke.test.js`           |
+| Area                                                                                          | Tests                                       |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Rust data engine migrations, sync visibility, search, import/export, streamed export, toggles | `test/node/database.test.js`                |
+| Rust data-engine IPC contract                                                                 | `test/node/data-engine-contract.test.js`    |
+| Rust-native data invariants                                                                   | `native/local-data-engine/src/tests.rs`     |
+| Pagination helper behavior                                                                    | `test/node/sync-utils.test.js`              |
+| URL trust, fallback rewrites, release URL allowlist                                           | `test/node/url-policy.test.js`              |
+| Browser tab policy, media serialization, shortcut detection                                   | `test/node/browser-tab-policy.test.js`      |
+| Settings normalization and persistence                                                        | `test/node/settings.test.js`                |
+| Download store persistence and normalization                                                  | `test/node/downloads.test.js`               |
+| HLS playlist extraction and FFmpeg header helpers                                             | `test/node/download-helpers.test.js`        |
+| IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
+| Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
+| Userscript i18n guardrails                                                                    | `test/node/userscript-i18n.test.js`         |
+| Update checking                                                                               | `test/node/update-checker.test.js`          |
+| Ad request blocking                                                                           | `test/node/ad-blocker.test.js`              |
+| Cosmetic ad filtering                                                                         | `test/node/ad-cosmetic-policy.test.js`      |
+| Webview preload pure helpers                                                                  | `test/node/webview-preload-helpers.test.js` |
+| Main/preload IPC guardrails                                                                   | `test/node/ipc-guardrails.test.js`          |
+| Renderer i18n                                                                                 | `test/renderer/i18n/index.test.ts`          |
+| Renderer components                                                                           | `test/renderer/components/*.test.ts`        |
+| Renderer composables                                                                          | `test/renderer/composables/*.test.ts`       |
+| Electron startup, preload bridge, settings IPC, tab IPC, import/export smoke                  | `test/electron/app-smoke.test.js`           |
 
 ## Change-Specific Test Selection
 

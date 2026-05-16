@@ -3,6 +3,8 @@
 import type {
   CollectionKey,
   CollectionToggleResult,
+  DownloadRecord,
+  DownloadRecordPatch,
   ExportResource,
   FinishSyncPayload,
   ListVideosOptions,
@@ -44,12 +46,6 @@ type DeferredSyncOperation = {
   remoteVideoId: string | null;
   remoteFavType: string | null;
 };
-type DatabaseModule = {
-  /**
-   * @deprecated Use `createDataEngine()` without `JABLE_DATA_ENGINE=ts` for the Rust data engine.
-   */
-  JableDatabase: new (filePath: string) => DataEngine;
-};
 type NativeDataEngineModule = {
   loadNativeDataEngine(): {
     JableDataEngine: new (filePath: string) => {
@@ -86,6 +82,10 @@ export type DataEngine = {
   markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean;
   finishSync(payload: FinishSyncPayload): SyncState;
   clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean };
+  listDownloadAssets(): DownloadRecord[];
+  getDownloadAsset(videoUrl: string): DownloadRecord | null;
+  upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord;
+  removeDownloadAsset(videoUrl: string): boolean;
   importResource(
     collectionKey: CollectionKey,
     resource: ExportResource
@@ -201,6 +201,22 @@ class RustDataEngine implements DataEngine {
     return this.callNative('clearSyncState', collectionKey);
   }
 
+  listDownloadAssets(): DownloadRecord[] {
+    return this.callNative('listDownloadAssets', {});
+  }
+
+  getDownloadAsset(videoUrl: string): DownloadRecord | null {
+    return this.callNative('getDownloadAsset', videoUrl);
+  }
+
+  upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord {
+    return this.callNative('upsertDownloadAsset', patch);
+  }
+
+  removeDownloadAsset(videoUrl: string): boolean {
+    return this.callNative('removeDownloadAsset', videoUrl);
+  }
+
   importResource(
     collectionKey: CollectionKey,
     resource: ExportResource
@@ -220,10 +236,5 @@ class RustDataEngine implements DataEngine {
 }
 
 export function createDataEngine(filePath: string): DataEngine {
-  if (process.env.JABLE_DATA_ENGINE === 'ts') {
-    const databaseModule = require('./database') as DatabaseModule;
-    return new databaseModule.JableDatabase(filePath);
-  }
-
   return new RustDataEngine(filePath);
 }

@@ -109,6 +109,128 @@ fn search_text_matches_cjk_ascii_and_phrase_queries() {
 }
 
 #[test]
+fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
+    let mut engine = test_engine("download-assets");
+
+    let ready = engine
+        .upsert_download_asset(json!({
+            "videoUrl": "https://fs1.app/videos/download-me/?source=contract",
+            "collectionKey": "favourites",
+            "title": "Download Me",
+            "img": "https://example.test/cover.jpg",
+            "localPath": "Jable Downloads/download-me.mp4",
+            "state": "ready",
+            "progress": 1,
+            "fileSizeBytes": 2048,
+            "error": null,
+            "completedAt": "2026-05-17T00:00:00.000Z"
+        }))
+        .expect("download asset should upsert");
+
+    assert_eq!(
+        ready.get("videoUrl"),
+        Some(&json!("https://jable.tv/videos/download-me/"))
+    );
+    assert_eq!(ready.get("collectionKey"), Some(&json!("favourites")));
+    assert_eq!(ready.get("title"), Some(&json!("Download Me")));
+    assert_eq!(
+        ready.get("localPath"),
+        Some(&json!("Jable Downloads/download-me.mp4"))
+    );
+    assert_eq!(ready.get("state"), Some(&json!("ready")));
+    assert_eq!(ready.get("progress"), Some(&json!(1.0)));
+    assert_eq!(ready.get("fileSizeBytes"), Some(&json!(2048)));
+    assert_eq!(
+        ready.get("completedAt"),
+        Some(&json!("2026-05-17T00:00:00.000Z"))
+    );
+
+    let failed = engine
+        .upsert_download_asset(json!({
+            "videoUrl": "https://jable.tv/videos/download-me/",
+            "state": "failed",
+            "progress": null,
+            "error": "HTTP 403",
+            "completedAt": null
+        }))
+        .expect("download asset should update");
+
+    assert_eq!(failed.get("title"), Some(&json!("Download Me")));
+    assert_eq!(
+        failed.get("localPath"),
+        Some(&json!("Jable Downloads/download-me.mp4"))
+    );
+    assert_eq!(failed.get("state"), Some(&json!("failed")));
+    assert_eq!(failed.get("progress"), Some(&Value::Null));
+    assert_eq!(failed.get("error"), Some(&json!("HTTP 403")));
+    assert_eq!(failed.get("completedAt"), Some(&Value::Null));
+
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "add",
+            "video": {
+                "title": "Download Me",
+                "url": "https://jable.tv/videos/download-me/"
+            }
+        }))
+        .expect("collection item should add");
+    assert_eq!(
+        visible_urls(&engine, "favourites"),
+        vec!["https://jable.tv/videos/download-me/"]
+    );
+
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "remove",
+            "video": {
+                "title": "Download Me",
+                "url": "https://jable.tv/videos/download-me/"
+            }
+        }))
+        .expect("collection item should remove");
+    assert!(visible_urls(&engine, "favourites").is_empty());
+    assert_eq!(
+        engine
+            .get_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should load")
+            .get("state"),
+        Some(&json!("failed"))
+    );
+
+    assert_eq!(
+        engine
+            .list_download_assets()
+            .expect("download assets should list")
+            .as_array()
+            .expect("download assets should be an array")
+            .len(),
+        1
+    );
+    assert_eq!(
+        engine
+            .remove_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should remove"),
+        json!(true)
+    );
+    assert_eq!(
+        engine
+            .remove_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should not remove twice"),
+        json!(false)
+    );
+    assert_eq!(
+        engine
+            .get_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should load missing"),
+        Value::Null
+    );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
 fn applied_deferred_local_operations_reconcile_after_finish_sync() {
     let mut engine = test_engine("defer-local-applied");
 

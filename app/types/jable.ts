@@ -169,6 +169,8 @@ export interface DownloadRecord {
   completedAt: string | null;
 }
 
+export type DownloadRecordPatch = Partial<DownloadRecord> & { videoUrl: string };
+
 export interface OpenDownloadFileResult {
   opened: boolean;
   path: string;

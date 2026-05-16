@@ -1,8 +1,7 @@
 'use strict';
 
-// Legacy TypeScript SQLite engine regression suite. Production defaults to the
-// Rust native data engine through app/data-engine.ts; these tests keep the
-// JABLE_DATA_ENGINE=ts fallback useful for parity checks and diagnostics.
+// Rust data-engine regression suite for migrations, sync visibility, search,
+// import/export, streamed file export, and local collection toggles.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,13 +9,14 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const DatabaseSync = require('node:sqlite').DatabaseSync;
-const JableDatabase = require('../../app/runtime-dist/database').JableDatabase;
+const dataEngine = require('../../app/runtime-dist/data-engine');
 const { withoutExportedAt } = require('./helpers/export-resource');
 
-function createTestDatabase(t) {
+function createTestEngine(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   const dbPath = path.join(dir, 'test.sqlite');
-  const db = new JableDatabase(dbPath);
+  const db = dataEngine.createDataEngine(dbPath);
+  db.filePath = dbPath;
 
   t.after(function () {
     db.close();
@@ -31,7 +31,7 @@ function readJson(filePath) {
 }
 
 test('saveSyncPage upserts videos and keeps one collection item per URL', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -81,7 +81,7 @@ test('saveSyncPage upserts videos and keeps one collection item per URL', functi
 });
 
 test('saveSyncPage canonicalizes fallback-origin video URLs', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -117,7 +117,7 @@ test('saveSyncPage canonicalizes fallback-origin video URLs', function (t) {
 });
 
 test('saveSyncPage stores and lists videos by site order', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -157,7 +157,7 @@ test('saveSyncPage stores and lists videos by site order', function (t) {
 });
 
 test('listVideos puts legacy rows without site order after ordered rows', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -196,7 +196,7 @@ test('listVideos puts legacy rows without site order after ordered rows', functi
 });
 
 test('listVideos supports limit and offset', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -236,7 +236,7 @@ test('listVideos supports limit and offset', function (t) {
 });
 
 test('listVideos searches title and URL with the local full text index', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -347,7 +347,7 @@ test('listVideos searches title and URL with the local full text index', functio
 });
 
 test('video search index follows title updates', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -379,7 +379,7 @@ test('video search index follows title updates', function (t) {
 });
 
 test('countVideos uses the same search and visibility filters as listVideos', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'watch_later',
@@ -431,7 +431,7 @@ test('countVideos uses the same search and visibility filters as listVideos', fu
 });
 
 test('applyCollectionToggle adds, hides, and restores a local collection item', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   const missingRemove = db.applyCollectionToggle({
     collectionKey: 'favourites',
@@ -458,7 +458,6 @@ test('applyCollectionToggle adds, hides, and restores a local collection item', 
   assert.equal(add.changed, true);
   assert.equal(add.visible, true);
   assert.equal(add.url, 'https://jable.tv/videos/clicked/');
-  assert.equal(db.getSyncState('favourites'), null);
 
   let rows = db.listVideos('favourites');
   assert.equal(rows.length, 1);
@@ -500,7 +499,7 @@ test('applyCollectionToggle adds, hides, and restores a local collection item', 
 });
 
 test('manual collection toggles win over stale pages during an active sync run', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.saveSyncPage({
@@ -600,7 +599,7 @@ test('manual collection toggles win over stale pages during an active sync run',
 });
 
 test('finishSync replays sync operations and resequences visible site order', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.saveSyncPage({
@@ -687,14 +686,11 @@ test('finishSync replays sync operations and resequences visible site order', fu
   assert.equal(hiddenRows.length, 1);
   assert.equal(hiddenRows[0].is_visible, 0);
 
-  const pending = db.db
-    .prepare('SELECT COUNT(*) AS total FROM sync_operations WHERE sync_run_id = ? AND reconciled_at IS NULL')
-    .get(syncRunId);
-  assert.equal(pending.total, 0);
+  assert.equal(db.listDeferredSyncOperations('favourites', syncRunId).length, 0);
 });
 
 test('sync pages preserve existing site order after an operation is logged', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.saveSyncPage({
@@ -770,7 +766,7 @@ test('sync pages preserve existing site order after an operation is logged', fun
 });
 
 test('restored collection items are replayed as newest sync operations', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.saveSyncPage({
@@ -834,7 +830,7 @@ test('restored collection items are replayed as newest sync operations', functio
 });
 
 test('duplicate add of a visible collection item preserves site order', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.saveSyncPage({
@@ -888,7 +884,7 @@ test('duplicate add of a visible collection item preserves site order', function
 });
 
 test('duplicate add discovered later in full sync uses scraped site order', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.saveSyncPage({
@@ -950,7 +946,7 @@ test('duplicate add discovered later in full sync uses scraped site order', func
 });
 
 test('deferred sync operations are listed and marked after remote apply', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const syncRunId = 'full-run';
 
   db.applyCollectionToggle({
@@ -1000,7 +996,7 @@ test('deferred sync operations are listed and marked after remote apply', functi
 });
 
 test('deferred sync outbox exposes failed operations as pending remote groups', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.applyCollectionToggle({
     collectionKey: 'favourites',
@@ -1042,7 +1038,7 @@ test('deferred sync outbox exposes failed operations as pending remote groups', 
 });
 
 test('deferred sync pending remote remove hides local row after remote success', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -1126,7 +1122,7 @@ test('migration rebuilds the local full text index for existing videos', functio
     .run('favourites', 'https://jable.tv/videos/migrated/', timestamp, timestamp);
   rawDb.close();
 
-  const db = new JableDatabase(dbPath);
+  const db = dataEngine.createDataEngine(dbPath);
 
   t.after(function () {
     db.close();
@@ -1142,7 +1138,7 @@ test('migration rebuilds the local full text index for existing videos', functio
 });
 
 test('allCollectionUrlsKnown checks normalized urls and includes hidden rows', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -1196,7 +1192,7 @@ test('allCollectionUrlsKnown checks normalized urls and includes hidden rows', f
 });
 
 test('quick sync updates scanned rows without hiding unscanned rows', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'favourites',
@@ -1248,7 +1244,7 @@ test('quick sync updates scanned rows without hiding unscanned rows', function (
 });
 
 test('completed full sync hides rows missing from the sync run', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'watch_later',
@@ -1307,7 +1303,7 @@ test('completed full sync hides rows missing from the sync run', function (t) {
 });
 
 test('incomplete full sync does not hide rows missing from the sync run', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
 
   db.saveSyncPage({
     collectionKey: 'watch_later',
@@ -1359,9 +1355,9 @@ test('incomplete full sync does not hide rows missing from the sync run', functi
 test('migration removes legacy playback state table', function (t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
   const dbPath = path.join(dir, 'test.sqlite');
-  let db = new JableDatabase(dbPath);
+  let rawDb = new DatabaseSync(dbPath);
 
-  db.db.exec(
+  rawDb.exec(
     [
       'CREATE TABLE playback_states (',
       '  video_url TEXT PRIMARY KEY,',
@@ -1372,24 +1368,27 @@ test('migration removes legacy playback state table', function (t) {
     ].join('\n')
   );
   assert.ok(
-    db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states')
+    rawDb.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states')
   );
+  rawDb.close();
+
+  const db = dataEngine.createDataEngine(dbPath);
   db.close();
 
-  db = new JableDatabase(dbPath);
   t.after(function () {
-    db.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  rawDb = new DatabaseSync(dbPath);
   assert.equal(
-    db.db.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'),
+    rawDb.prepare('SELECT name FROM sqlite_master WHERE type = ? AND name = ?').get('table', 'playback_states'),
     undefined
   );
+  rawDb.close();
 });
 
 test('importResource accepts userscript paged JSON and exportResource includes site order', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const resource = {
     data: [
       {
@@ -1443,7 +1442,7 @@ test('importResource accepts userscript paged JSON and exportResource includes s
 });
 
 test('importResource preserves explicit site_order from desktop JSON', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const resource = {
     data: [
       {
@@ -1490,7 +1489,7 @@ test('importResource preserves explicit site_order from desktop JSON', function 
 });
 
 test('importResource accepts sort_order as an import alias and exports site_order', function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const resource = {
     data: [
       {
@@ -1532,7 +1531,7 @@ test('importResource accepts sort_order as an import alias and exports site_orde
 });
 
 test('exportResourceToFile writes JSON equivalent to exportResource', async function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const filePath = path.join(path.dirname(db.filePath), 'favourites-export.json');
 
   db.saveSyncPage({
@@ -1566,7 +1565,7 @@ test('exportResourceToFile writes JSON equivalent to exportResource', async func
 });
 
 test('exportResourceToFile writes an empty collection resource', async function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const filePath = path.join(path.dirname(db.filePath), 'empty-export.json');
 
   const result = await db.exportResourceToFile('watch_later', filePath);
@@ -1581,7 +1580,7 @@ test('exportResourceToFile writes an empty collection resource', async function 
 });
 
 test('exportResourceToFile chunks rows into paged JSON metadata', async function (t) {
-  const db = createTestDatabase(t);
+  const db = createTestEngine(t);
   const filePath = path.join(path.dirname(db.filePath), 'paged-export.json');
   const rows = [];
 

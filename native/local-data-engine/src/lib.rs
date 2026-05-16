@@ -11,6 +11,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 mod collections;
+mod downloads;
 mod payload;
 mod resource;
 mod rows;
@@ -125,6 +126,10 @@ impl Engine {
             }
             "finishSync" => self.finish_sync(payload),
             "clearSyncState" => self.clear_sync_state(payload),
+            "listDownloadAssets" => self.list_download_assets(),
+            "getDownloadAsset" => self.get_download_asset(payload),
+            "upsertDownloadAsset" => self.upsert_download_asset(payload),
+            "removeDownloadAsset" => self.remove_download_asset(payload),
             "importResource" => self.import_resource(payload),
             "exportResource" => self.export_resource(payload),
             "exportResourceToFile" => self.export_resource_to_file(payload),
