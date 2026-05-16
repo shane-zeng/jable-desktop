@@ -75,6 +75,31 @@ fn patch_string(value: &Value, keys: &[&str], existing: Option<String>) -> Optio
     }
 }
 
+fn file_relative_path_is_safe(value: &str) -> bool {
+    if value.contains('\0') || value.starts_with('/') || value.starts_with('\\') {
+        return false;
+    }
+
+    let bytes = value.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return false;
+    }
+
+    value
+        .split(['/', '\\'])
+        .all(|part| !part.is_empty() && part != "." && part != ".." && !part.contains(':'))
+}
+
+fn normalize_file_relative_path(value: Option<String>) -> Result<Option<String>> {
+    match value {
+        Some(path) if file_relative_path_is_safe(&path) => Ok(Some(path)),
+        Some(_) => Err(Error::from_reason(
+            "Download file path must be relative to the download root".to_string(),
+        )),
+        None => Ok(None),
+    }
+}
+
 fn patch_f64(value: &Value, keys: &[&str], existing: Option<f64>) -> Option<f64> {
     if has_field(value, keys) {
         value_f64(field(value, keys)).map(|number| number.clamp(0.0, 1.0))
@@ -228,7 +253,7 @@ impl Engine {
             &["img"],
             existing.as_ref().and_then(|record| record.img.clone()),
         );
-        let local_path = patch_string(
+        let local_path = normalize_file_relative_path(patch_string(
             &payload,
             &[
                 "localPath",
@@ -239,7 +264,7 @@ impl Engine {
             existing
                 .as_ref()
                 .and_then(|record| record.local_path.clone()),
-        );
+        ))?;
         let state = patch_state(
             &payload,
             existing.as_ref().map(|record| record.state.clone()),

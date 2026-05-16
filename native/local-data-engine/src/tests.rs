@@ -145,6 +145,28 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         Some(&json!("2026-05-17T00:00:00.000Z"))
     );
 
+    let invalid_path = engine.upsert_download_asset(json!({
+        "videoUrl": "https://jable.tv/videos/invalid-download-path/",
+        "localPath": "/tmp/download-me.mp4",
+        "state": "queued"
+    }));
+    assert!(invalid_path.is_err());
+    assert!(invalid_path
+        .unwrap_err()
+        .to_string()
+        .contains("relative to the download root"));
+
+    let traversal_path = engine.upsert_download_asset(json!({
+        "videoUrl": "https://jable.tv/videos/traversal-download-path/",
+        "localPath": "../download-me.mp4",
+        "state": "queued"
+    }));
+    assert!(traversal_path.is_err());
+    assert!(traversal_path
+        .unwrap_err()
+        .to_string()
+        .contains("relative to the download root"));
+
     let failed = engine
         .upsert_download_asset(json!({
             "videoUrl": "https://jable.tv/videos/download-me/",

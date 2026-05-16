@@ -429,6 +429,20 @@ for (const kind of ENGINE_KINDS) {
       assert.equal(ready.fileSizeBytes, 2048);
       assert.equal(ready.completedAt, '2026-05-17T00:00:00.000Z');
       assert.equal(engine.getDownloadAsset('https://jable.tv/videos/download-me/').title, 'Download Me');
+      assert.throws(function () {
+        engine.upsertDownloadAsset({
+          videoUrl: 'https://jable.tv/videos/invalid-download-path/',
+          localPath: '/tmp/download-me.mp4',
+          state: 'queued'
+        });
+      }, /relative to the download root/);
+      assert.throws(function () {
+        engine.upsertDownloadAsset({
+          videoUrl: 'https://jable.tv/videos/traversal-download-path/',
+          localPath: '../download-me.mp4',
+          state: 'queued'
+        });
+      }, /relative to the download root/);
 
       const failed = engine.upsertDownloadAsset({
         videoUrl: 'https://jable.tv/videos/download-me/',
