@@ -96,6 +96,8 @@
     "setupRequired": "FFmpeg is required",
     "empty": "No downloads yet",
     "unknownCollection": "Unknown list",
+    "retry": "Retry",
+    "error": "Error: {error}",
     "state": {
       "queued": "Queued",
       "downloading": "Downloading",
@@ -279,6 +281,7 @@
     "downloadQueued": "Added to the download list",
     "downloadAlreadyQueued": "Video is already in the download list",
     "downloadStartFailed": "Failed to start download: {error}",
+    "downloadRetryFailed": "Failed to retry download: {error}",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "checkingUpdates": "Checking for updates...",

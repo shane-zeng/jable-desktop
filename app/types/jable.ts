@@ -448,6 +448,7 @@ export interface JableAppApi {
   openDownloadRoot(): Promise<OpenLocalDataFolderResult>;
   listDownloads(): Promise<DownloadRecord[]>;
   enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
+  retryDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;

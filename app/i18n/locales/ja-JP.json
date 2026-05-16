@@ -96,6 +96,8 @@
     "setupRequired": "FFmpeg が必要です",
     "empty": "ダウンロードはまだありません",
     "unknownCollection": "不明なリスト",
+    "retry": "再試行",
+    "error": "エラー: {error}",
     "state": {
       "queued": "待機中",
       "downloading": "ダウンロード中",
@@ -279,6 +281,7 @@
     "downloadQueued": "ダウンロード一覧に追加しました",
     "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
     "downloadStartFailed": "ダウンロードを開始できませんでした: {error}",
+    "downloadRetryFailed": "ダウンロードを再試行できませんでした: {error}",
     "localDataFolderOpened": "ローカルデータフォルダーを開きました",
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
     "checkingUpdates": "更新を確認しています...",

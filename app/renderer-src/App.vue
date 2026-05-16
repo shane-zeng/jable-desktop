@@ -547,6 +547,22 @@ async function downloadVideo(video: VideoRow) {
   }
 }
 
+async function retryDownload(videoUrl: string) {
+  if (!videoUrl || busy.value || syncing.value) return;
+
+  try {
+    const result = await api.retryDownload(videoUrl);
+    setStatus(
+      result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
+      result.queued ? 'success' : 'info'
+    );
+    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadRetryFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
 async function openLocalDataFolder() {
   if (busy.value || syncing.value) return;
 
@@ -703,6 +719,7 @@ onMounted(async function () {
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @go-page="library.goToPage($event)"
         @open-download="openDownloadFile"
+        @retry-download="retryDownload"
         @download-video="downloadVideo"
         @add-pending-group="addPendingRemoteOperationGroup"
         @remove-pending-group="removePendingRemoteOperationGroup"

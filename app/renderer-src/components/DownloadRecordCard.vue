@@ -8,6 +8,7 @@ defineProps<{
 
 const emit = defineEmits<{
   open: [videoUrl: string];
+  retry: [videoUrl: string];
 }>();
 
 function stateClass(state: DownloadState) {
@@ -46,17 +47,26 @@ function progressLabel(record: DownloadRecord) {
         {{ record.localPath }}
       </code>
       <p v-if="record.error" class="m-0 text-xs leading-5 text-[#f2b35d]">
-        {{ record.error }}
+        {{ t('downloadList.error', { error: record.error }) }}
       </p>
     </div>
 
-    <div class="flex items-start justify-end gap-2">
+    <div class="flex flex-wrap items-start justify-end gap-2">
       <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
         {{ t('downloadList.state.' + record.state) }}
       </span>
       <span v-if="progressLabel(record)" class="py-1 text-xs text-[var(--muted)]">
         {{ progressLabel(record) }}
       </span>
+      <button
+        v-if="record.state === 'failed' || record.state === 'missing'"
+        type="button"
+        class="min-h-7 px-2 py-1 text-xs"
+        data-test="download-record-retry"
+        @click="emit('retry', record.videoUrl)"
+      >
+        {{ t('downloadList.retry') }}
+      </button>
     </div>
   </article>
 </template>

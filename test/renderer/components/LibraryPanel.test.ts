@@ -347,7 +347,7 @@ describe('LibraryPanel', function () {
             state: 'missing',
             progress: null,
             fileSizeBytes: null,
-            error: null,
+            error: 'File removed',
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
@@ -365,10 +365,12 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).toContain('已下載');
     expect(cards[1].text()).toContain('Missing Video');
     expect(cards[1].text()).toContain('檔案遺失');
+    expect(cards[1].text()).toContain('錯誤：File removed');
 
     await cards[0].get('button').trigger('click');
-    await cards[1].get('button').trigger('click');
+    await cards[1].get('[data-test="download-record-retry"]').trigger('click');
 
     expect(wrapper.emitted('open-download')).toEqual([['https://jable.tv/videos/ready/']]);
+    expect(wrapper.emitted('retry-download')).toEqual([['https://jable.tv/videos/missing/']]);
   });
 });

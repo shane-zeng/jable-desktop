@@ -368,6 +368,19 @@ function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function downloadErrorMessage(error: unknown): string {
+  let message = mainErrorMessage(error).replace(/https?:\/\/[^\s"'<>]+/g, '[remote URL]');
+  const rootPath = getDownloadRoot().path;
+  if (rootPath) {
+    message = message.replace(new RegExp(escapeRegExp(rootPath), 'g'), '[download root]');
+  }
+  return message;
+}
+
 function normalizeBrowserNavigationUrl(value: unknown): string {
   const url = String(value || '').trim();
   if (!url) return '';
@@ -881,7 +894,7 @@ async function runQueuedDownload(record: DownloadRecord) {
       videoUrl: record.videoUrl,
       state: 'failed',
       progress: null,
-      error: mainErrorMessage(error)
+      error: downloadErrorMessage(error)
     });
     notifyDownloadsChanged();
   }
@@ -908,6 +921,14 @@ function processDownloadQueue() {
       activeDownloadUrl = null;
       processDownloadQueue();
     });
+}
+
+function queueDownloadRecord(record: DownloadRecord) {
+  if (downloadQueue.indexOf(record.videoUrl) === -1 && activeDownloadUrl !== record.videoUrl) {
+    downloadQueue.push(record.videoUrl);
+  }
+  notifyDownloadsChanged();
+  processDownloadQueue();
 }
 
 async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
@@ -937,11 +958,38 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
     completedAt: null
   });
 
-  if (downloadQueue.indexOf(record.videoUrl) === -1 && activeDownloadUrl !== record.videoUrl) {
-    downloadQueue.push(record.videoUrl);
+  queueDownloadRecord(record);
+
+  return {
+    record: record,
+    queued: true
+  };
+}
+
+async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
+  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:retry').trim();
+  const store = getDownloadStore();
+  const existing = videoUrl ? store.get(videoUrl) : null;
+  const existingState = existing ? downloadRecordWithFileState(existing).state : null;
+
+  if (!existing) throw new Error(t('status.downloadFileUnavailable'));
+  if (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready') {
+    return {
+      record: downloadRecordWithFileState(existing),
+      queued: false
+    };
   }
-  notifyDownloadsChanged();
-  processDownloadQueue();
+
+  await ffmpegCommandForDownload();
+
+  const record = store.upsert({
+    videoUrl: existing.videoUrl,
+    state: 'queued',
+    progress: null,
+    error: null,
+    completedAt: null
+  });
+  queueDownloadRecord(record);
 
   return {
     record: record,
@@ -3025,6 +3073,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('download:enqueue', function (_event, payload) {
     return enqueueDownload(payload);
+  });
+
+  ipcMain.handle('download:retry', function (_event, videoUrl) {
+    return retryDownload(videoUrl);
   });
 
   ipcMain.handle('download:open-file', function (_event, videoUrl) {
