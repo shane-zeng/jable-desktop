@@ -186,6 +186,11 @@ describe('LibraryPanel', function () {
     expect(summary.find('.pending-chip-failed').exists()).toBe(true);
     expect(wrapper.get('[data-test="pending-remote-sequence"]').text()).toContain('操作序列');
     expect(wrapper.get('[data-test="pending-remote-sequence"]').find('.max-h-16').exists()).toBe(true);
+    const sequenceSteps = wrapper.findAll('[data-test="pending-remote-sequence"] .pending-sequence-step');
+    expect(sequenceSteps[0].text()).toBe('移除');
+    expect(sequenceSteps[0].classes()).toContain('pending-chip-remove');
+    expect(sequenceSteps[0].attributes('aria-label')).toBe('移除送出失敗');
+    expect(sequenceSteps[1].text()).toBe('加入');
     expect(wrapper.find('[data-test="pending-remote-card"] button').classes()).toContain('success');
 
     const buttons = wrapper.findAll('[data-test="pending-remote-card"] button');

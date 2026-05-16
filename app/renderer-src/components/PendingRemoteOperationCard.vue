@@ -52,11 +52,12 @@ const sequenceSteps = computed(function () {
   return props.group.sequence.map(function (step) {
     return {
       id: step.id,
-      label: i18n.t('pendingRemote.sequenceStep', {
+      label: i18n.t('pendingRemote.action.' + step.action),
+      ariaLabel: i18n.t('pendingRemote.sequenceStep', {
         action: i18n.t('pendingRemote.action.' + step.action),
         state: i18n.t('pendingRemote.state.' + step.state)
       }),
-      className: stateChipClass(step.state)
+      className: actionChipClass(step.action)
     };
   });
 });
@@ -72,6 +73,11 @@ function isMacPlatform() {
 function stateChipClass(state: PendingRemoteOperationGroup['state']) {
   if (state === 'failed') return 'pending-chip-failed';
   if (state === 'blocked') return 'pending-chip-blocked';
+  return 'pending-chip-pending';
+}
+
+function actionChipClass(action: PendingRemoteOperationGroup['sequence'][number]['action']) {
+  if (action === 'remove') return 'pending-chip-remove';
   return 'pending-chip-pending';
 }
 
@@ -202,7 +208,12 @@ function stopPreview() {
         <div class="flex max-h-16 flex-wrap gap-1.5 overflow-auto pr-1">
           <template v-for="(step, index) in sequenceSteps" :key="step.id">
             <span v-if="index > 0" class="self-center text-[10px] text-[var(--muted)]" aria-hidden="true">-&gt;</span>
-            <span class="pending-sequence-step" :class="step.className">
+            <span
+              class="pending-sequence-step"
+              :class="step.className"
+              :title="step.ariaLabel"
+              :aria-label="step.ariaLabel"
+            >
               {{ step.label }}
             </span>
           </template>
