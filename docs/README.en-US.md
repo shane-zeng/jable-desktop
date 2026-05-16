@@ -88,7 +88,7 @@ When a later Full Sync completes without new replay failures, pending items left
 
 ## Download List And FFmpeg
 
-Downloads require FFmpeg to be installed locally. The first release does not bundle FFmpeg and does not install it automatically.
+Downloads require FFmpeg to be installed locally.
 
 After installing FFmpeg, open Settings > Downloads:
 

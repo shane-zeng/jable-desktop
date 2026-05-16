@@ -88,7 +88,7 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 
 ## ダウンロード一覧と FFmpeg
 
-ダウンロード機能にはローカルにインストールされた FFmpeg が必要です。初回リリースでは FFmpeg をアプリに同梱せず、自動インストールもしません。
+ダウンロード機能にはローカルにインストールされた FFmpeg が必要です。
 
 FFmpeg をインストールした後、設定 > ダウンロードを開きます。
 
