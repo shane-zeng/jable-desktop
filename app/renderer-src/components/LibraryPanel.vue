@@ -51,6 +51,7 @@ const emit = defineEmits<{
   'next-page': [];
   'go-page': [page: number];
   'open-download': [videoUrl: string];
+  'download-video': [video: VideoRow];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
   'add-pending-group': [groupId: string];
@@ -202,6 +203,7 @@ function updateDirection(event: Event) {
           :video="video"
           @open="emit('open-video', $event)"
           @open-new="emit('open-video-new-tab', $event)"
+          @download="emit('download-video', $event)"
           @context-menu="emit('video-context-menu', $event)"
         />
       </template>

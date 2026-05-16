@@ -249,6 +249,12 @@ function handleBrowserMessage(message: BrowserMessage) {
     browser.setNavigationState(message.args[0] as BrowserNavigationState);
   }
 
+  if (message.channel === 'downloads-changed' && library.activeTab.value === 'downloads') {
+    library.refreshVideos().catch(function (error) {
+      console.error(error);
+    });
+  }
+
   if (message.channel === 'browser-tabs-compact-mode') {
     const compactPayload = (message.args[0] || {}) as { compact?: boolean };
     setBrowserTabsCompact(Boolean(compactPayload.compact));
@@ -522,6 +528,25 @@ async function openDownloadFile(videoUrl: string) {
   }
 }
 
+async function downloadVideo(video: VideoRow) {
+  if (!video || !video.url || busy.value || syncing.value) return;
+
+  try {
+    const result = await api.enqueueDownload({
+      collectionKey: library.activeCollection.value,
+      video: video
+    });
+    setStatus(
+      result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
+      result.queued ? 'success' : 'info'
+    );
+    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadStartFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
 async function openLocalDataFolder() {
   if (busy.value || syncing.value) return;
 
@@ -678,6 +703,7 @@ onMounted(async function () {
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @go-page="library.goToPage($event)"
         @open-download="openDownloadFile"
+        @download-video="downloadVideo"
         @add-pending-group="addPendingRemoteOperationGroup"
         @remove-pending-group="removePendingRemoteOperationGroup"
         @resolve-pending-group="resolvePendingRemoteOperationGroup"

@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   open: [url: string];
   'open-new': [url: string];
+  download: [video: VideoRow];
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 const i18n = useI18n();
@@ -91,6 +92,12 @@ function openVideoMenu(event: MouseEvent) {
     y: event.clientY
   });
 }
+
+function downloadVideo(event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  emit('download', props.video);
+}
 </script>
 
 <template>
@@ -157,7 +164,12 @@ function openVideoMenu(event: MouseEvent) {
           }}</span>
           <span class="pl-1" data-test="video-likes-label">{{ i18n.t('video.likes') }}</span>
         </div>
-        <div class="truncate">{{ i18n.t('video.synced', { date: formatDate(video.last_seen_at) }) }}</div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="min-w-0 truncate">{{ i18n.t('video.synced', { date: formatDate(video.last_seen_at) }) }}</span>
+          <button type="button" class="min-h-7 px-2 py-1 text-xs" data-test="video-download" @click="downloadVideo">
+            {{ i18n.t('video.download') }}
+          </button>
+        </div>
       </div>
     </div>
   </article>

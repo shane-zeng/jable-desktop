@@ -166,6 +166,20 @@ describe('VideoCard', function () {
     ]);
   });
 
+  it('emits download with the video row when the download button is clicked', async function () {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
+      props: {
+        video: video
+      }
+    });
+
+    await wrapper.get('[data-test="video-download"]').trigger('click');
+
+    expect(wrapper.emitted('download')).toEqual([[video]]);
+    expect(wrapper.emitted('open')).toBeUndefined();
+  });
+
   it('renders English aria labels and sync metadata', function () {
     setLocale('en-US', false);
     const video = makeVideo();

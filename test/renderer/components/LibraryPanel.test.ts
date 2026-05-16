@@ -127,6 +127,43 @@ describe('LibraryPanel', function () {
     expect(wrapper.emitted('go-page')).toEqual([[3], [4]]);
   });
 
+  it('relays video download actions from collection cards', async function () {
+    const video = {
+      title: 'Downloadable Video',
+      url: 'https://jable.tv/videos/downloadable/',
+      views: 1,
+      likes: 2,
+      img: null,
+      preview: null
+    };
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'favourites',
+        busy: false,
+        ffmpegReady: true,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '1 筆 · 每頁 24 筆',
+        pageLabel: '第 1 / 1 頁',
+        downloads: [],
+        rows: [video],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    await wrapper.get('[data-test="video-download"]').trigger('click');
+
+    expect(wrapper.emitted('download-video')).toEqual([[video]]);
+  });
+
   it('renders pending remote groups without collection controls', async function () {
     const wrapper = mount(LibraryPanel, {
       props: {

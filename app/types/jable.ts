@@ -173,6 +173,16 @@ export interface OpenDownloadFileResult {
   path: string;
 }
 
+export interface DownloadRequestPayload {
+  collectionKey: CollectionKey;
+  video: VideoRow;
+}
+
+export interface EnqueueDownloadResult {
+  record: DownloadRecord;
+  queued: boolean;
+}
+
 export interface BrowserNavigationState {
   tabId?: string | null;
   canGoBack: boolean;
@@ -437,6 +447,7 @@ export interface JableAppApi {
   clearDownloadRoot(): Promise<DownloadRootInfo>;
   openDownloadRoot(): Promise<OpenLocalDataFolderResult>;
   listDownloads(): Promise<DownloadRecord[]>;
+  enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;

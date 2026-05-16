@@ -114,6 +114,7 @@
   },
   "video": {
     "open": "Open video: {target}",
+    "download": "Download",
     "views": "views",
     "likes": "likes",
     "synced": "Synced {date}"
@@ -275,6 +276,9 @@
     "downloadFileOpened": "Opened the downloaded file",
     "downloadFileUnavailable": "Downloaded file is unavailable",
     "downloadFileOpenFailed": "Failed to open downloaded file: {error}",
+    "downloadQueued": "Added to the download list",
+    "downloadAlreadyQueued": "Video is already in the download list",
+    "downloadStartFailed": "Failed to start download: {error}",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "checkingUpdates": "Checking for updates...",

@@ -114,6 +114,7 @@
   },
   "video": {
     "open": "動画を開く: {target}",
+    "download": "ダウンロード",
     "views": "再生",
     "likes": "いいね",
     "synced": "同期 {date}"
@@ -275,6 +276,9 @@
     "downloadFileOpened": "ダウンロードファイルを開きました",
     "downloadFileUnavailable": "ダウンロードファイルを使用できません",
     "downloadFileOpenFailed": "ダウンロードファイルを開けませんでした: {error}",
+    "downloadQueued": "ダウンロード一覧に追加しました",
+    "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
+    "downloadStartFailed": "ダウンロードを開始できませんでした: {error}",
     "localDataFolderOpened": "ローカルデータフォルダーを開きました",
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
     "checkingUpdates": "更新を確認しています...",

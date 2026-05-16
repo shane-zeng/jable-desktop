@@ -2,6 +2,7 @@
 
 import type * as Electron from 'electron';
 import type * as NodeChildProcess from 'node:child_process';
+import type * as NodeCrypto from 'node:crypto';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type {
@@ -20,8 +21,10 @@ import type {
   CollectionKey,
   CreateBrowserTabPayload,
   DownloadRecord,
+  DownloadRequestPayload,
   DownloadRootInfo,
   DownloadRootSelectionResult,
+  EnqueueDownloadResult,
   ExportJsonFileResult,
   ExportResource,
   FfmpegPathSelectionResult,
@@ -143,6 +146,7 @@ type DownloadsModule = {
   DownloadStore: new (filePath: string) => {
     list(): DownloadRecord[];
     get(videoUrl: string): DownloadRecord | null;
+    upsert(patch: Partial<DownloadRecord> & { videoUrl: string }): DownloadRecord;
   };
   downloadsFilePath(userDataPath: string): string;
 };
@@ -258,6 +262,7 @@ type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 const electron: typeof Electron = require('electron');
 const childProcess: typeof NodeChildProcess = require('node:child_process');
+const nodeCrypto: typeof NodeCrypto = require('node:crypto');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
@@ -293,6 +298,8 @@ const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+const DOWNLOAD_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -315,6 +322,8 @@ let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 let downloadStore: InstanceType<DownloadsModule['DownloadStore']> | null = null;
+const downloadQueue: string[] = [];
+let activeDownloadUrl: string | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -658,6 +667,286 @@ function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
 
 function listDownloads(): DownloadRecord[] {
   return getDownloadStore().list().map(downloadRecordWithFileState);
+}
+
+function notifyDownloadsChanged() {
+  forwardBrowserMessage('downloads-changed', listDownloads());
+}
+
+function downloadTimestamp() {
+  return new Date().toISOString();
+}
+
+function normalizeDownloadRequestPayload(value: unknown): DownloadRequestPayload {
+  const channel = 'download:enqueue';
+  const payload = requiredRecord(value, channel);
+  const video = requiredRecord(payload.video, channel);
+
+  return {
+    collectionKey: normalizeCollectionKey(payload.collectionKey, channel),
+    video: {
+      title: typeof video.title === 'string' ? video.title : null,
+      url: requiredStringValue(video.url, 'video.url', channel),
+      views: null,
+      likes: null,
+      img: typeof video.img === 'string' ? video.img : null,
+      preview: typeof video.preview === 'string' ? video.preview : null
+    }
+  };
+}
+
+function sanitizeDownloadFileName(value: string): string {
+  const sanitized = value
+    .replace(/[<>:"/\\|?*]/g, ' ')
+    .split('')
+    .map(function (character) {
+      return character.charCodeAt(0) < 32 ? ' ' : character;
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return (sanitized || 'video').slice(0, 120);
+}
+
+function videoUrlSlug(videoUrl: string): string {
+  try {
+    const parts = new URL(videoUrl).pathname.split('/').filter(Boolean);
+    return parts[parts.length - 1] || 'video';
+  } catch (error) {
+    return 'video';
+  }
+}
+
+function downloadOutputPath(payload: DownloadRequestPayload): string {
+  const hash = nodeCrypto.createHash('sha1').update(payload.video.url).digest('hex').slice(0, 10);
+  const name = sanitizeDownloadFileName(payload.video.title || videoUrlSlug(payload.video.url));
+  return path.join(getDownloadRoot().path, payload.collectionKey, name + '-' + hash + '.mp4');
+}
+
+async function cookieHeaderForUrl(targetUrl: string): Promise<string> {
+  const origin = new URL(targetUrl).origin;
+  const cookies = await session.fromPartition(JABLE_SESSION_PARTITION).cookies.get({ url: origin });
+  return cookies
+    .map(function (cookie) {
+      return cookie.name + '=' + cookie.value;
+    })
+    .join('; ');
+}
+
+function hlsUrlCandidate(value: string, pageUrl: string): string | null {
+  const candidate = value.replace(/\\\//g, '/').replace(/&amp;/g, '&').trim();
+  if (candidate.indexOf('.m3u8') === -1) return null;
+
+  try {
+    return new URL(candidate, pageUrl).toString();
+  } catch (error) {
+    return null;
+  }
+}
+
+function extractHlsPlaylistUrl(html: string, pageUrl: string): string | null {
+  const candidates = new Set<string>();
+  const normalizedHtml = html.replace(/\\\//g, '/');
+  const absoluteMatches = normalizedHtml.match(/https?:\/\/[^"'<>\\\s]+\.m3u8[^"'<>\\\s]*/g) || [];
+
+  for (let i = 0; i < absoluteMatches.length; i++) {
+    const candidate = hlsUrlCandidate(absoluteMatches[i], pageUrl);
+    if (candidate) candidates.add(candidate);
+  }
+
+  const quotedPattern = /["']([^"']+\.m3u8[^"']*)["']/g;
+  let match = quotedPattern.exec(normalizedHtml);
+  while (match) {
+    const candidate = hlsUrlCandidate(match[1], pageUrl);
+    if (candidate) candidates.add(candidate);
+    match = quotedPattern.exec(normalizedHtml);
+  }
+
+  return candidates.values().next().value || null;
+}
+
+async function fetchVideoPageHtml(videoUrl: string): Promise<string> {
+  const cookieHeader = await cookieHeaderForUrl(videoUrl);
+  const headers: Record<string, string> = {
+    accept: 'text/html,application/xhtml+xml',
+    referer: new URL(videoUrl).origin + '/',
+    'user-agent': DOWNLOAD_USER_AGENT
+  };
+  if (cookieHeader) headers.cookie = cookieHeader;
+
+  const response = await fetch(videoUrl, { headers: headers });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+  return response.text();
+}
+
+async function ffmpegCommandForDownload(): Promise<string> {
+  const status = await getFfmpegStatus();
+  if (status.state !== 'detected') throw new Error(t('status.ffmpegMissing'));
+  return status.path || FFMPEG_COMMAND;
+}
+
+function ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string {
+  const headers = ['Referer: ' + videoUrl, 'User-Agent: ' + DOWNLOAD_USER_AGENT];
+  if (cookieHeader) headers.push('Cookie: ' + cookieHeader);
+  return headers.join('\r\n') + '\r\n';
+}
+
+function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: string, outputPath: string): Promise<void> {
+  return cookieHeaderForUrl(videoUrl).then(function (cookieHeader) {
+    return new Promise(function (resolve, reject) {
+      const tempPath = outputPath + '.part';
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (error) {}
+
+      const child = childProcess.spawn(
+        command,
+        [
+          '-y',
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-headers',
+          ffmpegHeaderBlock(videoUrl, cookieHeader),
+          '-protocol_whitelist',
+          'file,http,https,tcp,tls,crypto',
+          '-i',
+          playlistUrl,
+          '-c',
+          'copy',
+          '-movflags',
+          '+faststart',
+          tempPath
+        ],
+        {
+          windowsHide: true
+        }
+      );
+      let stderr = '';
+
+      child.stderr.on('data', function (chunk) {
+        stderr = (stderr + String(chunk)).slice(-4000);
+      });
+      child.on('error', reject);
+      child.on('close', function (code) {
+        if (code !== 0) {
+          reject(new Error(stderr.trim() || 'FFmpeg exited with code ' + code));
+          return;
+        }
+
+        try {
+          fs.renameSync(tempPath, outputPath);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  });
+}
+
+async function runQueuedDownload(record: DownloadRecord) {
+  const store = getDownloadStore();
+  const outputPath = record.localPath || path.join(getDownloadRoot().path, videoUrlSlug(record.videoUrl) + '.mp4');
+
+  store.upsert({
+    videoUrl: record.videoUrl,
+    state: 'downloading',
+    progress: null,
+    error: null,
+    localPath: outputPath
+  });
+  notifyDownloadsChanged();
+
+  try {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    const command = await ffmpegCommandForDownload();
+    const html = await fetchVideoPageHtml(record.videoUrl);
+    const playlistUrl = extractHlsPlaylistUrl(html, record.videoUrl);
+    if (!playlistUrl) throw new Error('HLS playlist was not found');
+
+    await runFfmpegDownload(command, playlistUrl, record.videoUrl, outputPath);
+
+    store.upsert({
+      videoUrl: record.videoUrl,
+      state: 'ready',
+      progress: 1,
+      error: null,
+      localPath: outputPath,
+      completedAt: downloadTimestamp()
+    });
+    notifyDownloadsChanged();
+  } catch (error) {
+    store.upsert({
+      videoUrl: record.videoUrl,
+      state: 'failed',
+      progress: null,
+      error: mainErrorMessage(error)
+    });
+    notifyDownloadsChanged();
+  }
+}
+
+function processDownloadQueue() {
+  if (activeDownloadUrl) return;
+
+  const nextUrl = downloadQueue.shift();
+  if (!nextUrl) return;
+
+  const record = getDownloadStore().get(nextUrl);
+  if (!record || record.state !== 'queued') {
+    processDownloadQueue();
+    return;
+  }
+
+  activeDownloadUrl = nextUrl;
+  runQueuedDownload(record)
+    .catch(function (error) {
+      console.error(error);
+    })
+    .finally(function () {
+      activeDownloadUrl = null;
+      processDownloadQueue();
+    });
+}
+
+async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
+  const payload = normalizeDownloadRequestPayload(value);
+  const store = getDownloadStore();
+  const existing = store.get(payload.video.url);
+  const existingState = existing ? downloadRecordWithFileState(existing).state : null;
+
+  if (existing && (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready')) {
+    return {
+      record: downloadRecordWithFileState(existing),
+      queued: false
+    };
+  }
+
+  await ffmpegCommandForDownload();
+
+  const record = store.upsert({
+    videoUrl: payload.video.url,
+    collectionKey: payload.collectionKey,
+    title: payload.video.title,
+    img: payload.video.img,
+    localPath: downloadOutputPath(payload),
+    state: 'queued',
+    progress: null,
+    error: null,
+    completedAt: null
+  });
+
+  if (downloadQueue.indexOf(record.videoUrl) === -1 && activeDownloadUrl !== record.videoUrl) {
+    downloadQueue.push(record.videoUrl);
+  }
+  notifyDownloadsChanged();
+  processDownloadQueue();
+
+  return {
+    record: record,
+    queued: true
+  };
 }
 
 function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
@@ -2732,6 +3021,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('download:list', function () {
     return listDownloads();
+  });
+
+  ipcMain.handle('download:enqueue', function (_event, payload) {
+    return enqueueDownload(payload);
   });
 
   ipcMain.handle('download:open-file', function (_event, videoUrl) {

@@ -114,6 +114,7 @@
   },
   "video": {
     "open": "開啟影片：{target}",
+    "download": "下載",
     "views": "views",
     "likes": "likes",
     "synced": "同步 {date}"
@@ -275,6 +276,9 @@
     "downloadFileOpened": "已開啟下載檔案",
     "downloadFileUnavailable": "下載檔案無法使用",
     "downloadFileOpenFailed": "開啟下載檔案失敗：{error}",
+    "downloadQueued": "已加入下載清單",
+    "downloadAlreadyQueued": "影片已在下載清單中",
+    "downloadStartFailed": "開始下載失敗：{error}",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
     "checkingUpdates": "正在檢查更新…",

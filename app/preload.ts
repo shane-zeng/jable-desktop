@@ -54,6 +54,9 @@ const jableApp: JableAppApi = {
   listDownloads: function () {
     return ipcRenderer.invoke('download:list');
   },
+  enqueueDownload: function (payload) {
+    return ipcRenderer.invoke('download:enqueue', payload);
+  },
   openDownloadFile: function (videoUrl) {
     return ipcRenderer.invoke('download:open-file', videoUrl);
   },
