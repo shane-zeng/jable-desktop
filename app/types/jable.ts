@@ -215,8 +215,9 @@ export interface SyncQueueProgressPayload {
   collectionKey: CollectionKey;
   mode: SyncMode;
   syncRunId: string;
-  phase: 'start' | 'complete';
+  phase: 'start' | 'progress' | 'complete';
   total: number;
+  processed?: number;
   applied?: number;
   failed?: number;
 }

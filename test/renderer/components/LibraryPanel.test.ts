@@ -82,6 +82,41 @@ describe('LibraryPanel', function () {
     expect(wrapper.find('[aria-label="並び順"]').text()).toContain('昇順');
   });
 
+  it('relays a selected page from the footer jump control', async function () {
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'favourites',
+        busy: false,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '96 筆 · 每頁 24 筆',
+        pageLabel: '第 1 / 4 頁',
+        rows: [],
+        currentPage: 1,
+        totalPages: 4
+      }
+    });
+
+    expect(wrapper.text()).toContain('第 1 / 4 頁');
+
+    await wrapper.get('input[aria-label="指定頁數"]').setValue('3');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.emitted('go-page')).toEqual([[3]]);
+
+    await wrapper.get('input[aria-label="指定頁數"]').setValue('99');
+    await wrapper.get('form').trigger('submit');
+
+    expect(wrapper.emitted('go-page')).toEqual([[3], [4]]);
+  });
+
   it('renders pending remote groups without collection controls', async function () {
     const wrapper = mount(LibraryPanel, {
       props: {

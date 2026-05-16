@@ -44,7 +44,9 @@ The userscript has no build step. Edit it directly and validate it in Tampermonk
 - `fnm exec --using 24 npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
 - `fnm exec --using 24 npm run format`: format the repository with Prettier.
 - `fnm exec --using 24 npm run format:check`: verify Prettier formatting without changing files.
-- `fnm exec --using 24 npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
+- `fnm exec --using 24 npm run rust:ci`: run Rust formatting, check, clippy, and native data-engine tests.
+- `fnm exec --using 24 npm run rust:test`: run the Rust native data-engine unit tests.
+- `fnm exec --using 24 npm run check`: run Rust CI checks, lint, typecheck, Node tests, renderer tests, and renderer build.
 - `fnm exec --using 24 npm run build:electron`: compile the Electron runtime into `app/runtime-dist/`.
 - `fnm exec --using 24 npm run build:renderer`: build the Vue renderer into `app/renderer-dist/`.
 - `fnm exec --using 24 npm run dev:renderer`: run the Vite renderer dev server.
@@ -86,6 +88,8 @@ Local lists are loaded through paginated `listVideos` calls plus matching `count
 
 Local search uses SQLite FTS5. Changes to search tokenization, migrations, filters, sort behavior, or visibility rules should be covered in `test/node/database.test.js` for the legacy engine and `test/node/data-engine-contract.test.js` for the shared TypeScript/Rust contract.
 
+Rust native data-engine behavior must also be covered directly in `native/local-data-engine/src/tests.rs` when the change affects Rust-owned invariants such as migrations, FTS/search tokenization, sync visibility, sync operation reduction, outbox state transitions, pending remote grouping, resolved/superseded handling, or JSON import/export. Do not rely only on Node contract tests for Rust-owned state machines.
+
 Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, and `docs/development.md`.
 
 Quick sync starts at page 1 and stops after a page where every row is already known. Full sync rebuilds `site_order`, marks missing rows invisible only after a completed full run, and supports batch continuation. Keep partial-run behavior conservative so failed or paused syncs do not hide old local rows.
@@ -109,7 +113,7 @@ Keep documentation split by audience:
 
 ## Testing Guidelines
 
-Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine changes, especially migrations, search, sync reducers, and outbox state. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
 
 GitHub Actions run formatting checks, linting, typechecking, tests, and renderer builds on pushes and pull requests. Release workflows also run formatting checks and the same full quality gate before packaging unsigned artifacts.
 

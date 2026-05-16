@@ -94,7 +94,11 @@
   },
   "pagination": {
     "prev": "上一頁",
-    "next": "下一頁"
+    "next": "下一頁",
+    "goTo": "跳至",
+    "pageInput": "指定頁數",
+    "pageSuffix": "頁",
+    "go": "前往"
   },
   "video": {
     "open": "開啟影片：{target}",
@@ -116,6 +120,8 @@
     "syncAjaxRetry": "第 {page} 頁 AJAX 預抓遇到 {reason}，{delay} 秒後重試（{attempt}/{maxRetries}）",
     "syncAjaxFallback": "AJAX 預抓遇到 {reason}，已改用保守逐頁同步",
     "syncQueueProcessing": "{collection} 分頁已同步完成，正在處理 {count} 筆排隊操作",
+    "syncQueueProgress": "{collection} 排隊操作處理中：{processed}/{total}",
+    "syncQueueProgressLabel": "排隊操作進度 {processed}/{total}",
     "syncQueueProcessed": "{collection} 排隊操作處理完成：成功 {applied} 筆，未完成 {failed} 筆",
     "updateLibraryFailed": "更新本機列表失敗：{error}",
     "collectionRemoved": "已從{collection}移除本機資料",

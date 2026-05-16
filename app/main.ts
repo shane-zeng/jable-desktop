@@ -1681,47 +1681,74 @@ async function applyDeferredSyncOperationsInWorker(
 ): Promise<{ applied: number; failed: number; failures: SyncQueuedOperationFailure[] }> {
   const operations = getDatabase().listDeferredSyncOutboxOperations(options.collectionKey);
   if (!operations.length) return { applied: 0, failed: 0, failures: [] };
+  let applied = 0;
+  const failures: SyncQueuedOperationFailure[] = [];
 
   notifySyncQueueProgress(options, {
     phase: 'start',
-    total: operations.length
+    total: operations.length,
+    processed: 0,
+    applied: 0,
+    failed: 0
   });
 
-  const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
-    worker.webContents,
-    'browser:apply-deferred-sync-operations-request',
-    { operations: operations },
-    BROWSER_SYNC_REQUEST_TIMEOUT_MS
-  );
-  const normalized = (result || {}) as DeferredSyncOperationApplyResult;
-  const applied = getDatabase().markDeferredSyncOperationsApplied(
-    options.collectionKey,
-    null,
-    Array.isArray(normalized.applied) ? normalized.applied : []
-  );
-  const failedRows = Array.isArray(normalized.failed) ? normalized.failed : [];
+  for (let i = 0; i < operations.length; i++) {
+    const operation = operations[i];
+    const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
+      worker.webContents,
+      'browser:apply-deferred-sync-operations-request',
+      { operations: [operation] },
+      BROWSER_SYNC_REQUEST_TIMEOUT_MS
+    );
+    const normalized = (result || {}) as DeferredSyncOperationApplyResult;
+    const appliedIds = Array.isArray(normalized.applied) ? normalized.applied : [];
+    const failedRows = Array.isArray(normalized.failed) ? normalized.failed : [];
+    const failedRow =
+      failedRows.find(function (row) {
+        return !row.blocked;
+      }) || failedRows[0];
 
-  for (let i = 0; i < failedRows.length; i++) {
-    if (!failedRows[i].blocked) {
+    if (failedRow) {
       getDatabase().markDeferredSyncOperationFailed(
         options.collectionKey,
         null,
-        failedRows[i].id,
-        failedRows[i].message
+        failedRow.id || operation.id,
+        failedRow.message
       );
-      break;
+      failures.push(failedRow);
+
+      for (let blocked = i + 1; blocked < operations.length; blocked++) {
+        failures.push({
+          id: operations[blocked].id,
+          url: operations[blocked].videoUrl,
+          message: 'Blocked by earlier failed operation',
+          blocked: true
+        });
+      }
+
+      notifyPendingCollectionOperationsChanged();
+      notifySyncQueueProgress(options, {
+        phase: 'complete',
+        total: operations.length,
+        processed: operations.length,
+        applied: applied,
+        failed: failures.length
+      });
+      return { applied: applied, failed: failures.length, failures: failures };
     }
+
+    applied += getDatabase().markDeferredSyncOperationsApplied(options.collectionKey, null, appliedIds);
+    notifyPendingCollectionOperationsChanged();
+    notifySyncQueueProgress(options, {
+      phase: i + 1 === operations.length ? 'complete' : 'progress',
+      total: operations.length,
+      processed: i + 1,
+      applied: applied,
+      failed: 0
+    });
   }
 
-  notifyPendingCollectionOperationsChanged();
-  notifySyncQueueProgress(options, {
-    phase: 'complete',
-    total: operations.length,
-    applied: applied,
-    failed: failedRows.length
-  });
-
-  return { applied: applied, failed: failedRows.length, failures: failedRows };
+  return { applied: applied, failed: 0, failures: [] };
 }
 
 async function retryPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationRetryResult> {

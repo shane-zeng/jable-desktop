@@ -94,7 +94,11 @@
   },
   "pagination": {
     "prev": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "goTo": "Page",
+    "pageInput": "Page number",
+    "pageSuffix": "",
+    "go": "Go"
   },
   "video": {
     "open": "Open video: {target}",
@@ -116,6 +120,8 @@
     "syncAjaxRetry": "AJAX prefetch for page {page} hit {reason}. Retrying in {delay}s ({attempt}/{maxRetries}).",
     "syncAjaxFallback": "AJAX prefetch hit {reason}. Switched to conservative page-by-page sync.",
     "syncQueueProcessing": "{collection} pages are synced. Processing {count} queued operations.",
+    "syncQueueProgress": "{collection} queued operations: {processed}/{total}",
+    "syncQueueProgressLabel": "Queued operation progress {processed}/{total}",
     "syncQueueProcessed": "{collection} queued operations processed: {applied} applied, {failed} unfinished.",
     "updateLibraryFailed": "Failed to update local list: {error}",
     "collectionRemoved": "Removed local data from {collection}",

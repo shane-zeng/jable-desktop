@@ -109,8 +109,10 @@ test('sync queue and finalization phases surface renderer status updates', funct
   assert.match(mainSource, /function notifySyncQueueProgress/);
   assert.match(mainSource, /'sync-queue-progress'/);
   assert.match(mainSource, /phase: 'start'/);
+  assert.match(mainSource, /phase: i \+ 1 === operations\.length \? 'complete' : 'progress'/);
   assert.match(source, /message\.channel === 'sync-queue-progress'/);
-  assert.match(source, /status\.syncQueueProcessing/);
+  assert.match(source, /status\.syncQueueProgress/);
+  assert.match(source, /class="app-toast-progress"/);
   assert.match(source, /status\.syncFinalizingLocalData/);
   assert.match(source, /status\.syncReturningLibrary/);
   assert.match(source, /waitForSyncReturningNotice/);

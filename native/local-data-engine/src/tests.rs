@@ -1,5 +1,64 @@
 use super::*;
 use serde_json::json;
+use std::path::PathBuf;
+
+fn test_engine(name: &str) -> Engine {
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "jable-rust-engine-{name}-{}-{}.sqlite",
+        std::process::id(),
+        now_millis()
+    ));
+    Engine::open(path.to_string_lossy().as_ref()).expect("test engine should open")
+}
+
+fn group_id(group: &Value) -> &str {
+    group
+        .get("groupId")
+        .and_then(Value::as_str)
+        .expect("group should include groupId")
+}
+
+fn first_outbox_id(engine: &Engine, collection_key: &str) -> i64 {
+    let operations = engine
+        .list_deferred_sync_operations(json!({ "collectionKey": collection_key }), false)
+        .expect("outbox should list")
+        .as_array()
+        .cloned()
+        .expect("outbox should be an array");
+
+    operations
+        .first()
+        .and_then(|operation| operation.get("id"))
+        .and_then(Value::as_i64)
+        .expect("outbox should include an id")
+}
+
+fn count_operations_with_state(engine: &Engine, state: &str) -> i64 {
+    engine
+        .conn()
+        .expect("connection should be open")
+        .query_row(
+            "SELECT COUNT(*) FROM sync_operations WHERE remote_apply_state = ?",
+            params![state],
+            |row| row.get(0),
+        )
+        .expect("state count should query")
+}
+
+fn remove_temp_database(engine: &mut Engine) {
+    let path = PathBuf::from(
+        engine
+            .conn()
+            .expect("connection should be open")
+            .path()
+            .expect("test database should be file-backed"),
+    );
+    engine.close().expect("engine should close");
+    let _ = fs::remove_file(&path);
+    let _ = fs::remove_file(path.with_extension("sqlite-wal"));
+    let _ = fs::remove_file(path.with_extension("sqlite-shm"));
+}
 
 #[test]
 fn normalize_video_url_canonicalizes_supported_origins() {
@@ -28,4 +87,161 @@ fn search_text_matches_cjk_ascii_and_phrase_queries() {
     assert!(matches_search(&search_text, Some("測試 abc"), "all"));
     assert!(matches_search(&search_text, Some("ABC123"), "phrase"));
     assert!(!matches_search(&search_text, Some("missing"), "all"));
+}
+
+#[test]
+fn pending_remote_groups_keep_final_intent_and_resolve_as_a_group() {
+    let mut engine = test_engine("pending-final-intent");
+
+    for action in ["add", "remove", "add"] {
+        engine
+            .apply_collection_toggle(json!({
+                "collectionKey": "watch_later",
+                "action": action,
+                "syncRunId": "active-run",
+                "deferRemote": true,
+                "remoteVideoId": "10",
+                "remoteFavType": "1",
+                "video": {
+                    "title": "Flip",
+                    "url": "https://jable.tv/videos/flip/"
+                }
+            }))
+            .expect("collection toggle should queue");
+    }
+
+    let first_id = first_outbox_id(&engine, "watch_later");
+    assert_eq!(
+        engine
+            .mark_deferred_sync_operation_failed(json!({
+                "collectionKey": "watch_later",
+                "id": first_id,
+                "message": "HTTP 500"
+            }))
+            .expect("operation should mark failed"),
+        json!(true)
+    );
+
+    let groups = engine
+        .list_pending_remote_operation_groups()
+        .expect("pending groups should list")
+        .as_array()
+        .cloned()
+        .expect("pending groups should be an array");
+    assert_eq!(groups.len(), 1);
+
+    let group = &groups[0];
+    assert_eq!(group.get("collectionKey"), Some(&json!("watch_later")));
+    assert_eq!(
+        group.get("videoUrl"),
+        Some(&json!("https://jable.tv/videos/flip/"))
+    );
+    assert_eq!(group.get("finalAction"), Some(&json!("add")));
+    assert_eq!(group.get("state"), Some(&json!("failed")));
+    assert_eq!(group.get("error"), Some(&json!("HTTP 500")));
+    assert_eq!(group.get("operationCount"), Some(&json!(3)));
+
+    let sequence = group
+        .get("sequence")
+        .and_then(Value::as_array)
+        .expect("group should include sequence");
+    assert_eq!(sequence[0].get("action"), Some(&json!("add")));
+    assert_eq!(sequence[0].get("state"), Some(&json!("failed")));
+    assert_eq!(sequence[1].get("action"), Some(&json!("remove")));
+    assert_eq!(sequence[1].get("state"), Some(&json!("blocked")));
+    assert_eq!(sequence[2].get("action"), Some(&json!("add")));
+    assert_eq!(sequence[2].get("state"), Some(&json!("blocked")));
+
+    let retry = engine
+        .prepare_pending_remote_operation_retry(json!({ "groupId": group_id(group) }))
+        .expect("retry operation should prepare");
+    assert_eq!(retry.get("action"), Some(&json!("add")));
+    assert_eq!(retry.get("remoteVideoId"), Some(&json!("10")));
+    assert_eq!(retry.get("remoteFavType"), Some(&json!("1")));
+
+    assert_eq!(
+        engine
+            .mark_pending_remote_operation_group_resolved(json!({ "groupId": group_id(group) }))
+            .expect("group should resolve"),
+        json!(true)
+    );
+    assert_eq!(
+        engine
+            .list_pending_remote_operation_groups()
+            .expect("pending groups should list"),
+        json!([])
+    );
+    assert_eq!(count_operations_with_state(&engine, "resolved"), 3);
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
+fn full_sync_supersedes_old_failed_and_blocked_remote_groups() {
+    let mut engine = test_engine("pending-superseded");
+
+    for action in ["add", "remove"] {
+        engine
+            .apply_collection_toggle(json!({
+                "collectionKey": "favourites",
+                "action": action,
+                "syncRunId": "old-run",
+                "deferRemote": true,
+                "remoteVideoId": "20",
+                "remoteFavType": "0",
+                "video": {
+                    "title": "Superseded",
+                    "url": "https://jable.tv/videos/superseded/"
+                }
+            }))
+            .expect("collection toggle should queue");
+    }
+
+    let first_id = first_outbox_id(&engine, "favourites");
+    engine
+        .mark_deferred_sync_operation_failed(json!({
+            "collectionKey": "favourites",
+            "id": first_id,
+            "message": "Temporary failure"
+        }))
+        .expect("operation should mark failed");
+    assert_eq!(
+        engine
+            .list_pending_remote_operation_groups()
+            .expect("pending groups should list")
+            .as_array()
+            .expect("pending groups should be an array")
+            .len(),
+        1
+    );
+
+    engine
+        .finish_sync(json!({
+            "collectionKey": "favourites",
+            "mode": "full",
+            "syncRunId": "clean-full-run",
+            "result": {
+                "completed": true,
+                "mode": "full",
+                "syncRunId": "clean-full-run",
+                "incompleteReason": null,
+                "stoppedByKnownPage": false,
+                "totalPages": 1,
+                "totalRows": 0,
+                "lastScrapedPage": 1,
+                "lastKnownUrl": null,
+                "queuedOperationsFailed": 0
+            }
+        }))
+        .expect("clean full sync should finish");
+
+    assert_eq!(
+        engine
+            .list_pending_remote_operation_groups()
+            .expect("pending groups should list"),
+        json!([])
+    );
+    assert_eq!(count_operations_with_state(&engine, "superseded"), 2);
+
+    remove_temp_database(&mut engine);
 }

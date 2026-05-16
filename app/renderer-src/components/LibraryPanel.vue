@@ -48,6 +48,7 @@ const emit = defineEmits<{
   'update:direction': [value: SortDirection];
   'prev-page': [];
   'next-page': [];
+  'go-page': [page: number];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
   'retry-pending-group': [groupId: string];
@@ -195,6 +196,7 @@ function updateDirection(event: Event) {
       :page-label="pageLabel"
       @prev="emit('prev-page')"
       @next="emit('next-page')"
+      @page="emit('go-page', $event)"
     />
   </section>
 </template>

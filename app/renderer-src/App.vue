@@ -39,10 +39,17 @@ import type {
 } from '../types/jable';
 
 const SYNC_RETURNING_NOTICE_DELAY_MS = 450;
+type ToastState = {
+  text: string;
+  tone: 'error' | 'warning' | 'success' | 'info';
+  showQueueProgress?: boolean;
+};
+
 const api = useJableApi();
 const i18n = useI18n();
 const activeView = ref<AppView>('browser');
-const toast = ref<{ text: string; tone: 'error' | 'warning' | 'success' | 'info' } | null>(null);
+const toast = ref<ToastState | null>(null);
+const syncQueueProgress = ref<SyncQueueProgressPayload | null>(null);
 const busy = ref(false);
 const syncing = ref(false);
 const browserTabsCompact = ref(false);
@@ -60,6 +67,19 @@ const pageRows = computed<VideoRow[]>(function () {
 
 const libraryBusy = computed(function () {
   return busy.value || syncing.value;
+});
+
+const syncQueueProgressProcessed = computed(function () {
+  const progress = syncQueueProgress.value;
+  if (!progress) return 0;
+  if (progress.phase === 'complete') return progress.total;
+  return Math.max(0, Math.min(progress.total, progress.processed || progress.applied || 0));
+});
+
+const syncQueueProgressPercent = computed(function () {
+  const progress = syncQueueProgress.value;
+  if (!progress || progress.total <= 0) return 0;
+  return Math.round((syncQueueProgressProcessed.value / progress.total) * 100);
 });
 
 function errorMessage(error: unknown): string {
@@ -96,13 +116,18 @@ function hideToast() {
   toast.value = null;
 }
 
-function setStatus(text: string, tone?: 'error' | 'warning' | 'success' | 'info', options?: { sticky?: boolean }) {
+function setStatus(
+  text: string,
+  tone?: 'error' | 'warning' | 'success' | 'info',
+  options?: { sticky?: boolean; queueProgress?: boolean }
+) {
   if (shouldSkipStatus(text)) return;
 
   if (toastTimer) clearTimeout(toastTimer);
   toast.value = {
     text: text,
-    tone: tone || statusTone(text)
+    tone: tone || statusTone(text),
+    showQueueProgress: Boolean(options && options.queueProgress)
   };
   if (options && options.sticky) {
     toastTimer = null;
@@ -223,6 +248,35 @@ function collectionToggleStatus(payload: CollectionToggleResult) {
   return i18n.t('status.collectionAdded', { collection: name });
 }
 
+function updateSyncQueueProgress(progress: SyncQueueProgressPayload) {
+  const collection = collectionName(progress.collectionKey);
+  const processed = Math.max(0, Math.min(progress.total, progress.processed || 0));
+
+  if (progress.phase === 'complete') {
+    syncQueueProgress.value = null;
+    setStatus(
+      i18n.t('status.syncQueueProcessed', {
+        collection: collection,
+        applied: progress.applied || 0,
+        failed: progress.failed || 0
+      }),
+      progress.failed ? 'warning' : 'success'
+    );
+    return;
+  }
+
+  syncQueueProgress.value = progress;
+  setStatus(
+    i18n.t('status.syncQueueProgress', {
+      collection: collection,
+      processed: processed,
+      total: progress.total
+    }),
+    'info',
+    { sticky: true, queueProgress: true }
+  );
+}
+
 function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'browser-tabs-changed') {
     browser.applyTabsState(message.args[0] as BrowserTabsState);
@@ -278,24 +332,7 @@ function handleBrowserMessage(message: BrowserMessage) {
     const progress = message.args[0] as SyncQueueProgressPayload;
     if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
 
-    if (progress.phase === 'start') {
-      setStatus(
-        i18n.t('status.syncQueueProcessing', {
-          collection: collectionName(progress.collectionKey),
-          count: progress.total
-        }),
-        'info'
-      );
-    } else {
-      setStatus(
-        i18n.t('status.syncQueueProcessed', {
-          collection: collectionName(progress.collectionKey),
-          applied: progress.applied || 0,
-          failed: progress.failed || 0
-        }),
-        progress.failed ? 'warning' : 'success'
-      );
-    }
+    updateSyncQueueProgress(progress);
   }
 
   if (message.channel === 'collection-toggle') {
@@ -433,6 +470,7 @@ async function syncCollection(mode: SyncMode) {
 
   syncing.value = true;
   activeSyncRunId = null;
+  syncQueueProgress.value = null;
   let syncTabId: string | null = null;
 
   try {
@@ -504,6 +542,7 @@ async function syncCollection(mode: SyncMode) {
     );
   } catch (error) {
     console.error(error);
+    syncQueueProgress.value = null;
     setStatus(i18n.t('status.syncFailed', { mode: syncModeName(mode), error: errorMessage(error) }), 'error');
   } finally {
     activeSyncRunId = null;
@@ -699,7 +738,25 @@ onMounted(async function () {
 
     <Transition name="status-toast">
       <div v-if="toast" class="app-toast" :class="'app-toast-' + toast.tone" role="status" aria-live="polite">
-        <span class="min-w-0 flex-1">{{ toast.text }}</span>
+        <div class="app-toast-content">
+          <span>{{ toast.text }}</span>
+          <div
+            v-if="toast.showQueueProgress && syncQueueProgress"
+            class="app-toast-progress"
+            role="progressbar"
+            :aria-label="
+              i18n.t('status.syncQueueProgressLabel', {
+                processed: syncQueueProgressProcessed,
+                total: syncQueueProgress.total
+              })
+            "
+            aria-valuemin="0"
+            :aria-valuemax="syncQueueProgress.total"
+            :aria-valuenow="syncQueueProgressProcessed"
+          >
+            <span :style="{ width: syncQueueProgressPercent + '%' }"></span>
+          </div>
+        </div>
         <button class="app-toast-close" type="button" :aria-label="i18n.t('toast.close')" @click="hideToast">×</button>
       </div>
     </Transition>
@@ -750,6 +807,7 @@ onMounted(async function () {
         @update:direction="library.direction.value = $event"
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
+        @go-page="library.goToPage($event)"
         @retry-pending-group="retryPendingRemoteOperationGroup"
         @open-video="openInBrowser"
         @open-video-new-tab="openInNewBrowserTab"

@@ -104,7 +104,7 @@ Desktop sync behavior:
 - Sync runs in a dedicated background browser worker. Failed full runs are marked incomplete; scanned rows remain saved, but missing-row hiding is skipped until a completed full run.
 - The webview scraper saves each page through `db:save-sync-page` and emits `sync-page` messages while it paginates. The renderer displays progress and calls `finishSync` after the worker returns.
 - Jable collection add/remove button clicks are observed in `app/webview-preload.ts`; during active sync they are deferred into the ordered `sync_operations` outbox, then replayed after sync. Outside active sync, successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
-- The Rust data engine owns persisted outbox state. Deferred rows move through `pending`, `applied`, `failed`, `blocked`, `resolved`, and `superseded`; the webview only performs Jable AJAX with the current cookie/session. Automatic replay still runs in operation order and stops after the first failed operation, marking later pending rows as blocked.
+- The Rust data engine owns persisted outbox state. Deferred rows move through `pending`, `applied`, `failed`, `blocked`, `resolved`, and `superseded`; the webview only performs Jable AJAX with the current cookie/session. Automatic replay still runs in operation order and stops after the first failed operation, marking later pending rows as blocked. The main process replays the outbox one operation at a time so it can emit `sync-queue-progress` updates and keep the renderer progress bar accurate.
 - The renderer's global Pending Sync tab is backed by `listPendingRemoteOperationGroups()`, which groups unresolved outbox rows by `collectionKey + videoUrl` and exposes the final intended action rather than raw operation rows. Manual resend uses `preparePendingRemoteOperationRetry()` and sends only the group's final add/remove state; success marks the group `resolved`, while a later clean full sync marks older failed/blocked rows `superseded`.
 - JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports.
 
@@ -116,6 +116,7 @@ Desktop data and search behavior:
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
 - Database migration creates `videos`, `collections`, `collection_items`, and `sync_states`; adds `site_order`, `is_visible`, `missing_at`, `last_sync_run_id`, `videos.search_text`, and outbox state columns such as `remote_apply_state`, `remote_failed_at`, `remote_blocked_by`, `remote_resolved_at`, and `remote_superseded_at`; verifies the FTS table columns; recreates triggers when needed; and rebuilds the index if search text changed or FTS objects are missing.
+- Rust-owned data-engine invariants are covered directly in `native/local-data-engine/src/tests.rs`. Any change to migrations, FTS/search tokenization, sync visibility, sync operation reduction, outbox state transitions, pending remote grouping, resolved/superseded handling, or JSON import/export should add or update Rust tests there in addition to the shared Node data-engine contract tests.
 - Direct collection adds from Jable page actions use a negative `site_order` fallback until the next full sync rebuilds site ordering.
 - Desktop JSON file export streams pages to a temporary file, yields between batches, and atomically renames the file when complete. Keep cleanup paths covered when changing export behavior.
 
@@ -219,6 +220,7 @@ Test coverage map:
 - `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
 - `test/node/sync-utils.test.js`: numeric pager selection.
 - `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
+- `native/local-data-engine/src/tests.rs`: Rust-native data-engine invariants that should not depend only on addon contract coverage, including URL normalization, site-order import aliases, search token matching, outbox grouping, resolved groups, and full-sync superseded state.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
 - `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, browser tab create/activate/close IPC, and import/export happy path.
@@ -233,7 +235,7 @@ Run the full local quality gate before opening a pull request:
 npm run check
 ```
 
-For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run test:electron` for Electron startup/preload/tab IPC smoke coverage, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
+For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run rust:test` for Rust-native data-engine unit tests, `npm run rust:ci` for Rust formatting/check/clippy/test coverage, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run test:electron` for Electron startup/preload/tab IPC smoke coverage, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
 
 Manual checks:
 
