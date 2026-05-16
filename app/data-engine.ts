@@ -186,6 +186,6 @@ class RustDataEngine implements DataEngine {
 }
 
 export function createDataEngine(filePath: string): DataEngine {
-  if (process.env.JABLE_DATA_ENGINE === 'rust') return new RustDataEngine(filePath);
-  return new databaseModule.JableDatabase(filePath);
+  if (process.env.JABLE_DATA_ENGINE === 'ts') return new databaseModule.JableDatabase(filePath);
+  return new RustDataEngine(filePath);
 }

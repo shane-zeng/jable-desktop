@@ -88,10 +88,7 @@ for (const kind of ENGINE_KINDS) {
       }),
       ['https://jable.tv/videos/first/', 'https://jable.tv/videos/second/']
     );
-    assert.equal(
-      engine.allCollectionUrlsKnown('favourites', ['https://fs1.app/videos/first/?source=contract']),
-      true
-    );
+    assert.equal(engine.allCollectionUrlsKnown('favourites', ['https://fs1.app/videos/first/?source=contract']), true);
   });
 
   test('data engine contract: operation outbox and finish sync ordering (' + kind + ')', function (t) {
@@ -208,3 +205,26 @@ for (const kind of ENGINE_KINDS) {
     assert.deepEqual(withoutExportedAt(actual), withoutExportedAt(expected));
   });
 }
+
+test('data engine defaults to rust when the native addon is available', function (t) {
+  if (!fs.existsSync(nativeAddonPath)) {
+    t.skip('native data engine addon is not built');
+    return;
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-engine-default-'));
+  const dbPath = path.join(dir, 'test.sqlite');
+  const previousKind = process.env.JABLE_DATA_ENGINE;
+  delete process.env.JABLE_DATA_ENGINE;
+
+  const engine = dataEngine.createDataEngine(dbPath);
+
+  t.after(function () {
+    engine.close();
+    if (typeof previousKind === 'undefined') delete process.env.JABLE_DATA_ENGINE;
+    else process.env.JABLE_DATA_ENGINE = previousKind;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  assert.equal(engine.constructor.name, 'RustDataEngine');
+});
