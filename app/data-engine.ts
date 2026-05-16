@@ -43,6 +43,9 @@ type DeferredSyncOperation = {
 };
 type DatabaseModule = {
   COLLECTIONS: DatabaseCollection[];
+  /**
+   * @deprecated Use `createDataEngine()` without `JABLE_DATA_ENGINE=ts` for the Rust data engine.
+   */
   JableDatabase: new (filePath: string) => DataEngine;
 };
 type NativeDataEngineModule = {

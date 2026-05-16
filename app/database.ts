@@ -1,5 +1,13 @@
 'use strict';
 
+/**
+ * @deprecated Use the Rust data engine through `app/data-engine.ts`.
+ *
+ * This TypeScript SQLite implementation is retained only for regression
+ * comparison and `JABLE_DATA_ENGINE=ts` fallback diagnostics. Production
+ * data behavior should be implemented in `native/local-data-engine/`.
+ */
+
 import type { FileHandle } from 'node:fs/promises';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
@@ -659,6 +667,7 @@ function ensureDirectory(filePath: string) {
 /**
  * @constructor
  * @param {string} filePath
+ * @deprecated Use the Rust data engine through `app/data-engine.ts`.
  */
 class JableDatabase {
   filePath: string;
