@@ -1,6 +1,6 @@
 # IPC Contract Specification
 
-Last verified against implementation: 2026-05-16
+Last verified against implementation: 2026-05-17
 
 This document summarizes the current IPC boundary. `app/types/jable.ts` is the source of truth for exact TypeScript payload and response types.
 
@@ -35,6 +35,40 @@ Current behavior:
 - `getSettings()` returns normalized persisted app settings.
 - `updateSettings()` normalizes and persists supported settings only.
 - `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
+
+## Downloads And FFmpeg API
+
+Renderer API group:
+
+- `getFfmpegStatus()`
+- `refreshFfmpegStatus()`
+- `chooseFfmpegPath()`
+- `setFfmpegPath(filePath)`
+- `clearFfmpegPath()`
+- `getDownloadRoot()`
+- `chooseDownloadRoot()`
+- `setDownloadRoot(filePath)`
+- `clearDownloadRoot()`
+- `openDownloadRoot()`
+- `listDownloads()`
+- `enqueueDownload(payload)`
+- `retryDownload(videoUrl)`
+- `cancelDownload(videoUrl)`
+- `openDownloadFile(videoUrl)`
+- `revealDownloadFile(videoUrl)`
+- `deleteDownload(videoUrl)`
+
+Current behavior:
+
+- FFmpeg status is detected and validated in main process by running `ffmpeg -version`.
+- Manual FFmpeg paths are persisted in settings and used for later downloads when valid.
+- Download root selection is persisted in settings and resolved in main process.
+- Download records are listed from the main-owned download store.
+- Enqueue and retry verify FFmpeg readiness before queueing work.
+- Open, reveal, retry, cancel, and delete calls use a video URL, not renderer-provided local paths.
+- Delete verifies managed-root containment before unlinking a local file.
+- Main forwards `downloads-changed` browser messages with the current download list after download state changes.
+- The renderer uses `downloads-changed` to refresh Download List/source-card state and to show completion/failure toasts.
 
 ## Local Data API
 
@@ -147,6 +181,7 @@ Important browser message channels:
 - `browser-tabs-compact-mode`
 - `jable-origin-fallback`
 - `browser-error`
+- `downloads-changed`
 
 ## Webview Preload Request Channels
 
@@ -179,6 +214,8 @@ Webview preload emits:
 - Browser tab kind must be `normal` or `sync`.
 - Numeric fields are normalized before use.
 - Unknown or invalid payload shapes throw explicit IPC payload errors.
+- Download operations are resolved by video URL.
+- Renderer-provided local file paths are not accepted for download open, reveal, delete, or write operations.
 
 ## Related Tests
 
@@ -186,6 +223,8 @@ Webview preload emits:
 - `test/node/ipc-guardrails.test.js`
 - `test/node/ipc-normalizers.test.js`
 - `test/node/settings.test.js`
+- `test/node/downloads.test.js`
+- `test/node/download-helpers.test.js`
 - `test/node/browser-tab-policy.test.js`
 - `test/renderer/composables/useBrowserBounds.test.ts`
 - `test/renderer/composables/useLibraryState.test.ts`

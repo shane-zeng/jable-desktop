@@ -1,6 +1,6 @@
 # Testing And Validation Specification
 
-Last verified against implementation: 2026-05-16
+Last verified against implementation: 2026-05-17
 
 This document maps current functionality to automated and manual validation.
 
@@ -37,6 +37,8 @@ fnm exec --using 24 npm run test:electron
 | URL trust, fallback rewrites, release URL allowlist                                                | `test/node/url-policy.test.js`              |
 | Browser tab policy, media serialization, shortcut detection                                        | `test/node/browser-tab-policy.test.js`      |
 | Settings normalization and persistence                                                             | `test/node/settings.test.js`                |
+| Download store persistence and normalization                                                       | `test/node/downloads.test.js`               |
+| HLS playlist extraction and FFmpeg header helpers                                                  | `test/node/download-helpers.test.js`        |
 | IPC payload normalization                                                                          | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                      | `test/node/i18n.test.js`                    |
 | Userscript i18n guardrails                                                                         | `test/node/userscript-i18n.test.js`         |
@@ -59,6 +61,7 @@ fnm exec --using 24 npm run test:electron
 - Webview preload helper changes: run webview helper tests, IPC guardrail tests, and Node tests covering URL/sync helper behavior.
 - URL policy or release URL changes: run URL policy and update checker tests.
 - Settings changes: run settings tests plus renderer SettingsPanel tests.
+- Download List, FFmpeg, or download pipeline changes: run download Node tests, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring or shell/file boundary behavior changes.
 - Search, migrations, sync visibility, outbox, pending remote, or import/export changes: run Node database tests, data-engine contract tests, and Rust tests.
 - Rust-native data-engine invariant changes: update and run `native/local-data-engine/src/tests.rs` through `fnm exec --using 24 npm run rust:ci`.
 - Documentation-only changes: run `fnm exec --using 24 npm run format:check`.
@@ -78,6 +81,15 @@ Verify these behaviors when touching related desktop areas:
 - HTML fullscreen covers the app chrome and restores normal bounds after exit.
 - Browser context menus show correct link, media, selection, navigation, and page URL actions.
 - Local video cards open in current tab, open in new tab through middle/platform click, and show context menu actions.
+- Local video cards show compact download states and do not expose detailed progress or error text.
+- Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
+- Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
+- Download List renders queued, downloading, failed, ready, and missing rows.
+- Ready downloads open through the OS default player and can be revealed in the OS file manager.
+- Failed and missing downloads can be retried.
+- Queued and active downloads can be canceled.
+- Deleting a Download List item removes the local managed file and download record without changing collection membership.
+- Re-syncing Favourites or Watch Later does not remove local download records.
 - Quick sync updates existing data without hiding unscanned rows.
 - Full sync rebuilds site order and hides rows missing from a completed run.
 - Incomplete full sync does not hide missing rows.

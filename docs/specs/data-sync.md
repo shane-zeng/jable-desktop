@@ -1,6 +1,6 @@
 # Data And Sync Specification
 
-Last verified against implementation: 2026-05-16
+Last verified against implementation: 2026-05-17
 
 This document specifies local data, search, sync, outbox, and JSON import/export behavior.
 
@@ -207,11 +207,22 @@ Important outbox fields:
 - File export atomically renames the temporary file after a complete write.
 - Cleanup removes the temporary file after write failure where possible.
 
+## Download Records
+
+- Download List records are not stored in the SQLite data engine.
+- Download records are persisted in a separate `downloads.json` file under Electron `userData`.
+- Download records are keyed by video URL and remain independent from `collection_items`.
+- Downloaded files are not included in collection JSON import/export backups.
+- Deleting or hiding a collection item does not delete a download record or local downloaded file.
+- Explicit Download List delete actions remove the managed download record and local file when present.
+- Local Data rows synced through fallback origins are canonicalized before normal collection-card downloads are started, so source-card downloads use canonical local row URLs.
+
 ## Related Tests
 
 - `test/node/database.test.js`
 - `test/node/data-engine-contract.test.js`
 - `native/local-data-engine/src/tests.rs`
 - `test/node/sync-utils.test.js`
+- `test/node/downloads.test.js`
 - `test/node/ipc-guardrails.test.js`
 - `test/renderer/composables/useLibraryState.test.ts`

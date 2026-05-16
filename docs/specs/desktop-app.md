@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-16
+Last verified against implementation: 2026-05-17
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -36,6 +36,7 @@ This document specifies the current user-facing Electron desktop application beh
 
 - Local Data has collection tabs for `favourites` and `watch_later`.
 - A global Pending Sync tab appears when unresolved pending remote operation groups exist.
+- A global Download List tab shows managed local video downloads across both collections.
 - Each collection tab supports:
   - Quick Sync
   - Full Sync
@@ -46,6 +47,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Pagination
 - Page size is 24 rows.
 - Video cards show thumbnail, optional hover preview, title, views, likes, and last synced time.
+- Video cards show a compact download button. The button reflects the global download state for that video URL and avoids showing detailed progress or error text on source collection cards.
 - Clicking a local video opens it in the current browser tab.
 - Middle-click or platform new-tab click opens a local video in a new browser tab.
 - Right-clicking a local video opens a native context menu with open/copy actions.
@@ -63,6 +65,19 @@ This document specifies the current user-facing Electron desktop application beh
 - Resolved clears local pending state without changing normal local collection visibility.
 - Pending cards support the same current-tab and new-tab video opening behavior as normal video cards.
 
+## Download List View
+
+- Download List is a global local-assets view under Local Data, not a third Jable collection.
+- Download List is available for videos downloaded from either Favourites or Watch Later.
+- Download records are independent from collection membership.
+- The view renders queued, downloading, failed, ready, and missing records.
+- Search and sort controls filter records locally in the renderer.
+- Ready records can be opened with the OS default player, revealed in the OS file manager, opened back on Jable, or deleted.
+- Failed and missing records can be retried or deleted.
+- Queued and downloading records can be canceled.
+- Deleting a download removes the managed local file and download record, but does not alter Favourites, Watch Later, Pending Sync, or Jable remote state.
+- Download completion and failure are surfaced through localized toast messages.
+
 ## Settings View
 
 - General settings:
@@ -75,6 +90,13 @@ This document specifies the current user-facing Electron desktop application beh
 - Sync settings:
   - Full sync acceleration: safe, standard, fast
   - Automatic post-sync replay of deferred sync operations
+- Downloads settings:
+  - FFmpeg status, version, source, and path
+  - Check Again for FFmpeg detection
+  - Choose FFmpeg for manual binary selection
+  - Use PATH for clearing a manual FFmpeg path
+  - Current download folder
+  - Choose, reset, and open download folder actions
 - Data settings:
   - Import JSON
   - Export JSON
@@ -112,6 +134,7 @@ This document specifies the current user-facing Electron desktop application beh
 - `app/renderer-src/components/LibraryPanel.vue`
 - `app/renderer-src/components/SettingsPanel.vue`
 - `app/renderer-src/components/VideoCard.vue`
+- `app/renderer-src/components/DownloadRecordCard.vue`
 - `app/renderer-src/components/PendingRemoteOperationCard.vue`
 - `app/renderer-src/composables/useBrowserBounds.ts`
 - `app/renderer-src/composables/useLibraryState.ts`
