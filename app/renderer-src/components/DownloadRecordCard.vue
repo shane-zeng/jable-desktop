@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from '../i18n';
-import type { DownloadRecord, DownloadState } from '../../types/jable';
+import type { CollectionKey, DownloadRecord, DownloadState } from '../../types/jable';
 
 defineProps<{
   record: DownloadRecord;
@@ -82,6 +82,16 @@ function timestampLabel(record: DownloadRecord) {
   const updatedAt = formatTimestamp(record.updatedAt);
   return updatedAt ? t('downloadList.updatedAt', { time: updatedAt }) : '';
 }
+
+function collectionLabel(collectionKey: CollectionKey) {
+  return t('collections.' + collectionKey);
+}
+
+function collectionListLabel(record: DownloadRecord) {
+  const keys = Array.isArray(record.collectionKeys) && record.collectionKeys.length ? record.collectionKeys : null;
+  if (keys) return keys.map(collectionLabel).join(' / ');
+  return record.collectionKey ? collectionLabel(record.collectionKey) : t('downloadList.unknownCollection');
+}
 </script>
 
 <template>
@@ -99,7 +109,7 @@ function timestampLabel(record: DownloadRecord) {
         {{ record.title || record.videoUrl }}
       </button>
       <p class="m-0 text-xs text-[var(--muted)]">
-        {{ record.collectionKey ? t('collections.' + record.collectionKey) : t('downloadList.unknownCollection') }}
+        {{ collectionListLabel(record) }}
       </p>
       <code
         v-if="record.localPath"

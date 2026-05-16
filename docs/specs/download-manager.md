@@ -61,7 +61,8 @@ This document specifies the current Download List and local video file managemen
 - Local Data rows are already canonicalized by the data engine before normal card downloads are started.
 - The store keeps enough metadata for Download List rendering even if the row later disappears from a collection:
   - `videoUrl`
-  - `collectionKey`
+  - `collectionKey` as the original download source when known
+  - `collectionKeys` as the current visible local collections containing the video
   - `title`
   - `img`
   - `localPath` as a managed-root-relative file path
@@ -100,6 +101,7 @@ This document specifies the current Download List and local video file managemen
 - `queued`, `downloading`, and `ready` buttons are disabled on source cards.
 - `failed` and `missing` source-card clicks call the retry IPC path.
 - Download state is loaded from the global download record list, so the same video URL shows the same state across Favourites and Watch Later.
+- When the same video is visible in both Favourites and Watch Later, both source cards share the same download record.
 
 ## Download List
 
@@ -121,7 +123,7 @@ This document specifies the current Download List and local video file managemen
   - thumbnail
   - title
   - source URL
-  - collection label when known
+  - current local collection labels when the video is visible in one or more collections
   - state
   - compact progress label
   - active downloaded size and speed when available

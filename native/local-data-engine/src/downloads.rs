@@ -10,6 +10,7 @@ const DOWNLOAD_STATES: [&str; 5] = ["queued", "downloading", "failed", "ready", 
 struct DownloadAssetRow {
     video_url: String,
     collection_key: Option<String>,
+    collection_keys: Vec<String>,
     title: Option<String>,
     img: Option<String>,
     local_path: Option<String>,
@@ -155,6 +156,7 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> 
     Ok(DownloadAssetRow {
         video_url: row.get(0)?,
         collection_key: row.get(1)?,
+        collection_keys: Vec::new(),
         title: row.get(2)?,
         img: row.get(3)?,
         local_path: row.get(4)?,
@@ -172,6 +174,7 @@ fn record_json(record: DownloadAssetRow) -> Value {
     json!({
       "videoUrl": record.video_url,
       "collectionKey": record.collection_key,
+      "collectionKeys": record.collection_keys,
       "title": record.title,
       "img": record.img,
       "localPath": record.local_path,
@@ -186,8 +189,33 @@ fn record_json(record: DownloadAssetRow) -> Value {
 }
 
 impl Engine {
+    fn download_asset_collection_keys(&self, video_url: &str) -> Result<Vec<String>> {
+        let binding = self.conn()?;
+        let mut statement = binding
+            .prepare(
+                "SELECT collection_key
+         FROM collection_items
+         WHERE video_url = ? AND is_visible = 1
+         ORDER BY CASE collection_key
+           WHEN 'favourites' THEN 0
+           WHEN 'watch_later' THEN 1
+           ELSE 2
+         END, collection_key ASC",
+            )
+            .map_err(to_napi_error)?;
+
+        let rows = statement
+            .query_map(params![video_url], |row| row.get::<_, String>(0))
+            .map_err(to_napi_error)?
+            .collect::<std::result::Result<Vec<String>, _>>()
+            .map_err(to_napi_error)?;
+
+        Ok(rows)
+    }
+
     fn get_download_asset_row(&self, video_url: &str) -> Result<Option<DownloadAssetRow>> {
-        self.conn()?
+        let row = self
+            .conn()?
             .query_row(
                 "SELECT video_url, collection_key, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
          FROM download_assets
@@ -196,7 +224,13 @@ impl Engine {
                 row_to_record,
             )
             .optional()
-            .map_err(to_napi_error)
+            .map_err(to_napi_error)?;
+
+        row.map(|mut record| {
+            record.collection_keys = self.download_asset_collection_keys(&record.video_url)?;
+            Ok(record)
+        })
+        .transpose()
     }
 
     pub(crate) fn list_download_assets(&self) -> Result<Value> {
@@ -213,6 +247,12 @@ impl Engine {
             .map_err(to_napi_error)?
             .collect::<std::result::Result<Vec<DownloadAssetRow>, _>>()
             .map_err(to_napi_error)?
+            .into_iter()
+            .map(|mut record| {
+                record.collection_keys = self.download_asset_collection_keys(&record.video_url)?;
+                Ok(record)
+            })
+            .collect::<Result<Vec<DownloadAssetRow>>>()?
             .into_iter()
             .map(record_json)
             .collect();

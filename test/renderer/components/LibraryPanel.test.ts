@@ -413,6 +413,7 @@ describe('LibraryPanel', function () {
           {
             videoUrl: 'https://jable.tv/videos/ready/',
             collectionKey: 'favourites',
+            collectionKeys: ['favourites', 'watch_later'],
             title: 'Ready Video',
             img: null,
             localPath: '/tmp/ready.mp4',
@@ -448,6 +449,7 @@ describe('LibraryPanel', function () {
     const cards = wrapper.findAll('[data-test="download-record-card"]');
     expect(cards).toHaveLength(2);
     expect(cards[0].text()).toContain('Ready Video');
+    expect(cards[0].text()).toContain('影片收藏 / 稍後觀看');
     expect(cards[0].text()).toContain('已下載');
     expect(cards[0].text()).toContain('檔案大小：1 KB');
     expect(cards[0].text()).toContain('完成時間：');

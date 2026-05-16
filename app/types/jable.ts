@@ -157,6 +157,7 @@ export interface DownloadRootSelectionResult extends DownloadRootInfo {
 export interface DownloadRecord {
   videoUrl: string;
   collectionKey: CollectionKey | null;
+  collectionKeys?: CollectionKey[];
   title: string | null;
   img: string | null;
   localPath: string | null;

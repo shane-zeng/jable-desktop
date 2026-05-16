@@ -132,6 +132,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         Some(&json!("https://jable.tv/videos/download-me/"))
     );
     assert_eq!(ready.get("collectionKey"), Some(&json!("favourites")));
+    assert_eq!(ready.get("collectionKeys"), Some(&json!([])));
     assert_eq!(ready.get("title"), Some(&json!("Download Me")));
     assert_eq!(
         ready.get("localPath"),
@@ -201,6 +202,40 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         visible_urls(&engine, "favourites"),
         vec!["https://jable.tv/videos/download-me/"]
     );
+    assert_eq!(
+        engine
+            .get_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should load")
+            .get("collectionKeys"),
+        Some(&json!(["favourites"]))
+    );
+
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "watch_later",
+            "action": "add",
+            "video": {
+                "title": "Download Me",
+                "url": "https://jable.tv/videos/download-me/"
+            }
+        }))
+        .expect("watch later collection item should add");
+    assert_eq!(
+        engine
+            .get_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should load")
+            .get("collectionKeys"),
+        Some(&json!(["favourites", "watch_later"]))
+    );
+    assert_eq!(
+        engine
+            .list_download_assets()
+            .expect("download assets should list")
+            .as_array()
+            .expect("download assets should be an array")[0]
+            .get("collectionKeys"),
+        Some(&json!(["favourites", "watch_later"]))
+    );
 
     engine
         .apply_collection_toggle(json!({
@@ -219,6 +254,13 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             .expect("download asset should load")
             .get("state"),
         Some(&json!("failed"))
+    );
+    assert_eq!(
+        engine
+            .get_download_asset(json!("https://jable.tv/videos/download-me/"))
+            .expect("download asset should load")
+            .get("collectionKeys"),
+        Some(&json!(["watch_later"]))
     );
 
     assert_eq!(

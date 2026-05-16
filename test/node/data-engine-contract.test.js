@@ -422,6 +422,7 @@ for (const kind of ENGINE_KINDS) {
 
       assert.equal(ready.videoUrl, 'https://jable.tv/videos/download-me/');
       assert.equal(ready.collectionKey, 'favourites');
+      assert.deepEqual(ready.collectionKeys, []);
       assert.equal(ready.title, 'Download Me');
       assert.equal(ready.localPath, 'Jable Downloads/download-me.mp4');
       assert.equal(ready.state, 'ready');
@@ -465,6 +466,18 @@ for (const kind of ENGINE_KINDS) {
         video: { title: 'Download Me', url: 'https://jable.tv/videos/download-me/' }
       });
       assert.equal(engine.listVideos('favourites').length, 1);
+      assert.deepEqual(engine.getDownloadAsset('https://jable.tv/videos/download-me/').collectionKeys, ['favourites']);
+
+      engine.applyCollectionToggle({
+        collectionKey: 'watch_later',
+        action: 'add',
+        video: { title: 'Download Me', url: 'https://jable.tv/videos/download-me/' }
+      });
+      assert.deepEqual(engine.getDownloadAsset('https://jable.tv/videos/download-me/').collectionKeys, [
+        'favourites',
+        'watch_later'
+      ]);
+      assert.deepEqual(engine.listDownloadAssets()[0].collectionKeys, ['favourites', 'watch_later']);
 
       engine.applyCollectionToggle({
         collectionKey: 'favourites',
@@ -473,6 +486,7 @@ for (const kind of ENGINE_KINDS) {
       });
       assert.equal(engine.listVideos('favourites').length, 0);
       assert.equal(engine.getDownloadAsset('https://jable.tv/videos/download-me/').state, 'failed');
+      assert.deepEqual(engine.getDownloadAsset('https://jable.tv/videos/download-me/').collectionKeys, ['watch_later']);
 
       assert.deepEqual(
         engine.listDownloadAssets().map(function (record) {
