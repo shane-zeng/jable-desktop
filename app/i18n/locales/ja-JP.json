@@ -363,7 +363,11 @@
   "dialog": {
     "exportJson": "Export JSON",
     "chooseFfmpeg": "FFmpeg 実行ファイルを選択",
-    "chooseDownloadRoot": "ダウンロードフォルダーを選択"
+    "chooseDownloadRoot": "ダウンロードフォルダーを選択",
+    "deleteDownloadTitle": "ダウンロード項目を削除",
+    "deleteDownloadMessage": "ローカルファイルを削除し、ダウンロード一覧からこの項目を削除します。",
+    "deleteDownloadConfirm": "削除",
+    "cancel": "キャンセル"
   },
   "errors": {
     "maxTabs": "最大 {count} 個までブラウザータブを開けます",

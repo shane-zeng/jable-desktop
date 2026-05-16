@@ -584,7 +584,8 @@ async function deleteDownload(videoUrl: string) {
   if (!videoUrl || busy.value || syncing.value) return;
 
   try {
-    await api.deleteDownload(videoUrl);
+    const result = await api.deleteDownload(videoUrl);
+    if (result.canceled) return;
     setStatus(i18n.t('status.downloadDeleted'), 'success');
     if (library.activeTab.value === 'downloads') await library.refreshVideos();
   } catch (error) {

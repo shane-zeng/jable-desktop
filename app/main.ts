@@ -1029,7 +1029,20 @@ function deleteManagedDownloadFile(record: DownloadRecord): boolean {
   return true;
 }
 
-function deleteDownload(value: unknown): DeleteDownloadResult {
+function confirmDeleteDownload(): Promise<boolean> {
+  return showAppDialog({
+    type: 'warning',
+    buttons: [t('dialog.deleteDownloadConfirm'), t('dialog.cancel')],
+    defaultId: 1,
+    cancelId: 1,
+    title: t('dialog.deleteDownloadTitle'),
+    message: t('dialog.deleteDownloadMessage')
+  }).then(function (dialogResult: Electron.MessageBoxReturnValue) {
+    return dialogResult.response === 0;
+  });
+}
+
+async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
   const videoUrl = requiredStringValue(value, 'videoUrl', 'download:delete').trim();
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
@@ -1040,6 +1053,15 @@ function deleteDownload(value: unknown): DeleteDownloadResult {
   const visibleRecord = record ? downloadRecordWithFileState(record) : null;
   if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
   if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
+
+  const confirmed = await confirmDeleteDownload();
+  if (!confirmed) {
+    return {
+      deleted: false,
+      removed: false,
+      canceled: true
+    };
+  }
 
   const queueIndex = downloadQueue.indexOf(videoUrl);
   if (queueIndex !== -1) downloadQueue.splice(queueIndex, 1);

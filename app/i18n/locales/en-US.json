@@ -363,7 +363,11 @@
   "dialog": {
     "exportJson": "Export JSON",
     "chooseFfmpeg": "Choose FFmpeg Binary",
-    "chooseDownloadRoot": "Choose Download Folder"
+    "chooseDownloadRoot": "Choose Download Folder",
+    "deleteDownloadTitle": "Delete Download Item",
+    "deleteDownloadMessage": "This will delete the local file and remove the download list item.",
+    "deleteDownloadConfirm": "Delete",
+    "cancel": "Cancel"
   },
   "errors": {
     "maxTabs": "You can open at most {count} browser tabs",

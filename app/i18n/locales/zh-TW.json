@@ -363,7 +363,11 @@
   "dialog": {
     "exportJson": "匯出 JSON",
     "chooseFfmpeg": "選擇 FFmpeg 執行檔",
-    "chooseDownloadRoot": "選擇下載資料夾"
+    "chooseDownloadRoot": "選擇下載資料夾",
+    "deleteDownloadTitle": "刪除下載項目",
+    "deleteDownloadMessage": "這會刪除本機檔案並移除下載清單項目。",
+    "deleteDownloadConfirm": "刪除",
+    "cancel": "取消"
   },
   "errors": {
     "maxTabs": "最多只能開啟 {count} 個瀏覽器分頁",

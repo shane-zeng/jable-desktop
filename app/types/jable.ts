@@ -181,6 +181,7 @@ export interface RevealDownloadFileResult {
 export interface DeleteDownloadResult {
   deleted: boolean;
   removed: boolean;
+  canceled?: boolean;
 }
 
 export interface DownloadRequestPayload {
