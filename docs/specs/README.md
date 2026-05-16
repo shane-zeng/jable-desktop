@@ -35,7 +35,7 @@ Use source code and tests as the final source of truth when a user guide, change
 - `app/renderer-src/composables/usePendingRemoteActions.ts`
 - `app/renderer-src/composables/useSyncWorkflow.ts`
 - `app/renderer-src/composables/useToastStatus.ts`
-- `native/local-data-engine/src/lib.rs`
+- `native/local-data-engine/src/*.rs`
 - `docs/development.md`
 - `docs/shortcuts.md`
 - `test/**`

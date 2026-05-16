@@ -16,7 +16,7 @@ The app currently supports two collections:
 Collection metadata exists in both TypeScript and Rust and must stay aligned:
 
 - `app/collections.ts`
-- `native/local-data-engine/src/lib.rs`
+- `native/local-data-engine/src/collections.rs`
 
 ## Data Engine
 
@@ -26,6 +26,7 @@ Collection metadata exists in both TypeScript and Rust and must stay aligned:
 - Both engines are expected to preserve the same IPC-facing return shapes.
 - The database file is named `jable-favourites.sqlite` under Electron `userData`.
 - SQLite uses WAL mode in the legacy TypeScript engine.
+- Rust data-engine runtime behavior is split by concern: `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts/resequencing, `src/sync.rs` owns sync and outbox state transitions, `src/resource.rs` owns JSON import/export, `src/payload.rs` owns payload coercion and URL normalization, and `src/lib.rs` keeps the N-API bridge and method dispatch.
 
 ## Core Data Model
 
