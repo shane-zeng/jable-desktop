@@ -1,0 +1,189 @@
+# IPC Contract Specification
+
+Last verified against implementation: 2026-05-16
+
+This document summarizes the current IPC boundary. `app/types/jable.ts` is the source of truth for exact TypeScript payload and response types.
+
+## Boundary Rules
+
+- The renderer must access main-process functionality only through `window.jableApp`.
+- `window.jableApp` is exposed by `app/preload.ts` through Electron `contextBridge`.
+- The renderer must not call `ipcRenderer` directly.
+- Jable page automation runs in `app/webview-preload.ts`.
+- Main process requests to webview preload use request/response IPC and timeouts.
+- Main process runtime normalizers validate renderer IPC payloads before database or browser handlers use them.
+- IPC method names and payload shapes must stay aligned across:
+  - `app/types/jable.ts`
+  - `app/preload.ts`
+  - `app/main.ts`
+  - renderer callers
+  - tests
+
+## App And Settings API
+
+Renderer API group:
+
+- `getAppInfo()`
+- `getSettings()`
+- `updateSettings(patch)`
+- `setLocale(locale)`
+
+Current behavior:
+
+- `getAppInfo()` returns database path, current locale, and system locale.
+- `getSettings()` returns normalized persisted app settings.
+- `updateSettings()` normalizes and persists supported settings only.
+- `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
+
+## Local Data API
+
+Renderer API group:
+
+- `listVideos(options)`
+- `countVideos(options)`
+- `getCollectionUrls(collectionKey)`
+- `saveSyncPage(payload)`
+- `finishSync(payload)`
+- `clearSyncState(collectionKey)`
+- `importJson(payload)`
+- `exportJson(collectionKey)`
+- `exportJsonFile(collectionKey)`
+
+Current behavior:
+
+- `listVideos()` and `countVideos()` share the same filter and search options.
+- `getCollectionUrls()` returns known URLs for a collection.
+- `saveSyncPage()` persists scraped sync rows.
+- `finishSync()` finalizes sync state and applies full-sync visibility rules.
+- `clearSyncState()` removes stored sync state for a collection.
+- `importJson()` imports an already parsed JSON resource into an explicit collection.
+- `exportJson()` returns an in-memory export resource.
+- `exportJsonFile()` opens a native save dialog and streams export JSON to disk when not canceled.
+
+## Pending Remote Operation API
+
+Renderer API group:
+
+- `listPendingRemoteOperationGroups()`
+- `addPendingRemoteOperationGroup(groupId)`
+- `removePendingRemoteOperationGroup(groupId)`
+- `resolvePendingRemoteOperationGroup(groupId)`
+
+Current behavior:
+
+- Listing returns grouped unresolved deferred operations.
+- Add and Remove use a sync worker to apply one explicit remote action through Jable AJAX.
+- Add and Remove update local visibility only after remote success.
+- Resolve clears local pending state without remote AJAX and without changing normal local list visibility.
+
+## Browser Tab API
+
+Renderer API group:
+
+- `listBrowserTabs()`
+- `showBrowserTabMenu(payload)`
+- `showLibraryVideoMenu(payload)`
+- `createBrowserTab(payload)`
+- `activateBrowserTab(tabId)`
+- `closeBrowserTab(tabId)`
+- `setBrowserTabLocked(payload)`
+- `setBrowserTabMuted(payload)`
+- `setBrowserBounds(bounds)`
+
+Current behavior:
+
+- `listBrowserTabs()` returns active tab ID, max tab limit, and serialized tabs.
+- `createBrowserTab()` normalizes safe URL, kind, activation, title, lock, mute, favicon, and force-reload fields.
+- `activateBrowserTab()` attaches and focuses the selected tab.
+- `closeBrowserTab()` respects locked tabs and close-selection policy.
+- `setBrowserTabLocked()` toggles tab lock state.
+- `setBrowserTabMuted()` toggles audio mute state through `webContents`.
+- `setBrowserBounds()` stores renderer-provided BrowserView geometry and attaches the active BrowserView when visible.
+- Native tab and library-video context menus return whether a menu was shown.
+
+## Browser Navigation API
+
+Renderer API group:
+
+- `navigateBrowser(payload)`
+- `reloadBrowser(payload)`
+- `goBackBrowser(payload)`
+- `goForwardBrowser(payload)`
+- `getBrowserNavigationState(payload)`
+- `getBrowserUrl(payload)`
+- `diagnoseBrowser(payload)`
+
+Current behavior:
+
+- Navigation payloads target the active tab by default.
+- Navigation accepts only safe browser URLs.
+- Primary-origin load failures can trigger fallback-origin reload.
+- Back and forward use Electron navigation history where available.
+- Navigation state includes can-go-back, can-go-forward, lock state, and optional reload marker.
+- Diagnosis returns current page layout metrics or an error string.
+
+## Sync Browser API
+
+Renderer API group:
+
+- `syncBrowserCollection({ tabId, options })`
+- `onBrowserMessage(callback)`
+
+Current behavior:
+
+- `syncBrowserCollection()` runs sync inside a dedicated sync worker tab unless an existing compatible worker can continue.
+- Sync options include collection, mode, sync run ID, site-order offset, start page, stop-on-known-page flag, batch limit, and AJAX window size.
+- The main process augments sync options with current settings.
+- `onBrowserMessage()` receives forwarded browser events from main and webview preload.
+
+Important browser message channels:
+
+- `sync-page`
+- `sync-progress`
+- `sync-queue-progress`
+- `collection-toggle`
+- `library-video-menu-action`
+- `browser-tabs-compact-mode`
+- `jable-origin-fallback`
+- `browser-error`
+
+## Webview Preload Request Channels
+
+Main process sends these request/response commands to `app/webview-preload.ts`:
+
+- `browser:sync-collection-request`
+- `browser:apply-deferred-sync-operations-request`
+- `browser:diagnose-request`
+
+Webview preload also receives state broadcasts:
+
+- `browser:sync-lock-state`
+- `browser:pending-collection-operations`
+
+Webview preload emits:
+
+- `browser:sync-page`
+- `browser:sync-progress`
+- `browser:trackpad-history`
+- `browser:open-url-new-tab`
+- `browser:preload-response`
+
+## Validation Requirements
+
+- Collection keys must be known collection keys.
+- Search mode must be `any`, `all`, or `phrase`.
+- Sort key must be `site_order`, `title`, `views`, or `likes`.
+- Sort direction must be `asc` or `desc`.
+- Sync mode must be `quick` or `full`.
+- Browser tab kind must be `normal` or `sync`.
+- Numeric fields are normalized before use.
+- Unknown or invalid payload shapes throw explicit IPC payload errors.
+
+## Related Tests
+
+- `test/electron/app-smoke.test.js`
+- `test/node/ipc-guardrails.test.js`
+- `test/node/settings.test.js`
+- `test/node/browser-tab-policy.test.js`
+- `test/renderer/composables/useBrowserBounds.test.ts`
+- `test/renderer/composables/useLibraryState.test.ts`

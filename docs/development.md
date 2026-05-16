@@ -2,7 +2,7 @@
 
 > Developer-oriented notes for building, testing, packaging, and releasing Jable Desktop.
 
-The short project entrypoint lives in [README.md](../README.md). Full user-facing guides live in [docs/README.zh-TW.md](README.zh-TW.md), [docs/README.en-US.md](README.en-US.md), and [docs/README.ja-JP.md](README.ja-JP.md).
+The short project entrypoint lives in [README.md](../README.md). Full user-facing guides live in [docs/README.zh-TW.md](README.zh-TW.md), [docs/README.en-US.md](README.en-US.md), and [docs/README.ja-JP.md](README.ja-JP.md). Current implementation-backed feature specifications live in [docs/specs/README.md](specs/README.md).
 
 ---
 
