@@ -244,6 +244,12 @@ function collectionToggleStatus(payload: CollectionToggleResult) {
   const name = collectionName(payload.collectionKey);
 
   if (payload.queued) {
+    if (!appSettings.value.autoReplayDeferredSyncOperations) {
+      return payload.action === 'remove'
+        ? i18n.t('status.collectionRemoveQueuedManual', { collection: name })
+        : i18n.t('status.collectionAddQueuedManual', { collection: name });
+    }
+
     return payload.action === 'remove'
       ? i18n.t('status.collectionRemoveQueued', { collection: name })
       : i18n.t('status.collectionAddQueued', { collection: name });
@@ -642,6 +648,7 @@ async function retryPendingRemoteOperationGroup(groupId: string) {
     const result = await api.retryPendingRemoteOperationGroup(groupId);
     await library.refreshPendingGroups();
     if (result.resolved) {
+      await library.refreshVideos();
       setStatus(i18n.t('status.pendingRemoteResolved'), 'success');
     } else {
       setStatus(

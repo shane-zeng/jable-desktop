@@ -58,6 +58,7 @@ type CollectionTogglePayload = VideoInput & {
   video?: VideoInput;
   syncRunId?: unknown;
   deferRemote?: unknown;
+  deferLocal?: unknown;
   remoteVideoId?: unknown;
   remoteFavType?: unknown;
   sourceUrl?: unknown;
@@ -89,6 +90,7 @@ type SyncOperationRow = {
   preview: string | null;
   site_order: number | null;
   remote_deferred: number | boolean;
+  remote_apply_state: string;
   remote_video_id: string | null;
   remote_fav_type: string | null;
 };
@@ -1545,22 +1547,149 @@ class JableDatabase {
     const parts = pendingRemoteGroupParts(groupId);
     if (!parts) return false;
 
-    const result = this.db
+    const latest = this.db
       .prepare(
         [
-          'UPDATE sync_operations',
-          "SET remote_apply_state = 'resolved', remote_resolved_at = ?, remote_apply_error = NULL,",
-          '  remote_failed_at = NULL, remote_blocked_by = NULL',
+          'SELECT id, collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,',
+          '  remote_deferred, remote_apply_state, remote_video_id, remote_fav_type',
+          'FROM sync_operations',
           'WHERE collection_key = ?',
           '  AND video_url = ?',
           '  AND remote_deferred = 1',
           '  AND remote_applied_at IS NULL',
-          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
+          "  AND remote_apply_state IN ('failed', 'blocked', 'pending')",
+          'ORDER BY id DESC',
+          'LIMIT 1'
         ].join(' ')
       )
-      .run(nowIso(), parts.collectionKey, parts.videoUrl);
+      .get(parts.collectionKey, parts.videoUrl) as SyncOperationRow | undefined;
 
-    return Boolean(result.changes);
+    if (!latest) return false;
+
+    const timestamp = nowIso();
+    const updateResolved = this.db.prepare(
+      [
+        'UPDATE sync_operations',
+        "SET remote_apply_state = 'resolved', remote_resolved_at = ?, remote_apply_error = NULL,",
+        '  remote_failed_at = NULL, remote_blocked_by = NULL',
+        'WHERE collection_key = ?',
+        '  AND video_url = ?',
+        '  AND remote_deferred = 1',
+        '  AND remote_applied_at IS NULL',
+        "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
+      ].join(' ')
+    );
+    const upsertVideo = this.db.prepare(
+      [
+        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'ON CONFLICT(url) DO UPDATE SET',
+        '  title = COALESCE(excluded.title, videos.title),',
+        '  views = COALESCE(excluded.views, videos.views),',
+        '  likes = COALESCE(excluded.likes, videos.likes),',
+        '  img = COALESCE(excluded.img, videos.img),',
+        '  preview = COALESCE(excluded.preview, videos.preview),',
+        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
+        '  updated_at = excluded.updated_at'
+      ].join(' ')
+    );
+    const upsertVisibleItem = this.db.prepare(
+      [
+        'INSERT INTO collection_items (',
+        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+        ')',
+        'VALUES (?, ?, ?, ?, ?, 1, NULL, ?)',
+        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+        '  last_seen_at = excluded.last_seen_at,',
+        '  site_order = CASE',
+        '    WHEN collection_items.is_visible = 1 AND excluded.site_order < 0 THEN collection_items.site_order',
+        '    ELSE COALESCE(excluded.site_order, collection_items.site_order)',
+        '  END,',
+        '  is_visible = 1,',
+        '  missing_at = NULL,',
+        '  last_sync_run_id = excluded.last_sync_run_id'
+      ].join(' ')
+    );
+    const upsertHiddenItem = this.db.prepare(
+      [
+        'INSERT INTO collection_items (',
+        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+        ')',
+        'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+        '  last_seen_at = excluded.last_seen_at,',
+        '  is_visible = 0,',
+        '  missing_at = excluded.missing_at,',
+        '  last_sync_run_id = excluded.last_sync_run_id'
+      ].join(' ')
+    );
+    const selectVisibleOrder = this.db.prepare(
+      [
+        'SELECT video_url',
+        'FROM collection_items',
+        'WHERE collection_key = ?',
+        '  AND is_visible = 1',
+        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
+      ].join(' ')
+    );
+    const updateSiteOrder = this.db.prepare(
+      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
+    );
+
+    this.db.exec('BEGIN IMMEDIATE');
+
+    try {
+      const result = updateResolved.run(timestamp, parts.collectionKey, parts.videoUrl);
+      if (!result.changes) {
+        this.db.exec('ROLLBACK');
+        return false;
+      }
+
+      const siteOrder = latest.site_order === null ? -Date.now() : latest.site_order;
+      upsertVideo.run(
+        latest.video_url,
+        latest.title,
+        latest.views,
+        latest.likes,
+        latest.img,
+        latest.preview,
+        buildVideoSearchText(latest.title, latest.video_url),
+        timestamp,
+        timestamp
+      );
+
+      if (latest.action === 'remove') {
+        upsertHiddenItem.run(
+          parts.collectionKey,
+          latest.video_url,
+          timestamp,
+          timestamp,
+          siteOrder,
+          timestamp,
+          latest.sync_run_id
+        );
+      } else {
+        upsertVisibleItem.run(
+          parts.collectionKey,
+          latest.video_url,
+          timestamp,
+          timestamp,
+          siteOrder,
+          latest.sync_run_id
+        );
+      }
+
+      const visibleRows = selectVisibleOrder.all(parts.collectionKey) as VideoUrlRow[];
+      for (let i = 0; i < visibleRows.length; i++) {
+        updateSiteOrder.run(i + 1, parts.collectionKey, visibleRows[i].video_url);
+      }
+
+      this.db.exec('COMMIT');
+      return true;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   markPendingRemoteOperationGroupFailed(groupId: string, message: unknown): boolean {
@@ -1629,7 +1758,7 @@ class JableDatabase {
       .prepare(
         [
           'SELECT id, collection_key, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,',
-          '  remote_deferred, remote_video_id, remote_fav_type',
+          '  remote_deferred, remote_apply_state, remote_video_id, remote_fav_type',
           'FROM sync_operations',
           'WHERE collection_key = ?',
           '  AND sync_run_id = ?',
@@ -1712,9 +1841,13 @@ class JableDatabase {
     const updateSiteOrder = this.db.prepare(
       'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
     );
-    const latestOperations = Object.keys(latestByUrl).map(function (url) {
-      return latestByUrl[url];
-    });
+    const latestOperations = Object.keys(latestByUrl)
+      .map(function (url) {
+        return latestByUrl[url];
+      })
+      .filter(function (operation) {
+        return !operation.remote_deferred || operation.remote_apply_state === 'applied';
+      });
     latestOperations.sort(function (left, right) {
       return left.id - right.id;
     });
@@ -1799,6 +1932,31 @@ class JableDatabase {
       remoteFavType: normalizeText(payload.remoteFavType),
       sourceUrl: normalizeText(payload.sourceUrl)
     };
+    const deferLocal = remoteDeferred && payload.deferLocal === true;
+
+    if (deferLocal && syncRunId) {
+      const existing = this.db
+        .prepare(
+          [
+            'SELECT is_visible',
+            'FROM collection_items',
+            'WHERE collection_key = ?',
+            '  AND video_url = ?',
+            'LIMIT 1'
+          ].join(' ')
+        )
+        .get(collectionKey, video.url) as { is_visible: number | boolean } | undefined;
+      this.recordSyncOperation(collectionKey, syncRunId, action, video, timestamp, operationOptions);
+
+      return {
+        action: action,
+        changed: false,
+        collectionKey: collectionKey,
+        queued: remoteDeferred,
+        url: video.url,
+        visible: Boolean(existing && existing.is_visible)
+      };
+    }
 
     if (action === 'remove') {
       const removeResult = this.db

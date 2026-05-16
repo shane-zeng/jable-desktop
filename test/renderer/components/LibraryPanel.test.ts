@@ -165,8 +165,27 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('Pending Video');
     expect(wrapper.text()).toContain('應加入');
     expect(wrapper.text()).toContain('HTTP 500');
+    expect(wrapper.get('[data-test="library-grid"]').classes()).toContain('[grid-template-columns:minmax(0,1fr)]');
+    expect(wrapper.get('[data-test="library-grid"]').classes()).not.toContain(
+      '[grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]'
+    );
     expect(wrapper.find('[data-test="library-filters"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('快速同步');
+    expect(wrapper.get('[data-test="pending-remote-card"]').classes()).toContain(
+      'grid-cols-[132px_minmax(0,1fr)_max-content]'
+    );
+    const summary = wrapper.get('[data-test="pending-remote-summary"]');
+    expect(summary.text()).toContain('清單');
+    expect(summary.text()).toContain('影片收藏');
+    expect(summary.text()).toContain('最終狀態');
+    expect(summary.text()).toContain('應加入');
+    expect(summary.text()).toContain('同步狀態');
+    expect(summary.text()).toContain('送出失敗');
+    expect(summary.find('.pending-chip-add').exists()).toBe(true);
+    expect(summary.find('.pending-chip-failed').exists()).toBe(true);
+    expect(wrapper.get('[data-test="pending-remote-sequence"]').text()).toContain('操作序列');
+    expect(wrapper.get('[data-test="pending-remote-sequence"]').find('.max-h-16').exists()).toBe(true);
+    expect(wrapper.find('[data-test="pending-remote-card"] button').classes()).toContain('success');
 
     await wrapper.find('[data-test="pending-remote-card"] button').trigger('click');
 

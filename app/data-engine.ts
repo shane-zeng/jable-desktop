@@ -22,6 +22,7 @@ type CollectionTogglePayload = {
   action?: unknown;
   syncRunId?: unknown;
   deferRemote?: unknown;
+  deferLocal?: unknown;
   remoteVideoId?: unknown;
   remoteFavType?: unknown;
   sourceUrl?: unknown;

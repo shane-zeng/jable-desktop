@@ -75,7 +75,7 @@ Large lists are accelerated in the background with a bounded AJAX window. If the
 
 ## Pending Sync
 
-If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox. By default it does not send them automatically; they stay in Pending Sync for manual review. If you enable "Automatically Send Changes After Sync" in Settings, the app sends them back to Jable in order after page scraping finishes.
+If you add or remove items on Jable while a sync is running, the app first stores those actions in a local outbox. By default it does not send them automatically; they stay in Pending Sync for manual review and do not change the normal local list until a resend succeeds. If you enable "Automatically Send Changes After Sync" in Settings, the app sends them back to Jable in order after page scraping finishes.
 
 When the app is replaying that outbox after sync, the top-right status toast stays visible with a progress bar until the queued actions finish or the first replay failure stops the run.
 

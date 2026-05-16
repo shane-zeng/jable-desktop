@@ -37,6 +37,7 @@ struct NormalizedVideo {
 #[derive(Clone)]
 struct OperationRow {
     id: i64,
+    sync_run_id: String,
     action: String,
     video_url: String,
     title: Option<String>,
@@ -45,6 +46,8 @@ struct OperationRow {
     img: Option<String>,
     preview: Option<String>,
     site_order: Option<i64>,
+    remote_deferred: i64,
+    remote_apply_state: String,
 }
 
 struct PendingRemoteOperationRow {
@@ -1193,6 +1196,43 @@ impl Engine {
         let timestamp = now_iso();
         let sync_run_id = value_string(object_field(&payload, "syncRunId"));
         let remote_deferred = value_bool(object_field(&payload, "deferRemote"));
+        let defer_local = remote_deferred
+            && value_bool(object_field(&payload, "deferLocal"))
+            && sync_run_id.is_some();
+
+        if defer_local {
+            let current_visible = self
+                .conn()?
+                .query_row(
+                    "SELECT is_visible
+           FROM collection_items
+           WHERE collection_key = ?
+             AND video_url = ?
+           LIMIT 1",
+                    params![&collection_key, &video.url],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()
+                .map_err(to_napi_error)?
+                .unwrap_or(0)
+                != 0;
+            self.record_sync_operation(
+                &collection_key,
+                sync_run_id.as_deref(),
+                action,
+                &video,
+                &timestamp,
+                &payload,
+            )?;
+            return Ok(json!({
+              "action": action,
+              "changed": false,
+              "collectionKey": collection_key,
+              "queued": remote_deferred,
+              "url": video.url,
+              "visible": current_visible
+            }));
+        }
 
         if action == "remove" {
             let changed = self
@@ -1695,10 +1735,52 @@ impl Engine {
         let Some((collection_key, video_url)) = pending_remote_group_parts(Some(&group_id)) else {
             return Ok(json!(false));
         };
-        let changes = self
+        let latest = self
             .conn()?
-            .execute(
-                "UPDATE sync_operations
+            .query_row(
+                "SELECT id, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,
+             remote_deferred, remote_apply_state
+         FROM sync_operations
+         WHERE collection_key = ?
+           AND video_url = ?
+           AND remote_deferred = 1
+           AND remote_applied_at IS NULL
+           AND remote_apply_state IN ('failed', 'blocked', 'pending')
+         ORDER BY id DESC
+         LIMIT 1",
+                params![&collection_key, &video_url],
+                |row| {
+                    Ok(OperationRow {
+                        id: row.get(0)?,
+                        sync_run_id: row.get(1)?,
+                        action: row.get(2)?,
+                        video_url: row.get(3)?,
+                        title: row.get(4)?,
+                        views: row.get(5)?,
+                        likes: row.get(6)?,
+                        img: row.get(7)?,
+                        preview: row.get(8)?,
+                        site_order: row.get(9)?,
+                        remote_deferred: row.get(10)?,
+                        remote_apply_state: row.get(11)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(to_napi_error)?;
+        let Some(latest) = latest else {
+            return Ok(json!(false));
+        };
+
+        let timestamp = now_iso();
+        self.conn()?
+            .execute_batch("BEGIN IMMEDIATE")
+            .map_err(to_napi_error)?;
+        let result = (|| -> Result<bool> {
+            let changes = self
+                .conn()?
+                .execute(
+                    "UPDATE sync_operations
          SET remote_apply_state = 'resolved',
              remote_resolved_at = ?,
              remote_apply_error = NULL,
@@ -1709,10 +1791,102 @@ impl Engine {
            AND remote_deferred = 1
            AND remote_applied_at IS NULL
            AND remote_apply_state IN ('failed', 'blocked', 'pending')",
-                params![now_iso(), &collection_key, &video_url],
-            )
-            .map_err(to_napi_error)?;
-        Ok(json!(changes > 0))
+                    params![timestamp, &collection_key, &video_url],
+                )
+                .map_err(to_napi_error)?;
+            if changes == 0 {
+                return Ok(false);
+            }
+
+            let site_order = latest.site_order.unwrap_or_else(|| -now_millis());
+            let video = NormalizedVideo {
+                url: latest.video_url.clone(),
+                title: latest.title.clone(),
+                views: latest.views,
+                likes: latest.likes,
+                img: latest.img.clone(),
+                preview: latest.preview.clone(),
+                site_order: Some(site_order),
+                search_text: build_video_search_text(
+                    latest.title.as_deref(),
+                    Some(&latest.video_url),
+                ),
+            };
+            self.upsert_video(&video, &timestamp)?;
+
+            if latest.action == "remove" {
+                self.conn()?
+                    .execute(
+                        "INSERT INTO collection_items (
+                 collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id
+               )
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+               ON CONFLICT(collection_key, video_url) DO UPDATE SET
+                 last_seen_at = excluded.last_seen_at,
+                 is_visible = 0,
+                 missing_at = excluded.missing_at,
+                 last_sync_run_id = excluded.last_sync_run_id",
+                        params![
+                            &collection_key,
+                            &latest.video_url,
+                            &timestamp,
+                            &timestamp,
+                            site_order,
+                            &timestamp,
+                            &latest.sync_run_id
+                        ],
+                    )
+                    .map_err(to_napi_error)?;
+            } else {
+                self.conn()?
+                    .execute(
+                        "INSERT INTO collection_items (
+                 collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id
+               )
+               VALUES (?, ?, ?, ?, ?, 1, NULL, ?)
+               ON CONFLICT(collection_key, video_url) DO UPDATE SET
+                 last_seen_at = excluded.last_seen_at,
+                 site_order = CASE
+                   WHEN collection_items.is_visible = 1 AND excluded.site_order < 0 THEN collection_items.site_order
+                   ELSE COALESCE(excluded.site_order, collection_items.site_order)
+                 END,
+                 is_visible = 1,
+                 missing_at = NULL,
+                 last_sync_run_id = excluded.last_sync_run_id",
+                        params![
+                            &collection_key,
+                            &latest.video_url,
+                            &timestamp,
+                            &timestamp,
+                            site_order,
+                            &latest.sync_run_id
+                        ],
+                    )
+                    .map_err(to_napi_error)?;
+            }
+
+            let visible_urls = self.visible_urls_for_resequence(&collection_key)?;
+            for (index, url) in visible_urls.iter().enumerate() {
+                self.conn()?
+                    .execute(
+                        "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
+                        params![index as i64 + 1, &collection_key, url],
+                    )
+                    .map_err(to_napi_error)?;
+            }
+
+            Ok(true)
+        })();
+
+        if result.is_ok() {
+            self.conn()?
+                .execute_batch("COMMIT")
+                .map_err(to_napi_error)?;
+        } else {
+            let _ = self.conn()?.execute_batch("ROLLBACK");
+        }
+
+        Ok(json!(result?))
     }
 
     fn mark_pending_remote_operation_group_failed(&self, payload: Value) -> Result<Value> {
@@ -1795,7 +1969,8 @@ impl Engine {
         let mut statement = self
             .conn()?
             .prepare(
-                "SELECT id, action, video_url, title, views, likes, img, preview, site_order
+                "SELECT id, sync_run_id, action, video_url, title, views, likes, img, preview, site_order,
+             remote_deferred, remote_apply_state
          FROM sync_operations
          WHERE collection_key = ?
            AND sync_run_id = ?
@@ -1807,14 +1982,17 @@ impl Engine {
             .query_map(params![collection_key, sync_run_id], |row| {
                 Ok(OperationRow {
                     id: row.get(0)?,
-                    action: row.get(1)?,
-                    video_url: row.get(2)?,
-                    title: row.get(3)?,
-                    views: row.get(4)?,
-                    likes: row.get(5)?,
-                    img: row.get(6)?,
-                    preview: row.get(7)?,
-                    site_order: row.get(8)?,
+                    sync_run_id: row.get(1)?,
+                    action: row.get(2)?,
+                    video_url: row.get(3)?,
+                    title: row.get(4)?,
+                    views: row.get(5)?,
+                    likes: row.get(6)?,
+                    img: row.get(7)?,
+                    preview: row.get(8)?,
+                    site_order: row.get(9)?,
+                    remote_deferred: row.get(10)?,
+                    remote_apply_state: row.get(11)?,
                 })
             })
             .map_err(to_napi_error)?
@@ -1828,7 +2006,12 @@ impl Engine {
         for operation in &operations {
             latest_by_url.insert(operation.video_url.clone(), operation.clone());
         }
-        let mut latest = latest_by_url.into_values().collect::<Vec<OperationRow>>();
+        let mut latest = latest_by_url
+            .into_values()
+            .filter(|operation| {
+                operation.remote_deferred == 0 || operation.remote_apply_state == "applied"
+            })
+            .collect::<Vec<OperationRow>>();
         latest.sort_by_key(|operation| operation.id);
 
         self.conn()?

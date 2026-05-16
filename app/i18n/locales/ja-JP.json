@@ -178,6 +178,8 @@
     "collectionAdded": "{collection} に追加し、ローカルに同期しました",
     "collectionRemoveQueued": "キューに追加しました: 同期完了後に {collection} から削除します",
     "collectionAddQueued": "キューに追加しました: 同期完了後に {collection} に追加します",
+    "collectionRemoveQueuedManual": "同期待ちに追加しました。あとで手動再送信し、成功後にのみ {collection} から削除します",
+    "collectionAddQueuedManual": "同期待ちに追加しました。あとで手動再送信し、成功後にのみ {collection} に追加します",
     "fullSyncPaused": "{collection} の {mode} を一時停止しました: このバッチは {pages} ページ、{rows} 件を処理しました。フル同期を続行できます。",
     "firstPageRequired": "{collection} の {mode} を開始できませんでした: 1 ページ目を確認または表示できませんでした。",
     "syncChangedDuringRun": "{collection} の {mode} を処理しました: 操作ログから {count} 件を照合して適用しました。同期中に手動操作があったため、見つからない項目の非表示処理は省略しました。",

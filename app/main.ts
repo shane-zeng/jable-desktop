@@ -84,6 +84,7 @@ type CollectionTogglePayload = {
   action?: unknown;
   syncRunId?: unknown;
   deferRemote?: unknown;
+  deferLocal?: unknown;
   remoteVideoId?: unknown;
   remoteFavType?: unknown;
   sourceUrl?: unknown;
@@ -2730,6 +2731,8 @@ function registerIpcHandlers() {
       if (activeRun) {
         if (normalizedPayload.deferRemote !== true) {
           markActiveSyncMutated(normalizedPayload.collectionKey as CollectionKey);
+        } else if (!getAppSettings().autoReplayDeferredSyncOperations) {
+          normalizedPayload.deferLocal = true;
         }
         normalizedPayload.syncRunId = activeRun.syncRunId;
       }

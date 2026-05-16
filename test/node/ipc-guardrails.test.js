@@ -87,6 +87,7 @@ test('main process replays queued collection operations after recoverable incomp
   assert.match(source, /result\.incompleteReason === 'login-required'/);
   assert.match(source, /result\.incompleteReason === 'batch-limit'/);
   assert.match(source, /getAppSettings\(\)\.autoReplayDeferredSyncOperations/);
+  assert.match(source, /normalizedPayload\.deferLocal = true/);
   assert.match(source, /resultWithWorker\.queuedOperationsSkipped = skipped/);
   assert.equal(source.includes('!keepWorker && resultWithWorker.completed'), false);
 });

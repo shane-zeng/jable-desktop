@@ -83,6 +83,17 @@ button.primary:hover {
   background: var(--action-strong);
 }
 
+button.success {
+  border-color: #23864f;
+  background: #23864f;
+  color: #fff;
+}
+
+button.success:hover {
+  border-color: #2da861;
+  background: #2da861;
+}
+
 input,
 select {
   min-height: 34px;
@@ -106,6 +117,10 @@ button:focus {
 
 .segmented-tab {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-width: 92px;
   padding: 0 14px;
   border: 1px solid transparent;
@@ -139,6 +154,73 @@ button:focus {
   border-color: var(--accent-strong);
   background: var(--accent-strong);
   color: #fff;
+}
+
+.segmented-tab.is-active .pending-count-badge {
+  background: #fff;
+  color: var(--accent);
+}
+
+.pending-summary-chip {
+  display: inline-grid;
+  grid-template-columns: max-content max-content;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pending-summary-chip > span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.pending-summary-chip > strong {
+  font-weight: 800;
+}
+
+.pending-sequence-step {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pending-chip-neutral {
+  border-color: rgba(138, 183, 255, 0.34);
+  background: rgba(138, 183, 255, 0.12);
+}
+
+.pending-chip-add,
+.pending-chip-pending {
+  border-color: rgba(45, 168, 97, 0.46);
+  background: rgba(45, 168, 97, 0.14);
+}
+
+.pending-chip-remove,
+.pending-chip-failed {
+  border-color: rgba(214, 64, 85, 0.5);
+  background: rgba(214, 64, 85, 0.16);
+}
+
+.pending-chip-blocked {
+  border-color: rgba(201, 130, 34, 0.5);
+  background: rgba(201, 130, 34, 0.15);
 }
 
 .app-shell {

@@ -178,6 +178,8 @@
     "collectionAdded": "已加入{collection}並同步到本機",
     "collectionRemoveQueued": "已排入佇列：將在同步完成後從{collection}移除",
     "collectionAddQueued": "已排入佇列：將在同步完成後加入{collection}",
+    "collectionRemoveQueuedManual": "已加入待同步：稍後可手動重送，成功後才會從{collection}移除",
+    "collectionAddQueuedManual": "已加入待同步：稍後可手動重送，成功後才會加入{collection}",
     "fullSyncPaused": "{collection} {mode}已暫停：本批 {pages} 頁、{rows} 筆，可繼續完整同步",
     "firstPageRequired": "{collection} {mode}未開始：無法確認或切回第 1 頁",
     "syncChangedDuringRun": "{collection} {mode}已處理：已比對操作表並套用 {count} 筆操作；因同步期間清單有手動操作，已略過缺漏隱藏",

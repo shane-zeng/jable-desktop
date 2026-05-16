@@ -178,6 +178,8 @@
     "collectionAdded": "Added to {collection} and synced locally",
     "collectionRemoveQueued": "Queued: this item will be removed from {collection} after sync finishes.",
     "collectionAddQueued": "Queued: this item will be added to {collection} after sync finishes.",
+    "collectionRemoveQueuedManual": "Added to Pending Sync. Resend it later; it will be removed from {collection} only after that succeeds.",
+    "collectionAddQueuedManual": "Added to Pending Sync. Resend it later; it will be added to {collection} only after that succeeds.",
     "fullSyncPaused": "{collection} {mode} paused: this batch scanned {pages} pages and {rows} items. You can continue full sync.",
     "firstPageRequired": "{collection} {mode} did not start: could not confirm or return to page 1.",
     "syncChangedDuringRun": "{collection} {mode} processed: reconciled {count} operations from the operation log. Missing-item hiding was skipped because manual operations happened during sync.",

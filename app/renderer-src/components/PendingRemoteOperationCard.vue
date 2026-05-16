@@ -24,19 +24,35 @@ const stateLabel = computed(function () {
   return i18n.t('pendingRemote.state.' + props.group.state);
 });
 
-const sequenceText = computed(function () {
-  return props.group.sequence
-    .map(function (step) {
-      return i18n.t('pendingRemote.sequenceStep', {
+const finalActionClass = computed(function () {
+  return props.group.finalAction === 'remove' ? 'pending-chip-remove' : 'pending-chip-add';
+});
+
+const syncStateClass = computed(function () {
+  return stateChipClass(props.group.state);
+});
+
+const sequenceSteps = computed(function () {
+  return props.group.sequence.map(function (step) {
+    return {
+      id: step.id,
+      label: i18n.t('pendingRemote.sequenceStep', {
         action: i18n.t('pendingRemote.action.' + step.action),
         state: i18n.t('pendingRemote.state.' + step.state)
-      });
-    })
-    .join(' -> ');
+      }),
+      className: stateChipClass(step.state)
+    };
+  });
 });
 
 function isMacPlatform() {
   return /Mac|iPhone|iPad|iPod/.test(window.navigator.platform || '');
+}
+
+function stateChipClass(state: PendingRemoteOperationGroup['state']) {
+  if (state === 'failed') return 'pending-chip-failed';
+  if (state === 'blocked') return 'pending-chip-blocked';
+  return 'pending-chip-pending';
 }
 
 function openVideo(event: MouseEvent) {
@@ -85,7 +101,7 @@ function stopPreview() {
 
 <template>
   <article
-    class="grid grid-cols-[132px_minmax(0,1fr)_auto] gap-3 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-3 shadow-[var(--shadow)] max-[760px]:grid-cols-1"
+    class="grid grid-cols-[132px_minmax(0,1fr)_max-content] gap-3 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-3 shadow-[var(--shadow)] max-[760px]:grid-cols-1"
     data-test="pending-remote-card"
   >
     <a
@@ -111,7 +127,7 @@ function stopPreview() {
       ></video>
     </a>
 
-    <div class="min-w-0 space-y-2">
+    <div class="min-w-0 space-y-3">
       <a
         class="block truncate text-sm font-bold text-[var(--text)] no-underline hover:text-[var(--accent)]"
         :href="group.videoUrl"
@@ -120,32 +136,50 @@ function stopPreview() {
       >
         {{ group.title || group.videoUrl }}
       </a>
-      <div class="grid gap-1 text-xs leading-5 text-[var(--muted)]">
-        <div>
-          <span class="font-semibold text-[var(--text)]">{{ i18n.t('pendingRemote.collection') }}</span>
-          <span class="pl-1">{{ i18n.t('collections.' + group.collectionKey) }}</span>
+
+      <div class="flex flex-wrap gap-2" data-test="pending-remote-summary">
+        <div class="pending-summary-chip pending-chip-neutral">
+          <span>{{ i18n.t('pendingRemote.collection') }}</span>
+          <strong>{{ i18n.t('collections.' + group.collectionKey) }}</strong>
         </div>
-        <div>
-          <span class="font-semibold text-[var(--text)]">{{ i18n.t('pendingRemote.finalState') }}</span>
-          <span class="pl-1">{{ finalStateLabel }}</span>
+        <div class="pending-summary-chip" :class="finalActionClass">
+          <span>{{ i18n.t('pendingRemote.finalState') }}</span>
+          <strong>{{ finalStateLabel }}</strong>
         </div>
-        <div>
-          <span class="font-semibold text-[var(--text)]">{{ i18n.t('pendingRemote.syncState') }}</span>
-          <span class="pl-1">{{ stateLabel }}</span>
+        <div class="pending-summary-chip" :class="syncStateClass">
+          <span>{{ i18n.t('pendingRemote.syncState') }}</span>
+          <strong>{{ stateLabel }}</strong>
         </div>
-        <div v-if="group.error">
-          <span class="font-semibold text-[var(--text)]">{{ i18n.t('pendingRemote.error') }}</span>
-          <span class="pl-1">{{ group.error }}</span>
+      </div>
+
+      <div
+        v-if="group.error"
+        class="max-h-14 overflow-auto rounded-md border border-[rgba(214,64,85,0.48)] bg-[rgba(214,64,85,0.12)] px-2.5 py-1.5 text-xs leading-5 text-[var(--text)]"
+      >
+        <span class="font-bold">{{ i18n.t('pendingRemote.error') }}</span>
+        <span class="pl-1 text-[var(--muted)]">{{ group.error }}</span>
+      </div>
+
+      <div
+        class="rounded-md border border-[var(--panel-border)] bg-[rgba(255,255,255,0.025)] px-2.5 py-2"
+        data-test="pending-remote-sequence"
+      >
+        <div class="mb-1 text-[10px] font-bold tracking-wide text-[var(--muted)]">
+          {{ i18n.t('pendingRemote.sequence') }} · {{ group.operationCount }}
         </div>
-        <div class="break-words">
-          <span class="font-semibold text-[var(--text)]">{{ i18n.t('pendingRemote.sequence') }}</span>
-          <span class="pl-1">{{ sequenceText }}</span>
+        <div class="flex max-h-16 flex-wrap gap-1.5 overflow-auto pr-1">
+          <template v-for="(step, index) in sequenceSteps" :key="step.id">
+            <span v-if="index > 0" class="self-center text-[10px] text-[var(--muted)]" aria-hidden="true">-&gt;</span>
+            <span class="pending-sequence-step" :class="step.className">
+              {{ step.label }}
+            </span>
+          </template>
         </div>
       </div>
     </div>
 
     <div class="flex items-start justify-end">
-      <button type="button" :disabled="busy" @click="emit('retry', group.groupId)">
+      <button type="button" class="success whitespace-nowrap" :disabled="busy" @click="emit('retry', group.groupId)">
         {{ i18n.t('pendingRemote.retry') }}
       </button>
     </div>

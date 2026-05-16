@@ -58,7 +58,9 @@ const activeTabKey = computed(function () {
       @click="emit('select', 'pending_remote')"
     >
       {{ t('pendingRemote.tab') }}
-      <span class="ml-1 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+      <span
+        class="pending-count-badge inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-bold leading-none text-white"
+      >
         {{ props.pendingCount }}
       </span>
     </button>

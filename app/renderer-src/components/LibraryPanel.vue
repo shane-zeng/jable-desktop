@@ -135,8 +135,13 @@ function updateDirection(event: Event) {
     </div>
 
     <div
-      class="grid min-h-0 content-start gap-3 overflow-auto p-3.5 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]"
-      :class="activeTab === 'pending_remote' ? '[grid-template-columns:minmax(0,1fr)]' : ''"
+      class="grid min-h-0 content-start gap-3 overflow-auto p-3.5"
+      data-test="library-grid"
+      :class="
+        activeTab === 'pending_remote'
+          ? '[grid-template-columns:minmax(0,1fr)]'
+          : '[grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]'
+      "
     >
       <template v-if="activeTab === 'pending_remote'">
         <div v-if="!pendingGroups.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">

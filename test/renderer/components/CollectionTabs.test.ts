@@ -61,6 +61,9 @@ describe('CollectionTabs', function () {
     expect(tabs[2].text()).toContain('待同步');
     expect(tabs[2].text()).toContain('3');
     expect(tabs[2].attributes('aria-selected')).toBe('true');
+    expect(tabs[2].classes()).toEqual(expect.arrayContaining(['segmented-tab', 'is-active']));
+    expect(tabs[2].find('.pending-count-badge').exists()).toBe(true);
+    expect(tabs[2].find('.pending-count-badge').text()).toBe('3');
 
     await tabs[2].trigger('click');
 
