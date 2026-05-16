@@ -133,6 +133,10 @@
   "video": {
     "open": "Open video: {target}",
     "download": "Download",
+    "downloadQueued": "Queued",
+    "downloadDownloading": "Downloading",
+    "downloadReady": "Downloaded",
+    "downloadRetry": "Retry",
     "views": "views",
     "likes": "likes",
     "synced": "Synced {date}"

@@ -133,6 +133,10 @@
   "video": {
     "open": "動画を開く: {target}",
     "download": "ダウンロード",
+    "downloadQueued": "待機中",
+    "downloadDownloading": "ダウンロード中",
+    "downloadReady": "ダウンロード済み",
+    "downloadRetry": "再試行",
     "views": "再生",
     "likes": "いいね",
     "synced": "同期 {date}"

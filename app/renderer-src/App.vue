@@ -249,8 +249,8 @@ function handleBrowserMessage(message: BrowserMessage) {
     browser.setNavigationState(message.args[0] as BrowserNavigationState);
   }
 
-  if (message.channel === 'downloads-changed' && library.activeTab.value === 'downloads') {
-    library.refreshVideos().catch(function (error) {
+  if (message.channel === 'downloads-changed') {
+    library.refreshDownloads().catch(function (error) {
       console.error(error);
     });
   }
@@ -520,11 +520,9 @@ async function openDownloadFile(videoUrl: string) {
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadFileOpenFailed', { error: errorMessage(error) }), 'error');
-    if (library.activeTab.value === 'downloads') {
-      library.refreshVideos().catch(function (refreshError) {
-        console.error(refreshError);
-      });
-    }
+    library.refreshDownloads().catch(function (refreshError) {
+      console.error(refreshError);
+    });
   }
 }
 
@@ -537,11 +535,9 @@ async function revealDownloadFile(videoUrl: string) {
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadFileRevealFailed', { error: errorMessage(error) }), 'error');
-    if (library.activeTab.value === 'downloads') {
-      library.refreshVideos().catch(function (refreshError) {
-        console.error(refreshError);
-      });
-    }
+    library.refreshDownloads().catch(function (refreshError) {
+      console.error(refreshError);
+    });
   }
 }
 
@@ -557,7 +553,7 @@ async function downloadVideo(video: VideoRow) {
       result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
       result.queued ? 'success' : 'info'
     );
-    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+    await library.refreshDownloads();
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadStartFailed', { error: errorMessage(error) }), 'error');
@@ -573,7 +569,7 @@ async function retryDownload(videoUrl: string) {
       result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
       result.queued ? 'success' : 'info'
     );
-    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+    await library.refreshDownloads();
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadRetryFailed', { error: errorMessage(error) }), 'error');
@@ -586,7 +582,7 @@ async function cancelDownload(videoUrl: string) {
   try {
     await api.cancelDownload(videoUrl);
     setStatus(i18n.t('status.downloadCanceled'), 'success');
-    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+    await library.refreshDownloads();
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadCancelFailed', { error: errorMessage(error) }), 'error');
@@ -600,7 +596,7 @@ async function deleteDownload(videoUrl: string) {
     const result = await api.deleteDownload(videoUrl);
     if (result.canceled) return;
     setStatus(i18n.t('status.downloadDeleted'), 'success');
-    if (library.activeTab.value === 'downloads') await library.refreshVideos();
+    await library.refreshDownloads();
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadDeleteFailed', { error: errorMessage(error) }), 'error');
@@ -672,6 +668,7 @@ onMounted(async function () {
   browser.scheduleResize();
   await browser.refreshTabs();
   await library.refreshVideos();
+  await library.refreshDownloads();
   await library.refreshPendingGroups();
   browser.scheduleResize();
 });
@@ -752,6 +749,7 @@ onMounted(async function () {
         :count-label="library.countLabel.value"
         :page-label="library.pageLabel.value"
         :downloads="library.downloads.value"
+        :download-records="library.downloadRecords.value"
         :rows="pageRows"
         :current-page="library.currentPage.value"
         :total-pages="library.totalPages.value"

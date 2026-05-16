@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import VideoCard from '@/components/VideoCard.vue';
 import { setLocale } from '@/i18n';
-import type { VideoRow } from '../../../app/types/jable';
+import type { DownloadRecord, VideoRow } from '../../../app/types/jable';
 
 const originalPlatform = window.navigator.platform;
 
@@ -16,6 +16,26 @@ function makeVideo(overrides?: Partial<VideoRow>): VideoRow {
       views: 1234,
       likes: 56,
       last_seen_at: '2026-05-12T08:00:00.000Z'
+    },
+    overrides || {}
+  );
+}
+
+function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>): DownloadRecord {
+  return Object.assign(
+    {
+      videoUrl: video.url,
+      collectionKey: 'favourites',
+      title: video.title,
+      img: video.img,
+      localPath: '/tmp/sample.mp4',
+      state: 'ready',
+      progress: null,
+      fileSizeBytes: 1024,
+      error: null,
+      createdAt: '2026-05-16T00:00:00.000Z',
+      updatedAt: '2026-05-16T00:00:00.000Z',
+      completedAt: '2026-05-16T00:00:00.000Z'
     },
     overrides || {}
   );
@@ -178,6 +198,46 @@ describe('VideoCard', function () {
 
     expect(wrapper.emitted('download')).toEqual([[video]]);
     expect(wrapper.emitted('open')).toBeUndefined();
+  });
+
+  it('shows completed downloads as disabled on the source card', async function () {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
+      props: {
+        video: video,
+        downloadRecord: makeDownloadRecord(video)
+      }
+    });
+    const button = wrapper.get('[data-test="video-download"]');
+
+    expect(button.text()).toBe('已下載');
+    expect((button.element as HTMLButtonElement).disabled).toBe(true);
+
+    await button.trigger('click');
+
+    expect(wrapper.emitted('download')).toBeUndefined();
+  });
+
+  it('allows failed downloads to be retried from the source card', async function () {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
+      props: {
+        video: video,
+        downloadRecord: makeDownloadRecord(video, {
+          state: 'failed',
+          completedAt: null,
+          error: 'HTTP 403'
+        })
+      }
+    });
+    const button = wrapper.get('[data-test="video-download"]');
+
+    expect(button.text()).toBe('重試');
+    expect((button.element as HTMLButtonElement).disabled).toBe(false);
+
+    await button.trigger('click');
+
+    expect(wrapper.emitted('download')).toEqual([[video]]);
   });
 
   it('renders English aria labels and sync metadata', function () {

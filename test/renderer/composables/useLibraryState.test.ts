@@ -236,6 +236,7 @@ describe('useLibraryState', function () {
     try {
       await setup.state.selectTab('downloads');
 
+      expect(setup.state.downloadRecords.value.map((record) => record.title)).toEqual(['Beta Video', 'Alpha Video']);
       expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Beta Video', 'Alpha Video']);
       expect(setup.state.countLabel.value).toBe('2 筆下載');
 

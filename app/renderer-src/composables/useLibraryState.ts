@@ -94,6 +94,7 @@ export function useLibraryState(api: JableAppApi) {
   const downloadDirection = ref<SortDirection>('desc');
   const fullSyncContinuation = ref<FullSyncContinuation | null>(null);
   let refreshToken = 0;
+  let downloadRefreshToken = 0;
 
   const currentCollection = computed(function () {
     return COLLECTIONS[activeCollection.value];
@@ -157,6 +158,15 @@ export function useLibraryState(api: JableAppApi) {
     }
   }
 
+  async function refreshDownloads() {
+    const token = ++downloadRefreshToken;
+    const records = await api.listDownloads();
+
+    if (token !== downloadRefreshToken) return;
+
+    downloadRecords.value = Array.isArray(records) ? records : [];
+  }
+
   async function refreshVideos() {
     if (isPendingTab.value) {
       await refreshPendingGroups();
@@ -164,11 +174,10 @@ export function useLibraryState(api: JableAppApi) {
     }
     if (isDownloadsTab.value) {
       const token = ++refreshToken;
-      const records = await api.listDownloads();
+      await refreshDownloads();
 
       if (token !== refreshToken) return;
 
-      downloadRecords.value = Array.isArray(records) ? records : [];
       rows.value = [];
       totalRows.value = downloads.value.length;
       currentPage.value = 1;
@@ -270,6 +279,7 @@ export function useLibraryState(api: JableAppApi) {
     isDownloadsTab: isDownloadsTab,
     currentPage: currentPage,
     rows: rows,
+    downloadRecords: downloadRecords,
     downloads: downloads,
     downloadSearch: downloadSearch,
     downloadSort: downloadSort,
@@ -290,6 +300,7 @@ export function useLibraryState(api: JableAppApi) {
     fullSyncContinuation: fullSyncContinuation,
     fullSyncButtonLabel: fullSyncButtonLabel,
     refreshVideos: refreshVideos,
+    refreshDownloads: refreshDownloads,
     refreshPendingGroups: refreshPendingGroups,
     selectCollection: selectCollection,
     selectTab: selectTab,

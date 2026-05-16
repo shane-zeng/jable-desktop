@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import CollectionTabs from './CollectionTabs.vue';
 import DownloadRecordCard from './DownloadRecordCard.vue';
 import PaginationControls from './PaginationControls.vue';
@@ -19,7 +20,7 @@ import type {
   VideoRow
 } from '../../types/jable';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     active: boolean;
     activeCollection: CollectionKey;
@@ -39,6 +40,7 @@ withDefaults(
     countLabel: string;
     pageLabel: string;
     downloads: DownloadRecord[];
+    downloadRecords?: DownloadRecord[];
     rows: VideoRow[];
     currentPage: number;
     totalPages: number;
@@ -46,7 +48,10 @@ withDefaults(
   {
     downloadSearch: '',
     downloadSort: 'updated_at',
-    downloadDirection: 'desc'
+    downloadDirection: 'desc',
+    downloadRecords: function () {
+      return [];
+    }
   }
 );
 
@@ -100,6 +105,20 @@ function updateDownloadSort(event: Event) {
 
 function updateDownloadDirection(event: Event) {
   emit('update:download-direction', inputValue(event) as SortDirection);
+}
+
+const downloadRecordByVideoUrl = computed(function () {
+  const records = new Map<string, DownloadRecord>();
+
+  for (const record of props.downloadRecords) {
+    records.set(record.videoUrl, record);
+  }
+
+  return records;
+});
+
+function downloadRecordForVideo(video: VideoRow) {
+  return downloadRecordByVideoUrl.value.get(video.url) || null;
 }
 </script>
 
@@ -259,6 +278,7 @@ function updateDownloadDirection(event: Event) {
           v-for="video in rows"
           :key="video.url"
           :video="video"
+          :download-record="downloadRecordForVideo(video)"
           @open="emit('open-video', $event)"
           @open-new="emit('open-video-new-tab', $event)"
           @download="emit('download-video', $event)"

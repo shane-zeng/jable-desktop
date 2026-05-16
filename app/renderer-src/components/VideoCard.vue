@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from '../i18n';
-import type { LibraryVideoMenuPayload, VideoRow } from '../../types/jable';
+import type { DownloadRecord, LibraryVideoMenuPayload, VideoRow } from '../../types/jable';
 
 const props = defineProps<{
   video: VideoRow;
+  downloadRecord?: DownloadRecord | null;
 }>();
 
 const emit = defineEmits<{
@@ -15,6 +16,20 @@ const emit = defineEmits<{
 }>();
 const i18n = useI18n();
 const previewVideo = ref<HTMLVideoElement | null>(null);
+
+const downloadButtonLabel = computed(function () {
+  const state = props.downloadRecord && props.downloadRecord.state;
+  if (state === 'queued') return i18n.t('video.downloadQueued');
+  if (state === 'downloading') return i18n.t('video.downloadDownloading');
+  if (state === 'ready') return i18n.t('video.downloadReady');
+  if (state === 'failed' || state === 'missing') return i18n.t('video.downloadRetry');
+  return i18n.t('video.download');
+});
+
+const downloadButtonDisabled = computed(function () {
+  const state = props.downloadRecord && props.downloadRecord.state;
+  return state === 'queued' || state === 'downloading' || state === 'ready';
+});
 
 function formatNumber(value: number | null | undefined) {
   if (value === null || typeof value === 'undefined') return '-';
@@ -96,6 +111,7 @@ function openVideoMenu(event: MouseEvent) {
 function downloadVideo(event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
+  if (downloadButtonDisabled.value) return;
   emit('download', props.video);
 }
 </script>
@@ -166,8 +182,14 @@ function downloadVideo(event: MouseEvent) {
         </div>
         <div class="flex items-center justify-between gap-2">
           <span class="min-w-0 truncate">{{ i18n.t('video.synced', { date: formatDate(video.last_seen_at) }) }}</span>
-          <button type="button" class="min-h-7 px-2 py-1 text-xs" data-test="video-download" @click="downloadVideo">
-            {{ i18n.t('video.download') }}
+          <button
+            type="button"
+            class="min-h-7 px-2 py-1 text-xs"
+            data-test="video-download"
+            :disabled="downloadButtonDisabled"
+            @click="downloadVideo"
+          >
+            {{ downloadButtonLabel }}
           </button>
         </div>
       </div>

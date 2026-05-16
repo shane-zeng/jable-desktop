@@ -133,6 +133,10 @@
   "video": {
     "open": "開啟影片：{target}",
     "download": "下載",
+    "downloadQueued": "等待中",
+    "downloadDownloading": "下載中",
+    "downloadReady": "已下載",
+    "downloadRetry": "重試",
     "views": "views",
     "likes": "likes",
     "synced": "同步 {date}"

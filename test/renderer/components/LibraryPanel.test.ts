@@ -164,6 +164,87 @@ describe('LibraryPanel', function () {
     expect(wrapper.emitted('download-video')).toEqual([[video]]);
   });
 
+  it('uses raw download records for collection card download states', async function () {
+    const readyVideo = {
+      title: 'Ready Video',
+      url: 'https://jable.tv/videos/ready/',
+      views: 1,
+      likes: 2,
+      img: null,
+      preview: null
+    };
+    const failedVideo = {
+      title: 'Failed Video',
+      url: 'https://jable.tv/videos/failed/',
+      views: 3,
+      likes: 4,
+      img: null,
+      preview: null
+    };
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'favourites',
+        busy: false,
+        ffmpegReady: true,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '2 筆 · 每頁 24 筆',
+        pageLabel: '第 1 / 1 頁',
+        downloads: [],
+        downloadRecords: [
+          {
+            videoUrl: readyVideo.url,
+            collectionKey: 'favourites',
+            title: readyVideo.title,
+            img: null,
+            localPath: '/tmp/ready.mp4',
+            state: 'ready',
+            progress: null,
+            fileSizeBytes: 1024,
+            error: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: '2026-05-16T00:00:00.000Z'
+          },
+          {
+            videoUrl: failedVideo.url,
+            collectionKey: 'favourites',
+            title: failedVideo.title,
+            img: null,
+            localPath: '/tmp/failed.mp4',
+            state: 'failed',
+            progress: null,
+            fileSizeBytes: null,
+            error: 'HTTP 403',
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: null
+          }
+        ],
+        rows: [readyVideo, failedVideo],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+    const buttons = wrapper.findAll('[data-test="video-download"]');
+
+    expect(buttons[0].text()).toBe('已下載');
+    expect((buttons[0].element as HTMLButtonElement).disabled).toBe(true);
+    expect(buttons[1].text()).toBe('重試');
+    expect((buttons[1].element as HTMLButtonElement).disabled).toBe(false);
+
+    await buttons[1].trigger('click');
+
+    expect(wrapper.emitted('download-video')).toEqual([[failedVideo]]);
+  });
+
   it('renders pending remote groups without collection controls', async function () {
     const wrapper = mount(LibraryPanel, {
       props: {
