@@ -45,8 +45,17 @@ type DatabaseModule = {
   COLLECTIONS: DatabaseCollection[];
   JableDatabase: new (filePath: string) => DataEngine;
 };
+type NativeDataEngineModule = {
+  loadNativeDataEngine(): {
+    JableDataEngine: new (filePath: string) => {
+      call(method: string, payload: string): string;
+      close(): void;
+    };
+  };
+};
 
 const databaseModule = require('./database') as DatabaseModule;
+const nativeDataEngine = require('./native-data-engine') as NativeDataEngineModule;
 
 export type DataEngine = {
   close(): void;
@@ -77,6 +86,106 @@ export type DataEngine = {
 
 export const COLLECTIONS = databaseModule.COLLECTIONS;
 
+class RustDataEngine implements DataEngine {
+  native: {
+    call(method: string, payload: string): string;
+    close(): void;
+  };
+
+  constructor(filePath: string) {
+    const nativeModule = nativeDataEngine.loadNativeDataEngine();
+    this.native = new nativeModule.JableDataEngine(filePath);
+  }
+
+  callNative<T>(method: string, payload: unknown): T {
+    return JSON.parse(this.native.call(method, JSON.stringify(payload === undefined ? null : payload))) as T;
+  }
+
+  close() {
+    this.native.close();
+  }
+
+  listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[] {
+    return this.callNative('listVideos', Object.assign({}, options || {}, { collectionKey: collectionKey }));
+  }
+
+  countVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): number {
+    return this.callNative('countVideos', Object.assign({}, options || {}, { collectionKey: collectionKey }));
+  }
+
+  getCollectionUrls(collectionKey: CollectionKey): string[] {
+    return this.callNative('getCollectionUrls', collectionKey);
+  }
+
+  allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean {
+    return this.callNative('allCollectionUrlsKnown', { collectionKey: collectionKey, urls: urls || [] });
+  }
+
+  saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null } {
+    return this.callNative('saveSyncPage', payload);
+  }
+
+  applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult {
+    return this.callNative('applyCollectionToggle', payload || {});
+  }
+
+  listDeferredSyncOperations(collectionKey: CollectionKey, syncRunId: string | null): DeferredSyncOperation[] {
+    return this.callNative('listDeferredSyncOperations', { collectionKey: collectionKey, syncRunId: syncRunId });
+  }
+
+  listDeferredSyncOutboxOperations(collectionKey: CollectionKey): DeferredSyncOperation[] {
+    return this.callNative('listDeferredSyncOutboxOperations', { collectionKey: collectionKey });
+  }
+
+  markDeferredSyncOperationsApplied(collectionKey: CollectionKey, syncRunId: string | null, ids: unknown[]): number {
+    return this.callNative('markDeferredSyncOperationsApplied', {
+      collectionKey: collectionKey,
+      syncRunId: syncRunId,
+      ids: ids
+    });
+  }
+
+  markDeferredSyncOperationFailed(
+    collectionKey: CollectionKey,
+    syncRunId: string | null,
+    id: unknown,
+    message: unknown
+  ): boolean {
+    return this.callNative('markDeferredSyncOperationFailed', {
+      collectionKey: collectionKey,
+      syncRunId: syncRunId,
+      id: id,
+      message: message
+    });
+  }
+
+  finishSync(payload: FinishSyncPayload): SyncState {
+    return this.callNative('finishSync', payload);
+  }
+
+  clearSyncState(collectionKey: CollectionKey): { collectionKey: CollectionKey; cleared: boolean } {
+    return this.callNative('clearSyncState', collectionKey);
+  }
+
+  importResource(
+    collectionKey: CollectionKey,
+    resource: ExportResource
+  ): { imported: number; collectionKey: CollectionKey } {
+    return this.callNative('importResource', { collectionKey: collectionKey, resource: resource });
+  }
+
+  exportResource(collectionKey: CollectionKey): ExportResource {
+    return this.callNative('exportResource', collectionKey);
+  }
+
+  exportResourceToFile(collectionKey: CollectionKey, filePath: string): Promise<{ filePath: string; total: number }> {
+    return Promise.resolve(
+      this.callNative('exportResourceToFile', { collectionKey: collectionKey, filePath: filePath })
+    );
+  }
+}
+
 export function createDataEngine(filePath: string): DataEngine {
+  if (process.env.JABLE_DATA_ENGINE === 'rust') return new RustDataEngine(filePath);
   return new databaseModule.JableDatabase(filePath);
 }

@@ -7,7 +7,11 @@ const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 
 type NativeDataEngineModule = {
-  JableDataEngine: new (filePath: string) => unknown;
+  JableDataEngine: new (filePath: string) => {
+    call(method: string, payload: string): string;
+    close(): void;
+    engineVersion?(): string;
+  };
 };
 
 function nativeFilename() {
@@ -17,10 +21,7 @@ function nativeFilename() {
 function nativeCandidates() {
   const filename = nativeFilename();
 
-  return [
-    path.join(__dirname, '..', 'native-dist', filename),
-    path.join(__dirname, 'native-dist', filename)
-  ];
+  return [path.join(__dirname, '..', 'native-dist', filename), path.join(__dirname, 'native-dist', filename)];
 }
 
 export function loadNativeDataEngine(): NativeDataEngineModule {
