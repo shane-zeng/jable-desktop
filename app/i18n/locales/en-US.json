@@ -302,6 +302,8 @@
     "downloadFileRevealFailed": "Failed to reveal downloaded file: {error}",
     "downloadQueued": "Added to the download list",
     "downloadAlreadyQueued": "Video is already in the download list",
+    "downloadCompleted": "Download complete: {title}",
+    "downloadFailed": "Download failed: {title}: {error}",
     "downloadStartFailed": "Failed to start download: {error}",
     "downloadRetryFailed": "Failed to retry download: {error}",
     "downloadCanceled": "Download canceled",

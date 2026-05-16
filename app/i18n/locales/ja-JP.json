@@ -302,6 +302,8 @@
     "downloadFileRevealFailed": "ダウンロードファイルの場所を表示できませんでした: {error}",
     "downloadQueued": "ダウンロード一覧に追加しました",
     "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
+    "downloadCompleted": "ダウンロード完了: {title}",
+    "downloadFailed": "ダウンロード失敗: {title}: {error}",
     "downloadStartFailed": "ダウンロードを開始できませんでした: {error}",
     "downloadRetryFailed": "ダウンロードを再試行できませんでした: {error}",
     "downloadCanceled": "ダウンロードをキャンセルしました",

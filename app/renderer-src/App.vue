@@ -31,7 +31,9 @@ import type {
   BrowserTabsState,
   CollectionKey,
   CollectionToggleResult,
+  DownloadRecord,
   DownloadRootInfo,
+  DownloadState,
   ExportResource,
   FfmpegStatus,
   LibraryVideoMenuAction,
@@ -59,6 +61,8 @@ const downloadRoot = ref<DownloadRootInfo | null>(null);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
+let downloadNotificationStates = new Map<string, DownloadState>();
+const suppressedDownloadFailureUrls = new Set<string>();
 const sync = useSyncWorkflow({
   api: api,
   busy: busy,
@@ -250,6 +254,8 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 
   if (message.channel === 'downloads-changed') {
+    const records = Array.isArray(message.args[0]) ? (message.args[0] as DownloadRecord[]) : null;
+    if (records) applyDownloadNotifications(records);
     library.refreshDownloads().catch(function (error) {
       console.error(error);
     });
@@ -272,6 +278,40 @@ function handleBrowserMessage(message: BrowserMessage) {
     const payload = (message.args[0] || {}) as { origin?: string };
     setStatus(i18n.t('status.jableFallback', { origin: payload.origin || 'https://fs1.app' }), 'warning');
   }
+}
+
+function downloadNotificationTitle(record: DownloadRecord) {
+  return record.title || record.videoUrl;
+}
+
+function applyDownloadNotifications(records: DownloadRecord[]) {
+  const nextStates = new Map<string, DownloadState>();
+
+  for (const record of records) {
+    const previousState = downloadNotificationStates.get(record.videoUrl) || null;
+    nextStates.set(record.videoUrl, record.state);
+    if (record.state !== 'failed' && previousState === 'failed') suppressedDownloadFailureUrls.delete(record.videoUrl);
+
+    if (!previousState || previousState === record.state) continue;
+
+    if (record.state === 'ready') {
+      setStatus(i18n.t('status.downloadCompleted', { title: downloadNotificationTitle(record) }), 'success');
+    } else if (record.state === 'failed') {
+      if (suppressedDownloadFailureUrls.has(record.videoUrl)) {
+        suppressedDownloadFailureUrls.delete(record.videoUrl);
+      } else {
+        setStatus(
+          i18n.t('status.downloadFailed', {
+            title: downloadNotificationTitle(record),
+            error: record.error || i18n.t('status.unknownError')
+          }),
+          'error'
+        );
+      }
+    }
+  }
+
+  downloadNotificationStates = nextStates;
 }
 
 async function exportCollection(collectionKey: CollectionKey) {
@@ -579,11 +619,13 @@ async function retryDownload(videoUrl: string) {
 async function cancelDownload(videoUrl: string) {
   if (!videoUrl || busy.value || syncing.value) return;
 
+  suppressedDownloadFailureUrls.add(videoUrl);
   try {
     await api.cancelDownload(videoUrl);
     setStatus(i18n.t('status.downloadCanceled'), 'success');
     await library.refreshDownloads();
   } catch (error) {
+    suppressedDownloadFailureUrls.delete(videoUrl);
     console.error(error);
     setStatus(i18n.t('status.downloadCancelFailed', { error: errorMessage(error) }), 'error');
   }

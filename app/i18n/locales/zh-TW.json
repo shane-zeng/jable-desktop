@@ -302,6 +302,8 @@
     "downloadFileRevealFailed": "顯示下載檔案位置失敗：{error}",
     "downloadQueued": "已加入下載清單",
     "downloadAlreadyQueued": "影片已在下載清單中",
+    "downloadCompleted": "下載完成：{title}",
+    "downloadFailed": "下載失敗：{title}：{error}",
     "downloadStartFailed": "開始下載失敗：{error}",
     "downloadRetryFailed": "重試下載失敗：{error}",
     "downloadCanceled": "已取消下載",
