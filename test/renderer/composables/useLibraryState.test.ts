@@ -26,7 +26,8 @@ function createPagedApi(rows: VideoRow[]) {
       const start = options.offset || 0;
       const end = start + (options.limit || rows.length);
       return Promise.resolve(rows.slice(start, end));
-    })
+    }),
+    listDownloads: vi.fn().mockResolvedValue([])
   };
 }
 
@@ -191,6 +192,7 @@ describe('useLibraryState', function () {
       expect(setup.state.countLabel.value).toBe('0 筆下載');
       expect(api.countVideos).not.toHaveBeenCalled();
       expect(api.listVideos).not.toHaveBeenCalled();
+      expect(api.listDownloads).toHaveBeenCalledTimes(1);
     } finally {
       setup.stop();
     }

@@ -94,7 +94,15 @@
     "tab": "Download List",
     "count": "{total} downloads",
     "setupRequired": "FFmpeg is required",
-    "empty": "No downloads yet"
+    "empty": "No downloads yet",
+    "unknownCollection": "Unknown list",
+    "state": {
+      "queued": "Queued",
+      "downloading": "Downloading",
+      "failed": "Failed",
+      "ready": "Ready",
+      "missing": "Missing"
+    }
   },
   "pagination": {
     "prev": "Previous",
@@ -264,6 +272,9 @@
     "downloadRootSelectFailed": "Failed to choose download location: {error}",
     "downloadRootClearFailed": "Failed to reset download location: {error}",
     "downloadRootOpenFailed": "Failed to open download folder: {error}",
+    "downloadFileOpened": "Opened the downloaded file",
+    "downloadFileUnavailable": "Downloaded file is unavailable",
+    "downloadFileOpenFailed": "Failed to open downloaded file: {error}",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "checkingUpdates": "Checking for updates...",

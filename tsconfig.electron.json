@@ -21,6 +21,7 @@
     "app/collections.ts",
     "app/database.ts",
     "app/data-engine.ts",
+    "app/downloads.ts",
     "app/i18n/index.ts",
     "app/ipc-normalizers.ts",
     "app/main.ts",

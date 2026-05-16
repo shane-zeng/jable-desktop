@@ -94,7 +94,15 @@
     "tab": "下載清單",
     "count": "{total} 筆下載",
     "setupRequired": "需要安裝 FFmpeg",
-    "empty": "目前沒有下載項目"
+    "empty": "目前沒有下載項目",
+    "unknownCollection": "未知清單",
+    "state": {
+      "queued": "等待中",
+      "downloading": "下載中",
+      "failed": "失敗",
+      "ready": "已下載",
+      "missing": "檔案遺失"
+    }
   },
   "pagination": {
     "prev": "上一頁",
@@ -264,6 +272,9 @@
     "downloadRootSelectFailed": "選擇下載位置失敗：{error}",
     "downloadRootClearFailed": "重設下載位置失敗：{error}",
     "downloadRootOpenFailed": "開啟下載資料夾失敗：{error}",
+    "downloadFileOpened": "已開啟下載檔案",
+    "downloadFileUnavailable": "下載檔案無法使用",
+    "downloadFileOpenFailed": "開啟下載檔案失敗：{error}",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
     "checkingUpdates": "正在檢查更新…",

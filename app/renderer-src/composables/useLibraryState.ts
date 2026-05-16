@@ -3,6 +3,7 @@ import { COLLECTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../co
 import { t } from '../i18n';
 import type {
   CollectionKey,
+  DownloadRecord,
   FullSyncContinuation,
   JableAppApi,
   LibraryTabKey,
@@ -40,6 +41,7 @@ export function useLibraryState(api: JableAppApi) {
   const activeCollection = ref<CollectionKey>('favourites');
   const currentPage = ref(1);
   const rows = ref<VideoRow[]>([]);
+  const downloads = ref<DownloadRecord[]>([]);
   const pendingGroups = ref<PendingRemoteOperationGroup[]>([]);
   const totalRows = ref(0);
   const search = ref('');
@@ -72,7 +74,7 @@ export function useLibraryState(api: JableAppApi) {
 
   const countLabel = computed(function () {
     if (isPendingTab.value) return t('pendingRemote.count', { total: pendingGroups.value.length });
-    if (isDownloadsTab.value) return t('downloadList.count', { total: totalRows.value });
+    if (isDownloadsTab.value) return t('downloadList.count', { total: downloads.value.length });
     return t('library.count', { total: totalRows.value, pageSize: PAGE_SIZE });
   });
 
@@ -103,8 +105,14 @@ export function useLibraryState(api: JableAppApi) {
       return;
     }
     if (isDownloadsTab.value) {
+      const token = ++refreshToken;
+      const records = await api.listDownloads();
+
+      if (token !== refreshToken) return;
+
+      downloads.value = Array.isArray(records) ? records : [];
       rows.value = [];
-      totalRows.value = 0;
+      totalRows.value = downloads.value.length;
       currentPage.value = 1;
       return;
     }
@@ -197,6 +205,7 @@ export function useLibraryState(api: JableAppApi) {
     isDownloadsTab: isDownloadsTab,
     currentPage: currentPage,
     rows: rows,
+    downloads: downloads,
     pendingGroups: pendingGroups,
     totalRows: totalRows,
     pendingCount: computed(function () {

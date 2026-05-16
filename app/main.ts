@@ -19,6 +19,7 @@ import type {
   CollectionAction,
   CollectionKey,
   CreateBrowserTabPayload,
+  DownloadRecord,
   DownloadRootInfo,
   DownloadRootSelectionResult,
   ExportJsonFileResult,
@@ -28,6 +29,7 @@ import type {
   FinishSyncPayload,
   LibraryVideoMenuPayload,
   ListVideosOptions,
+  OpenDownloadFileResult,
   PendingRemoteOperationActionResult,
   PendingRemoteOperationGroup,
   SupportedLocale,
@@ -136,6 +138,13 @@ type SettingsModule = {
   };
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
+};
+type DownloadsModule = {
+  DownloadStore: new (filePath: string) => {
+    list(): DownloadRecord[];
+    get(videoUrl: string): DownloadRecord | null;
+  };
+  downloadsFilePath(userDataPath: string): string;
 };
 type DataEngineInstance = {
   close(): void;
@@ -254,6 +263,7 @@ const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
 const dataEngineModule = require('./data-engine') as DataEngineModule;
+const downloadsModule = require('./downloads') as DownloadsModule;
 const i18n = require('./i18n') as I18nModule;
 const settingsModule = require('./settings') as SettingsModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
@@ -304,6 +314,7 @@ let browserHtmlFullScreenTabId: string | null = null;
 let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
+let downloadStore: InstanceType<DownloadsModule['DownloadStore']> | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -603,6 +614,67 @@ function openDownloadRoot(): Promise<{ opened: boolean; path: string }> {
     return {
       opened: true,
       path: root.path
+    };
+  });
+}
+
+function getDownloadStore() {
+  if (!downloadStore) {
+    downloadStore = new downloadsModule.DownloadStore(downloadsModule.downloadsFilePath(app.getPath('userData')));
+  }
+
+  return downloadStore;
+}
+
+function downloadRecordFileExists(record: DownloadRecord): boolean {
+  if (!record.localPath) return false;
+
+  try {
+    return fs.statSync(record.localPath).isFile();
+  } catch (error) {
+    return false;
+  }
+}
+
+function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
+  if (record.state !== 'ready' && record.state !== 'missing') return record;
+
+  const exists = downloadRecordFileExists(record);
+  if (record.state === 'ready' && !exists) {
+    return Object.assign({}, record, {
+      state: 'missing' as const,
+      error: null
+    });
+  }
+  if (record.state === 'missing' && exists) {
+    return Object.assign({}, record, {
+      state: 'ready' as const,
+      error: null
+    });
+  }
+
+  return record;
+}
+
+function listDownloads(): DownloadRecord[] {
+  return getDownloadStore().list().map(downloadRecordWithFileState);
+}
+
+function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
+  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:open-file').trim();
+  if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
+
+  const record = getDownloadStore().get(videoUrl);
+  const readyRecord = record ? downloadRecordWithFileState(record) : null;
+  if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
+    throw new Error(t('status.downloadFileUnavailable'));
+  }
+
+  return shell.openPath(readyRecord.localPath).then(function (errorMessage: string) {
+    if (errorMessage) throw new Error(errorMessage);
+    return {
+      opened: true,
+      path: readyRecord.localPath as string
     };
   });
 }
@@ -2656,6 +2728,14 @@ function registerIpcHandlers() {
 
   ipcMain.handle('app:open-download-root', function () {
     return openDownloadRoot();
+  });
+
+  ipcMain.handle('download:list', function () {
+    return listDownloads();
+  });
+
+  ipcMain.handle('download:open-file', function (_event, videoUrl) {
+    return openDownloadFile(videoUrl);
   });
 
   ipcMain.handle('app:open-local-data-folder', function () {

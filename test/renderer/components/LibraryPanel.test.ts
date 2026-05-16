@@ -26,6 +26,7 @@ describe('LibraryPanel', function () {
         direction: 'asc',
         countLabel: '0 items · 24 per page',
         pageLabel: 'Page 1 / 1',
+        downloads: [],
         rows: [],
         currentPage: 1,
         totalPages: 1
@@ -60,6 +61,7 @@ describe('LibraryPanel', function () {
         direction: 'asc',
         countLabel: '0 件 · 1ページ 24 件',
         pageLabel: 'ページ 1 / 1',
+        downloads: [],
         rows: [],
         currentPage: 1,
         totalPages: 1
@@ -103,6 +105,7 @@ describe('LibraryPanel', function () {
         direction: 'asc',
         countLabel: '96 筆 · 每頁 24 筆',
         pageLabel: '第 1 / 4 頁',
+        downloads: [],
         rows: [],
         currentPage: 1,
         totalPages: 4
@@ -159,6 +162,7 @@ describe('LibraryPanel', function () {
         direction: 'asc',
         countLabel: '1 筆待同步',
         pageLabel: '第 1 / 1 頁',
+        downloads: [],
         rows: [],
         currentPage: 1,
         totalPages: 1
@@ -226,6 +230,7 @@ describe('LibraryPanel', function () {
         direction: 'asc',
         countLabel: '0 筆下載',
         pageLabel: '第 1 / 1 頁',
+        downloads: [],
         rows: [],
         currentPage: 1,
         totalPages: 1
@@ -254,6 +259,7 @@ describe('LibraryPanel', function () {
         direction: 'asc',
         countLabel: '0 筆下載',
         pageLabel: '第 1 / 1 頁',
+        downloads: [],
         rows: [],
         currentPage: 1,
         totalPages: 1
@@ -261,5 +267,71 @@ describe('LibraryPanel', function () {
     });
 
     expect(empty.get('[data-test="download-list-empty"]').text()).toBe('目前沒有下載項目');
+  });
+
+  it('renders download records and emits ready file open actions', async function () {
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'downloads',
+        busy: false,
+        ffmpegReady: true,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '2 筆下載',
+        pageLabel: '第 1 / 1 頁',
+        downloads: [
+          {
+            videoUrl: 'https://jable.tv/videos/ready/',
+            collectionKey: 'favourites',
+            title: 'Ready Video',
+            img: null,
+            localPath: '/tmp/ready.mp4',
+            state: 'ready',
+            progress: null,
+            fileSizeBytes: 1024,
+            error: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: '2026-05-16T00:00:00.000Z'
+          },
+          {
+            videoUrl: 'https://jable.tv/videos/missing/',
+            collectionKey: 'watch_later',
+            title: 'Missing Video',
+            img: null,
+            localPath: '/tmp/missing.mp4',
+            state: 'missing',
+            progress: null,
+            fileSizeBytes: null,
+            error: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: null
+          }
+        ],
+        rows: [],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    const cards = wrapper.findAll('[data-test="download-record-card"]');
+    expect(cards).toHaveLength(2);
+    expect(cards[0].text()).toContain('Ready Video');
+    expect(cards[0].text()).toContain('已下載');
+    expect(cards[1].text()).toContain('Missing Video');
+    expect(cards[1].text()).toContain('檔案遺失');
+
+    await cards[0].get('button').trigger('click');
+    await cards[1].get('button').trigger('click');
+
+    expect(wrapper.emitted('open-download')).toEqual([['https://jable.tv/videos/ready/']]);
   });
 });

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CollectionTabs from './CollectionTabs.vue';
+import DownloadRecordCard from './DownloadRecordCard.vue';
 import PaginationControls from './PaginationControls.vue';
 import PendingRemoteOperationCard from './PendingRemoteOperationCard.vue';
 import VideoCard from './VideoCard.vue';
@@ -7,6 +8,7 @@ import { DIRECTION_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constan
 import { t } from '../i18n';
 import type {
   CollectionKey,
+  DownloadRecord,
   LibraryTabKey,
   LibraryVideoMenuPayload,
   PendingRemoteOperationGroup,
@@ -31,6 +33,7 @@ defineProps<{
   direction: SortDirection;
   countLabel: string;
   pageLabel: string;
+  downloads: DownloadRecord[];
   rows: VideoRow[];
   currentPage: number;
   totalPages: number;
@@ -47,6 +50,7 @@ const emit = defineEmits<{
   'prev-page': [];
   'next-page': [];
   'go-page': [page: number];
+  'open-download': [videoUrl: string];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
   'add-pending-group': [groupId: string];
@@ -172,9 +176,21 @@ function updateDirection(event: Event) {
             {{ t('downloadList.setupRequired') }}
           </p>
         </div>
-        <div v-else class="col-span-full px-3 py-8 text-center text-[var(--muted)]" data-test="download-list-empty">
+        <div
+          v-else-if="!downloads.length"
+          class="col-span-full px-3 py-8 text-center text-[var(--muted)]"
+          data-test="download-list-empty"
+        >
           {{ t('downloadList.empty') }}
         </div>
+        <template v-else>
+          <DownloadRecordCard
+            v-for="record in downloads"
+            :key="record.videoUrl"
+            :record="record"
+            @open="emit('open-download', $event)"
+          />
+        </template>
       </template>
       <div v-else-if="!rows.length" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
         {{ t('library.empty') }}

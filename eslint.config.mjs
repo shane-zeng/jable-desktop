@@ -57,6 +57,7 @@ export default [
       'app/collections.ts',
       'app/database.ts',
       'app/data-engine.ts',
+      'app/downloads.ts',
       'app/i18n/**/*.ts',
       'app/ipc-normalizers.ts',
       'app/main.ts',

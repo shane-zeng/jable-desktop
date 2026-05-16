@@ -51,6 +51,12 @@ const jableApp: JableAppApi = {
   openDownloadRoot: function () {
     return ipcRenderer.invoke('app:open-download-root');
   },
+  listDownloads: function () {
+    return ipcRenderer.invoke('download:list');
+  },
+  openDownloadFile: function (videoUrl) {
+    return ipcRenderer.invoke('download:open-file', videoUrl);
+  },
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
   },

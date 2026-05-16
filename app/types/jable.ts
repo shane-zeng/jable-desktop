@@ -12,6 +12,7 @@ export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
 export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsupported';
 export type FfmpegStatusSource = 'path' | 'manual' | null;
 export type DownloadRootSource = 'default' | 'manual';
+export type DownloadState = 'queued' | 'downloading' | 'failed' | 'ready' | 'missing';
 
 export interface CollectionDefinition {
   url: string;
@@ -150,6 +151,26 @@ export interface DownloadRootInfo {
 
 export interface DownloadRootSelectionResult extends DownloadRootInfo {
   canceled?: boolean;
+}
+
+export interface DownloadRecord {
+  videoUrl: string;
+  collectionKey: CollectionKey | null;
+  title: string | null;
+  img: string | null;
+  localPath: string | null;
+  state: DownloadState;
+  progress: number | null;
+  fileSizeBytes: number | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface OpenDownloadFileResult {
+  opened: boolean;
+  path: string;
 }
 
 export interface BrowserNavigationState {
@@ -415,6 +436,8 @@ export interface JableAppApi {
   setDownloadRoot(filePath: string | null): Promise<DownloadRootInfo>;
   clearDownloadRoot(): Promise<DownloadRootInfo>;
   openDownloadRoot(): Promise<OpenLocalDataFolderResult>;
+  listDownloads(): Promise<DownloadRecord[]>;
+  openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;

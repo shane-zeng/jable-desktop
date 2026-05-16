@@ -505,6 +505,23 @@ async function openDownloadRoot() {
   }
 }
 
+async function openDownloadFile(videoUrl: string) {
+  if (!videoUrl || busy.value || syncing.value) return;
+
+  try {
+    await api.openDownloadFile(videoUrl);
+    setStatus(i18n.t('status.downloadFileOpened'), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadFileOpenFailed', { error: errorMessage(error) }), 'error');
+    if (library.activeTab.value === 'downloads') {
+      library.refreshVideos().catch(function (refreshError) {
+        console.error(refreshError);
+      });
+    }
+  }
+}
+
 async function openLocalDataFolder() {
   if (busy.value || syncing.value) return;
 
@@ -646,6 +663,7 @@ onMounted(async function () {
         :direction="library.direction.value"
         :count-label="library.countLabel.value"
         :page-label="library.pageLabel.value"
+        :downloads="library.downloads.value"
         :rows="pageRows"
         :current-page="library.currentPage.value"
         :total-pages="library.totalPages.value"
@@ -659,6 +677,7 @@ onMounted(async function () {
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @go-page="library.goToPage($event)"
+        @open-download="openDownloadFile"
         @add-pending-group="addPendingRemoteOperationGroup"
         @remove-pending-group="removePendingRemoteOperationGroup"
         @resolve-pending-group="resolvePendingRemoteOperationGroup"
