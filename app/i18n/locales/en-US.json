@@ -95,9 +95,9 @@
   "pagination": {
     "prev": "Previous",
     "next": "Next",
-    "goTo": "Page",
     "pageInput": "Page number",
-    "pageSuffix": "",
+    "pagePrefix": "Page",
+    "pageTotal": "/ {total}",
     "go": "Go"
   },
   "video": {

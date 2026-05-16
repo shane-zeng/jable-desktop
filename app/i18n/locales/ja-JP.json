@@ -95,9 +95,9 @@
   "pagination": {
     "prev": "前へ",
     "next": "次へ",
-    "goTo": "ページ",
     "pageInput": "ページ番号",
-    "pageSuffix": "",
+    "pagePrefix": "ページ",
+    "pageTotal": "/ {total}",
     "go": "移動"
   },
   "video": {

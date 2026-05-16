@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { t } from '../i18n';
 
 const props = defineProps<{
@@ -21,66 +21,80 @@ watch([() => props.currentPage, () => props.totalPages], function () {
   pageInput.value = String(props.currentPage);
 });
 
+const targetPage = computed(function () {
+  const value = String(pageInput.value).trim();
+  if (!value) return null;
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+
+  return Math.max(1, Math.min(props.totalPages, Math.trunc(parsed)));
+});
+
+const hasPageChange = computed(function () {
+  return targetPage.value !== null && targetPage.value !== props.currentPage;
+});
+
 function resetPageInput() {
   pageInput.value = String(props.currentPage);
 }
 
 function commitPage() {
-  const value = String(pageInput.value).trim();
-  if (!value) {
+  if (targetPage.value === null) {
     resetPageInput();
     return;
   }
 
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    resetPageInput();
+  pageInput.value = String(targetPage.value);
+  if (targetPage.value !== props.currentPage) emit('page', targetPage.value);
+}
+
+function triggerNextAction() {
+  if (hasPageChange.value) {
+    commitPage();
     return;
   }
 
-  const nextPage = Math.max(1, Math.min(props.totalPages, Math.trunc(parsed)));
-  pageInput.value = String(nextPage);
-  emit('page', nextPage);
+  emit('next');
 }
 </script>
 
 <template>
   <div
-    class="grid min-h-12 grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-[var(--panel-border)] bg-[var(--panel)] px-3.5 py-2 max-[760px]:grid-cols-1"
+    class="flex min-h-12 items-center justify-center gap-3 border-t border-[var(--panel-border)] bg-[var(--panel)] px-3.5 py-2"
   >
-    <div></div>
-    <div class="flex items-center justify-center gap-3">
-      <button type="button" :disabled="busy || currentPage <= 1" @click="emit('prev')">
-        {{ t('pagination.prev') }}
-      </button>
-      <span class="min-w-24 text-center text-[13px] text-[var(--muted)]">
-        {{ pageLabel }}
-      </span>
-      <button type="button" :disabled="busy || currentPage >= totalPages" @click="emit('next')">
-        {{ t('pagination.next') }}
-      </button>
-    </div>
-    <form
-      class="flex items-center justify-end gap-1.5 text-xs text-[var(--muted)] max-[760px]:justify-center"
-      @submit.prevent="commitPage"
+    <button class="min-w-[86px]" type="button" :disabled="busy || currentPage <= 1" @click="emit('prev')">
+      {{ t('pagination.prev') }}
+    </button>
+    <label
+      class="flex min-w-32 items-center justify-center gap-1.5 text-center text-[13px] text-[var(--muted)]"
+      :aria-label="pageLabel"
     >
-      <span>{{ t('pagination.goTo') }}</span>
+      <span>{{ t('pagination.pagePrefix') }}</span>
       <input
         v-model="pageInput"
-        class="h-8 w-16 text-center text-[13px]"
+        class="h-8 w-14 text-center text-[13px] font-semibold text-[var(--text)]"
+        data-test="pagination-page-input"
         type="number"
         inputmode="numeric"
         min="1"
         step="1"
         :max="totalPages"
-        :disabled="busy || totalPages <= 1"
+        :disabled="busy"
         :aria-label="t('pagination.pageInput')"
+        @keydown.enter.prevent="commitPage"
         @keydown.esc="resetPageInput"
       />
-      <span v-if="t('pagination.pageSuffix')">{{ t('pagination.pageSuffix') }}</span>
-      <button class="h-8 min-h-8 px-2.5 text-[12px]" type="submit" :disabled="busy || totalPages <= 1">
-        {{ t('pagination.go') }}
-      </button>
-    </form>
+      <span>{{ t('pagination.pageTotal', { total: totalPages }) }}</span>
+    </label>
+    <button
+      class="min-w-[86px]"
+      data-test="pagination-action"
+      type="button"
+      :disabled="busy || (!hasPageChange && currentPage >= totalPages)"
+      @click="triggerNextAction"
+    >
+      {{ hasPageChange ? t('pagination.go') : t('pagination.next') }}
+    </button>
   </div>
 </template>

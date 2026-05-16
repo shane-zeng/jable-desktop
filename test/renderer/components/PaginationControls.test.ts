@@ -20,11 +20,13 @@ describe('PaginationControls', function () {
     });
 
     expect(wrapper.text()).toContain('前へ');
-    expect(wrapper.text()).toContain('ページ 2 / 4');
+    expect(wrapper.text()).toContain('ページ');
+    expect((wrapper.get('[data-test="pagination-page-input"]').element as HTMLInputElement).value).toBe('2');
+    expect(wrapper.text()).toContain('/ 4');
     expect(wrapper.text()).toContain('次へ');
   });
 
-  it('keeps the main pagination group separate from the page jump control', async function () {
+  it('turns the next button into a go button when the page input changes', async function () {
     const wrapper = mount(PaginationControls, {
       props: {
         busy: false,
@@ -34,15 +36,16 @@ describe('PaginationControls', function () {
       }
     });
 
-    expect(wrapper.get('form').classes()).toContain('justify-end');
+    expect(wrapper.get('[data-test="pagination-action"]').text()).toBe('下一頁');
 
-    await wrapper.get('input[aria-label="指定頁數"]').setValue('3');
-    await wrapper.get('form').trigger('submit');
+    await wrapper.get('[data-test="pagination-page-input"]').setValue('3');
+    expect(wrapper.get('[data-test="pagination-action"]').text()).toBe('前往');
+    await wrapper.get('[data-test="pagination-action"]').trigger('click');
 
     expect(wrapper.emitted('page')).toEqual([[3]]);
 
-    await wrapper.get('input[aria-label="指定頁數"]').setValue('99');
-    await wrapper.get('form').trigger('submit');
+    await wrapper.get('[data-test="pagination-page-input"]').setValue('99');
+    await wrapper.get('[data-test="pagination-action"]').trigger('click');
 
     expect(wrapper.emitted('page')).toEqual([[3], [4]]);
   });

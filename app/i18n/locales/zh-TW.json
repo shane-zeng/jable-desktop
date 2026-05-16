@@ -95,9 +95,9 @@
   "pagination": {
     "prev": "上一頁",
     "next": "下一頁",
-    "goTo": "跳至",
     "pageInput": "指定頁數",
-    "pageSuffix": "頁",
+    "pagePrefix": "第",
+    "pageTotal": "/ {total} 頁",
     "go": "前往"
   },
   "video": {

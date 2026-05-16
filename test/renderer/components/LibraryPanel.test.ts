@@ -69,7 +69,9 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('フル同期');
     expect(wrapper.text()).toContain('Import JSON');
     expect(wrapper.text()).toContain('ローカルデータはまだありません');
-    expect(wrapper.text()).toContain('ページ 1 / 1');
+    expect(wrapper.text()).toContain('ページ');
+    expect(wrapper.text()).toContain('/ 1');
+    expect((wrapper.get('[data-test="pagination-page-input"]').element as HTMLInputElement).value).toBe('1');
     expect(wrapper.find('[data-test="library-filters"]').classes()).toContain(
       'grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_160px_120px]'
     );
@@ -82,7 +84,7 @@ describe('LibraryPanel', function () {
     expect(wrapper.find('[aria-label="並び順"]').text()).toContain('昇順');
   });
 
-  it('relays a selected page from the footer jump control', async function () {
+  it('relays a selected page from the editable page label', async function () {
     const wrapper = mount(LibraryPanel, {
       props: {
         active: true,
@@ -104,15 +106,17 @@ describe('LibraryPanel', function () {
       }
     });
 
-    expect(wrapper.text()).toContain('第 1 / 4 頁');
+    expect(wrapper.text()).toContain('第');
+    expect(wrapper.text()).toContain('/ 4 頁');
+    expect((wrapper.get('[data-test="pagination-page-input"]').element as HTMLInputElement).value).toBe('1');
 
-    await wrapper.get('input[aria-label="指定頁數"]').setValue('3');
-    await wrapper.get('form').trigger('submit');
+    await wrapper.get('[data-test="pagination-page-input"]').setValue('3');
+    await wrapper.get('[data-test="pagination-action"]').trigger('click');
 
     expect(wrapper.emitted('go-page')).toEqual([[3]]);
 
-    await wrapper.get('input[aria-label="指定頁數"]').setValue('99');
-    await wrapper.get('form').trigger('submit');
+    await wrapper.get('[data-test="pagination-page-input"]').setValue('99');
+    await wrapper.get('[data-test="pagination-action"]').trigger('click');
 
     expect(wrapper.emitted('go-page')).toEqual([[3], [4]]);
   });
