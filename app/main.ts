@@ -1044,25 +1044,31 @@ function updateDownloadRuntimeProgress(videoUrl: string, downloadedBytes: number
   const nextDownloadedBytes =
     typeof current.downloadedBytes === 'number' ? Math.max(downloadedBytes, current.downloadedBytes) : downloadedBytes;
   let speedBytesPerSecond = current.downloadSpeedBytesPerSecond;
-
-  if (
-    typeof current.lastBytes === 'number' &&
-    typeof current.lastSampledAt === 'number' &&
-    nextDownloadedBytes >= current.lastBytes &&
-    now > current.lastSampledAt
-  ) {
-    speedBytesPerSecond = Math.round(
-      ((nextDownloadedBytes - current.lastBytes) * 1000) / (now - current.lastSampledAt)
-    );
-  }
-
+  let lastBytes = current.lastBytes;
+  let lastSampledAt = current.lastSampledAt;
   const shouldNotify =
     current.lastNotifiedAt === null || now - current.lastNotifiedAt >= DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS;
+
+  if (shouldNotify) {
+    if (
+      typeof current.lastBytes === 'number' &&
+      typeof current.lastSampledAt === 'number' &&
+      nextDownloadedBytes >= current.lastBytes &&
+      now > current.lastSampledAt
+    ) {
+      speedBytesPerSecond = Math.round(
+        ((nextDownloadedBytes - current.lastBytes) * 1000) / (now - current.lastSampledAt)
+      );
+    }
+    lastBytes = nextDownloadedBytes;
+    lastSampledAt = now;
+  }
+
   downloadRuntimeProgress.set(videoUrl, {
     downloadedBytes: nextDownloadedBytes,
     downloadSpeedBytesPerSecond: speedBytesPerSecond,
-    lastBytes: nextDownloadedBytes,
-    lastSampledAt: now,
+    lastBytes: lastBytes,
+    lastSampledAt: lastSampledAt,
     lastNotifiedAt: shouldNotify ? now : current.lastNotifiedAt
   });
 
