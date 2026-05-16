@@ -26,8 +26,7 @@ function progressLabel(record: DownloadRecord) {
   return Math.round(record.progress * 100) + '%';
 }
 
-function fileSizeLabel(record: DownloadRecord) {
-  const size = record.fileSizeBytes;
+function bytesLabel(size: number) {
   if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) return '';
 
   const units = ['B', 'KB', 'MB', 'GB'];
@@ -40,7 +39,25 @@ function fileSizeLabel(record: DownloadRecord) {
 
   const formatted =
     unitIndex === 0 || Number.isInteger(value) || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
-  return t('downloadList.fileSize', { size: formatted + ' ' + units[unitIndex] });
+  return formatted + ' ' + units[unitIndex];
+}
+
+function fileSizeLabel(record: DownloadRecord) {
+  const size = bytesLabel(record.fileSizeBytes ?? -1);
+  return size ? t('downloadList.fileSize', { size: size }) : '';
+}
+
+function downloadProgressDetailLabel(record: DownloadRecord) {
+  if (record.state !== 'downloading') return '';
+
+  const downloaded = bytesLabel(record.downloadedBytes ?? -1);
+  const speed = bytesLabel(record.downloadSpeedBytesPerSecond ?? -1);
+  const parts = [];
+
+  if (downloaded) parts.push(t('downloadList.downloadedBytes', { size: downloaded }));
+  if (speed) parts.push(t('downloadList.downloadSpeed', { speed: speed + '/s' }));
+
+  return parts.join(' · ');
 }
 
 function formatTimestamp(value: string | null) {
@@ -107,6 +124,9 @@ function timestampLabel(record: DownloadRecord) {
       </span>
       <span v-if="progressLabel(record)" class="py-1 text-xs text-[var(--muted)]">
         {{ progressLabel(record) }}
+      </span>
+      <span v-if="downloadProgressDetailLabel(record)" class="py-1 text-xs text-[var(--muted)]">
+        {{ downloadProgressDetailLabel(record) }}
       </span>
       <button
         type="button"

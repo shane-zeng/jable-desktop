@@ -78,7 +78,8 @@ This document specifies the current Download List and local video file managemen
   - `failed`
   - `ready`
   - `missing`
-- `progress` is currently coarse-grained. It is `null` for queued/downloading records and `1` for completed records.
+- Persisted `progress` is coarse-grained. It is `null` for queued/downloading records and `1` for completed records.
+- While a download is active, the main process may add runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields to `downloads-changed` payloads. These values are not persisted and are cleared when the active worker finishes.
 - Startup/listing reconciliation infers runtime-safe state:
   - ready records become `missing` when the file is no longer present.
   - missing records become `ready` again when the file exists.
@@ -122,6 +123,7 @@ This document specifies the current Download List and local video file managemen
   - collection label when known
   - state
   - compact progress label
+  - active downloaded size and speed when available
   - file size when known
   - completed timestamp for ready records
   - updated timestamp for other states
@@ -143,7 +145,9 @@ This document specifies the current Download List and local video file managemen
 - HLS playlist extraction is implemented in `app/download-helpers.ts`.
 - The extractor supports escaped absolute `.m3u8` URLs and quoted relative `.m3u8` URLs resolved against the video page URL.
 - FFmpeg is spawned by main process with:
+  - `-progress pipe:1` so the app can parse runtime download byte updates without mixing them into FFmpeg error output
   - `-headers` containing Referer, User-Agent, and Cookie when available
+  - `-http_persistent 1`, `-http_multiple 1`, and `-seg_max_retry 3` for HLS segment fetching
   - protocol whitelist for HLS over local/http/https/tcp/tls/crypto
   - playlist URL as input
   - `-c copy`

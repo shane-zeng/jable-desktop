@@ -111,6 +111,8 @@
     "reveal": "Reveal",
     "delete": "Delete",
     "fileSize": "File size: {size}",
+    "downloadedBytes": "Downloaded: {size}",
+    "downloadSpeed": "Speed: {speed}",
     "completedAt": "Completed: {time}",
     "updatedAt": "Updated: {time}",
     "error": "Error: {error}",

@@ -111,6 +111,8 @@
     "reveal": "場所を表示",
     "delete": "削除",
     "fileSize": "ファイルサイズ: {size}",
+    "downloadedBytes": "ダウンロード済み: {size}",
+    "downloadSpeed": "速度: {speed}",
     "completedAt": "完了日時: {time}",
     "updatedAt": "更新日時: {time}",
     "error": "エラー: {error}",

@@ -122,6 +122,13 @@ type CollectionToggleResult = {
   url: string;
   visible: boolean;
 };
+type DownloadRuntimeProgress = {
+  downloadedBytes: number | null;
+  downloadSpeedBytesPerSecond: number | null;
+  lastBytes: number | null;
+  lastSampledAt: number | null;
+  lastNotifiedAt: number | null;
+};
 type DeferredSyncOperation = {
   id: number;
   action: 'add' | 'remove';
@@ -304,6 +311,7 @@ const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -327,6 +335,7 @@ let databasePath: string | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 const downloadQueue: string[] = [];
 const canceledDownloadUrls = new Set<string>();
+const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 let activeDownloadUrl: string | null = null;
 let activeDownloadProcess: NodeChildProcess.ChildProcess | null = null;
 let lastShortcutAction = { name: '', at: 0 };
@@ -819,6 +828,18 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
   });
 }
 
+function downloadRecordWithRuntimeProgress(record: DownloadRecord): DownloadRecord {
+  if (record.state !== 'downloading') return record;
+
+  const runtimeProgress = downloadRuntimeProgress.get(record.videoUrl);
+  if (!runtimeProgress) return record;
+
+  return Object.assign({}, record, {
+    downloadedBytes: runtimeProgress.downloadedBytes,
+    downloadSpeedBytesPerSecond: runtimeProgress.downloadSpeedBytesPerSecond
+  });
+}
+
 function reconcileDownloadRecordFileState(record: DownloadRecord): DownloadRecord {
   const next = downloadRecordWithFileState(record);
   if (!downloadRecordNeedsPersistence(record, next)) return next;
@@ -846,15 +867,16 @@ function downloadRecordNeedsPersistence(current: DownloadRecord, next: DownloadR
 function listDownloads(): DownloadRecord[] {
   return listPersistedDownloads().map(function (record) {
     const next = downloadRecordWithRuntimeState(record);
-    if (!downloadRecordNeedsPersistence(record, next)) return next;
+    if (!downloadRecordNeedsPersistence(record, next)) return downloadRecordWithRuntimeProgress(next);
 
-    return upsertPersistedDownload({
+    const persisted = upsertPersistedDownload({
       videoUrl: next.videoUrl,
       state: next.state,
       progress: next.progress,
       error: next.error,
       fileSizeBytes: next.fileSizeBytes
     });
+    return downloadRecordWithRuntimeProgress(persisted);
   });
 }
 
@@ -959,10 +981,72 @@ function removePartialDownloadFile(outputPath: string) {
   } catch (error) {}
 }
 
+function updateDownloadRuntimeProgress(videoUrl: string, downloadedBytes: number) {
+  if (!Number.isFinite(downloadedBytes) || downloadedBytes < 0) return;
+
+  const now = Date.now();
+  const current = downloadRuntimeProgress.get(videoUrl) || {
+    downloadedBytes: null,
+    downloadSpeedBytesPerSecond: null,
+    lastBytes: null,
+    lastSampledAt: null,
+    lastNotifiedAt: null
+  };
+  let speedBytesPerSecond = current.downloadSpeedBytesPerSecond;
+
+  if (
+    typeof current.lastBytes === 'number' &&
+    typeof current.lastSampledAt === 'number' &&
+    downloadedBytes >= current.lastBytes &&
+    now > current.lastSampledAt
+  ) {
+    speedBytesPerSecond = Math.round(((downloadedBytes - current.lastBytes) * 1000) / (now - current.lastSampledAt));
+  }
+
+  const shouldNotify =
+    current.lastNotifiedAt === null || now - current.lastNotifiedAt >= DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS;
+  downloadRuntimeProgress.set(videoUrl, {
+    downloadedBytes: downloadedBytes,
+    downloadSpeedBytesPerSecond: speedBytesPerSecond,
+    lastBytes: downloadedBytes,
+    lastSampledAt: now,
+    lastNotifiedAt: shouldNotify ? now : current.lastNotifiedAt
+  });
+
+  if (shouldNotify) notifyDownloadsChanged();
+}
+
+function handleFfmpegProgressLine(videoUrl: string, line: string) {
+  const separatorIndex = line.indexOf('=');
+  if (separatorIndex === -1) return;
+
+  const key = line.slice(0, separatorIndex);
+  if (key !== 'total_size') return;
+
+  const downloadedBytes = Number(line.slice(separatorIndex + 1));
+  updateDownloadRuntimeProgress(videoUrl, downloadedBytes);
+}
+
+function handleFfmpegProgressChunk(
+  videoUrl: string,
+  chunk: Buffer,
+  readRemainder: () => string,
+  writeRemainder: (value: string) => void
+) {
+  const text = readRemainder() + String(chunk);
+  const lines = text.split(/\r?\n/);
+  writeRemainder(lines.pop() || '');
+
+  for (const line of lines) {
+    handleFfmpegProgressLine(videoUrl, line);
+  }
+}
+
 function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: string, outputPath: string): Promise<void> {
   return cookieHeaderForUrl(videoUrl).then(function (cookieHeader) {
     return new Promise(function (resolve, reject) {
       const tempPath = outputPath + '.part';
+      let progressRemainder = '';
       try {
         fs.unlinkSync(tempPath);
       } catch (error) {}
@@ -978,11 +1062,20 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
         command,
         [
           '-y',
+          '-nostdin',
           '-hide_banner',
           '-loglevel',
           'error',
+          '-progress',
+          'pipe:1',
           '-headers',
           downloadHelpers.ffmpegHeaderBlock(videoUrl, cookieHeader),
+          '-http_persistent',
+          '1',
+          '-http_multiple',
+          '1',
+          '-seg_max_retry',
+          '3',
           '-protocol_whitelist',
           'file,http,https,tcp,tls,crypto',
           '-i',
@@ -1002,6 +1095,18 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
       let stderr = '';
 
       activeDownloadProcess = child;
+      child.stdout?.on('data', function (chunk: Buffer) {
+        handleFfmpegProgressChunk(
+          videoUrl,
+          chunk,
+          function () {
+            return progressRemainder;
+          },
+          function (value) {
+            progressRemainder = value;
+          }
+        );
+      });
       child.stderr.on('data', function (chunk) {
         stderr = (stderr + String(chunk)).slice(-4000);
       });
@@ -1092,6 +1197,7 @@ async function runQueuedDownload(record: DownloadRecord) {
     });
     notifyDownloadsChanged();
   } finally {
+    downloadRuntimeProgress.delete(record.videoUrl);
     canceledDownloadUrls.delete(record.videoUrl);
   }
 }

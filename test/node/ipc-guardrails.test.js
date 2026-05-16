@@ -5,20 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-const MAIN_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'main.ts');
-const APP_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'renderer-src', 'App.vue');
-const IPC_NORMALIZERS_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'ipc-normalizers.ts');
-const SYNC_WORKFLOW_SOURCE_PATH = path.join(
-  __dirname,
-  '..',
-  '..',
-  'app',
-  'renderer-src',
-  'composables',
-  'useSyncWorkflow.ts'
-);
-const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'webview-preload.ts');
-const WEBVIEW_HELPERS_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'webview-preload-helpers.ts');
+const ROOT_DIR = path.join(__dirname, '..', '..');
+const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
+const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
+const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'ipc-normalizers.ts');
+const SYNC_WORKFLOW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'composables', 'useSyncWorkflow.ts');
+const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload.ts');
+const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload-helpers.ts');
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -228,6 +221,25 @@ test('main process forces MP4 muxing for partial download files', function () {
 
   assert.match(source, /const tempPath = outputPath \+ '\.part'/);
   assert.match(source, /'-movflags',\n\s*'\+faststart',\n\s*'-f',\n\s*'mp4',\n\s*tempPath/);
+});
+
+test('main process streams FFmpeg download progress without persisting runtime fields', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+  const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
+
+  assert.match(source, /const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>\(\)/);
+  assert.match(source, /'-progress',\n\s*'pipe:1'/);
+  assert.match(source, /child\.stdout\?\.on\('data'/);
+  assert.match(source, /downloadedBytes: runtimeProgress\.downloadedBytes/);
+  assert.match(source, /downloadSpeedBytesPerSecond: runtimeProgress\.downloadSpeedBytesPerSecond/);
+  assert.match(types, /downloadedBytes\?: number \| null/);
+  assert.match(types, /downloadSpeedBytesPerSecond\?: number \| null/);
+});
+
+test('main process enables persistent multiple HLS segment requests', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /'-http_persistent',\n\s*'1',\n\s*'-http_multiple',\n\s*'1',\n\s*'-seg_max_retry',\n\s*'3'/);
 });
 
 test('renderer sends cloneable plain download payloads', function () {

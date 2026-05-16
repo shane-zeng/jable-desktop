@@ -163,6 +163,8 @@ export interface DownloadRecord {
   state: DownloadState;
   progress: number | null;
   fileSizeBytes: number | null;
+  downloadedBytes?: number | null;
+  downloadSpeedBytesPerSecond?: number | null;
   error: string | null;
   createdAt: string;
   updatedAt: string;
