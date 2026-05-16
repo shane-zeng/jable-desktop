@@ -52,6 +52,28 @@ type AjaxSyncPage = {
   lastPage: number | null;
   url: string;
 };
+type FetchTextSuccess = {
+  ok: true;
+  retryAfterMs: null;
+  status: number;
+  text: string;
+};
+type FetchTextFailure = {
+  ok: false;
+  detail: string;
+  reason: string;
+  retryable: boolean;
+  retryAfterMs: number | null;
+  status: number | null;
+};
+type FetchTextResult = FetchTextSuccess | FetchTextFailure;
+type AjaxSyncRetryEvent = {
+  attempt: number;
+  delayMs: number;
+  maxRetries: number;
+  pageNumber: number;
+  reason: string;
+};
 type SendToHostIpcRenderer = Electron.IpcRenderer & {
   sendToHost?: (channel: string, ...args: unknown[]) => void;
 };
@@ -87,8 +109,13 @@ const SEL_TITLES = 'div.detail h6.title a';
 const SEL_PAGER = 'ul.pagination';
 const SEL_PAGER_LINKS = 'ul.pagination a.page-link';
 const SITE_PAGE_SIZE = 24;
-const FULL_SYNC_AJAX_WINDOW_SIZE = 10;
-const FULL_SYNC_AJAX_PAGE_DELAY_MS = 100;
+const FULL_SYNC_AJAX_WINDOW_SIZE = 3;
+const FULL_SYNC_AJAX_FETCH_TIMEOUT_MS = 15000;
+const FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS = 500;
+const FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS = 1500;
+const FULL_SYNC_AJAX_MAX_RETRIES = 3;
+const FULL_SYNC_AJAX_BACKOFF_BASE_MS = 1000;
+const FULL_SYNC_AJAX_BACKOFF_MAX_MS = 10000;
 const TRACKPAD_HISTORY_THRESHOLD = 180;
 const TRACKPAD_HISTORY_COOLDOWN_MS = 700;
 const TRACKPAD_HISTORY_RESET_MS = 180;
@@ -102,6 +129,22 @@ let adCosmeticScanTimer: ReturnType<typeof setTimeout> | null = null;
 let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
 let pendingCollectionOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
 let pendingCollectionOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+
+class AjaxSyncError extends Error {
+  detail: string;
+  reason: string;
+  retryable: boolean;
+  status: number | null;
+
+  constructor(reason: string, detail?: string, status?: number | null, retryable?: boolean) {
+    super(detail || reason);
+    this.name = 'AjaxSyncError';
+    this.detail = detail || reason;
+    this.reason = reason;
+    this.retryable = Boolean(retryable);
+    this.status = typeof status === 'number' ? status : null;
+  }
+}
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -563,7 +606,49 @@ function replaceCollectionDomFromDocument(doc: Document) {
   return replacePagersFromDocument(doc) || replaced;
 }
 
-async function fetchTextWithTimeout(url: string, timeoutMs: number) {
+function sleepMs(ms: number) {
+  return new Promise<void>(function (resolve) {
+    setTimeout(resolve, Math.max(0, Math.round(ms)));
+  });
+}
+
+function randomDelayMs(min: number, max: number) {
+  const lower = Math.min(min, max);
+  const upper = Math.max(min, max);
+  return Math.floor(lower + Math.random() * (upper - lower + 1));
+}
+
+function parseRetryAfterMs(value: string | null) {
+  if (!value) return null;
+
+  const seconds = Number(value);
+  if (isFinite(seconds) && seconds >= 0) return seconds * 1000;
+
+  const timestamp = Date.parse(value);
+  if (!isNaN(timestamp)) return Math.max(0, timestamp - Date.now());
+
+  return null;
+}
+
+function retryAfterMsFromHeaders(headers: Headers) {
+  return parseRetryAfterMs(headers.get('retry-after'));
+}
+
+function isRetryableAjaxStatus(status: number) {
+  return status === 403 || status === 429 || status >= 500;
+}
+
+function fetchFailureDetail(reason: string, status?: number | null, statusText?: string | null) {
+  if (typeof status === 'number') {
+    return ['HTTP', String(status), statusText || ''].join(' ').trim();
+  }
+  if (reason === 'timeout') return 'request timeout';
+  if (reason === 'network-error') return 'network error';
+  if (reason === 'empty-response') return 'empty response';
+  return reason;
+}
+
+async function fetchTextWithTimeout(url: string, timeoutMs: number): Promise<FetchTextResult> {
   const controller = new AbortController();
   const timer = setTimeout(function () {
     controller.abort();
@@ -577,10 +662,34 @@ async function fetchTextWithTimeout(url: string, timeoutMs: number) {
       signal: controller.signal
     });
 
-    if (!response.ok) return null;
-    return await response.text();
+    if (!response.ok) {
+      return {
+        ok: false,
+        detail: fetchFailureDetail('http-' + response.status, response.status, response.statusText),
+        reason: 'http-' + response.status,
+        retryable: isRetryableAjaxStatus(response.status),
+        retryAfterMs: retryAfterMsFromHeaders(response.headers),
+        status: response.status
+      };
+    }
+
+    return {
+      ok: true,
+      retryAfterMs: null,
+      status: response.status,
+      text: await response.text()
+    };
   } catch (error) {
-    return null;
+    const name = error && typeof error === 'object' && 'name' in error ? String(error.name) : '';
+    const reason = name === 'AbortError' ? 'timeout' : 'network-error';
+    return {
+      ok: false,
+      detail: fetchFailureDetail(reason),
+      reason: reason,
+      retryable: true,
+      retryAfterMs: null,
+      status: null
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -599,19 +708,54 @@ function ajaxUrlForPage(template: PagerLink, pageNumber: number) {
   }
 }
 
-async function fetchAjaxSyncPage(
-  template: PagerLink,
-  pageNumber: number,
-  expectedLastPage: number
-): Promise<AjaxSyncPage> {
-  const url = ajaxUrlForPage(template, pageNumber);
-  if (!url || !urlPolicy.isTrustedJableUrl(url)) {
-    throw new Error('ajax-url-unavailable');
+function ajaxRetryDelayMs(attempt: number, retryAfterMs: number | null) {
+  if (retryAfterMs !== null) return retryAfterMs + randomDelayMs(250, 1000);
+
+  const backoff = Math.min(
+    FULL_SYNC_AJAX_BACKOFF_MAX_MS,
+    FULL_SYNC_AJAX_BACKOFF_BASE_MS * Math.pow(2, Math.max(0, attempt - 1))
+  );
+  return backoff + randomDelayMs(250, 1000);
+}
+
+function ajaxFailureDetail(error: unknown) {
+  if (error instanceof AjaxSyncError) return error.detail;
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function fetchAjaxHtmlWithRetry(url: string, pageNumber: number, onRetry?: (event: AjaxSyncRetryEvent) => void) {
+  let lastError: AjaxSyncError | null = null;
+
+  for (let attempt = 0; attempt <= FULL_SYNC_AJAX_MAX_RETRIES; attempt++) {
+    const fetched = await fetchTextWithTimeout(url, FULL_SYNC_AJAX_FETCH_TIMEOUT_MS);
+    const retryAfterMs = fetched.ok ? null : fetched.retryAfterMs;
+
+    if (fetched.ok) {
+      if (fetched.text.trim()) return fetched.text;
+      lastError = new AjaxSyncError('empty-response', fetchFailureDetail('empty-response'), null, true);
+    } else {
+      lastError = new AjaxSyncError(fetched.reason, fetched.detail, fetched.status, fetched.retryable);
+    }
+
+    if (!lastError.retryable || attempt >= FULL_SYNC_AJAX_MAX_RETRIES) throw lastError;
+
+    const delayMs = ajaxRetryDelayMs(attempt + 1, retryAfterMs);
+    if (onRetry) {
+      onRetry({
+        attempt: attempt + 1,
+        delayMs: delayMs,
+        maxRetries: FULL_SYNC_AJAX_MAX_RETRIES,
+        pageNumber: pageNumber,
+        reason: lastError.detail
+      });
+    }
+    await sleepMs(delayMs);
   }
 
-  const html = await fetchTextWithTimeout(url, 15000);
-  if (!html) throw new Error('ajax-empty-response');
+  throw lastError || new AjaxSyncError('ajax-empty-response', 'empty response', null, true);
+}
 
+function ajaxSyncPageFromHtml(html: string, url: string, pageNumber: number, expectedLastPage: number): AjaxSyncPage {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const rows = uniqByUrl(scrapeRowsFrom(doc));
   const pageSignature = signatureFrom(doc);
@@ -619,19 +763,19 @@ async function fetchAjaxSyncPage(
   const lastPage = lastPagerPageNumberFrom(doc);
 
   if (!rows.length || !pageSignature || pageSignature === '0|') {
-    throw new Error('ajax-empty-page');
+    throw new AjaxSyncError('ajax-empty-page', 'AJAX page contained no rows', null, true);
   }
 
   if (activePage !== pageNumber) {
-    throw new Error('ajax-page-mismatch');
+    throw new AjaxSyncError('ajax-page-mismatch', 'AJAX page number mismatch', null, false);
   }
 
   if (lastPage && lastPage !== expectedLastPage) {
-    throw new Error('ajax-last-page-changed');
+    throw new AjaxSyncError('ajax-last-page-changed', 'AJAX last page changed during sync', null, false);
   }
 
   if (pageNumber < expectedLastPage && rows.length !== SITE_PAGE_SIZE) {
-    throw new Error('ajax-short-page');
+    throw new AjaxSyncError('ajax-short-page', 'AJAX page returned fewer rows than expected', null, false);
   }
 
   return {
@@ -643,6 +787,44 @@ async function fetchAjaxSyncPage(
   };
 }
 
+async function fetchAjaxSyncPage(
+  template: PagerLink,
+  pageNumber: number,
+  expectedLastPage: number,
+  onRetry?: (event: AjaxSyncRetryEvent) => void
+): Promise<AjaxSyncPage> {
+  const url = ajaxUrlForPage(template, pageNumber);
+  if (!url || !urlPolicy.isTrustedJableUrl(url)) {
+    throw new AjaxSyncError('ajax-url-unavailable', 'AJAX URL unavailable', null, false);
+  }
+
+  for (let attempt = 0; attempt <= FULL_SYNC_AJAX_MAX_RETRIES; attempt++) {
+    const html = await fetchAjaxHtmlWithRetry(url, pageNumber, onRetry);
+
+    try {
+      return ajaxSyncPageFromHtml(html, url, pageNumber, expectedLastPage);
+    } catch (error) {
+      if (!(error instanceof AjaxSyncError) || !error.retryable || attempt >= FULL_SYNC_AJAX_MAX_RETRIES) {
+        throw error;
+      }
+
+      const delayMs = ajaxRetryDelayMs(attempt + 1, null);
+      if (onRetry) {
+        onRetry({
+          attempt: attempt + 1,
+          delayMs: delayMs,
+          maxRetries: FULL_SYNC_AJAX_MAX_RETRIES,
+          pageNumber: pageNumber,
+          reason: error.detail
+        });
+      }
+      await sleepMs(delayMs);
+    }
+  }
+
+  throw new AjaxSyncError('ajax-empty-page', 'AJAX page contained no rows', null, true);
+}
+
 async function loadPagerLinkByFetch(link: PagerLink, oldSig: string) {
   const urls = [link.ajaxUrl, link.href];
 
@@ -650,10 +832,10 @@ async function loadPagerLinkByFetch(link: PagerLink, oldSig: string) {
     const url = urls[i];
     if (!url || !urlPolicy.isTrustedJableUrl(url)) continue;
 
-    const html = await fetchTextWithTimeout(url, 15000);
-    if (!html) continue;
+    const fetched = await fetchTextWithTimeout(url, FULL_SYNC_AJAX_FETCH_TIMEOUT_MS);
+    if (!fetched.ok || !fetched.text) continue;
 
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const doc = new DOMParser().parseFromString(fetched.text, 'text/html');
     const nextSig = signatureFrom(doc);
     if (!nextSig || nextSig === '0|' || nextSig === oldSig) continue;
     if (!replaceCollectionDomFromDocument(doc)) continue;
@@ -1468,6 +1650,8 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
   let lastKnownUrl: string | null = null;
   let stoppedByKnownPage = false;
   let incompleteReason: string | null = null;
+  let ajaxFallbackReason: string | null = null;
+  let ajaxRetryCount = 0;
   let preferFetchPager = false;
 
   function result(completed: boolean): SyncResult {
@@ -1480,7 +1664,9 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       totalPages: totalPages,
       totalRows: totalRows,
       lastScrapedPage: lastScrapedPage,
-      lastKnownUrl: lastKnownUrl
+      lastKnownUrl: lastKnownUrl,
+      ajaxFallbackReason: ajaxFallbackReason,
+      ajaxRetryCount: ajaxRetryCount
     };
   }
 
@@ -1569,15 +1755,26 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
         });
 
         try {
-          pages[index] = await fetchAjaxSyncPage(template, pageNumber, end);
+          pages[index] = await fetchAjaxSyncPage(template, pageNumber, end, function (retry) {
+            ajaxRetryCount++;
+            sendProgress('sync-progress', {
+              collectionKey: collectionKey,
+              mode: mode,
+              syncRunId: syncRunId,
+              page: retry.pageNumber,
+              message: 'ajax-page-retry',
+              reason: retry.reason,
+              attempt: retry.attempt,
+              maxRetries: retry.maxRetries,
+              delayMs: retry.delayMs
+            });
+          });
         } catch (error) {
           failure = error;
           return;
         }
 
-        await new Promise(function (resolve) {
-          setTimeout(resolve, FULL_SYNC_AJAX_PAGE_DELAY_MS);
-        });
+        await sleepMs(randomDelayMs(FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS, FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS));
       }
     }
 
@@ -1603,7 +1800,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
       const page = pages[p];
       for (let r = 0; r < page.rows.length; r++) {
         const url = page.rows[r].url;
-        if (seen[url]) throw new Error('ajax-duplicate-url');
+        if (seen[url]) throw new AjaxSyncError('ajax-duplicate-url', 'AJAX page returned a duplicate URL', null, false);
         seen[url] = true;
       }
     }
@@ -1620,10 +1817,35 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
 
     try {
       const pages = await fetchAjaxPagesWithWindow(next, (logicalPage || 1) + 1, lastPage);
-      const firstPageCheck = await fetchAjaxSyncPage(next, 1, lastPage);
-      if (firstPageCheck.signature !== firstPageSignature) throw new Error('ajax-first-page-signature-changed');
+      const firstPageCheck = await fetchAjaxSyncPage(next, 1, lastPage, function (retry) {
+        ajaxRetryCount++;
+        sendProgress('sync-progress', {
+          collectionKey: collectionKey,
+          mode: mode,
+          syncRunId: syncRunId,
+          page: retry.pageNumber,
+          message: 'ajax-page-retry',
+          reason: retry.reason,
+          attempt: retry.attempt,
+          maxRetries: retry.maxRetries,
+          delayMs: retry.delayMs
+        });
+      });
+      if (firstPageCheck.signature !== firstPageSignature) {
+        throw new AjaxSyncError(
+          'ajax-first-page-signature-changed',
+          'AJAX first page signature changed during sync',
+          null,
+          false
+        );
+      }
       if (rowUrlSignature(firstPageCheck.rows) !== rowUrlSignature(firstPageRows)) {
-        throw new Error('ajax-first-page-rows-changed');
+        throw new AjaxSyncError(
+          'ajax-first-page-rows-changed',
+          'AJAX first page rows changed during sync',
+          null,
+          false
+        );
       }
 
       validateAjaxPages(firstPageRows, pages);
@@ -1634,7 +1856,20 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
 
       return true;
     } catch (error) {
-      console.warn('[JableDesktopScraper] ajax sliding window sync failed; falling back to sequential paging', error);
+      ajaxFallbackReason = ajaxFailureDetail(error);
+      sendProgress('sync-progress', {
+        collectionKey: collectionKey,
+        mode: mode,
+        syncRunId: syncRunId,
+        page: logicalPage || 1,
+        message: 'ajax-window-fallback',
+        reason: ajaxFallbackReason
+      });
+      console.warn(
+        '[JableDesktopScraper] ajax sliding window sync failed; falling back to sequential paging',
+        ajaxFallbackReason,
+        error
+      );
       return false;
     }
   }

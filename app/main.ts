@@ -518,7 +518,9 @@ function normalizeSyncResultPayload(value: unknown, channel: string): FinishSync
     totalPages: optionalNumberField(record, 'totalPages', channel) || 0,
     totalRows: optionalNumberField(record, 'totalRows', channel) || 0,
     lastScrapedPage: nullableNumberField(record, 'lastScrapedPage', channel),
-    lastKnownUrl: optionalStringField(record, 'lastKnownUrl', channel) || null
+    lastKnownUrl: optionalStringField(record, 'lastKnownUrl', channel) || null,
+    ajaxFallbackReason: optionalStringField(record, 'ajaxFallbackReason', channel) || null,
+    ajaxRetryCount: optionalNumberField(record, 'ajaxRetryCount', channel) || 0
   };
 }
 

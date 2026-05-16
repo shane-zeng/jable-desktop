@@ -202,6 +202,10 @@ export interface SyncProgressPayload {
   syncRunId: string;
   page: number;
   message?: string;
+  reason?: string;
+  attempt?: number;
+  maxRetries?: number;
+  delayMs?: number;
 }
 
 export interface SyncQueueProgressPayload {
@@ -242,6 +246,8 @@ export interface SyncResult {
   totalRows: number;
   lastScrapedPage: number | null;
   lastKnownUrl: string | null;
+  ajaxFallbackReason?: string | null;
+  ajaxRetryCount?: number;
   queuedOperationsApplied?: number;
   queuedOperationsFailed?: number;
   queuedOperationFailures?: SyncQueuedOperationFailure[];
