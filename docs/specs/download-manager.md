@@ -154,6 +154,7 @@ This document specifies the current Download List and local video file managemen
   - one active video download at a time
   - Rust samples up to 3 segment downloads before the parallel phase
   - segment request concurrency is selected from 8 to 32 workers based on sampled single-worker throughput
+  - if a parallel batch receives concurrency-sensitive CDN errors such as HTTP 403, 428, 429, 503, or 504, Rust backs off and retries unfinished segments with lower concurrency
   - the same `reqwest` client and connection pool are reused across sampled and parallel segment requests
   - 3 retries per key or segment request
   - User-Agent is always sent; Referer is the video page URL; Cookie is sent when the Electron Jable session has cookies for the origin

@@ -17,6 +17,7 @@ const DEFAULT_SEGMENT_MIN_CONCURRENCY: usize = 8;
 const DEFAULT_SEGMENT_MAX_CONCURRENCY: usize = 32;
 const DEFAULT_SAMPLE_SEGMENT_COUNT: usize = 3;
 const ADAPTIVE_CONCURRENCY_TARGET_BYTES_PER_SECOND: f64 = 32.0 * 1024.0 * 1024.0;
+const CONCURRENCY_REJECTION_BACKOFF_MS: u64 = 1000;
 
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -353,6 +354,21 @@ fn fetch_with_retry(
     Err(last_error.unwrap_or_else(|| Error::from_reason("download failed".to_string())))
 }
 
+fn is_concurrency_rejection_error(message: &str) -> bool {
+    message.contains("HTTP 403")
+        || message.contains("HTTP 428")
+        || message.contains("HTTP 429")
+        || message.contains("HTTP 503")
+        || message.contains("HTTP 504")
+}
+
+fn next_concurrency_after_rejection(current: usize) -> Option<usize> {
+    if current <= 1 {
+        return None;
+    }
+    Some((current / 2).max(1))
+}
+
 fn key_file_names(segments: &[HlsSegment]) -> Result<HashMap<String, String>> {
     let mut key_file_names = HashMap::new();
     for segment in segments {
@@ -493,6 +509,7 @@ fn download_segments(
     let next_index = Arc::new(AtomicUsize::new(config.start_index));
     let downloaded_bytes = Arc::new(AtomicU64::new(config.initial_downloaded_bytes));
     let errors = Arc::new(Mutex::new(Vec::<String>::new()));
+    let stop_flag = Arc::new(AtomicBool::new(false));
     let worker_count = config.concurrency.max(1).min(remaining_count);
     let retry_limit = config.retry_limit;
     let mut handles = Vec::with_capacity(worker_count);
@@ -505,10 +522,11 @@ fn download_segments(
         let next_index = Arc::clone(&next_index);
         let downloaded_bytes = Arc::clone(&downloaded_bytes);
         let errors = Arc::clone(&errors);
+        let stop_flag = Arc::clone(&stop_flag);
         let cancel_flag = Arc::clone(&cancel_flag);
 
         handles.push(thread::spawn(move || loop {
-            if cancel_flag.load(Ordering::SeqCst) {
+            if cancel_flag.load(Ordering::SeqCst) || stop_flag.load(Ordering::SeqCst) {
                 break;
             }
             if !errors
@@ -526,6 +544,12 @@ fn download_segments(
 
             let segment = &segments[index];
             let output_path = temp_dir.join(local_segment_file_name(index, &segment.url));
+            if let Ok(metadata) = fs::metadata(&output_path) {
+                if metadata.is_file() {
+                    downloaded_bytes.fetch_add(metadata.len(), Ordering::SeqCst);
+                    continue;
+                }
+            }
             match fetch_with_retry(
                 &client,
                 &segment.url,
@@ -538,7 +562,7 @@ fn download_segments(
                     downloaded_bytes.fetch_add(downloaded, Ordering::SeqCst);
                 }
                 Err(error) => {
-                    cancel_flag.store(true, Ordering::SeqCst);
+                    stop_flag.store(true, Ordering::SeqCst);
                     if let Ok(mut errors) = errors.lock() {
                         errors.push(error.to_string());
                     }
@@ -555,14 +579,56 @@ fn download_segments(
     }
 
     if cancel_flag.load(Ordering::SeqCst) {
-        let errors = errors.lock().map_err(to_napi_error)?;
-        if let Some(error) = errors.first() {
-            return Err(Error::from_reason(error.clone()));
-        }
         return Err(canceled_error());
+    }
+    let errors = errors.lock().map_err(to_napi_error)?;
+    if let Some(error) = errors.first() {
+        return Err(Error::from_reason(error.clone()));
     }
 
     Ok(downloaded_bytes.load(Ordering::SeqCst))
+}
+
+fn download_segments_with_concurrency_fallback(
+    client: Client,
+    headers: HeaderMap,
+    temp_dir: PathBuf,
+    segments: Vec<HlsSegment>,
+    config: SegmentDownloadConfig,
+    cancel_flag: Arc<AtomicBool>,
+) -> Result<u64> {
+    let mut concurrency = config.concurrency.max(1);
+    loop {
+        ensure_not_canceled(&cancel_flag)?;
+        let result = download_segments(
+            client.clone(),
+            headers.clone(),
+            temp_dir.clone(),
+            segments.clone(),
+            SegmentDownloadConfig {
+                concurrency,
+                start_index: config.start_index,
+                initial_downloaded_bytes: config.initial_downloaded_bytes,
+                retry_limit: config.retry_limit,
+            },
+            Arc::clone(&cancel_flag),
+        );
+
+        match result {
+            Ok(downloaded) => return Ok(downloaded),
+            Err(error) => {
+                let message = error.to_string();
+                let Some(next_concurrency) = next_concurrency_after_rejection(concurrency) else {
+                    return Err(error);
+                };
+                if !is_concurrency_rejection_error(&message) {
+                    return Err(error);
+                }
+                concurrency = next_concurrency;
+                thread::sleep(Duration::from_millis(CONCURRENCY_REJECTION_BACKOFF_MS));
+            }
+        }
+    }
 }
 
 fn download_hls_segments(
@@ -609,7 +675,7 @@ fn download_hls_segments(
     );
     ensure_not_canceled(&cancel_flag)?;
 
-    let downloaded_bytes = download_segments(
+    let downloaded_bytes = download_segments_with_concurrency_fallback(
         client,
         headers,
         temp_dir.clone(),
@@ -739,6 +805,23 @@ mod tests {
             adaptive_concurrency(8, 32, 64 * 1024 * 1024, Duration::from_secs(1)),
             8
         );
+    }
+
+    #[test]
+    fn recognizes_concurrency_rejection_errors() {
+        assert!(is_concurrency_rejection_error(
+            "HTTP 428 Precondition Required"
+        ));
+        assert!(is_concurrency_rejection_error("HTTP 429 Too Many Requests"));
+        assert!(!is_concurrency_rejection_error("HTTP 404 Not Found"));
+    }
+
+    #[test]
+    fn steps_down_concurrency_after_rejection() {
+        assert_eq!(next_concurrency_after_rejection(32), Some(16));
+        assert_eq!(next_concurrency_after_rejection(16), Some(8));
+        assert_eq!(next_concurrency_after_rejection(8), Some(4));
+        assert_eq!(next_concurrency_after_rejection(1), None);
     }
 
     #[test]
