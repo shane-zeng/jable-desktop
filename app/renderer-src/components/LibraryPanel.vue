@@ -52,6 +52,7 @@ const emit = defineEmits<{
   'go-page': [page: number];
   'open-download': [videoUrl: string];
   'retry-download': [videoUrl: string];
+  'delete-download': [videoUrl: string];
   'download-video': [video: VideoRow];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
@@ -192,6 +193,7 @@ function updateDirection(event: Event) {
             :record="record"
             @open="emit('open-download', $event)"
             @retry="emit('retry-download', $event)"
+            @delete="emit('delete-download', $event)"
           />
         </template>
       </template>

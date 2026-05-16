@@ -97,6 +97,7 @@
     "empty": "No downloads yet",
     "unknownCollection": "Unknown list",
     "retry": "Retry",
+    "delete": "Delete",
     "error": "Error: {error}",
     "state": {
       "queued": "Queued",
@@ -282,6 +283,10 @@
     "downloadAlreadyQueued": "Video is already in the download list",
     "downloadStartFailed": "Failed to start download: {error}",
     "downloadRetryFailed": "Failed to retry download: {error}",
+    "downloadDeleted": "Download item deleted",
+    "downloadDeleteFailed": "Failed to delete download item: {error}",
+    "downloadDeleteActiveBlocked": "Download is in progress and cannot be deleted",
+    "downloadFileOutsideRoot": "Downloaded file is outside the current download location",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "checkingUpdates": "Checking for updates...",

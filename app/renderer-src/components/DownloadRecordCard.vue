@@ -9,6 +9,7 @@ defineProps<{
 const emit = defineEmits<{
   open: [videoUrl: string];
   retry: [videoUrl: string];
+  delete: [videoUrl: string];
 }>();
 
 function stateClass(state: DownloadState) {
@@ -66,6 +67,15 @@ function progressLabel(record: DownloadRecord) {
         @click="emit('retry', record.videoUrl)"
       >
         {{ t('downloadList.retry') }}
+      </button>
+      <button
+        v-if="record.state === 'ready' || record.state === 'failed' || record.state === 'missing'"
+        type="button"
+        class="danger min-h-7 px-2 py-1 text-xs"
+        data-test="download-record-delete"
+        @click="emit('delete', record.videoUrl)"
+      >
+        {{ t('downloadList.delete') }}
       </button>
     </div>
   </article>

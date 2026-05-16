@@ -173,6 +173,11 @@ export interface OpenDownloadFileResult {
   path: string;
 }
 
+export interface DeleteDownloadResult {
+  deleted: boolean;
+  removed: boolean;
+}
+
 export interface DownloadRequestPayload {
   collectionKey: CollectionKey;
   video: VideoRow;
@@ -450,6 +455,7 @@ export interface JableAppApi {
   enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
   retryDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
+  deleteDownload(videoUrl: string): Promise<DeleteDownloadResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;

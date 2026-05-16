@@ -97,6 +97,7 @@
     "empty": "目前沒有下載項目",
     "unknownCollection": "未知清單",
     "retry": "重試",
+    "delete": "刪除",
     "error": "錯誤：{error}",
     "state": {
       "queued": "等待中",
@@ -282,6 +283,10 @@
     "downloadAlreadyQueued": "影片已在下載清單中",
     "downloadStartFailed": "開始下載失敗：{error}",
     "downloadRetryFailed": "重試下載失敗：{error}",
+    "downloadDeleted": "已刪除下載項目",
+    "downloadDeleteFailed": "刪除下載項目失敗：{error}",
+    "downloadDeleteActiveBlocked": "下載進行中，無法刪除",
+    "downloadFileOutsideRoot": "下載檔案不在目前下載位置內",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
     "checkingUpdates": "正在檢查更新…",

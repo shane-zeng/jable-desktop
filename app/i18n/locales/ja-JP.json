@@ -97,6 +97,7 @@
     "empty": "ダウンロードはまだありません",
     "unknownCollection": "不明なリスト",
     "retry": "再試行",
+    "delete": "削除",
     "error": "エラー: {error}",
     "state": {
       "queued": "待機中",
@@ -282,6 +283,10 @@
     "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
     "downloadStartFailed": "ダウンロードを開始できませんでした: {error}",
     "downloadRetryFailed": "ダウンロードを再試行できませんでした: {error}",
+    "downloadDeleted": "ダウンロード項目を削除しました",
+    "downloadDeleteFailed": "ダウンロード項目を削除できませんでした: {error}",
+    "downloadDeleteActiveBlocked": "ダウンロード中のため削除できません",
+    "downloadFileOutsideRoot": "ダウンロードファイルは現在のダウンロード先の外にあります",
     "localDataFolderOpened": "ローカルデータフォルダーを開きました",
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
     "checkingUpdates": "更新を確認しています...",

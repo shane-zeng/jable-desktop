@@ -20,6 +20,7 @@ import type {
   CollectionAction,
   CollectionKey,
   CreateBrowserTabPayload,
+  DeleteDownloadResult,
   DownloadRecord,
   DownloadRequestPayload,
   DownloadRootInfo,
@@ -147,6 +148,7 @@ type DownloadsModule = {
     list(): DownloadRecord[];
     get(videoUrl: string): DownloadRecord | null;
     upsert(patch: Partial<DownloadRecord> & { videoUrl: string }): DownloadRecord;
+    remove(videoUrl: string): boolean;
   };
   downloadsFilePath(userDataPath: string): string;
 };
@@ -994,6 +996,60 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
   return {
     record: record,
     queued: true
+  };
+}
+
+function isPathInsideDirectory(filePath: string, directoryPath: string): boolean {
+  const targetPath = path.resolve(filePath);
+  const rootPath = path.resolve(directoryPath);
+  const normalizedTarget = process.platform === 'win32' ? targetPath.toLowerCase() : targetPath;
+  const normalizedRoot = process.platform === 'win32' ? rootPath.toLowerCase() : rootPath;
+
+  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(normalizedRoot + path.sep);
+}
+
+function deleteManagedDownloadFile(record: DownloadRecord): boolean {
+  if (!record.localPath) return false;
+
+  let stats: NodeFs.Stats;
+  try {
+    stats = fs.statSync(record.localPath);
+  } catch (error) {
+    return false;
+  }
+
+  if (!isPathInsideDirectory(record.localPath, getDownloadRoot().path)) {
+    throw new Error(t('status.downloadFileOutsideRoot'));
+  }
+
+  if (!stats.isFile()) throw new Error(t('status.downloadFileUnavailable'));
+
+  fs.unlinkSync(record.localPath);
+  return true;
+}
+
+function deleteDownload(value: unknown): DeleteDownloadResult {
+  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:delete').trim();
+  if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
+
+  if (activeDownloadUrl === videoUrl) throw new Error(t('status.downloadDeleteActiveBlocked'));
+
+  const store = getDownloadStore();
+  const record = store.get(videoUrl);
+  const visibleRecord = record ? downloadRecordWithFileState(record) : null;
+  if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
+  if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
+
+  const queueIndex = downloadQueue.indexOf(videoUrl);
+  if (queueIndex !== -1) downloadQueue.splice(queueIndex, 1);
+
+  const deleted = deleteManagedDownloadFile(visibleRecord);
+  const removed = store.remove(videoUrl);
+  notifyDownloadsChanged();
+
+  return {
+    deleted: deleted,
+    removed: removed
   };
 }
 
@@ -3081,6 +3137,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle('download:open-file', function (_event, videoUrl) {
     return openDownloadFile(videoUrl);
+  });
+
+  ipcMain.handle('download:delete', function (_event, videoUrl) {
+    return deleteDownload(videoUrl);
   });
 
   ipcMain.handle('app:open-local-data-folder', function () {
