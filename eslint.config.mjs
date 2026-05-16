@@ -53,6 +53,7 @@ export default [
       'app/ad-blocker.ts',
       'app/ad-cosmetic-policy.ts',
       'app/browser-tab-policy.ts',
+      'app/collections.ts',
       'app/database.ts',
       'app/data-engine.ts',
       'app/i18n/**/*.ts',

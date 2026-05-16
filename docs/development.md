@@ -113,6 +113,7 @@ Desktop data and search behavior:
 - Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
 - Video URLs from the fallback origin are canonicalized to `https://jable.tv` before local storage, so syncing through `https://fs1.app` does not duplicate existing rows.
 - The default local data engine is the Rust native addon under `native/local-data-engine`. It opens the same `jable-favourites.sqlite` file and preserves the existing IPC return shapes. Set `JABLE_DATA_ENGINE=ts` only for regression comparison against the legacy TypeScript SQLite engine.
+- App-level collection metadata lives in `app/collections.ts`; Rust data-engine collection metadata lives in `native/local-data-engine/src/lib.rs`. Keep both definitions aligned when changing supported collections, names, or source paths.
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
 - Database migration creates `videos`, `collections`, `collection_items`, and `sync_states`; adds `site_order`, `is_visible`, `missing_at`, `last_sync_run_id`, `videos.search_text`, and outbox state columns such as `remote_apply_state`, `remote_failed_at`, `remote_blocked_by`, `remote_resolved_at`, and `remote_superseded_at`; verifies the FTS table columns; recreates triggers when needed; and rebuilds the index if search text changed or FTS objects are missing.
@@ -171,6 +172,7 @@ Desktop app files:
 - `app/browser-tab-policy.ts`: pure browser tab policies used by main-process behavior and Node tests.
 - `app/sync-utils.ts`: shared pager-selection helper for sync pagination.
 - `app/url-policy.ts`: trusted URL origins, browser-tab protocol policy, release URL allowlist, fallback-origin rewriting, and collection URL checks.
+- `app/collections.ts`: app-level collection metadata shared by Electron runtime code.
 - `app/data-engine.ts`: local data engine boundary. It defaults to the Rust native addon and can use `app/database.ts` when `JABLE_DATA_ENGINE=ts`.
 - `app/database.ts`: legacy TypeScript SQLite engine retained for regression comparison and contract tests.
 - `native/local-data-engine/`: Rust SQLite data engine, migrations, sync operation reducer, search, and JSON import/export.

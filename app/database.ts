@@ -26,8 +26,8 @@ import type {
   SyncState,
   VideoRow
 } from './types/jable';
+import type { DatabaseCollection } from './collections';
 
-type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
 type VideoInput = {
   [key: string]: unknown;
   url?: unknown;
@@ -122,6 +122,10 @@ type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
   canonicalJableUrl(value: unknown): string;
 };
+type CollectionsModule = {
+  COLLECTIONS: DatabaseCollection[];
+  collectionByKey(key: unknown): DatabaseCollection | null;
+};
 type DatabaseSortKey = NonNullable<ListVideosOptions['sort']> | 'updated_at' | 'last_seen_at';
 type DatabaseListOptions = Partial<ListVideosOptions> & { sort?: DatabaseSortKey };
 type VideoListQuery = { joins: string[]; params: SQLInputValue[]; where: string; orderBy: string };
@@ -134,6 +138,7 @@ type TableColumnRow = { name: string };
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
+const collections = require('./collections') as CollectionsModule;
 
 let DatabaseSync: typeof NodeSqlite.DatabaseSync;
 try {
@@ -145,26 +150,11 @@ try {
 const PAGE_SIZE = 24;
 const EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
 const SEARCH_NGRAM_MAX = 3;
-
-const COLLECTIONS: DatabaseCollection[] = [
-  { key: 'favourites', name: '影片收藏', sourcePath: '/my/favourites/videos/' },
-  { key: 'watch_later', name: '稍後觀看', sourcePath: '/my/favourites/videos-watch-later/' }
-];
+const COLLECTIONS = collections.COLLECTIONS;
+const collectionByKey = collections.collectionByKey;
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-/**
- * @param {unknown} key
- * @returns {DatabaseCollection | null}
- */
-function collectionByKey(key: unknown): DatabaseCollection | null {
-  for (let i = 0; i < COLLECTIONS.length; i++) {
-    if (COLLECTIONS[i].key === key) return COLLECTIONS[i];
-  }
-
-  return null;
 }
 
 /**
@@ -188,6 +178,8 @@ function normalizeText(value: unknown): string | null {
 }
 
 /**
+ * @deprecated Use the Rust data engine through `app/data-engine.ts`; this helper is retained only for the legacy TypeScript fallback.
+ *
  * @param {unknown} value
  * @returns {string | null}
  */
@@ -310,6 +302,8 @@ function exportMeta(
 }
 
 /**
+ * @deprecated Use the Rust data engine through `app/data-engine.ts`; this helper is retained only for the legacy TypeScript fallback.
+ *
  * @param {ImportResource | null | undefined} resource
  * @returns {VideoInput[]}
  */
@@ -2429,8 +2423,5 @@ class JableDatabase {
 }
 
 module.exports = {
-  COLLECTIONS: COLLECTIONS,
-  JableDatabase: JableDatabase,
-  flattenResource: flattenResource,
-  normalizeVideoUrl: normalizeVideoUrl
+  JableDatabase: JableDatabase
 };

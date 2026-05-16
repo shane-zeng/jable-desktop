@@ -11,6 +11,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/browser-tab-policy.ts`: pure tab policy helpers for web preferences, media state serialization, close target selection, shortcut detection, and visual-order tab cycling.
 - `app/sync-utils.ts`: shared pagination helper logic for sync flows.
 - `app/url-policy.ts`: trusted URL origins, safe browser URL protocol checks, GitHub release URL allowlist, fallback-origin rewriting, and collection URL checks.
+- `app/collections.ts`: app-level collection metadata shared by Electron runtime code. Keep it aligned with the Rust data engine `collections()` metadata in `native/local-data-engine/src/lib.rs`.
 - `app/data-engine.ts`: local data engine boundary. The default implementation is the Rust native addon; `JABLE_DATA_ENGINE=ts` keeps the legacy TypeScript SQLite engine available for regression comparison.
 - `app/settings.ts`: shared app settings persistence under Electron `userData`, including browser tab limits, browser tab compact mode, full-sync acceleration, and automatic outbox replay preference.
 - `app/database.ts`: legacy TypeScript SQLite engine for schema/migration/search/import/export parity tests.
@@ -77,7 +78,7 @@ ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the
 
 Avoid dependencies, bundlers, or broad abstractions unless the script or desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
 
-For desktop main/preload code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep local data API shape centralized in `app/data-engine.ts`, and keep production database migrations, search behavior, sync visibility rules, and JSON import/export centralized in `native/local-data-engine/`. Mirror behavior in `app/database.ts` when the legacy TypeScript engine is used by tests.
+For desktop main/preload code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep app-level collection metadata centralized in `app/collections.ts` and aligned with Rust `collections()` metadata. Keep local data API shape centralized in `app/data-engine.ts`, and keep production database migrations, search behavior, sync visibility rules, and JSON import/export centralized in `native/local-data-engine/`. Mirror behavior in `app/database.ts` when the legacy TypeScript engine is used by tests.
 
 For renderer code, use Vue single-file components under `app/renderer-src/`, TypeScript where the renderer already uses it, Tailwind utilities for layout/state styling, and `window.jableApp` as the only renderer-to-main boundary. Treat `app/types/jable.ts` as the IPC contract.
 

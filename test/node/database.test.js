@@ -1,5 +1,9 @@
 'use strict';
 
+// Legacy TypeScript SQLite engine regression suite. Production defaults to the
+// Rust native data engine through app/data-engine.ts; these tests keep the
+// JABLE_DATA_ENGINE=ts fallback useful for parity checks and diagnostics.
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

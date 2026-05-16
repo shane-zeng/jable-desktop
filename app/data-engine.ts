@@ -12,8 +12,8 @@ import type {
   SyncState,
   VideoRow
 } from './types/jable';
+import { COLLECTIONS } from './collections';
 
-type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
 type DatabaseListOptions = Partial<ListVideosOptions> & {
   sort?: ListVideosOptions['sort'] | 'updated_at' | 'last_seen_at';
 };
@@ -45,7 +45,6 @@ type DeferredSyncOperation = {
   remoteFavType: string | null;
 };
 type DatabaseModule = {
-  COLLECTIONS: DatabaseCollection[];
   /**
    * @deprecated Use `createDataEngine()` without `JABLE_DATA_ENGINE=ts` for the Rust data engine.
    */
@@ -60,7 +59,6 @@ type NativeDataEngineModule = {
   };
 };
 
-const databaseModule = require('./database') as DatabaseModule;
 const nativeDataEngine = require('./native-data-engine') as NativeDataEngineModule;
 
 export type DataEngine = {
@@ -96,7 +94,7 @@ export type DataEngine = {
   exportResourceToFile(collectionKey: CollectionKey, filePath: string): Promise<{ filePath: string; total: number }>;
 };
 
-export const COLLECTIONS = databaseModule.COLLECTIONS;
+export { COLLECTIONS };
 
 class RustDataEngine implements DataEngine {
   native: {
@@ -222,6 +220,10 @@ class RustDataEngine implements DataEngine {
 }
 
 export function createDataEngine(filePath: string): DataEngine {
-  if (process.env.JABLE_DATA_ENGINE === 'ts') return new databaseModule.JableDatabase(filePath);
+  if (process.env.JABLE_DATA_ENGINE === 'ts') {
+    const databaseModule = require('./database') as DatabaseModule;
+    return new databaseModule.JableDatabase(filePath);
+  }
+
   return new RustDataEngine(filePath);
 }

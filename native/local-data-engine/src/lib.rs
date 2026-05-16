@@ -751,7 +751,6 @@ impl Engine {
             "importResource" => self.import_resource(payload),
             "exportResource" => self.export_resource(payload),
             "exportResourceToFile" => self.export_resource_to_file(payload),
-            "getSyncState" => self.get_sync_state_payload(payload),
             _ => Err(Error::from_reason(format!(
                 "Unknown native data engine method: {method}"
             ))),
@@ -2363,15 +2362,6 @@ impl Engine {
             .map_err(to_napi_error)?;
 
         Ok(row)
-    }
-
-    fn get_sync_state_payload(&self, payload: Value) -> Result<Value> {
-        let collection_key = payload
-            .as_str()
-            .map(|value| value.to_string())
-            .or_else(|| value_string(object_field(&payload, "collectionKey")))
-            .ok_or_else(|| Error::from_reason("getSyncState requires collectionKey".to_string()))?;
-        Ok(self.get_sync_state(&collection_key)?.unwrap_or(Value::Null))
     }
 
     fn clear_sync_state(&self, payload: Value) -> Result<Value> {
