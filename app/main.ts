@@ -118,7 +118,7 @@ type DeferredSyncOperationApplyResult = {
   failed: SyncQueuedOperationFailure[];
 };
 type SyncQueueProgressInput = Omit<SyncQueueProgressPayload, 'collectionKey' | 'mode' | 'syncRunId'>;
-type JableDatabaseInstance = {
+type DataEngineInstance = {
   close(): void;
   listVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): VideoRow[];
   countVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): number;
@@ -144,10 +144,9 @@ type JableDatabaseInstance = {
   exportResource(collectionKey: CollectionKey): ExportResource;
   exportResourceToFile(collectionKey: CollectionKey, filePath: string): Promise<{ filePath: string; total: number }>;
 };
-type JableDatabaseConstructor = new (filePath: string) => JableDatabaseInstance;
-type DatabaseModule = {
+type DataEngineModule = {
   COLLECTIONS: DatabaseCollection[];
-  JableDatabase: JableDatabaseConstructor;
+  createDataEngine(filePath: string): DataEngineInstance;
 };
 type BrowserTabShortcutInput = Electron.Input & {
   control?: boolean;
@@ -227,12 +226,11 @@ const electron: typeof Electron = require('electron');
 const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
-const databaseModule = require('./database') as DatabaseModule;
+const dataEngineModule = require('./data-engine') as DataEngineModule;
 const i18n = require('./i18n') as I18nModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
-const JableDatabase = databaseModule.JableDatabase;
-const COLLECTIONS = databaseModule.COLLECTIONS;
+const COLLECTIONS = dataEngineModule.COLLECTIONS;
 
 const app = electron.app;
 const BrowserWindow = electron.BrowserWindow;
@@ -274,7 +272,7 @@ let nextBrowserPreloadRequestId = 1;
 let activeJableOrigin = urlPolicy.JABLE_PRIMARY_ORIGIN;
 let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
 let browserHtmlFullScreenTabId: string | null = null;
-let database: JableDatabaseInstance | null = null;
+let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
@@ -676,10 +674,10 @@ function setCurrentLocale(locale: unknown): SupportedLocale {
   return currentLocale;
 }
 
-function getDatabase(): JableDatabaseInstance {
+function getDatabase(): DataEngineInstance {
   if (!database) {
     databasePath = path.join(app.getPath('userData'), 'jable-favourites.sqlite');
-    database = new JableDatabase(databasePath);
+    database = dataEngineModule.createDataEngine(databasePath);
   }
 
   return database;

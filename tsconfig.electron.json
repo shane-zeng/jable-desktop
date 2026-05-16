@@ -18,6 +18,7 @@
     "app/ad-cosmetic-policy.ts",
     "app/browser-tab-policy.ts",
     "app/database.ts",
+    "app/data-engine.ts",
     "app/i18n/index.ts",
     "app/main.ts",
     "app/preload.ts",
