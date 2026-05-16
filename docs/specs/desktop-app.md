@@ -17,6 +17,7 @@ This document specifies the current user-facing Electron desktop application beh
 - The renderer UI is dark-mode-only.
 - Desktop UI locales are `zh-TW`, `en-US`, and `ja-JP`.
 - Locale selection affects renderer copy, native menus, context menus, dialogs, and toast messages.
+- `app/renderer-src/App.vue` owns top-level wiring, while focused composables own browser bounds, library state, sync workflow, pending remote actions, and toast status.
 
 ## Browser View
 
@@ -112,3 +113,7 @@ This document specifies the current user-facing Electron desktop application beh
 - `app/renderer-src/components/PendingRemoteOperationCard.vue`
 - `app/renderer-src/composables/useBrowserBounds.ts`
 - `app/renderer-src/composables/useLibraryState.ts`
+- `app/renderer-src/composables/usePendingRemoteActions.ts`
+- `app/renderer-src/composables/useSyncWorkflow.ts`
+- `app/renderer-src/composables/useToastStatus.ts`
+- `app/app-contract.ts`

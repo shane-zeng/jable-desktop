@@ -11,10 +11,11 @@ This document summarizes the current IPC boundary. `app/types/jable.ts` is the s
 - The renderer must not call `ipcRenderer` directly.
 - Jable page automation runs in `app/webview-preload.ts`.
 - Main process requests to webview preload use request/response IPC and timeouts.
-- Main process runtime normalizers validate renderer IPC payloads before database or browser handlers use them.
+- Runtime normalizers in `app/ipc-normalizers.ts` validate renderer IPC payloads before database or browser handlers use them.
 - IPC method names and payload shapes must stay aligned across:
   - `app/types/jable.ts`
   - `app/preload.ts`
+  - `app/ipc-normalizers.ts`
   - `app/main.ts`
   - renderer callers
   - tests
@@ -183,7 +184,11 @@ Webview preload emits:
 
 - `test/electron/app-smoke.test.js`
 - `test/node/ipc-guardrails.test.js`
+- `test/node/ipc-normalizers.test.js`
 - `test/node/settings.test.js`
 - `test/node/browser-tab-policy.test.js`
 - `test/renderer/composables/useBrowserBounds.test.ts`
 - `test/renderer/composables/useLibraryState.test.ts`
+- `test/renderer/composables/usePendingRemoteActions.test.ts`
+- `test/renderer/composables/useSyncWorkflow.test.ts`
+- `test/renderer/composables/useToastStatus.test.ts`

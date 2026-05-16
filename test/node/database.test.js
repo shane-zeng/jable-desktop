@@ -11,6 +11,7 @@ const os = require('node:os');
 const path = require('node:path');
 const DatabaseSync = require('node:sqlite').DatabaseSync;
 const JableDatabase = require('../../app/runtime-dist/database').JableDatabase;
+const { withoutExportedAt } = require('./helpers/export-resource');
 
 function createTestDatabase(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-db-'));
@@ -27,20 +28,6 @@ function createTestDatabase(t) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function withoutExportedAt(resource) {
-  const copy = JSON.parse(JSON.stringify(resource));
-
-  if (copy.meta) delete copy.meta.exported_at;
-
-  if (Array.isArray(copy.data)) {
-    for (let i = 0; i < copy.data.length; i++) {
-      if (copy.data[i] && copy.data[i].meta) delete copy.data[i].meta.exported_at;
-    }
-  }
-
-  return copy;
 }
 
 test('saveSyncPage upserts videos and keeps one collection item per URL', function (t) {

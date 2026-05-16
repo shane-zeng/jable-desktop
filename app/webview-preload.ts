@@ -9,6 +9,27 @@ import type {
   SyncMode,
   SyncResult
 } from './types/jable';
+import {
+  AjaxSyncError,
+  FULL_SYNC_AJAX_FETCH_TIMEOUT_MS,
+  FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS,
+  FULL_SYNC_AJAX_MAX_RETRIES,
+  FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS,
+  SITE_PAGE_SIZE,
+  ajaxRetryDelayMs,
+  ajaxUrlForPage,
+  ajaxUrlForPagerLink,
+  fetchFailureDetail,
+  isRetryableAjaxStatus,
+  normalizeAjaxWindowSize,
+  normalizePageNumber,
+  parseMetricNumber,
+  readPageNumber,
+  retryAfterMsFromHeaders,
+  rowUrlSignature,
+  samePageUrl,
+  videoPathKey
+} from './webview-preload-helpers';
 
 type CollectionAction = 'add' | 'remove';
 type TrackpadHistoryDirection = 'back' | 'forward';
@@ -108,15 +129,6 @@ const SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';
 const SEL_TITLES = 'div.detail h6.title a';
 const SEL_PAGER = 'ul.pagination';
 const SEL_PAGER_LINKS = 'ul.pagination a.page-link';
-const SITE_PAGE_SIZE = 24;
-const DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE = 3;
-const MAX_FULL_SYNC_AJAX_WINDOW_SIZE = 5;
-const FULL_SYNC_AJAX_FETCH_TIMEOUT_MS = 15000;
-const FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS = 500;
-const FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS = 1500;
-const FULL_SYNC_AJAX_MAX_RETRIES = 3;
-const FULL_SYNC_AJAX_BACKOFF_BASE_MS = 1000;
-const FULL_SYNC_AJAX_BACKOFF_MAX_MS = 10000;
 const TRACKPAD_HISTORY_THRESHOLD = 180;
 const TRACKPAD_HISTORY_COOLDOWN_MS = 700;
 const TRACKPAD_HISTORY_RESET_MS = 180;
@@ -131,32 +143,10 @@ let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
 let pendingCollectionOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
 let pendingCollectionOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 
-class AjaxSyncError extends Error {
-  detail: string;
-  reason: string;
-  retryable: boolean;
-  status: number | null;
-
-  constructor(reason: string, detail?: string, status?: number | null, retryable?: boolean) {
-    super(detail || reason);
-    this.name = 'AjaxSyncError';
-    this.detail = detail || reason;
-    this.reason = reason;
-    this.retryable = Boolean(retryable);
-    this.status = typeof status === 'number' ? status : null;
-  }
-}
-
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
   if (target instanceof Node && target.parentElement) return target.parentElement;
   return null;
-}
-
-function normalizeAjaxWindowSize(value: unknown) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE;
-  return Math.max(1, Math.min(MAX_FULL_SYNC_AJAX_WINDOW_SIZE, Math.round(number)));
 }
 
 function absUrl(href: string, base?: string) {
@@ -164,20 +154,6 @@ function absUrl(href: string, base?: string) {
     return new URL(href, base || location.href).href;
   } catch (error) {
     return href;
-  }
-}
-
-function videoPathKey(value: unknown) {
-  if (!value) return '';
-
-  try {
-    const parsed = new URL(String(value), location.href);
-    // Match pending operations across the primary and fallback Jable origins.
-    if (!/^\/videos\/[^/]+\/?$/.test(parsed.pathname)) return '';
-    if (!/\/$/.test(parsed.pathname)) parsed.pathname += '/';
-    return parsed.pathname;
-  } catch (error) {
-    return '';
   }
 }
 
@@ -192,16 +168,6 @@ function uniqByUrl(rows: ScrapedVideoRow[]) {
   }
 
   return out;
-}
-
-function rowUrlSignature(rows: ScrapedVideoRow[]) {
-  const urls: string[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    urls.push(rows[i].url || '');
-  }
-
-  return urls.join('|');
 }
 
 function runAdCosmeticFilter() {
@@ -236,11 +202,6 @@ function installAdCosmeticFilter() {
     childList: true,
     subtree: true
   });
-}
-
-function parseMetricNumber(value: unknown) {
-  const number = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
-  return isFinite(number) && number > 0 ? number : null;
 }
 
 function inferPreviewFromImageUrl(value: string | null | undefined) {
@@ -349,23 +310,6 @@ function collectionKeyForCurrentLocation(): CollectionKey | null {
   return null;
 }
 
-function normalizePageNumber(value: unknown) {
-  const n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
-  return isFinite(n) && n > 0 ? n : 1;
-}
-
-function readPageNumber(value: unknown): number | null {
-  const n = parseInt(String(value || '').replace(/[^\d]/g, ''), 10);
-  return isFinite(n) && n > 0 ? n : null;
-}
-
-function samePageUrl(left: unknown, right: unknown) {
-  const leftUrl = absUrl(String(left || ''));
-  const rightUrl = absUrl(String(right || ''));
-
-  return leftUrl.replace(/\/?$/, '/') === rightUrl.replace(/\/?$/, '/');
-}
-
 function hasVisibleActiveBackground(el: Element | null) {
   if (!el) return false;
 
@@ -433,7 +377,7 @@ function currentPageNumber(): number | null {
 
   for (let i = 0; i < anchors.length; i++) {
     const pageNumber = pagerPageNumberFromElement(anchors[i]);
-    if (pageNumber && samePageUrl(anchors[i].getAttribute('href'), location.href)) return pageNumber;
+    if (pageNumber && samePageUrl(anchors[i].getAttribute('href'), location.href, location.href)) return pageNumber;
   }
 
   for (let i = 0; i < anchors.length; i++) {
@@ -500,52 +444,6 @@ function waitForContainerChange(oldSig: string, timeoutMs: number): Promise<bool
   });
 }
 
-function parseBlockParameters(value: string) {
-  const params = new URLSearchParams();
-  const parts = value.split(';');
-
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
-    const separator = part.indexOf(':');
-    if (separator <= 0) continue;
-
-    const keys = part.slice(0, separator).split('+');
-    let paramValue = part.slice(separator + 1);
-
-    try {
-      paramValue = decodeURIComponent(paramValue).replace(/[+]/g, ' ');
-    } catch (error) {}
-
-    for (let k = 0; k < keys.length; k++) {
-      const key = keys[k].trim();
-      if (key) params.set(key, paramValue);
-    }
-  }
-
-  return params;
-}
-
-function ajaxUrlForPagerLink(blockId: string, parameters: string) {
-  if (!blockId) return null;
-
-  try {
-    const url = new URL(location.href);
-    const params = parseBlockParameters(parameters);
-
-    url.hash = '';
-    url.searchParams.set('mode', 'async');
-    url.searchParams.set('function', 'get_block');
-    url.searchParams.set('block_id', blockId);
-    params.forEach(function (value, key) {
-      url.searchParams.set(key, value);
-    });
-
-    return url.href;
-  } catch (error) {
-    return null;
-  }
-}
-
 function readPagerLinks() {
   const pager = document.querySelector(SEL_PAGER);
   if (!pager) return [];
@@ -560,7 +458,7 @@ function readPagerLinks() {
     const blockId = anchor.getAttribute('data-block-id') || '';
     const parameters = anchor.getAttribute('data-parameters') || '';
     const pageParameter = pagerPageParameter(anchor);
-    const ajaxUrl = ajaxUrlForPagerLink(blockId, parameters);
+    const ajaxUrl = ajaxUrlForPagerLink(blockId, parameters, location.href);
     let pageNumber = /^\d+$/.test(text) ? normalizePageNumber(text) : null;
     let id: string;
 
@@ -625,36 +523,6 @@ function randomDelayMs(min: number, max: number) {
   return Math.floor(lower + Math.random() * (upper - lower + 1));
 }
 
-function parseRetryAfterMs(value: string | null) {
-  if (!value) return null;
-
-  const seconds = Number(value);
-  if (isFinite(seconds) && seconds >= 0) return seconds * 1000;
-
-  const timestamp = Date.parse(value);
-  if (!isNaN(timestamp)) return Math.max(0, timestamp - Date.now());
-
-  return null;
-}
-
-function retryAfterMsFromHeaders(headers: Headers) {
-  return parseRetryAfterMs(headers.get('retry-after'));
-}
-
-function isRetryableAjaxStatus(status: number) {
-  return status === 403 || status === 429 || status >= 500;
-}
-
-function fetchFailureDetail(reason: string, status?: number | null, statusText?: string | null) {
-  if (typeof status === 'number') {
-    return ['HTTP', String(status), statusText || ''].join(' ').trim();
-  }
-  if (reason === 'timeout') return 'request timeout';
-  if (reason === 'network-error') return 'network error';
-  if (reason === 'empty-response') return 'empty response';
-  return reason;
-}
-
 async function fetchTextWithTimeout(url: string, timeoutMs: number): Promise<FetchTextResult> {
   const controller = new AbortController();
   const timer = setTimeout(function () {
@@ -700,29 +568,6 @@ async function fetchTextWithTimeout(url: string, timeoutMs: number): Promise<Fet
   } finally {
     clearTimeout(timer);
   }
-}
-
-function ajaxUrlForPage(template: PagerLink, pageNumber: number) {
-  if (!template.ajaxUrl || !template.pageParamName) return null;
-
-  try {
-    const url = new URL(template.ajaxUrl);
-    const value = String(pageNumber).padStart(template.pageParamWidth || 1, '0');
-    url.searchParams.set(template.pageParamName, value);
-    return url.href;
-  } catch (error) {
-    return null;
-  }
-}
-
-function ajaxRetryDelayMs(attempt: number, retryAfterMs: number | null) {
-  if (retryAfterMs !== null) return retryAfterMs + randomDelayMs(250, 1000);
-
-  const backoff = Math.min(
-    FULL_SYNC_AJAX_BACKOFF_MAX_MS,
-    FULL_SYNC_AJAX_BACKOFF_BASE_MS * Math.pow(2, Math.max(0, attempt - 1))
-  );
-  return backoff + randomDelayMs(250, 1000);
 }
 
 function ajaxFailureDetail(error: unknown) {
@@ -930,7 +775,7 @@ function normalizePendingCollectionOperation(value: unknown): PendingCollectionO
 
   const action = value.action === 'remove' ? 'remove' : value.action === 'add' ? 'add' : null;
   const videoUrl = typeof value.videoUrl === 'string' ? value.videoUrl : '';
-  if (!action || !videoPathKey(videoUrl)) return null;
+  if (!action || !videoPathKey(videoUrl, location.href)) return null;
 
   return {
     action: action,
@@ -1394,7 +1239,7 @@ function pendingOperationMatchesActionElement(
   }
 
   const row = readVideoDetailsForActionElement(actionElement, collectionKey);
-  return row ? videoPathKey(row.url) === videoPathKey(operation.videoUrl) : false;
+  return row ? videoPathKey(row.url, location.href) === videoPathKey(operation.videoUrl, location.href) : false;
 }
 
 function pendingCollectionOperationForActionElement(collectionKey: CollectionKey, actionElement: Element) {

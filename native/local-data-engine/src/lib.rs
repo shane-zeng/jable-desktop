@@ -1869,15 +1869,7 @@ impl Engine {
                 )
                 .map_err(to_napi_error)?;
 
-            let visible_urls = self.visible_urls_for_resequence(&collection_key)?;
-            for (index, url) in visible_urls.iter().enumerate() {
-                self.conn()?
-                    .execute(
-                        "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
-                        params![index as i64 + 1, &collection_key, url],
-                    )
-                    .map_err(to_napi_error)?;
-            }
+            self.resequence_visible_items(&collection_key)?;
 
             Ok(true)
         })();
@@ -2002,15 +1994,7 @@ impl Engine {
                 )
                 .map_err(to_napi_error)?;
 
-            let visible_urls = self.visible_urls_for_resequence(&collection_key)?;
-            for (index, url) in visible_urls.iter().enumerate() {
-                self.conn()?
-                    .execute(
-                        "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
-                        params![index as i64 + 1, &collection_key, url],
-                    )
-                    .map_err(to_napi_error)?;
-            }
+            self.resequence_visible_items(&collection_key)?;
 
             Ok(true)
         })();
@@ -2214,16 +2198,7 @@ impl Engine {
                 }
             }
 
-            let visible_urls = self.visible_urls_for_resequence(collection_key)?;
-            for (index, url) in visible_urls.iter().enumerate() {
-                self
-          .conn()?
-          .execute(
-            "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
-            params![index as i64 + 1, collection_key, url],
-          )
-          .map_err(to_napi_error)?;
-            }
+            self.resequence_visible_items(collection_key)?;
 
             self.conn()?
                 .execute(
@@ -2268,6 +2243,20 @@ impl Engine {
             .collect::<std::result::Result<Vec<String>, _>>()
             .map_err(to_napi_error)?;
         Ok(rows)
+    }
+
+    fn resequence_visible_items(&self, collection_key: &str) -> Result<()> {
+        let visible_urls = self.visible_urls_for_resequence(collection_key)?;
+        for (index, url) in visible_urls.iter().enumerate() {
+            self.conn()?
+                .execute(
+                    "UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?",
+                    params![index as i64 + 1, collection_key, url],
+                )
+                .map_err(to_napi_error)?;
+        }
+
+        Ok(())
     }
 
     fn finish_sync(&self, payload: Value) -> Result<Value> {

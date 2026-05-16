@@ -27,6 +27,7 @@ import type {
   VideoRow
 } from './types/jable';
 import type { DatabaseCollection } from './collections';
+import { PAGE_SIZE } from './app-contract';
 
 type VideoInput = {
   [key: string]: unknown;
@@ -129,6 +130,7 @@ type CollectionsModule = {
 type DatabaseSortKey = NonNullable<ListVideosOptions['sort']> | 'updated_at' | 'last_seen_at';
 type DatabaseListOptions = Partial<ListVideosOptions> & { sort?: DatabaseSortKey };
 type VideoListQuery = { joins: string[]; params: SQLInputValue[]; where: string; orderBy: string };
+type DatabaseStatement = ReturnType<DatabaseSyncInstance['prepare']>;
 type NameRow = { name: string };
 type CountRow = { total: number };
 type VideoUrlRow = { video_url: string };
@@ -147,7 +149,6 @@ try {
   throw new Error('node:sqlite is required. Use Node.js 24+ or an Electron version that includes node:sqlite.');
 }
 
-const PAGE_SIZE = 24;
 const EXPORT_BATCH_SIZE = PAGE_SIZE * 100;
 const SEARCH_NGRAM_MAX = 3;
 const COLLECTIONS = collections.COLLECTIONS;
@@ -713,6 +714,59 @@ class JableDatabase {
     this.db.close();
   }
 
+  prepareUpsertVideoStatement(): DatabaseStatement {
+    return this.db.prepare(
+      [
+        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'ON CONFLICT(url) DO UPDATE SET',
+        '  title = COALESCE(excluded.title, videos.title),',
+        '  views = COALESCE(excluded.views, videos.views),',
+        '  likes = COALESCE(excluded.likes, videos.likes),',
+        '  img = COALESCE(excluded.img, videos.img),',
+        '  preview = COALESCE(excluded.preview, videos.preview),',
+        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
+        '  updated_at = excluded.updated_at'
+      ].join(' ')
+    );
+  }
+
+  prepareUpsertHiddenCollectionItemStatement(): DatabaseStatement {
+    return this.db.prepare(
+      [
+        'INSERT INTO collection_items (',
+        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
+        ')',
+        'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
+        '  last_seen_at = excluded.last_seen_at,',
+        '  is_visible = 0,',
+        '  missing_at = excluded.missing_at,',
+        '  last_sync_run_id = excluded.last_sync_run_id'
+      ].join(' ')
+    );
+  }
+
+  resequenceVisibleItems(collectionKey: CollectionKey) {
+    const selectVisibleOrder = this.db.prepare(
+      [
+        'SELECT video_url',
+        'FROM collection_items',
+        'WHERE collection_key = ?',
+        '  AND is_visible = 1',
+        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
+      ].join(' ')
+    );
+    const updateSiteOrder = this.db.prepare(
+      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
+    );
+    const visibleRows = selectVisibleOrder.all(collectionKey) as VideoUrlRow[];
+
+    for (let i = 0; i < visibleRows.length; i++) {
+      updateSiteOrder.run(i + 1, collectionKey, visibleRows[i].video_url);
+    }
+  }
+
   migrate() {
     this.db.exec(
       [
@@ -1118,20 +1172,7 @@ class JableDatabase {
     }
 
     const timestamp = nowIso();
-    const upsertVideo = this.db.prepare(
-      [
-        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        'ON CONFLICT(url) DO UPDATE SET',
-        '  title = COALESCE(excluded.title, videos.title),',
-        '  views = COALESCE(excluded.views, videos.views),',
-        '  likes = COALESCE(excluded.likes, videos.likes),',
-        '  img = COALESCE(excluded.img, videos.img),',
-        '  preview = COALESCE(excluded.preview, videos.preview),',
-        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
-        '  updated_at = excluded.updated_at'
-      ].join(' ')
-    );
+    const upsertVideo = this.prepareUpsertVideoStatement();
     const upsertItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',
@@ -1592,20 +1633,7 @@ class JableDatabase {
         "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
       ].join(' ')
     );
-    const upsertVideo = this.db.prepare(
-      [
-        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        'ON CONFLICT(url) DO UPDATE SET',
-        '  title = COALESCE(excluded.title, videos.title),',
-        '  views = COALESCE(excluded.views, videos.views),',
-        '  likes = COALESCE(excluded.likes, videos.likes),',
-        '  img = COALESCE(excluded.img, videos.img),',
-        '  preview = COALESCE(excluded.preview, videos.preview),',
-        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
-        '  updated_at = excluded.updated_at'
-      ].join(' ')
-    );
+    const upsertVideo = this.prepareUpsertVideoStatement();
     const upsertVisibleItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',
@@ -1623,19 +1651,6 @@ class JableDatabase {
         '  last_sync_run_id = excluded.last_sync_run_id'
       ].join(' ')
     );
-    const selectVisibleOrder = this.db.prepare(
-      [
-        'SELECT video_url',
-        'FROM collection_items',
-        'WHERE collection_key = ?',
-        '  AND is_visible = 1',
-        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
-      ].join(' ')
-    );
-    const updateSiteOrder = this.db.prepare(
-      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
-    );
-
     this.db.exec('BEGIN IMMEDIATE');
 
     try {
@@ -1660,10 +1675,7 @@ class JableDatabase {
 
       upsertVisibleItem.run(parts.collectionKey, latest.video_url, timestamp, timestamp, siteOrder, latest.sync_run_id);
 
-      const visibleRows = selectVisibleOrder.all(parts.collectionKey) as VideoUrlRow[];
-      for (let i = 0; i < visibleRows.length; i++) {
-        updateSiteOrder.run(i + 1, parts.collectionKey, visibleRows[i].video_url);
-      }
+      this.resequenceVisibleItems(parts.collectionKey);
 
       this.db.exec('COMMIT');
       return true;
@@ -1709,45 +1721,8 @@ class JableDatabase {
         "  AND remote_apply_state IN ('failed', 'blocked', 'pending')"
       ].join(' ')
     );
-    const upsertVideo = this.db.prepare(
-      [
-        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        'ON CONFLICT(url) DO UPDATE SET',
-        '  title = COALESCE(excluded.title, videos.title),',
-        '  views = COALESCE(excluded.views, videos.views),',
-        '  likes = COALESCE(excluded.likes, videos.likes),',
-        '  img = COALESCE(excluded.img, videos.img),',
-        '  preview = COALESCE(excluded.preview, videos.preview),',
-        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
-        '  updated_at = excluded.updated_at'
-      ].join(' ')
-    );
-    const upsertHiddenItem = this.db.prepare(
-      [
-        'INSERT INTO collection_items (',
-        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
-        ')',
-        'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
-        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
-        '  last_seen_at = excluded.last_seen_at,',
-        '  is_visible = 0,',
-        '  missing_at = excluded.missing_at,',
-        '  last_sync_run_id = excluded.last_sync_run_id'
-      ].join(' ')
-    );
-    const selectVisibleOrder = this.db.prepare(
-      [
-        'SELECT video_url',
-        'FROM collection_items',
-        'WHERE collection_key = ?',
-        '  AND is_visible = 1',
-        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
-      ].join(' ')
-    );
-    const updateSiteOrder = this.db.prepare(
-      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
-    );
+    const upsertVideo = this.prepareUpsertVideoStatement();
+    const upsertHiddenItem = this.prepareUpsertHiddenCollectionItemStatement();
 
     this.db.exec('BEGIN IMMEDIATE');
 
@@ -1780,10 +1755,7 @@ class JableDatabase {
         latest.sync_run_id
       );
 
-      const visibleRows = selectVisibleOrder.all(parts.collectionKey) as VideoUrlRow[];
-      for (let i = 0; i < visibleRows.length; i++) {
-        updateSiteOrder.run(i + 1, parts.collectionKey, visibleRows[i].video_url);
-      }
+      this.resequenceVisibleItems(parts.collectionKey);
 
       this.db.exec('COMMIT');
       return true;
@@ -1878,20 +1850,7 @@ class JableDatabase {
       latestByUrl[operations[i].video_url] = operations[i];
     }
 
-    const upsertVideo = this.db.prepare(
-      [
-        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        'ON CONFLICT(url) DO UPDATE SET',
-        '  title = COALESCE(excluded.title, videos.title),',
-        '  views = COALESCE(excluded.views, videos.views),',
-        '  likes = COALESCE(excluded.likes, videos.likes),',
-        '  img = COALESCE(excluded.img, videos.img),',
-        '  preview = COALESCE(excluded.preview, videos.preview),',
-        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
-        '  updated_at = excluded.updated_at'
-      ].join(' ')
-    );
+    const upsertVideo = this.prepareUpsertVideoStatement();
     const upsertVisibleItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',
@@ -1909,19 +1868,7 @@ class JableDatabase {
         '  last_sync_run_id = excluded.last_sync_run_id'
       ].join(' ')
     );
-    const upsertHiddenItem = this.db.prepare(
-      [
-        'INSERT INTO collection_items (',
-        '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
-        ')',
-        'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
-        'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
-        '  last_seen_at = excluded.last_seen_at,',
-        '  is_visible = 0,',
-        '  missing_at = excluded.missing_at,',
-        '  last_sync_run_id = excluded.last_sync_run_id'
-      ].join(' ')
-    );
+    const upsertHiddenItem = this.prepareUpsertHiddenCollectionItemStatement();
     const markReconciled = this.db.prepare(
       [
         'UPDATE sync_operations',
@@ -1930,18 +1877,6 @@ class JableDatabase {
         '  AND sync_run_id = ?',
         '  AND reconciled_at IS NULL'
       ].join(' ')
-    );
-    const selectVisibleOrder = this.db.prepare(
-      [
-        'SELECT video_url',
-        'FROM collection_items',
-        'WHERE collection_key = ?',
-        '  AND is_visible = 1',
-        'ORDER BY site_order IS NULL ASC, site_order ASC, last_seen_at DESC, video_url ASC'
-      ].join(' ')
-    );
-    const updateSiteOrder = this.db.prepare(
-      'UPDATE collection_items SET site_order = ? WHERE collection_key = ? AND video_url = ?'
     );
     const latestOperations = Object.keys(latestByUrl)
       .map(function (url) {
@@ -1988,10 +1923,7 @@ class JableDatabase {
         }
       }
 
-      const visibleRows = selectVisibleOrder.all(collectionKey) as VideoUrlRow[];
-      for (let i = 0; i < visibleRows.length; i++) {
-        updateSiteOrder.run(i + 1, collectionKey, visibleRows[i].video_url);
-      }
+      this.resequenceVisibleItems(collectionKey);
 
       markReconciled.run(timestamp, collectionKey, syncRunId);
       this.db.exec('COMMIT');
@@ -2075,33 +2007,8 @@ class JableDatabase {
         .run(timestamp, timestamp, syncRunId, collectionKey, video.url);
 
       if (!removeResult.changes && syncRunId) {
-        const upsertVideo = this.db.prepare(
-          [
-            'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
-            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            'ON CONFLICT(url) DO UPDATE SET',
-            '  title = COALESCE(excluded.title, videos.title),',
-            '  views = COALESCE(excluded.views, videos.views),',
-            '  likes = COALESCE(excluded.likes, videos.likes),',
-            '  img = COALESCE(excluded.img, videos.img),',
-            '  preview = COALESCE(excluded.preview, videos.preview),',
-            '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
-            '  updated_at = excluded.updated_at'
-          ].join(' ')
-        );
-        const upsertHiddenItem = this.db.prepare(
-          [
-            'INSERT INTO collection_items (',
-            '  collection_key, video_url, first_seen_at, last_seen_at, site_order, is_visible, missing_at, last_sync_run_id',
-            ')',
-            'VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
-            'ON CONFLICT(collection_key, video_url) DO UPDATE SET',
-            '  last_seen_at = excluded.last_seen_at,',
-            '  is_visible = 0,',
-            '  missing_at = excluded.missing_at,',
-            '  last_sync_run_id = excluded.last_sync_run_id'
-          ].join(' ')
-        );
+        const upsertVideo = this.prepareUpsertVideoStatement();
+        const upsertHiddenItem = this.prepareUpsertHiddenCollectionItemStatement();
 
         this.db.exec('BEGIN IMMEDIATE');
 
@@ -2145,20 +2052,7 @@ class JableDatabase {
       };
     }
 
-    const upsertVideo = this.db.prepare(
-      [
-        'INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)',
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        'ON CONFLICT(url) DO UPDATE SET',
-        '  title = COALESCE(excluded.title, videos.title),',
-        '  views = COALESCE(excluded.views, videos.views),',
-        '  likes = COALESCE(excluded.likes, videos.likes),',
-        '  img = COALESCE(excluded.img, videos.img),',
-        '  preview = COALESCE(excluded.preview, videos.preview),',
-        '  search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,',
-        '  updated_at = excluded.updated_at'
-      ].join(' ')
-    );
+    const upsertVideo = this.prepareUpsertVideoStatement();
     const upsertItem = this.db.prepare(
       [
         'INSERT INTO collection_items (',

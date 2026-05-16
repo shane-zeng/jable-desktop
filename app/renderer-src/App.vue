@@ -16,6 +16,9 @@ import {
 import { useBrowserBounds } from './composables/useBrowserBounds';
 import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
+import { usePendingRemoteActions } from './composables/usePendingRemoteActions';
+import { useSyncWorkflow } from './composables/useSyncWorkflow';
+import { errorMessage, useToastStatus } from './composables/useToastStatus';
 import { useI18n } from './i18n';
 import type {
   AppSettings,
@@ -31,38 +34,49 @@ import type {
   ExportResource,
   LibraryVideoMenuAction,
   LibraryVideoMenuPayload,
-  SyncMode,
   SyncPagePayload,
   SyncProgressPayload,
   SyncQueueProgressPayload,
-  SyncResult,
-  SyncState,
   VideoRow
 } from '../types/jable';
-
-const SYNC_RETURNING_NOTICE_DELAY_MS = 450;
-type ToastState = {
-  text: string;
-  tone: 'error' | 'warning' | 'success' | 'info';
-  showQueueProgress?: boolean;
-};
 
 const api = useJableApi();
 const i18n = useI18n();
 const activeView = ref<AppView>('browser');
-const toast = ref<ToastState | null>(null);
-const syncQueueProgress = ref<SyncQueueProgressPayload | null>(null);
+const toastStatus = useToastStatus();
+const toast = toastStatus.toast;
+const setStatus = toastStatus.setStatus;
+const hideToast = toastStatus.hideToast;
 const busy = ref(false);
-const syncing = ref(false);
 const browserTabsCompact = ref(false);
 const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
 const appSettings = ref<AppSettings>(Object.assign({}, DEFAULT_APP_SETTINGS));
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
-let activeSyncRunId: string | null = null;
-let toastTimer: number | null = null;
 let mainLocaleSynced = false;
+const sync = useSyncWorkflow({
+  api: api,
+  busy: busy,
+  errorMessage: errorMessage,
+  library: library,
+  setActiveView: setActiveView,
+  setStatus: setStatus,
+  t: i18n.t
+});
+const syncing = sync.syncing;
+const syncQueueProgress = sync.syncQueueProgress;
+const syncQueueProgressProcessed = sync.syncQueueProgressProcessed;
+const syncQueueProgressPercent = sync.syncQueueProgressPercent;
+const { addPendingRemoteOperationGroup, removePendingRemoteOperationGroup, resolvePendingRemoteOperationGroup } =
+  usePendingRemoteActions({
+    api: api,
+    busy: busy,
+    errorMessage: errorMessage,
+    library: library,
+    setStatus: setStatus,
+    t: i18n.t
+  });
 
 const pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
@@ -71,83 +85,6 @@ const pageRows = computed<VideoRow[]>(function () {
 const libraryBusy = computed(function () {
   return busy.value || syncing.value;
 });
-
-const syncQueueProgressProcessed = computed(function () {
-  const progress = syncQueueProgress.value;
-  if (!progress) return 0;
-  if (progress.phase === 'complete') return progress.total;
-  return Math.max(0, Math.min(progress.total, progress.processed || progress.applied || 0));
-});
-
-const syncQueueProgressPercent = computed(function () {
-  const progress = syncQueueProgress.value;
-  if (!progress || progress.total <= 0) return 0;
-  return Math.round((syncQueueProgressProcessed.value / progress.total) * 100);
-});
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function shouldSkipStatus(text: string) {
-  return (
-    !text ||
-    text === '準備中' ||
-    text === '就緒' ||
-    text === '已新增分頁' ||
-    text === '開啟影片中…' ||
-    text === 'Preparing...' ||
-    text === 'Ready' ||
-    text === 'New tab added' ||
-    text === 'Opening video...'
-  );
-}
-
-function statusTone(text: string) {
-  if (/失敗|錯誤|未知|failed|error|unknown/i.test(text)) return 'error';
-  if (/暫停|未完整|請先|paused|did not complete|please log in/i.test(text)) return 'warning';
-  if (/完成|已匯出|已匯入|complete|exported|imported/i.test(text)) return 'success';
-  return 'info';
-}
-
-function hideToast() {
-  if (toastTimer) {
-    clearTimeout(toastTimer);
-    toastTimer = null;
-  }
-
-  toast.value = null;
-}
-
-function setStatus(
-  text: string,
-  tone?: 'error' | 'warning' | 'success' | 'info',
-  options?: { sticky?: boolean; queueProgress?: boolean }
-) {
-  if (shouldSkipStatus(text)) return;
-
-  if (toastTimer) clearTimeout(toastTimer);
-  toast.value = {
-    text: text,
-    tone: tone || statusTone(text),
-    showQueueProgress: Boolean(options && options.queueProgress)
-  };
-  if (options && options.sticky) {
-    toastTimer = null;
-    return;
-  }
-
-  toastTimer = setTimeout(function () {
-    toast.value = null;
-    toastTimer = null;
-  }, 4200);
-}
-
-function waitForSyncReturningNotice() {
-  return new Promise(function (resolve) {
-    setTimeout(resolve, SYNC_RETURNING_NOTICE_DELAY_MS);
-  });
-}
 
 function loadLegacyBrowserTabsCompact() {
   const value = localStorage.getItem(BROWSER_TABS_COMPACT_STORAGE_KEY);
@@ -193,14 +130,6 @@ function setActiveView(view: AppView) {
   if (view !== 'browser') browser.hide();
   browser.scheduleResize();
   if (view === 'library') library.refreshVideos();
-}
-
-function syncModeName(mode: SyncMode) {
-  return mode === 'full' ? i18n.t('sync.full') : i18n.t('sync.quick');
-}
-
-function createSyncRunId(mode: SyncMode, collectionKey: CollectionKey) {
-  return [mode, collectionKey, Date.now(), Math.random().toString(36).slice(2)].join(':');
 }
 
 function collectionName(collectionKey: CollectionKey) {
@@ -264,35 +193,6 @@ function collectionToggleStatus(payload: CollectionToggleResult) {
   return i18n.t('status.collectionAdded', { collection: name });
 }
 
-function updateSyncQueueProgress(progress: SyncQueueProgressPayload) {
-  const collection = collectionName(progress.collectionKey);
-  const processed = Math.max(0, Math.min(progress.total, progress.processed || 0));
-
-  if (progress.phase === 'complete') {
-    syncQueueProgress.value = null;
-    setStatus(
-      i18n.t('status.syncQueueProcessed', {
-        collection: collection,
-        applied: progress.applied || 0,
-        failed: progress.failed || 0
-      }),
-      progress.failed ? 'warning' : 'success'
-    );
-    return;
-  }
-
-  syncQueueProgress.value = progress;
-  setStatus(
-    i18n.t('status.syncQueueProgress', {
-      collection: collection,
-      processed: processed,
-      total: progress.total
-    }),
-    'info',
-    { sticky: true, queueProgress: true }
-  );
-}
-
 function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'browser-tabs-changed') {
     browser.applyTabsState(message.args[0] as BrowserTabsState);
@@ -316,43 +216,17 @@ function handleBrowserMessage(message: BrowserMessage) {
 
   if (message.channel === 'sync-page') {
     const payload = message.args[0] as SyncPagePayload;
-    if (activeSyncRunId && payload.syncRunId !== activeSyncRunId) return;
-    setStatus(i18n.t('status.syncPage', { page: payload.page, count: payload.rows.length }));
+    sync.handleSyncPage(payload);
   }
 
   if (message.channel === 'sync-progress') {
     const progress = message.args[0] as SyncProgressPayload;
-    if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
-    if (progress.message === 'ajax-page-retry') {
-      setStatus(
-        i18n.t('status.syncAjaxRetry', {
-          page: progress.page,
-          attempt: progress.attempt || 1,
-          maxRetries: progress.maxRetries || 1,
-          delay: Math.round((progress.delayMs || 0) / 1000),
-          reason: progress.reason || i18n.t('status.unknownError')
-        }),
-        'warning'
-      );
-      return;
-    }
-    if (progress.message === 'ajax-window-fallback') {
-      setStatus(
-        i18n.t('status.syncAjaxFallback', {
-          reason: progress.reason || i18n.t('status.unknownError')
-        }),
-        'warning'
-      );
-      return;
-    }
-    setStatus(i18n.t('status.syncProgress', { page: progress.page }));
+    sync.handleSyncProgress(progress);
   }
 
   if (message.channel === 'sync-queue-progress') {
     const progress = message.args[0] as SyncQueueProgressPayload;
-    if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
-
-    updateSyncQueueProgress(progress);
+    sync.handleSyncQueueProgress(progress);
   }
 
   if (message.channel === 'collection-toggle') {
@@ -387,198 +261,6 @@ function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'jable-origin-fallback') {
     const payload = (message.args[0] || {}) as { origin?: string };
     setStatus(i18n.t('status.jableFallback', { origin: payload.origin || 'https://fs1.app' }), 'warning');
-  }
-}
-
-function resultStatus(
-  collectionKey: CollectionKey,
-  mode: SyncMode,
-  result: SyncResult,
-  finishState: SyncState,
-  visibleRows?: number
-) {
-  const name = syncModeName(mode);
-  const collection = collectionName(collectionKey);
-  const queuedFailures = result.queuedOperationsFailed || 0;
-  const queuedSkipped = result.queuedOperationsSkipped || 0;
-  const totalRows = typeof visibleRows === 'number' ? visibleRows : result.totalRows;
-
-  function withAjaxFallback(status: string) {
-    if (!result.ajaxFallbackReason) return status;
-
-    return i18n.t('status.syncAjaxFallbackResult', {
-      status: status,
-      reason: result.ajaxFallbackReason,
-      retries: result.ajaxRetryCount || 0
-    });
-  }
-
-  if (queuedFailures > 0) {
-    return withAjaxFallback(
-      i18n.t('status.syncQueuedOperationsFailed', {
-        collection: collection,
-        count: queuedFailures
-      })
-    );
-  }
-
-  if (queuedSkipped > 0) {
-    return withAjaxFallback(
-      i18n.t('status.syncQueuedOperationsSkipped', {
-        collection: collection,
-        count: queuedSkipped
-      })
-    );
-  }
-
-  if (result.completed === false) {
-    if (result.incompleteReason === 'login-required') {
-      return i18n.t('status.loginRequired', { collection: collection });
-    }
-
-    if (result.incompleteReason === 'first-page-unavailable' || result.incompleteReason === 'first-page-unchanged') {
-      return i18n.t('status.firstPageRequired', { collection: collection, mode: name });
-    }
-
-    if (result.incompleteReason === 'collection-mutated-during-sync') {
-      return i18n.t('status.syncChangedDuringRun', {
-        collection: collection,
-        mode: name,
-        count: (finishState && finishState.mutationsReconciled) || 0
-      });
-    }
-
-    if (result.incompleteReason === 'batch-limit') {
-      return i18n.t('status.fullSyncPaused', {
-        collection: collection,
-        mode: name,
-        pages: result.totalPages,
-        rows: result.totalRows
-      });
-    }
-
-    if (result.ajaxFallbackReason) {
-      return i18n.t('status.syncIncompleteAfterAjaxFallback', {
-        collection: collection,
-        mode: name,
-        reason: result.incompleteReason || i18n.t('status.unknownError'),
-        ajaxReason: result.ajaxFallbackReason
-      });
-    }
-
-    return i18n.t('status.syncIncomplete', {
-      collection: collection,
-      mode: name,
-      reason: result.incompleteReason || i18n.t('status.unknownError')
-    });
-  }
-
-  if (mode === 'full') {
-    return withAjaxFallback(
-      i18n.t('status.fullSyncComplete', {
-        collection: collection,
-        rows: totalRows,
-        hidden: (finishState && finishState.hidden) || 0
-      })
-    );
-  }
-
-  const reason = result.stoppedByKnownPage
-    ? i18n.t('status.stoppedByKnownPage')
-    : i18n.t('status.finishedVisiblePages');
-  return withAjaxFallback(
-    i18n.t('status.quickSyncComplete', {
-      collection: collection,
-      rows: totalRows,
-      reason: reason
-    })
-  );
-}
-
-async function syncCollection(mode: SyncMode) {
-  if (busy.value || syncing.value) return;
-
-  syncing.value = true;
-  activeSyncRunId = null;
-  syncQueueProgress.value = null;
-  let syncTabId: string | null = null;
-
-  try {
-    const collectionKey = library.activeCollection.value;
-    const continuation =
-      mode === 'full' &&
-      library.fullSyncContinuation.value &&
-      library.fullSyncContinuation.value.collectionKey === collectionKey
-        ? library.fullSyncContinuation.value
-        : null;
-    const usedContinuation = Boolean(continuation && continuation.tabId);
-    syncTabId = usedContinuation && continuation ? continuation.tabId : null;
-    const syncRunId = usedContinuation && continuation ? continuation.syncRunId : createSyncRunId(mode, collectionKey);
-    const siteOrderOffset = usedContinuation && continuation ? continuation.siteOrderOffset : 0;
-    const startPage = usedContinuation && continuation ? continuation.lastScrapedPage : null;
-
-    const options = {
-      collectionKey: collectionKey,
-      mode: mode,
-      syncRunId: syncRunId,
-      siteOrderOffset: siteOrderOffset,
-      startPage: startPage,
-      stopOnKnownPage: mode === 'quick',
-      batchLimit: null
-    };
-
-    setStatus(i18n.t('status.syncStart', { mode: syncModeName(mode), collection: collectionName(collectionKey) }));
-    activeSyncRunId = syncRunId;
-    const result = await api.syncBrowserCollection({
-      tabId: syncTabId,
-      options: options
-    });
-    syncTabId = result.syncWorkerId || syncTabId;
-    setStatus(i18n.t('status.syncFinalizingLocalData', { collection: collectionName(collectionKey) }), 'info');
-
-    const finishState = await api.finishSync({
-      collectionKey: collectionKey,
-      mode: mode,
-      syncRunId: syncRunId,
-      result: result
-    });
-
-    if (mode === 'full' && result.completed === false && result.incompleteReason === 'batch-limit') {
-      library.fullSyncContinuation.value = {
-        collectionKey: collectionKey,
-        syncRunId: syncRunId,
-        tabId: result.syncWorkerId || syncTabId || '',
-        siteOrderOffset: siteOrderOffset + result.totalRows,
-        lastScrapedPage: result.lastScrapedPage
-      };
-    } else if (mode === 'full') {
-      library.fullSyncContinuation.value = null;
-    }
-
-    const finalVisibleRows = await api.countVideos({ collectionKey: collectionKey });
-    library.currentPage.value = 1;
-    setStatus(i18n.t('status.syncReturningLibrary', { collection: collectionName(collectionKey) }), 'info');
-    await waitForSyncReturningNotice();
-    setActiveView('library');
-    await library.refreshVideos();
-    await library.refreshPendingGroups();
-
-    setStatus(
-      resultStatus(collectionKey, mode, result, finishState, finalVisibleRows),
-      result.queuedOperationsFailed || result.queuedOperationsSkipped || result.ajaxFallbackReason
-        ? 'warning'
-        : undefined,
-      {
-        sticky: result.completed === false
-      }
-    );
-  } catch (error) {
-    console.error(error);
-    syncQueueProgress.value = null;
-    setStatus(i18n.t('status.syncFailed', { mode: syncModeName(mode), error: errorMessage(error) }), 'error');
-  } finally {
-    activeSyncRunId = null;
-    syncing.value = false;
   }
 }
 
@@ -640,73 +322,6 @@ async function diagnoseLayout() {
 
 async function selectLibraryTab(tabKey: string) {
   await library.selectTab(tabKey);
-}
-
-async function addPendingRemoteOperationGroup(groupId: string) {
-  busy.value = true;
-  try {
-    const result = await api.addPendingRemoteOperationGroup(groupId);
-    await library.refreshPendingGroups();
-    if (result.resolved) {
-      await library.refreshVideos();
-      setStatus(i18n.t('status.pendingRemoteAdded'), 'success');
-    } else {
-      setStatus(
-        i18n.t('status.pendingRemoteAddFailed', { error: result.error || i18n.t('status.unknownError') }),
-        'error',
-        {
-          sticky: true
-        }
-      );
-    }
-  } catch (error) {
-    setStatus(i18n.t('status.pendingRemoteAddFailed', { error: errorMessage(error) }), 'error', { sticky: true });
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function removePendingRemoteOperationGroup(groupId: string) {
-  busy.value = true;
-  try {
-    const result = await api.removePendingRemoteOperationGroup(groupId);
-    await library.refreshPendingGroups();
-    if (result.resolved) {
-      await library.refreshVideos();
-      setStatus(i18n.t('status.pendingRemoteRemoved'), 'success');
-    } else {
-      setStatus(
-        i18n.t('status.pendingRemoteRemoveFailed', { error: result.error || i18n.t('status.unknownError') }),
-        'error',
-        {
-          sticky: true
-        }
-      );
-    }
-  } catch (error) {
-    setStatus(i18n.t('status.pendingRemoteRemoveFailed', { error: errorMessage(error) }), 'error', { sticky: true });
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function resolvePendingRemoteOperationGroup(groupId: string) {
-  busy.value = true;
-  try {
-    const result = await api.resolvePendingRemoteOperationGroup(groupId);
-    await library.refreshPendingGroups();
-    if (result.resolved) {
-      setStatus(i18n.t('status.pendingRemoteResolved'), 'success');
-    } else {
-      setStatus(i18n.t('status.pendingRemoteResolveFailed'), 'error', { sticky: true });
-    }
-  } catch (error) {
-    setStatus(i18n.t('status.pendingRemoteResolveFailedWithError', { error: errorMessage(error) }), 'error', {
-      sticky: true
-    });
-  } finally {
-    busy.value = false;
-  }
 }
 
 async function newBrowserTab() {
@@ -902,8 +517,8 @@ onMounted(async function () {
         :current-page="library.currentPage.value"
         :total-pages="library.totalPages.value"
         @select-tab="selectLibraryTab"
-        @quick-sync="syncCollection('quick')"
-        @full-sync="syncCollection('full')"
+        @quick-sync="sync.syncCollection('quick')"
+        @full-sync="sync.syncCollection('full')"
         @update:search="library.search.value = $event"
         @update:search-mode="library.searchMode.value = $event"
         @update:sort="library.sort.value = $event"

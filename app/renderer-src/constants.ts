@@ -1,31 +1,18 @@
-import type {
-  AppSettings,
-  CollectionDefinition,
-  CollectionKey,
-  SearchMode,
-  SortDirection,
-  SortKey
-} from '../types/jable';
+import type { CollectionDefinition, CollectionKey, SearchMode, SortDirection, SortKey } from '../types/jable';
+import { DEFAULT_APP_SETTINGS, MAX_BROWSER_TABS_WARNING_THRESHOLD, PAGE_SIZE } from '../app-contract';
 import { JABLE_PRIMARY_ORIGIN, jableCollectionUrl } from '../url-policy';
 
 interface ValueOption<T extends string> {
   value: T;
 }
 
-export const PAGE_SIZE = 24;
 export const DEFAULT_BROWSER_URL = JABLE_PRIMARY_ORIGIN + '/';
 export const BROWSER_TABS_COMPACT_STORAGE_KEY = 'jable-desktop:browser-tabs-compact';
 export const BROWSER_TABS_WIDTH_STORAGE_KEY = 'jable-desktop:browser-tabs-width';
 export const BROWSER_TABS_DEFAULT_WIDTH = 280;
 export const BROWSER_TABS_MIN_WIDTH = 180;
 export const BROWSER_TABS_MAX_WIDTH = 420;
-export const MAX_BROWSER_TABS_WARNING_THRESHOLD = 20;
-export const DEFAULT_APP_SETTINGS: AppSettings = {
-  maxBrowserTabs: 14,
-  compactBrowserTabs: false,
-  fullSyncAjaxWindowSize: 3,
-  autoReplayDeferredSyncOperations: false
-};
+export { DEFAULT_APP_SETTINGS, MAX_BROWSER_TABS_WARNING_THRESHOLD, PAGE_SIZE };
 
 export const COLLECTIONS: Record<CollectionKey, CollectionDefinition> = {
   favourites: {

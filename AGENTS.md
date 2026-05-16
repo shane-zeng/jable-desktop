@@ -25,7 +25,8 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `test/renderer/`: Vitest renderer, component, composable, and renderer i18n tests.
 - `test/electron/`: Playwright Electron smoke tests for app startup, preload IPC, browser tab IPC, and import/export integration.
 - `scripts/update-release-changelog.js`: release automation helper that updates `CHANGELOG.md` for a completed version tag.
-- `docs/`: user guides, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
+- `docs/`: user guides, implementation-backed specs, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
+- `docs/specs/`: current feature specifications backed by implementation and tests. English `*.md` specs are authoritative; matching `*.local.md` files may exist as ignored local reading copies for other languages.
 - `CHANGELOG.md`: generated release history for version tags. Do not edit it during normal feature or bug-fix work.
 - `AGENTS.md`: contributor guidance for future maintenance.
 
@@ -94,7 +95,7 @@ Local search uses SQLite FTS5. Changes to search tokenization, migrations, filte
 
 Rust native data-engine behavior must also be covered directly in `native/local-data-engine/src/tests.rs` when the change affects Rust-owned invariants such as migrations, FTS/search tokenization, sync visibility, sync operation reduction, outbox state transitions, pending remote grouping, resolved/superseded handling, or JSON import/export. Do not rely only on Node contract tests for Rust-owned state machines.
 
-Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, and `docs/development.md`.
+Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, `docs/specs/data-sync.md`, and `docs/development.md`.
 
 Desktop JSON import UI must require an explicit target collection. It may preselect favourites or watch-later from JSON `meta.source_path`, `meta.source_url`, or filename hints, but the final `collectionKey` passed to the data engine must come from the confirmed UI target.
 
@@ -116,8 +117,11 @@ Keep documentation split by audience:
 - `docs/README.zh-TW.md`: Traditional Chinese user guide.
 - `docs/README.en-US.md`: English user guide.
 - `docs/README.ja-JP.md`: Japanese user guide.
+- `docs/specs/*.md`: implementation-backed feature behavior and maintenance rules.
 - `docs/development.md`: architecture, validation, packaging, and release details.
 - `docs/shortcuts.md`: keyboard, mouse, and context-menu behavior.
+
+When behavior changes, update the relevant spec in `docs/specs/` in the same pull request as the implementation or test change. Keep public user guidance in `docs/README.*.md`, and use matching `docs/specs/*.local.md` only for ignored local reading copies in other languages.
 
 ## Testing Guidelines
 

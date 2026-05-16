@@ -13,6 +13,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - When Browser view is hidden, the renderer sends invisible bounds so browser views are detached from the visible area.
 - The only renderer-to-main API is `window.jableApp`.
 - The only Jable page automation channel is request/response IPC to `app/webview-preload.ts`.
+- Pure webview preload parsing, retry, page, and URL helper behavior lives in `app/webview-preload-helpers.ts`.
 - Main process code must not call embedded page functions through injected JavaScript strings.
 
 ## Session And Origins
@@ -113,9 +114,17 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - `app/main.ts`
 - `app/preload.ts`
 - `app/webview-preload.ts`
+- `app/webview-preload-helpers.ts`
 - `app/browser-tab-policy.ts`
 - `app/url-policy.ts`
 - `app/ad-blocker.ts`
 - `app/ad-cosmetic-policy.ts`
 - `app/update-checker.ts`
 - `docs/shortcuts.md`
+
+## Related Tests
+
+- `test/node/browser-tab-policy.test.js`
+- `test/node/ipc-guardrails.test.js`
+- `test/node/webview-preload-helpers.test.js`
+- `test/node/url-policy.test.js`

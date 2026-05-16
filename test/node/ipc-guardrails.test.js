@@ -7,7 +7,18 @@ const test = require('node:test');
 
 const MAIN_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'main.ts');
 const APP_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'renderer-src', 'App.vue');
+const IPC_NORMALIZERS_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'ipc-normalizers.ts');
+const SYNC_WORKFLOW_SOURCE_PATH = path.join(
+  __dirname,
+  '..',
+  '..',
+  'app',
+  'renderer-src',
+  'composables',
+  'useSyncWorkflow.ts'
+);
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'webview-preload.ts');
+const WEBVIEW_HELPERS_SOURCE_PATH = path.join(__dirname, '..', '..', 'app', 'webview-preload-helpers.ts');
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -43,10 +54,11 @@ test('webview preload owns browser sync and diagnosis request handlers', functio
 
 test('webview pager fallback uses Jable get_block requests and page-number from parameters', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const helperSource = readSource(WEBVIEW_HELPERS_SOURCE_PATH);
 
-  assert.match(source, /function ajaxUrlForPagerLink/);
-  assert.match(source, /url\.searchParams\.set\('mode', 'async'\)/);
-  assert.match(source, /url\.searchParams\.set\('function', 'get_block'\)/);
+  assert.match(helperSource, /function ajaxUrlForPagerLink/);
+  assert.match(helperSource, /url\.searchParams\.set\('mode', 'async'\)/);
+  assert.match(helperSource, /url\.searchParams\.set\('function', 'get_block'\)/);
   assert.match(source, /function loadPagerLinkByFetch/);
   assert.match(source, /new DOMParser\(\)\.parseFromString\(html, 'text\/html'\)/);
   assert.match(source, /function pagerPageParameter/);
@@ -56,17 +68,21 @@ test('webview pager fallback uses Jable get_block requests and page-number from 
 
 test('full sync can use a bounded ajax sliding window with sequential fallback', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const helperSource = readSource(WEBVIEW_HELPERS_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
 
-  assert.match(source, /const DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE = 3/);
-  assert.match(source, /const MAX_FULL_SYNC_AJAX_WINDOW_SIZE = 5/);
-  assert.match(source, /function normalizeAjaxWindowSize/);
+  assert.match(
+    helperSource,
+    /export const DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE = DEFAULT_APP_SETTINGS\.fullSyncAjaxWindowSize/
+  );
+  assert.match(helperSource, /export const MAX_FULL_SYNC_AJAX_WINDOW_SIZE = FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS\.max/);
+  assert.match(helperSource, /function normalizeAjaxWindowSize/);
   assert.match(mainSource, /ajaxWindowSize: getAppSettings\(\)\.fullSyncAjaxWindowSize/);
-  assert.match(source, /const FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS = 500/);
-  assert.match(source, /const FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS = 1500/);
-  assert.match(source, /const FULL_SYNC_AJAX_MAX_RETRIES = 3/);
-  assert.match(source, /const FULL_SYNC_AJAX_BACKOFF_BASE_MS = 1000/);
-  assert.match(source, /function ajaxUrlForPage/);
+  assert.match(helperSource, /const FULL_SYNC_AJAX_MIN_PAGE_DELAY_MS = 500/);
+  assert.match(helperSource, /const FULL_SYNC_AJAX_MAX_PAGE_DELAY_MS = 1500/);
+  assert.match(helperSource, /const FULL_SYNC_AJAX_MAX_RETRIES = 3/);
+  assert.match(helperSource, /const FULL_SYNC_AJAX_BACKOFF_BASE_MS = 1000/);
+  assert.match(helperSource, /function ajaxUrlForPage/);
   assert.match(source, /async function fetchAjaxHtmlWithRetry/);
   assert.match(source, /retryAfterMsFromHeaders\(response\.headers\)/);
   assert.match(source, /isRetryableAjaxStatus\(response\.status\)/);
@@ -104,12 +120,16 @@ test('webview deferred operation replay retries once and preserves outbox order 
 
 test('renderer reports queued operation failures through the pending remote tab and counts final visible rows', function () {
   const source = readSource(APP_SOURCE_PATH);
+  const syncWorkflowSource = readSource(SYNC_WORKFLOW_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
 
   assert.match(mainSource, /queuedOperationFailures = applied\.failures/);
-  assert.match(source, /const finalVisibleRows = await api\.countVideos\(\{ collectionKey: collectionKey \}\)/);
-  assert.match(source, /resultStatus\(collectionKey, mode, result, finishState, finalVisibleRows\)/);
-  assert.match(source, /status\.syncQueuedOperationsSkipped/);
+  assert.match(
+    syncWorkflowSource,
+    /const finalVisibleRows = await options\.api\.countVideos\(\{ collectionKey: collectionKey \}\)/
+  );
+  assert.match(syncWorkflowSource, /resultStatus\(collectionKey, mode, result, finishState, finalVisibleRows\)/);
+  assert.match(syncWorkflowSource, /status\.syncQueuedOperationsSkipped/);
   assert.match(source, /await library\.refreshPendingGroups\(\)/);
   assert.match(source, /addPendingRemoteOperationGroup/);
   assert.match(source, /removePendingRemoteOperationGroup/);
@@ -118,6 +138,7 @@ test('renderer reports queued operation failures through the pending remote tab 
 
 test('sync queue and finalization phases surface renderer status updates', function () {
   const source = readSource(APP_SOURCE_PATH);
+  const syncWorkflowSource = readSource(SYNC_WORKFLOW_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
 
   assert.match(mainSource, /function notifySyncQueueProgress/);
@@ -125,26 +146,26 @@ test('sync queue and finalization phases surface renderer status updates', funct
   assert.match(mainSource, /phase: 'start'/);
   assert.match(mainSource, /phase: i \+ 1 === operations\.length \? 'complete' : 'progress'/);
   assert.match(source, /message\.channel === 'sync-queue-progress'/);
-  assert.match(source, /status\.syncQueueProgress/);
+  assert.match(syncWorkflowSource, /status\.syncQueueProgress/);
   assert.match(source, /class="app-toast-progress"/);
-  assert.match(source, /status\.syncFinalizingLocalData/);
-  assert.match(source, /status\.syncReturningLibrary/);
-  assert.match(source, /waitForSyncReturningNotice/);
+  assert.match(syncWorkflowSource, /status\.syncFinalizingLocalData/);
+  assert.match(syncWorkflowSource, /status\.syncReturningLibrary/);
+  assert.match(syncWorkflowSource, /waitForSyncReturningNotice/);
 });
 
 test('renderer surfaces ajax retry and fallback reasons', function () {
-  const source = readSource(APP_SOURCE_PATH);
-  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const ipcNormalizersSource = readSource(IPC_NORMALIZERS_SOURCE_PATH);
+  const syncWorkflowSource = readSource(SYNC_WORKFLOW_SOURCE_PATH);
 
   assert.match(
-    mainSource,
+    ipcNormalizersSource,
     /ajaxFallbackReason: optionalStringField\(record, 'ajaxFallbackReason', channel\) \|\| null/
   );
-  assert.match(mainSource, /ajaxRetryCount: optionalNumberField\(record, 'ajaxRetryCount', channel\) \|\| 0/);
-  assert.match(source, /progress\.message === 'ajax-page-retry'/);
-  assert.match(source, /status\.syncAjaxRetry/);
-  assert.match(source, /progress\.message === 'ajax-window-fallback'/);
-  assert.match(source, /status\.syncAjaxFallback/);
-  assert.match(source, /status\.syncAjaxFallbackResult/);
-  assert.match(source, /status\.syncIncompleteAfterAjaxFallback/);
+  assert.match(ipcNormalizersSource, /ajaxRetryCount: optionalNumberField\(record, 'ajaxRetryCount', channel\) \|\| 0/);
+  assert.match(syncWorkflowSource, /progress\.message === 'ajax-page-retry'/);
+  assert.match(syncWorkflowSource, /status\.syncAjaxRetry/);
+  assert.match(syncWorkflowSource, /progress\.message === 'ajax-window-fallback'/);
+  assert.match(syncWorkflowSource, /status\.syncAjaxFallback/);
+  assert.match(syncWorkflowSource, /status\.syncAjaxFallbackResult/);
+  assert.match(syncWorkflowSource, /status\.syncIncompleteAfterAjaxFallback/);
 });

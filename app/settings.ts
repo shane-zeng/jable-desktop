@@ -2,23 +2,14 @@
 
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
+import { DEFAULT_APP_SETTINGS, FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS, MAX_BROWSER_TABS_LIMITS } from './app-contract';
 import type { AppSettings, AppSettingsPatch } from './types/jable';
 
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 
 export const SETTINGS_FILE_NAME = 'settings.json';
-export const DEFAULT_APP_SETTINGS: AppSettings = {
-  maxBrowserTabs: 14,
-  compactBrowserTabs: false,
-  fullSyncAjaxWindowSize: 3,
-  autoReplayDeferredSyncOperations: false
-};
-
-const MAX_BROWSER_TABS_MIN = 4;
-const MAX_BROWSER_TABS_MAX = 30;
-const FULL_SYNC_AJAX_WINDOW_SIZE_MIN = 1;
-const FULL_SYNC_AJAX_WINDOW_SIZE_MAX = 5;
+export { DEFAULT_APP_SETTINGS };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -37,15 +28,15 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     maxBrowserTabs: clampInteger(
       record.maxBrowserTabs,
       DEFAULT_APP_SETTINGS.maxBrowserTabs,
-      MAX_BROWSER_TABS_MIN,
-      MAX_BROWSER_TABS_MAX
+      MAX_BROWSER_TABS_LIMITS.min,
+      MAX_BROWSER_TABS_LIMITS.max
     ),
     compactBrowserTabs: Boolean(record.compactBrowserTabs),
     fullSyncAjaxWindowSize: clampInteger(
       record.fullSyncAjaxWindowSize,
       DEFAULT_APP_SETTINGS.fullSyncAjaxWindowSize,
-      FULL_SYNC_AJAX_WINDOW_SIZE_MIN,
-      FULL_SYNC_AJAX_WINDOW_SIZE_MAX
+      FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.min,
+      FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.max
     ),
     autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations)
   };
@@ -60,8 +51,8 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
     patch.maxBrowserTabs = clampInteger(
       value.maxBrowserTabs,
       DEFAULT_APP_SETTINGS.maxBrowserTabs,
-      MAX_BROWSER_TABS_MIN,
-      MAX_BROWSER_TABS_MAX
+      MAX_BROWSER_TABS_LIMITS.min,
+      MAX_BROWSER_TABS_LIMITS.max
     );
   }
   if (Object.prototype.hasOwnProperty.call(value, 'compactBrowserTabs')) {
@@ -71,8 +62,8 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
     patch.fullSyncAjaxWindowSize = clampInteger(
       value.fullSyncAjaxWindowSize,
       DEFAULT_APP_SETTINGS.fullSyncAjaxWindowSize,
-      FULL_SYNC_AJAX_WINDOW_SIZE_MIN,
-      FULL_SYNC_AJAX_WINDOW_SIZE_MAX
+      FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.min,
+      FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.max
     );
   }
   if (Object.prototype.hasOwnProperty.call(value, 'autoReplayDeferredSyncOperations')) {

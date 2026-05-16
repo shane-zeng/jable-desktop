@@ -20,12 +20,21 @@ The English files in this directory are the version-controlled source of truth. 
 Use source code and tests as the final source of truth when a user guide, changelog, or specification appears stale. The most important implementation references are:
 
 - `jable-favourites-exporter.user.js`
+- `app/app-contract.ts`
 - `app/types/jable.ts`
+- `app/ipc-normalizers.ts`
 - `app/main.ts`
 - `app/preload.ts`
 - `app/webview-preload.ts`
+- `app/webview-preload-helpers.ts`
 - `app/data-engine.ts`
 - `app/database.ts`
+- `app/renderer-src/App.vue`
+- `app/renderer-src/composables/useBrowserBounds.ts`
+- `app/renderer-src/composables/useLibraryState.ts`
+- `app/renderer-src/composables/usePendingRemoteActions.ts`
+- `app/renderer-src/composables/useSyncWorkflow.ts`
+- `app/renderer-src/composables/useToastStatus.ts`
 - `native/local-data-engine/src/lib.rs`
 - `docs/development.md`
 - `docs/shortcuts.md`

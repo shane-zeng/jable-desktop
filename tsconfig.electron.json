@@ -16,11 +16,13 @@
   "include": [
     "app/ad-blocker.ts",
     "app/ad-cosmetic-policy.ts",
+    "app/app-contract.ts",
     "app/browser-tab-policy.ts",
     "app/collections.ts",
     "app/database.ts",
     "app/data-engine.ts",
     "app/i18n/index.ts",
+    "app/ipc-normalizers.ts",
     "app/main.ts",
     "app/native-data-engine.ts",
     "app/preload.ts",
@@ -29,6 +31,7 @@
     "app/types/**/*.ts",
     "app/update-checker.ts",
     "app/url-policy.ts",
+    "app/webview-preload-helpers.ts",
     "app/webview-preload.ts"
   ],
   "exclude": ["app/renderer-dist", "app/renderer-src", "app/runtime-dist", "node_modules", "release"]

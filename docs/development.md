@@ -123,7 +123,7 @@ Desktop data and search behavior:
 
 Browser and tab behavior:
 
-- User-facing app settings are stored in `settings.json` under Electron `userData` through `app/settings.ts`. Keep `app/types/jable.ts`, `app/preload.ts`, main IPC handlers, `SettingsPanel.vue`, and `test/node/settings.test.js` aligned when adding or changing settings.
+- User-facing app settings are stored in `settings.json` under Electron `userData` through `app/settings.ts`. Shared limits and defaults live in `app/app-contract.ts`. Keep `app/types/jable.ts`, `app/app-contract.ts`, `app/settings.ts`, `app/preload.ts`, main IPC handlers, `SettingsPanel.vue`, and `test/node/settings.test.js` aligned when adding or changing settings.
 - Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 - `app/browser-tab-policy.ts` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
@@ -132,17 +132,20 @@ Browser and tab behavior:
 - `app/ad-blocker.ts` centralizes Jable-specific ad request patterns for the `persist:jable-session` Electron session. It blocks known third-party ad subresources and suppresses known ad popup navigations, but keeps Jable `mainFrame` navigations and `blob:` media URLs untouched. `app/ad-cosmetic-policy.ts` is used by the webview preload to remove leftover ad card, sponsor, and modal containers whose URLs match those same rules. Set `JABLE_DESKTOP_AD_BLOCK=0` to disable both request blocking and cosmetic filtering while testing, or `JABLE_DESKTOP_AD_BLOCK_DEBUG=1` to log blocked requests, navigations, and removed containers.
 - `app/url-policy.ts` centralizes trusted Jable origins (`https://jable.tv`, `https://fs1.app`), safe browser-tab protocols, GitHub release external URL checks, collection URL checks, and fallback-origin rewrites.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
-- Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Do not call embedded page functions through injected JavaScript strings.
+- Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Pure webview preload helper behavior for pager/AJAX URL parsing, retry/backoff, metric parsing, page numbers, and video path keys lives in `app/webview-preload-helpers.ts`. Do not call embedded page functions through injected JavaScript strings.
 - HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.ts` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
 - Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser-tab-policy.ts`, `app/main.ts`, `app/webview-preload.ts`, and renderer link handlers.
 
 Renderer behavior:
 
 - `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
-- `app/main.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and main-process normalizers aligned when adding IPC calls.
-- `app/renderer-src/App.vue` coordinates the browser view, local data view, settings page, browser messages, sync orchestration, import/export, toast status, and full-sync continuation state.
+- `app/ipc-normalizers.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and IPC normalizers aligned when adding IPC calls.
+- `app/renderer-src/App.vue` owns top-level renderer wiring for Browser, Local Data, Settings, browser messages, import/export, and layout. Focused composables own BrowserView state, local library state, sync workflow, pending remote actions, and toast status.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
 - `useLibraryState` owns collection/pending-tab selection, pagination, search mode, sorting, pending remote operation groups, refresh token cancellation, and the pending full-sync continuation label.
+- `useSyncWorkflow` owns quick/full sync orchestration, queue progress status, AJAX retry/fallback status, finalization, and full-sync continuation updates.
+- `usePendingRemoteActions` owns Pending Sync Add/Remove/Resolved renderer actions and their refresh/status side effects.
+- `useToastStatus` owns toast filtering, tone inference, sticky state, and auto-hide timing.
 - Browser compact-mode is stored in shared app settings. Tab rail width remains a renderer-local `localStorage` preference because it only affects layout.
 - The renderer stylesheet is intentionally dark-mode-only. If appearance modes are reintroduced, keep `styles.css`, persisted preferences, and any docs in sync.
 
@@ -164,9 +167,12 @@ Userscript cache behavior:
 
 Desktop app files:
 
-- `app/main.ts`: Electron main process and IPC handlers.
+- `app/app-contract.ts`: shared user-facing contract constants such as page size, app settings defaults, and settings limit ranges.
+- `app/main.ts`: Electron main process, browser/tab orchestration, native menus/dialogs, sync workers, and IPC handlers.
 - `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
 - `app/webview-preload.ts`: scraper injected into each embedded Jable `WebContentsView`.
+- `app/webview-preload-helpers.ts`: pure preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys.
+- `app/ipc-normalizers.ts`: pure runtime validators/normalizers for renderer IPC payloads.
 - `app/ad-blocker.ts`: session-level Jable ad and popup request filtering.
 - `app/ad-cosmetic-policy.ts`: DOM-level removal rules for ad containers left behind after request blocking.
 - `app/browser-tab-policy.ts`: pure browser tab policies used by main-process behavior and Node tests.
@@ -180,7 +186,7 @@ Desktop app files:
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
 - `app/native-dist/`: built native `.node` data engine addon loaded by Electron and unpacked from packaged apps.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
-- `app/renderer-src/composables/`: renderer state modules for IPC access, BrowserView bounds/tabs/navigation, and local library state.
+- `app/renderer-src/composables/`: renderer state modules for IPC access, BrowserView bounds/tabs/navigation, local library state, sync workflow, pending remote actions, and toast status.
 - `app/renderer-src/components/`: presentational Vue components for top navigation, browser tabs, local data controls, pagination, and video cards.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/node/`: Node tests for database behavior, sync utilities, i18n, update checks, and browser tab policy.
@@ -221,12 +227,14 @@ Test coverage map:
 - `test/node/ad-blocker.test.js`: Jable ad request matching, popup navigation suppression, environment switches, and Electron listener installation.
 - `test/node/ad-cosmetic-policy.test.js`: DOM container removal for blocked ad cards, sponsor rows, and modal wrappers.
 - `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
+- `test/node/ipc-normalizers.test.js`: renderer IPC payload validation and normalization.
+- `test/node/webview-preload-helpers.test.js`: pure webview preload helper behavior for constants, metrics, page parsing, AJAX URLs, and retry details.
 - `test/node/settings.test.js`: app settings defaults, persistence, and user-facing limit clamping.
 - `test/node/sync-utils.test.js`: numeric pager selection.
 - `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
 - `native/local-data-engine/src/tests.rs`: Rust-native data-engine invariants that should not depend only on addon contract coverage, including URL normalization, site-order import aliases, search token matching, outbox grouping, resolved groups, and full-sync superseded state.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
-- `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state and library pagination/filter state.
+- `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state, library pagination/filter state, sync workflow status, pending remote actions, and toast status.
 - `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, settings IPC, browser tab create/activate/close IPC, and import/export happy path.
 
 GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.

@@ -16,6 +16,12 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["app/types/**/*.ts", "app/renderer-src/**/*.ts", "app/renderer-src/**/*.vue", "test/renderer/**/*.ts"],
+  "include": [
+    "app/app-contract.ts",
+    "app/types/**/*.ts",
+    "app/renderer-src/**/*.ts",
+    "app/renderer-src/**/*.vue",
+    "test/renderer/**/*.ts"
+  ],
   "exclude": ["app/renderer-dist", "app/runtime-dist", "node_modules", "release"]
 }

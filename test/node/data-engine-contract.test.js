@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const dataEngine = require('../../app/runtime-dist/data-engine');
+const { withoutExportedAt } = require('./helpers/export-resource');
 
 const ENGINE_KINDS = ['ts'];
 const nativeAddonPath = path.join(
@@ -38,19 +39,6 @@ function createEngine(t, kind) {
   });
 
   return { dir, engine };
-}
-
-function withoutExportedAt(resource) {
-  const copy = JSON.parse(JSON.stringify(resource));
-
-  if (copy.meta) delete copy.meta.exported_at;
-  if (Array.isArray(copy.data)) {
-    for (let i = 0; i < copy.data.length; i++) {
-      if (copy.data[i] && copy.data[i].meta) delete copy.data[i].meta.exported_at;
-    }
-  }
-
-  return copy;
 }
 
 for (const kind of ENGINE_KINDS) {
