@@ -209,6 +209,7 @@ Important outbox fields:
 
 - Download records are stored in the Rust data engine `download_assets` table.
 - Download records are keyed by video URL and remain independent from `collection_items`.
+- `download_assets.file_relative_path` is exposed to the renderer as `localPath` and stores only the selected download-root-relative file path.
 - Downloaded files are not included in collection JSON import/export backups.
 - Deleting or hiding a collection item does not delete a download record or local downloaded file.
 - Explicit Download List delete actions remove the managed download record and local file when present.

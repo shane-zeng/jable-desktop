@@ -173,3 +173,19 @@ test('renderer surfaces ajax retry and fallback reasons', function () {
   assert.match(syncWorkflowSource, /status\.syncAjaxFallbackResult/);
   assert.match(syncWorkflowSource, /status\.syncIncompleteAfterAjaxFallback/);
 });
+
+test('main process persists managed-root-relative download paths', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /function downloadOutputRelativePath/);
+  assert.match(source, /return path\.join\(payload\.collectionKey, name \+ '-' \+ hash \+ '\.mp4'\)/);
+  assert.match(source, /function resolveManagedDownloadPath/);
+  assert.match(source, /path\.isAbsolute\(fileRelativePath\)/);
+  assert.match(source, /path\.resolve\(downloadRootPath, fileRelativePath\)/);
+  assert.match(source, /isPathInsideDirectory\(filePath, downloadRootPath\)/);
+  assert.match(source, /localPath: downloadOutputRelativePath\(payload\)/);
+  assert.match(source, /shell\.openPath\(filePath\)/);
+  assert.match(source, /shell\.showItemInFolder\(filePath\)/);
+  assert.equal(source.includes('function downloadOutputPath'), false);
+  assert.equal(source.includes('localPath: outputPath'), false);
+});

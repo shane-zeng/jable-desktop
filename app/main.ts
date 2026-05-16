@@ -735,9 +735,10 @@ function removePersistedDownload(videoUrl: string): boolean {
 }
 
 function downloadRecordFileStats(record: DownloadRecord): NodeFs.Stats | null {
-  if (!record.localPath) return null;
+  const filePath = resolveManagedDownloadPath(record.localPath);
+  if (!filePath) return null;
   try {
-    return fs.statSync(record.localPath);
+    return fs.statSync(filePath);
   } catch (error) {
     return null;
   }
@@ -858,10 +859,20 @@ function videoUrlSlug(videoUrl: string): string {
   }
 }
 
-function downloadOutputPath(payload: DownloadRequestPayload): string {
+function downloadOutputRelativePath(payload: DownloadRequestPayload): string {
   const hash = nodeCrypto.createHash('sha1').update(payload.video.url).digest('hex').slice(0, 10);
   const name = sanitizeDownloadFileName(payload.video.title || videoUrlSlug(payload.video.url));
-  return path.join(getDownloadRoot().path, payload.collectionKey, name + '-' + hash + '.mp4');
+  return path.join(payload.collectionKey, name + '-' + hash + '.mp4');
+}
+
+function resolveManagedDownloadPath(fileRelativePath: string | null): string | null {
+  if (!fileRelativePath || path.isAbsolute(fileRelativePath)) return null;
+
+  const downloadRootPath = getDownloadRoot().path;
+  const filePath = path.resolve(downloadRootPath, fileRelativePath);
+  if (!isPathInsideDirectory(filePath, downloadRootPath)) return null;
+
+  return filePath;
 }
 
 async function cookieHeaderForUrl(targetUrl: string): Promise<string> {
@@ -971,18 +982,19 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
 }
 
 async function runQueuedDownload(record: DownloadRecord) {
-  const outputPath = record.localPath || path.join(getDownloadRoot().path, videoUrlSlug(record.videoUrl) + '.mp4');
+  const outputPath = resolveManagedDownloadPath(record.localPath);
 
   upsertPersistedDownload({
     videoUrl: record.videoUrl,
     state: 'downloading',
     progress: null,
     error: null,
-    localPath: outputPath
+    localPath: record.localPath
   });
   notifyDownloadsChanged();
 
   try {
+    if (!outputPath) throw new Error(t('status.downloadFileUnavailable'));
     throwIfDownloadCanceled(record.videoUrl);
     try {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -1011,7 +1023,7 @@ async function runQueuedDownload(record: DownloadRecord) {
       state: 'ready',
       progress: 1,
       error: null,
-      localPath: outputPath,
+      localPath: record.localPath,
       fileSizeBytes: stats.isFile() ? stats.size : null,
       completedAt: downloadTimestamp()
     });
@@ -1080,7 +1092,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
     collectionKey: payload.collectionKey,
     title: payload.video.title,
     img: payload.video.img,
-    localPath: downloadOutputPath(payload),
+    localPath: downloadOutputRelativePath(payload),
     state: 'queued',
     progress: null,
     error: null,
@@ -1175,21 +1187,19 @@ function isPathInsideDirectory(filePath: string, directoryPath: string): boolean
 
 function deleteManagedDownloadFile(record: DownloadRecord): boolean {
   if (!record.localPath) return false;
+  const filePath = resolveManagedDownloadPath(record.localPath);
+  if (!filePath) throw new Error(t('status.downloadFileOutsideRoot'));
 
   let stats: NodeFs.Stats;
   try {
-    stats = fs.statSync(record.localPath);
+    stats = fs.statSync(filePath);
   } catch (error) {
     return false;
   }
 
-  if (!isPathInsideDirectory(record.localPath, getDownloadRoot().path)) {
-    throw new Error(t('status.downloadFileOutsideRoot'));
-  }
-
   if (!stats.isFile()) throw new Error(t('status.downloadFileUnavailable'));
 
-  fs.unlinkSync(record.localPath);
+  fs.unlinkSync(filePath);
   return true;
 }
 
@@ -1248,12 +1258,14 @@ function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
   if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
     throw new Error(t('status.downloadFileUnavailable'));
   }
+  const filePath = resolveManagedDownloadPath(readyRecord.localPath);
+  if (!filePath) throw new Error(t('status.downloadFileUnavailable'));
 
-  return shell.openPath(readyRecord.localPath).then(function (errorMessage: string) {
+  return shell.openPath(filePath).then(function (errorMessage: string) {
     if (errorMessage) throw new Error(errorMessage);
     return {
       opened: true,
-      path: readyRecord.localPath as string
+      path: filePath
     };
   });
 }
@@ -1267,11 +1279,13 @@ function revealDownloadFile(value: unknown): RevealDownloadFileResult {
   if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
     throw new Error(t('status.downloadFileUnavailable'));
   }
+  const filePath = resolveManagedDownloadPath(readyRecord.localPath);
+  if (!filePath) throw new Error(t('status.downloadFileUnavailable'));
 
-  shell.showItemInFolder(readyRecord.localPath);
+  shell.showItemInFolder(filePath);
   return {
     revealed: true,
-    path: readyRecord.localPath
+    path: filePath
   };
 }
 

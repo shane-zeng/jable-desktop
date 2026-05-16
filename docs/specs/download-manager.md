@@ -41,6 +41,13 @@ This document specifies the current Download List and local video file managemen
 <downloadRoot>/<collectionKey>/<sanitized-title>-<url-sha1-prefix>.mp4
 ```
 
+- Persisted `localPath` values store only the managed-root-relative path:
+
+```text
+<collectionKey>/<sanitized-title>-<url-sha1-prefix>.mp4
+```
+
+- Main process resolves persisted relative paths against the current download root before filesystem or shell operations.
 - A `.part` sibling file is used while FFmpeg is writing the output. On success it is renamed to the final `.mp4` path.
 - Deleting a download verifies that the managed path is inside the current download root before unlinking.
 
@@ -55,7 +62,7 @@ This document specifies the current Download List and local video file managemen
   - `collectionKey`
   - `title`
   - `img`
-  - `localPath`
+  - `localPath` as a managed-root-relative file path
   - `state`
   - `progress`
   - `fileSizeBytes`
