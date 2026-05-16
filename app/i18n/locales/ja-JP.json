@@ -314,6 +314,8 @@
     "downloadInterrupted": "ダウンロードが完了していません。再試行してください",
     "downloadErrorVideoPageHttp": "動画ページを読み込めませんでした: HTTP {status}",
     "downloadErrorPlaylistMissing": "動画ストリーム一覧が見つかりません。再試行するか、動画ページを再生できるか確認してください",
+    "downloadErrorPlaylistUnsupported": "この動画ストリーム形式はまだ対応していません: {error}",
+    "downloadErrorSegment": "動画セグメントのダウンロードに失敗しました: {error}",
     "downloadErrorFfmpeg": "FFmpeg の処理に失敗しました: {error}",
     "downloadErrorFileSystem": "ローカルファイルを書き込めませんでした: {error}",
     "downloadErrorNetwork": "ネットワーク接続に失敗しました: {error}",

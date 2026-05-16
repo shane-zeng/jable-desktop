@@ -236,10 +236,21 @@ test('main process streams FFmpeg download progress without persisting runtime f
   assert.match(types, /downloadSpeedBytesPerSecond\?: number \| null/);
 });
 
-test('main process enables persistent multiple HLS segment requests', function () {
+test('main process downloads HLS segments in bounded parallel batches', function () {
   const source = readSource(MAIN_SOURCE_PATH);
 
-  assert.match(source, /'-http_persistent',\n\s*'1',\n\s*'-http_multiple',\n\s*'1',\n\s*'-seg_max_retry',\n\s*'3'/);
+  assert.match(source, /const DOWNLOAD_SEGMENT_CONCURRENCY = 8/);
+  assert.match(source, /function runConcurrent<T>/);
+  assert.match(source, /await runConcurrent\(playlist\.segments, DOWNLOAD_SEGMENT_CONCURRENCY/);
+  assert.match(source, /fetchDownloadBufferWithRetry\(videoUrl, segment\.url, headers, signal, 'segment'\)/);
+});
+
+test('main process remuxes downloaded local HLS segments with FFmpeg', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /const localPlaylistPath = await downloadHlsSegments/);
+  assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath\)/);
+  assert.match(source, /'-allowed_extensions',\n\s*'ALL',\n\s*'-protocol_whitelist',\n\s*'file,crypto'/);
 });
 
 test('renderer sends cloneable plain download payloads', function () {

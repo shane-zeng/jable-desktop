@@ -144,26 +144,37 @@ This document specifies the current Download List and local video file managemen
 - The worker fetches the Jable video page using the isolated Jable session cookies.
 - HLS playlist extraction is implemented in `app/download-helpers.ts`.
 - The extractor supports escaped absolute `.m3u8` URLs and quoted relative `.m3u8` URLs resolved against the video page URL.
-- FFmpeg is spawned by main process with:
+- The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.
+- The active worker downloads HLS segment files itself before FFmpeg remuxing:
+  - one active video download at a time
+  - up to 8 segment requests in parallel within that active video
+  - 3 retries per key or segment request
+  - User-Agent is always sent; Referer is the video page URL; Cookie is sent when the Electron Jable session has cookies for the origin
+  - runtime `downloadedBytes` and `downloadSpeedBytesPerSecond` are updated from completed segment bytes
+- Downloaded segments and keys are written under a temporary `.segments` sibling directory inside the managed download root.
+- The worker writes a local `playlist.m3u8` pointing at the downloaded segment and key files.
+- FFmpeg is spawned by main process for local remuxing with:
   - `-progress pipe:1` so the app can parse runtime download byte updates without mixing them into FFmpeg error output
-  - `-headers` containing Referer, User-Agent, and Cookie when available
-  - `-http_persistent 1`, `-http_multiple 1`, and `-seg_max_retry 3` for HLS segment fetching
-  - protocol whitelist for HLS over local/http/https/tcp/tls/crypto
-  - playlist URL as input
+  - `-allowed_extensions ALL`
+  - protocol whitelist for local files and HLS AES decryption: `file,crypto`
+  - local temporary playlist path as input
   - `-c copy`
+  - `-bsf:a aac_adtstoasc`
   - `-movflags +faststart`
   - `-f mp4` because the temporary output file uses a `.part` suffix
-- FFmpeg is responsible for HLS playlist reading, segment fetching, supported HLS decryption, and MP4 remuxing.
-- On success the `.part` file is renamed to the final MP4, file size is recorded, and state becomes `ready`.
-- On failure the partial file is removed where possible and state becomes `failed`.
+- FFmpeg is responsible for remuxing downloaded HLS media into MP4 and handling supported local HLS AES-128 decryption through the local playlist/key files.
+- On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, and state becomes `ready`.
+- On failure the partial file and temporary segment files are removed where possible and state becomes `failed`.
 - Download errors are classified into localized messages for:
   - video page HTTP failures
   - missing playlist
+  - unsupported playlist/key format
+  - segment/key download failure
   - FFmpeg failure
   - filesystem failure
   - network failure
   - unknown failure
-- Active cancel kills the FFmpeg process and marks the record failed with the localized canceled message.
+- Active cancel aborts in-flight segment requests, kills the FFmpeg process when it is running, and marks the record failed with the localized canceled message.
 - Queued cancel removes the record from the queue and marks it failed with the localized canceled message.
 
 ## Opening Local Files

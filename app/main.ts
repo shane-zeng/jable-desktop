@@ -153,9 +153,34 @@ type SettingsModule = {
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
 };
+type HlsKey = {
+  method: string;
+  uri: string | null;
+  iv: string | null;
+};
+type HlsSegment = {
+  url: string;
+  duration: number | null;
+  key: HlsKey | null;
+};
+type HlsPlaylist = {
+  variants: Array<{ url: string; bandwidth: number | null }>;
+  segments: HlsSegment[];
+  targetDuration: number | null;
+};
+type LocalHlsSegment = {
+  fileName: string;
+  duration: number | null;
+  keyFileName: string | null;
+  keyMethod: string | null;
+  keyIv: string | null;
+};
 type DownloadHelpersModule = {
   extractHlsPlaylistUrl(html: string, pageUrl: string): string | null;
+  parseHlsPlaylist(content: string, playlistUrl: string): HlsPlaylist;
+  buildLocalHlsPlaylist(segments: LocalHlsSegment[], targetDuration: number | null): string;
   videoPageRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
+  hlsRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
   ffmpegHeaderBlock(videoUrl: string, cookieHeader: string): string;
 };
 type DataEngineInstance = {
@@ -312,6 +337,8 @@ const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
+const DOWNLOAD_SEGMENT_CONCURRENCY = 8;
+const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -338,6 +365,7 @@ const canceledDownloadUrls = new Set<string>();
 const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 let activeDownloadUrl: string | null = null;
 let activeDownloadProcess: NodeChildProcess.ChildProcess | null = null;
+let activeDownloadAbortController: AbortController | null = null;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -412,6 +440,20 @@ class HlsPlaylistNotFoundError extends Error {
   }
 }
 
+class HlsPlaylistUnsupportedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HlsPlaylistUnsupportedError';
+  }
+}
+
+class DownloadSegmentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DownloadSegmentError';
+  }
+}
+
 class FfmpegDownloadError extends Error {
   constructor(message: string) {
     super(message || 'FFmpeg failed');
@@ -456,8 +498,15 @@ function isLikelyNetworkError(error: unknown): boolean {
 
 function downloadErrorMessage(error: unknown): string {
   if (isDownloadCanceledError(error)) return t('status.downloadCanceled');
+  if (error instanceof Error && error.name === 'AbortError') return t('status.downloadCanceled');
   if (error instanceof DownloadHttpError) return t('status.downloadErrorVideoPageHttp', { status: error.status });
   if (error instanceof HlsPlaylistNotFoundError) return t('status.downloadErrorPlaylistMissing');
+  if (error instanceof HlsPlaylistUnsupportedError) {
+    return t('status.downloadErrorPlaylistUnsupported', { error: sanitizedDownloadErrorDetail(error) });
+  }
+  if (error instanceof DownloadSegmentError) {
+    return t('status.downloadErrorSegment', { error: sanitizedDownloadErrorDetail(error) });
+  }
   if (error instanceof FfmpegDownloadError) {
     return t('status.downloadErrorFfmpeg', { error: sanitizedDownloadErrorDetail(error) });
   }
@@ -960,11 +1009,11 @@ async function cookieHeaderForUrl(targetUrl: string): Promise<string> {
     .join('; ');
 }
 
-async function fetchVideoPageHtml(videoUrl: string): Promise<string> {
+async function fetchVideoPageHtml(videoUrl: string, signal?: AbortSignal | null): Promise<string> {
   const cookieHeader = await cookieHeaderForUrl(videoUrl);
   const headers = downloadHelpers.videoPageRequestHeaders(videoUrl, cookieHeader);
 
-  const response = await fetch(videoUrl, { headers: headers });
+  const response = await fetch(videoUrl, { headers: headers, signal: signal || undefined });
   if (!response.ok) throw new DownloadHttpError(response.status);
   return response.text();
 }
@@ -992,23 +1041,27 @@ function updateDownloadRuntimeProgress(videoUrl: string, downloadedBytes: number
     lastSampledAt: null,
     lastNotifiedAt: null
   };
+  const nextDownloadedBytes =
+    typeof current.downloadedBytes === 'number' ? Math.max(downloadedBytes, current.downloadedBytes) : downloadedBytes;
   let speedBytesPerSecond = current.downloadSpeedBytesPerSecond;
 
   if (
     typeof current.lastBytes === 'number' &&
     typeof current.lastSampledAt === 'number' &&
-    downloadedBytes >= current.lastBytes &&
+    nextDownloadedBytes >= current.lastBytes &&
     now > current.lastSampledAt
   ) {
-    speedBytesPerSecond = Math.round(((downloadedBytes - current.lastBytes) * 1000) / (now - current.lastSampledAt));
+    speedBytesPerSecond = Math.round(
+      ((nextDownloadedBytes - current.lastBytes) * 1000) / (now - current.lastSampledAt)
+    );
   }
 
   const shouldNotify =
     current.lastNotifiedAt === null || now - current.lastNotifiedAt >= DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS;
   downloadRuntimeProgress.set(videoUrl, {
-    downloadedBytes: downloadedBytes,
+    downloadedBytes: nextDownloadedBytes,
     downloadSpeedBytesPerSecond: speedBytesPerSecond,
-    lastBytes: downloadedBytes,
+    lastBytes: nextDownloadedBytes,
     lastSampledAt: now,
     lastNotifiedAt: shouldNotify ? now : current.lastNotifiedAt
   });
@@ -1042,107 +1095,327 @@ function handleFfmpegProgressChunk(
   }
 }
 
-function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: string, outputPath: string): Promise<void> {
-  return cookieHeaderForUrl(videoUrl).then(function (cookieHeader) {
-    return new Promise(function (resolve, reject) {
-      const tempPath = outputPath + '.part';
-      let progressRemainder = '';
-      try {
-        fs.unlinkSync(tempPath);
-      } catch (error) {}
+function downloadSegmentTempDirectory(outputPath: string): string {
+  return outputPath + '.segments';
+}
 
+function removeDownloadSegmentTempDirectory(outputPath: string) {
+  try {
+    fs.rmSync(downloadSegmentTempDirectory(outputPath), { recursive: true, force: true });
+  } catch (error) {}
+}
+
+function downloadDelay(ms: number): Promise<void> {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchHlsText(
+  playlistUrl: string,
+  videoUrl: string,
+  cookieHeader: string,
+  signal: AbortSignal
+): Promise<string> {
+  const response = await fetch(playlistUrl, {
+    headers: downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader),
+    signal: signal
+  });
+  if (!response.ok) throw new DownloadSegmentError('playlist HTTP ' + response.status);
+  return response.text();
+}
+
+function highestBandwidthVariant(playlist: HlsPlaylist): string | null {
+  const variants = playlist.variants.slice();
+  if (!variants.length) return null;
+
+  variants.sort(function (a, b) {
+    return (b.bandwidth || 0) - (a.bandwidth || 0);
+  });
+  return variants[0].url;
+}
+
+async function resolveHlsMediaPlaylist(
+  playlistUrl: string,
+  videoUrl: string,
+  cookieHeader: string,
+  signal: AbortSignal
+): Promise<HlsPlaylist> {
+  let currentPlaylistUrl = playlistUrl;
+
+  for (let i = 0; i < 3; i++) {
+    throwIfDownloadCanceled(videoUrl);
+    const content = await fetchHlsText(currentPlaylistUrl, videoUrl, cookieHeader, signal);
+    const playlist = downloadHelpers.parseHlsPlaylist(content, currentPlaylistUrl);
+    if (playlist.segments.length) return playlist;
+
+    const variantUrl = highestBandwidthVariant(playlist);
+    if (!variantUrl || variantUrl === currentPlaylistUrl) break;
+    currentPlaylistUrl = variantUrl;
+  }
+
+  throw new HlsPlaylistNotFoundError();
+}
+
+function localSegmentFileName(index: number, segmentUrl: string): string {
+  let extension = '.ts';
+  try {
+    const urlExtension = path.extname(new URL(segmentUrl).pathname).toLowerCase();
+    if (urlExtension && urlExtension.length <= 6) extension = urlExtension;
+  } catch (error) {}
+
+  return 'segment-' + String(index + 1).padStart(6, '0') + extension;
+}
+
+function localKeyFileName(index: number): string {
+  return 'key-' + String(index + 1).padStart(6, '0') + '.key';
+}
+
+async function fetchDownloadBuffer(
+  targetUrl: string,
+  headers: Record<string, string>,
+  signal: AbortSignal
+): Promise<Buffer> {
+  const response = await fetch(targetUrl, { headers: headers, signal: signal });
+  if (!response.ok) throw new DownloadSegmentError('HTTP ' + response.status);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function fetchDownloadBufferWithRetry(
+  videoUrl: string,
+  targetUrl: string,
+  headers: Record<string, string>,
+  signal: AbortSignal,
+  label: string
+): Promise<Buffer> {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= DOWNLOAD_SEGMENT_RETRY_LIMIT; attempt++) {
+    try {
+      throwIfDownloadCanceled(videoUrl);
+      return await fetchDownloadBuffer(targetUrl, headers, signal);
+    } catch (error) {
+      if (signal.aborted || canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
+      lastError = error;
+      if (attempt < DOWNLOAD_SEGMENT_RETRY_LIMIT) await downloadDelay(attempt * 500);
+    }
+  }
+
+  throw new DownloadSegmentError(label + ' failed after retries: ' + mainErrorMessage(lastError));
+}
+
+async function runConcurrent<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  let nextIndex = 0;
+  const errors: unknown[] = [];
+  const workerCount = Math.min(Math.max(1, limit), items.length);
+  const workers = Array.from({ length: workerCount }, async function () {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
       try {
-        throwIfDownloadCanceled(videoUrl);
+        await worker(items[index], index);
       } catch (error) {
-        reject(error);
+        errors.push(error);
+        nextIndex = items.length;
+      }
+    }
+  });
+
+  await Promise.all(workers);
+  if (errors.length) throw errors[0];
+}
+
+async function writeLocalHlsKeys(
+  playlist: HlsPlaylist,
+  tempDir: string,
+  videoUrl: string,
+  headers: Record<string, string>,
+  signal: AbortSignal
+): Promise<Map<string, string>> {
+  const keyFileNames = new Map<string, string>();
+  const keyUrls: string[] = [];
+
+  for (const segment of playlist.segments) {
+    if (!segment.key) continue;
+    if (segment.key.method !== 'AES-128' || !segment.key.uri) {
+      throw new HlsPlaylistUnsupportedError('unsupported HLS key method: ' + segment.key.method);
+    }
+    if (!keyFileNames.has(segment.key.uri)) {
+      const fileName = localKeyFileName(keyUrls.length);
+      keyFileNames.set(segment.key.uri, fileName);
+      keyUrls.push(segment.key.uri);
+    }
+  }
+
+  for (const keyUrl of keyUrls) {
+    const buffer = await fetchDownloadBufferWithRetry(videoUrl, keyUrl, headers, signal, 'key');
+    fs.writeFileSync(path.join(tempDir, keyFileNames.get(keyUrl) || localKeyFileName(0)), buffer);
+  }
+
+  return keyFileNames;
+}
+
+async function downloadHlsSegments(
+  playlist: HlsPlaylist,
+  videoUrl: string,
+  cookieHeader: string,
+  outputPath: string,
+  signal: AbortSignal
+): Promise<string> {
+  const tempDir = downloadSegmentTempDirectory(outputPath);
+  const headers = downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader);
+  removeDownloadSegmentTempDirectory(outputPath);
+
+  try {
+    fs.mkdirSync(tempDir, { recursive: true });
+  } catch (error) {
+    throw downloadFileSystemError(error);
+  }
+
+  const keyFileNames = await writeLocalHlsKeys(playlist, tempDir, videoUrl, headers, signal);
+  let downloadedBytes = 0;
+
+  await runConcurrent(playlist.segments, DOWNLOAD_SEGMENT_CONCURRENCY, async function (segment, index) {
+    throwIfDownloadCanceled(videoUrl);
+    const fileName = localSegmentFileName(index, segment.url);
+    const buffer = await fetchDownloadBufferWithRetry(videoUrl, segment.url, headers, signal, 'segment');
+
+    try {
+      fs.writeFileSync(path.join(tempDir, fileName), buffer);
+    } catch (error) {
+      throw downloadFileSystemError(error);
+    }
+
+    downloadedBytes += buffer.byteLength;
+    updateDownloadRuntimeProgress(videoUrl, downloadedBytes);
+  });
+
+  const localSegments = playlist.segments.map(function (segment, index): LocalHlsSegment {
+    const keyFileName = segment.key && segment.key.uri ? keyFileNames.get(segment.key.uri) || null : null;
+    return {
+      fileName: localSegmentFileName(index, segment.url),
+      duration: segment.duration,
+      keyFileName: keyFileName,
+      keyMethod: keyFileName && segment.key ? segment.key.method : null,
+      keyIv: keyFileName && segment.key ? segment.key.iv : null
+    };
+  });
+  const localPlaylistPath = path.join(tempDir, 'playlist.m3u8');
+  try {
+    fs.writeFileSync(localPlaylistPath, downloadHelpers.buildLocalHlsPlaylist(localSegments, playlist.targetDuration));
+  } catch (error) {
+    throw downloadFileSystemError(error);
+  }
+
+  return localPlaylistPath;
+}
+
+function runFfmpegRemux(
+  command: string,
+  inputPlaylistPath: string,
+  videoUrl: string,
+  outputPath: string
+): Promise<void> {
+  return new Promise(function (resolve, reject) {
+    const tempPath = outputPath + '.part';
+    let progressRemainder = '';
+    try {
+      fs.unlinkSync(tempPath);
+    } catch (error) {}
+
+    try {
+      throwIfDownloadCanceled(videoUrl);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    const child = childProcess.spawn(
+      command,
+      [
+        '-y',
+        '-nostdin',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-progress',
+        'pipe:1',
+        '-allowed_extensions',
+        'ALL',
+        '-protocol_whitelist',
+        'file,crypto',
+        '-i',
+        inputPlaylistPath,
+        '-c',
+        'copy',
+        '-bsf:a',
+        'aac_adtstoasc',
+        '-movflags',
+        '+faststart',
+        '-f',
+        'mp4',
+        tempPath
+      ],
+      {
+        windowsHide: true
+      }
+    );
+    let stderr = '';
+
+    activeDownloadProcess = child;
+    child.stdout?.on('data', function (chunk: Buffer) {
+      handleFfmpegProgressChunk(
+        videoUrl,
+        chunk,
+        function () {
+          return progressRemainder;
+        },
+        function (value) {
+          progressRemainder = value;
+        }
+      );
+    });
+    child.stderr.on('data', function (chunk) {
+      stderr = (stderr + String(chunk)).slice(-4000);
+    });
+    child.on('error', function (error) {
+      if (activeDownloadProcess === child) activeDownloadProcess = null;
+      reject(new FfmpegDownloadError(mainErrorMessage(error)));
+    });
+    child.on('close', function (code) {
+      if (activeDownloadProcess === child) activeDownloadProcess = null;
+
+      if (canceledDownloadUrls.has(videoUrl)) {
+        removePartialDownloadFile(outputPath);
+        reject(downloadCanceledError());
         return;
       }
 
-      const child = childProcess.spawn(
-        command,
-        [
-          '-y',
-          '-nostdin',
-          '-hide_banner',
-          '-loglevel',
-          'error',
-          '-progress',
-          'pipe:1',
-          '-headers',
-          downloadHelpers.ffmpegHeaderBlock(videoUrl, cookieHeader),
-          '-http_persistent',
-          '1',
-          '-http_multiple',
-          '1',
-          '-seg_max_retry',
-          '3',
-          '-protocol_whitelist',
-          'file,http,https,tcp,tls,crypto',
-          '-i',
-          playlistUrl,
-          '-c',
-          'copy',
-          '-movflags',
-          '+faststart',
-          '-f',
-          'mp4',
-          tempPath
-        ],
-        {
-          windowsHide: true
-        }
-      );
-      let stderr = '';
+      if (code !== 0) {
+        removePartialDownloadFile(outputPath);
+        reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
+        return;
+      }
 
-      activeDownloadProcess = child;
-      child.stdout?.on('data', function (chunk: Buffer) {
-        handleFfmpegProgressChunk(
-          videoUrl,
-          chunk,
-          function () {
-            return progressRemainder;
-          },
-          function (value) {
-            progressRemainder = value;
-          }
-        );
-      });
-      child.stderr.on('data', function (chunk) {
-        stderr = (stderr + String(chunk)).slice(-4000);
-      });
-      child.on('error', function (error) {
-        if (activeDownloadProcess === child) activeDownloadProcess = null;
-        reject(new FfmpegDownloadError(mainErrorMessage(error)));
-      });
-      child.on('close', function (code) {
-        if (activeDownloadProcess === child) activeDownloadProcess = null;
-
-        if (canceledDownloadUrls.has(videoUrl)) {
-          removePartialDownloadFile(outputPath);
-          reject(downloadCanceledError());
-          return;
-        }
-
-        if (code !== 0) {
-          removePartialDownloadFile(outputPath);
-          reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
-          return;
-        }
-
-        try {
-          throwIfDownloadCanceled(videoUrl);
-          fs.renameSync(tempPath, outputPath);
-          resolve();
-        } catch (error) {
-          reject(error instanceof DownloadCanceledError ? error : downloadFileSystemError(error));
-        }
-      });
+      try {
+        throwIfDownloadCanceled(videoUrl);
+        fs.renameSync(tempPath, outputPath);
+        resolve();
+      } catch (error) {
+        reject(error instanceof DownloadCanceledError ? error : downloadFileSystemError(error));
+      }
     });
   });
 }
 
 async function runQueuedDownload(record: DownloadRecord) {
   const outputPath = resolveManagedDownloadPath(record.localPath);
+  const abortController = new AbortController();
+  activeDownloadAbortController = abortController;
 
   upsertPersistedDownload({
     videoUrl: record.videoUrl,
@@ -1163,13 +1436,24 @@ async function runQueuedDownload(record: DownloadRecord) {
     }
     const command = await ffmpegCommandForDownload();
     throwIfDownloadCanceled(record.videoUrl);
-    const html = await fetchVideoPageHtml(record.videoUrl);
+    const cookieHeader = await cookieHeaderForUrl(record.videoUrl);
+    const html = await fetchVideoPageHtml(record.videoUrl, abortController.signal);
     throwIfDownloadCanceled(record.videoUrl);
     const playlistUrl = downloadHelpers.extractHlsPlaylistUrl(html, record.videoUrl);
     if (!playlistUrl) throw new HlsPlaylistNotFoundError();
     throwIfDownloadCanceled(record.videoUrl);
+    const playlist = await resolveHlsMediaPlaylist(playlistUrl, record.videoUrl, cookieHeader, abortController.signal);
+    throwIfDownloadCanceled(record.videoUrl);
+    const localPlaylistPath = await downloadHlsSegments(
+      playlist,
+      record.videoUrl,
+      cookieHeader,
+      outputPath,
+      abortController.signal
+    );
+    throwIfDownloadCanceled(record.videoUrl);
 
-    await runFfmpegDownload(command, playlistUrl, record.videoUrl, outputPath);
+    await runFfmpegRemux(command, localPlaylistPath, record.videoUrl, outputPath);
     throwIfDownloadCanceled(record.videoUrl);
     let stats: NodeFs.Stats;
     try {
@@ -1197,8 +1481,10 @@ async function runQueuedDownload(record: DownloadRecord) {
     });
     notifyDownloadsChanged();
   } finally {
+    if (outputPath) removeDownloadSegmentTempDirectory(outputPath);
     downloadRuntimeProgress.delete(record.videoUrl);
     canceledDownloadUrls.delete(record.videoUrl);
+    if (activeDownloadAbortController === abortController) activeDownloadAbortController = null;
   }
 }
 
@@ -1330,6 +1616,7 @@ function cancelDownload(value: unknown): CancelDownloadResult {
     completedAt: null
   });
 
+  if (isActive && activeDownloadAbortController) activeDownloadAbortController.abort();
   if (isActive && activeDownloadProcess) activeDownloadProcess.kill('SIGTERM');
   notifyDownloadsChanged();
 
