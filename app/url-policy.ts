@@ -41,6 +41,14 @@ export function isTrustedJableUrl(value: unknown, base?: string): boolean {
   return Boolean(jableOriginFromUrl(value, base));
 }
 
+export function isTrustedJableVideoUrl(value: unknown, base?: string): boolean {
+  const parsed = parseUrl(value, base);
+  if (!parsed || !isTrustedJableUrl(parsed.href)) return false;
+
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  return parts[0] === 'videos' && parts.length >= 2;
+}
+
 export function alternateJableOrigin(origin: unknown): JableOrigin | null {
   if (origin === JABLE_PRIMARY_ORIGIN) return JABLE_FALLBACK_ORIGIN;
   if (origin === JABLE_FALLBACK_ORIGIN) return JABLE_PRIMARY_ORIGIN;
@@ -60,6 +68,20 @@ export function rewriteJableUrlOrigin(value: unknown, origin: JableOrigin): stri
 
 export function canonicalJableUrl(value: unknown): string {
   return rewriteJableUrlOrigin(value, JABLE_PRIMARY_ORIGIN);
+}
+
+export function canonicalJableVideoUrl(value: unknown): string | null {
+  const parsed = parseUrl(value);
+  if (!parsed || !isTrustedJableVideoUrl(parsed.href)) return null;
+
+  const target = new URL(JABLE_PRIMARY_ORIGIN);
+  parsed.protocol = target.protocol;
+  parsed.host = target.host;
+  parsed.search = '';
+  parsed.hash = '';
+  if (!parsed.pathname.endsWith('/')) parsed.pathname = parsed.pathname + '/';
+
+  return parsed.href;
 }
 
 export function fallbackJableUrl(value: unknown): string | null {

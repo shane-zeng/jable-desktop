@@ -255,6 +255,7 @@ type AdBlockerModule = {
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
   JABLE_FALLBACK_ORIGIN: string;
+  canonicalJableVideoUrl(value: unknown): string | null;
   fallbackJableUrl(value: unknown): string | null;
   isJableCollectionUrl(collectionKey: CollectionKey, value: unknown): boolean;
   isAllowedExternalReleaseUrl(value: unknown): boolean;
@@ -865,6 +866,12 @@ function downloadTimestamp() {
   return new Date().toISOString();
 }
 
+function normalizeDownloadVideoUrl(value: unknown, field: string, channel: string): string {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(requiredStringValue(value, field, channel));
+  if (!videoUrl) throw new Error(t('errors.untrustedDownloadUrl'));
+  return videoUrl;
+}
+
 function normalizeDownloadRequestPayload(value: unknown): DownloadRequestPayload {
   const channel = 'download:enqueue';
   const payload = requiredRecord(value, channel);
@@ -874,7 +881,7 @@ function normalizeDownloadRequestPayload(value: unknown): DownloadRequestPayload
     collectionKey: normalizeCollectionKey(payload.collectionKey, channel),
     video: {
       title: typeof video.title === 'string' ? video.title : null,
-      url: requiredStringValue(video.url, 'video.url', channel),
+      url: normalizeDownloadVideoUrl(video.url, 'video.url', channel),
       views: null,
       likes: null,
       img: typeof video.img === 'string' ? video.img : null,
@@ -1155,7 +1162,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
 }
 
 async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
-  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:retry').trim();
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:retry');
   const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   const existingState = existingRecord ? existingRecord.state : null;
@@ -1194,7 +1201,7 @@ function removeQueuedDownload(videoUrl: string): boolean {
 }
 
 function cancelDownload(value: unknown): CancelDownloadResult {
-  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:cancel').trim();
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:cancel');
   if (!videoUrl) throw new Error(t('status.downloadCancelUnavailable'));
 
   const existing = getPersistedDownload(videoUrl);
@@ -1265,7 +1272,7 @@ function confirmDeleteDownload(): Promise<boolean> {
 }
 
 async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
-  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:delete').trim();
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:delete');
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
   if (activeDownloadUrl === videoUrl) throw new Error(t('status.downloadDeleteActiveBlocked'));
@@ -1298,7 +1305,7 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
 }
 
 function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
-  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:open-file').trim();
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:open-file');
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
   const record = getPersistedDownload(videoUrl);
@@ -1318,7 +1325,7 @@ function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
 }
 
 function revealDownloadFile(value: unknown): RevealDownloadFileResult {
-  const videoUrl = requiredStringValue(value, 'videoUrl', 'download:reveal-file').trim();
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:reveal-file');
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
   const record = getPersistedDownload(videoUrl);

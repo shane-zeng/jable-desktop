@@ -402,6 +402,7 @@
     "maxTabs": "You can open at most {count} browser tabs",
     "tabNotFound": "Browser tab not found",
     "unsupportedUrlProtocol": "Only HTTP or HTTPS URLs can be opened",
+    "untrustedDownloadUrl": "Only Jable video pages can be downloaded",
     "lockedClose": "A syncing tab cannot be closed",
     "lockedNavigate": "A syncing tab cannot be navigated manually",
     "lockedReload": "A syncing tab cannot be reloaded"

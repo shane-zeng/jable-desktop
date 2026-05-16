@@ -402,6 +402,7 @@
     "maxTabs": "最大 {count} 個までブラウザータブを開けます",
     "tabNotFound": "ブラウザータブが見つかりません",
     "unsupportedUrlProtocol": "開けるのは HTTP または HTTPS の URL のみです",
+    "untrustedDownloadUrl": "ダウンロードできるのは Jable の動画ページのみです",
     "lockedClose": "同期中のタブは閉じられません",
     "lockedNavigate": "同期中のタブは手動で移動できません",
     "lockedReload": "同期中のタブは再読み込みできません"

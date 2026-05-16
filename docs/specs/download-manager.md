@@ -176,6 +176,7 @@ This document specifies the current Download List and local video file managemen
 
 - Downloads are user initiated.
 - The feature uses the existing isolated Jable session partition.
+- Download IPC accepts only trusted Jable video page URLs from `https://jable.tv` or `https://fs1.app`, canonicalized to the primary origin before queueing.
 - The renderer does not receive unrestricted filesystem browsing rights.
 - Renderer-provided paths are not accepted for opening, revealing, deleting, or writing downloads.
 - Download error sanitization masks managed download root paths and Jable cookie values before showing messages.

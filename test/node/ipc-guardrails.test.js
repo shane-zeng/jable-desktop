@@ -211,3 +211,14 @@ test('main process persists missing state discovered by open or reveal', functio
   assert.match(source, /notifyDownloadsChanged\(\);\n\s+return persisted/);
   assert.match(source, /const readyRecord = record \? reconcileDownloadRecordFileState\(record\) : null/);
 });
+
+test('main process accepts only canonical trusted Jable video URLs for downloads', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /function normalizeDownloadVideoUrl/);
+  assert.match(source, /urlPolicy\.canonicalJableVideoUrl/);
+  assert.match(source, /errors\.untrustedDownloadUrl/);
+  assert.match(source, /url: normalizeDownloadVideoUrl\(video\.url, 'video\.url', channel\)/);
+  assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:retry'\)/);
+  assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:open-file'\)/);
+});

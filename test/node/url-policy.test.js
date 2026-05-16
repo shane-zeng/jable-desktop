@@ -32,6 +32,19 @@ test('trusts only the primary and fallback Jable origins', function () {
   assert.equal(urlPolicy.isTrustedJableUrl('http://jable.tv/videos/sample/'), false);
 });
 
+test('trusts only Jable video page URLs for downloads', function () {
+  assert.equal(urlPolicy.isTrustedJableVideoUrl('https://jable.tv/videos/sample/'), true);
+  assert.equal(urlPolicy.isTrustedJableVideoUrl('https://fs1.app/videos/sample'), true);
+  assert.equal(urlPolicy.isTrustedJableVideoUrl('https://jable.tv/my/favourites/videos/'), false);
+  assert.equal(urlPolicy.isTrustedJableVideoUrl('https://example.test/videos/sample/'), false);
+  assert.equal(urlPolicy.isTrustedJableVideoUrl('http://jable.tv/videos/sample/'), false);
+  assert.equal(
+    urlPolicy.canonicalJableVideoUrl('https://fs1.app/videos/sample?from=test#hash'),
+    'https://jable.tv/videos/sample/'
+  );
+  assert.equal(urlPolicy.canonicalJableVideoUrl('https://example.test/videos/sample/'), null);
+});
+
 test('classifies safe browser protocols', function () {
   assert.equal(urlPolicy.isSafeBrowserUrl('https://jable.tv/'), true);
   assert.equal(urlPolicy.isSafeBrowserUrl('http://example.test/'), true);

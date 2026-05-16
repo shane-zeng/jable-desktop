@@ -402,6 +402,7 @@
     "maxTabs": "最多只能開啟 {count} 個瀏覽器分頁",
     "tabNotFound": "找不到瀏覽器分頁",
     "unsupportedUrlProtocol": "只支援開啟 HTTP 或 HTTPS 網址",
+    "untrustedDownloadUrl": "只能下載 Jable 影片頁面",
     "lockedClose": "同步中的分頁不能關閉",
     "lockedNavigate": "同步中的分頁不能手動導航",
     "lockedReload": "同步中的分頁不能重新整理"
