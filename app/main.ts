@@ -378,13 +378,44 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function downloadErrorMessage(error: unknown): string {
+function sanitizedDownloadErrorDetail(error: unknown): string {
   let message = mainErrorMessage(error).replace(/https?:\/\/[^\s"'<>]+/g, '[remote URL]');
   const rootPath = getDownloadRoot().path;
   if (rootPath) {
     message = message.replace(new RegExp(escapeRegExp(rootPath), 'g'), '[download root]');
   }
   return message;
+}
+
+class DownloadHttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super('HTTP ' + status);
+    this.name = 'DownloadHttpError';
+    this.status = status;
+  }
+}
+
+class HlsPlaylistNotFoundError extends Error {
+  constructor() {
+    super('HLS playlist was not found');
+    this.name = 'HlsPlaylistNotFoundError';
+  }
+}
+
+class FfmpegDownloadError extends Error {
+  constructor(message: string) {
+    super(message || 'FFmpeg failed');
+    this.name = 'FfmpegDownloadError';
+  }
+}
+
+class DownloadFileSystemError extends Error {
+  constructor(error: unknown) {
+    super(mainErrorMessage(error));
+    this.name = 'DownloadFileSystemError';
+  }
 }
 
 class DownloadCanceledError extends Error {
@@ -404,6 +435,30 @@ function isDownloadCanceledError(error: unknown): boolean {
 
 function throwIfDownloadCanceled(videoUrl: string) {
   if (canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
+}
+
+function downloadFileSystemError(error: unknown) {
+  return new DownloadFileSystemError(error);
+}
+
+function isLikelyNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === 'TypeError' || /fetch|network|socket|timed out|ECONN|ENOTFOUND|EAI_AGAIN/i.test(error.message);
+}
+
+function downloadErrorMessage(error: unknown): string {
+  if (isDownloadCanceledError(error)) return t('status.downloadCanceled');
+  if (error instanceof DownloadHttpError) return t('status.downloadErrorVideoPageHttp', { status: error.status });
+  if (error instanceof HlsPlaylistNotFoundError) return t('status.downloadErrorPlaylistMissing');
+  if (error instanceof FfmpegDownloadError) {
+    return t('status.downloadErrorFfmpeg', { error: sanitizedDownloadErrorDetail(error) });
+  }
+  if (error instanceof DownloadFileSystemError) {
+    return t('status.downloadErrorFileSystem', { error: sanitizedDownloadErrorDetail(error) });
+  }
+  if (isLikelyNetworkError(error))
+    return t('status.downloadErrorNetwork', { error: sanitizedDownloadErrorDetail(error) });
+  return t('status.downloadErrorUnknown', { error: sanitizedDownloadErrorDetail(error) });
 }
 
 function normalizeBrowserNavigationUrl(value: unknown): string {
@@ -834,7 +889,7 @@ async function fetchVideoPageHtml(videoUrl: string): Promise<string> {
   if (cookieHeader) headers.cookie = cookieHeader;
 
   const response = await fetch(videoUrl, { headers: headers });
-  if (!response.ok) throw new Error('HTTP ' + response.status);
+  if (!response.ok) throw new DownloadHttpError(response.status);
   return response.text();
 }
 
@@ -902,7 +957,7 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
       });
       child.on('error', function (error) {
         if (activeDownloadProcess === child) activeDownloadProcess = null;
-        reject(error);
+        reject(new FfmpegDownloadError(mainErrorMessage(error)));
       });
       child.on('close', function (code) {
         if (activeDownloadProcess === child) activeDownloadProcess = null;
@@ -915,7 +970,7 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
 
         if (code !== 0) {
           removePartialDownloadFile(outputPath);
-          reject(new Error(stderr.trim() || 'FFmpeg exited with code ' + code));
+          reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
           return;
         }
 
@@ -924,7 +979,7 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
           fs.renameSync(tempPath, outputPath);
           resolve();
         } catch (error) {
-          reject(error);
+          reject(error instanceof DownloadCanceledError ? error : downloadFileSystemError(error));
         }
       });
     });
@@ -946,18 +1001,27 @@ async function runQueuedDownload(record: DownloadRecord) {
 
   try {
     throwIfDownloadCanceled(record.videoUrl);
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    try {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    } catch (error) {
+      throw downloadFileSystemError(error);
+    }
     const command = await ffmpegCommandForDownload();
     throwIfDownloadCanceled(record.videoUrl);
     const html = await fetchVideoPageHtml(record.videoUrl);
     throwIfDownloadCanceled(record.videoUrl);
     const playlistUrl = extractHlsPlaylistUrl(html, record.videoUrl);
-    if (!playlistUrl) throw new Error('HLS playlist was not found');
+    if (!playlistUrl) throw new HlsPlaylistNotFoundError();
     throwIfDownloadCanceled(record.videoUrl);
 
     await runFfmpegDownload(command, playlistUrl, record.videoUrl, outputPath);
     throwIfDownloadCanceled(record.videoUrl);
-    const stats = fs.statSync(outputPath);
+    let stats: NodeFs.Stats;
+    try {
+      stats = fs.statSync(outputPath);
+    } catch (error) {
+      throw downloadFileSystemError(error);
+    }
 
     store.upsert({
       videoUrl: record.videoUrl,
@@ -974,7 +1038,7 @@ async function runQueuedDownload(record: DownloadRecord) {
       videoUrl: record.videoUrl,
       state: 'failed',
       progress: null,
-      error: isDownloadCanceledError(error) ? t('status.downloadCanceled') : downloadErrorMessage(error)
+      error: downloadErrorMessage(error)
     });
     notifyDownloadsChanged();
   } finally {
