@@ -307,6 +307,28 @@ function handleBrowserMessage(message: BrowserMessage) {
   if (message.channel === 'sync-progress') {
     const progress = message.args[0] as SyncProgressPayload;
     if (activeSyncRunId && progress.syncRunId && progress.syncRunId !== activeSyncRunId) return;
+    if (progress.message === 'ajax-page-retry') {
+      setStatus(
+        i18n.t('status.syncAjaxRetry', {
+          page: progress.page,
+          attempt: progress.attempt || 1,
+          maxRetries: progress.maxRetries || 1,
+          delay: Math.round((progress.delayMs || 0) / 1000),
+          reason: progress.reason || i18n.t('status.unknownError')
+        }),
+        'warning'
+      );
+      return;
+    }
+    if (progress.message === 'ajax-window-fallback') {
+      setStatus(
+        i18n.t('status.syncAjaxFallback', {
+          reason: progress.reason || i18n.t('status.unknownError')
+        }),
+        'warning'
+      );
+      return;
+    }
     setStatus(i18n.t('status.syncProgress', { page: progress.page }));
   }
 
@@ -381,11 +403,23 @@ function resultStatus(
   const queuedFailures = result.queuedOperationsFailed || 0;
   const totalRows = typeof visibleRows === 'number' ? visibleRows : result.totalRows;
 
-  if (queuedFailures > 0) {
-    return i18n.t('status.syncQueuedOperationsFailed', {
-      collection: collection,
-      count: queuedFailures
+  function withAjaxFallback(status: string) {
+    if (!result.ajaxFallbackReason) return status;
+
+    return i18n.t('status.syncAjaxFallbackResult', {
+      status: status,
+      reason: result.ajaxFallbackReason,
+      retries: result.ajaxRetryCount || 0
     });
+  }
+
+  if (queuedFailures > 0) {
+    return withAjaxFallback(
+      i18n.t('status.syncQueuedOperationsFailed', {
+        collection: collection,
+        count: queuedFailures
+      })
+    );
   }
 
   if (result.completed === false) {
@@ -414,6 +448,15 @@ function resultStatus(
       });
     }
 
+    if (result.ajaxFallbackReason) {
+      return i18n.t('status.syncIncompleteAfterAjaxFallback', {
+        collection: collection,
+        mode: name,
+        reason: result.incompleteReason || i18n.t('status.unknownError'),
+        ajaxReason: result.ajaxFallbackReason
+      });
+    }
+
     return i18n.t('status.syncIncomplete', {
       collection: collection,
       mode: name,
@@ -422,21 +465,25 @@ function resultStatus(
   }
 
   if (mode === 'full') {
-    return i18n.t('status.fullSyncComplete', {
-      collection: collection,
-      rows: totalRows,
-      hidden: (finishState && finishState.hidden) || 0
-    });
+    return withAjaxFallback(
+      i18n.t('status.fullSyncComplete', {
+        collection: collection,
+        rows: totalRows,
+        hidden: (finishState && finishState.hidden) || 0
+      })
+    );
   }
 
   const reason = result.stoppedByKnownPage
     ? i18n.t('status.stoppedByKnownPage')
     : i18n.t('status.finishedVisiblePages');
-  return i18n.t('status.quickSyncComplete', {
-    collection: collection,
-    rows: totalRows,
-    reason: reason
-  });
+  return withAjaxFallback(
+    i18n.t('status.quickSyncComplete', {
+      collection: collection,
+      rows: totalRows,
+      reason: reason
+    })
+  );
 }
 
 async function syncCollection(mode: SyncMode) {
@@ -508,7 +555,7 @@ async function syncCollection(mode: SyncMode) {
 
     setStatus(
       resultStatus(collectionKey, mode, result, finishState, finalVisibleRows),
-      result.queuedOperationsFailed ? 'warning' : undefined,
+      result.queuedOperationsFailed || result.ajaxFallbackReason ? 'warning' : undefined,
       {
         sticky: result.completed === false
       }
