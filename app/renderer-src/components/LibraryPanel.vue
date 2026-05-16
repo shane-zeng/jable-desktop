@@ -4,11 +4,12 @@ import DownloadRecordCard from './DownloadRecordCard.vue';
 import PaginationControls from './PaginationControls.vue';
 import PendingRemoteOperationCard from './PendingRemoteOperationCard.vue';
 import VideoCard from './VideoCard.vue';
-import { DIRECTION_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import { DIRECTION_OPTIONS, DOWNLOAD_SORT_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
 import { t } from '../i18n';
 import type {
   CollectionKey,
   DownloadRecord,
+  DownloadSortKey,
   LibraryTabKey,
   LibraryVideoMenuPayload,
   PendingRemoteOperationGroup,
@@ -18,26 +19,36 @@ import type {
   VideoRow
 } from '../../types/jable';
 
-defineProps<{
-  active: boolean;
-  activeCollection: CollectionKey;
-  activeTab: LibraryTabKey;
-  busy: boolean;
-  ffmpegReady: boolean;
-  fullSyncLabel: string;
-  pendingCount: number;
-  pendingGroups: PendingRemoteOperationGroup[];
-  search: string;
-  searchMode: SearchMode;
-  sort: SortKey;
-  direction: SortDirection;
-  countLabel: string;
-  pageLabel: string;
-  downloads: DownloadRecord[];
-  rows: VideoRow[];
-  currentPage: number;
-  totalPages: number;
-}>();
+withDefaults(
+  defineProps<{
+    active: boolean;
+    activeCollection: CollectionKey;
+    activeTab: LibraryTabKey;
+    busy: boolean;
+    ffmpegReady: boolean;
+    fullSyncLabel: string;
+    pendingCount: number;
+    pendingGroups: PendingRemoteOperationGroup[];
+    search: string;
+    searchMode: SearchMode;
+    sort: SortKey;
+    direction: SortDirection;
+    downloadSearch?: string;
+    downloadSort?: DownloadSortKey;
+    downloadDirection?: SortDirection;
+    countLabel: string;
+    pageLabel: string;
+    downloads: DownloadRecord[];
+    rows: VideoRow[];
+    currentPage: number;
+    totalPages: number;
+  }>(),
+  {
+    downloadSearch: '',
+    downloadSort: 'updated_at',
+    downloadDirection: 'desc'
+  }
+);
 
 const emit = defineEmits<{
   'select-tab': [tabKey: string];
@@ -47,6 +58,9 @@ const emit = defineEmits<{
   'update:search-mode': [value: SearchMode];
   'update:sort': [value: SortKey];
   'update:direction': [value: SortDirection];
+  'update:download-search': [value: string];
+  'update:download-sort': [value: DownloadSortKey];
+  'update:download-direction': [value: SortDirection];
   'prev-page': [];
   'next-page': [];
   'go-page': [page: number];
@@ -78,6 +92,14 @@ function updateSort(event: Event) {
 
 function updateDirection(event: Event) {
   emit('update:direction', inputValue(event) as SortDirection);
+}
+
+function updateDownloadSort(event: Event) {
+  emit('update:download-sort', inputValue(event) as DownloadSortKey);
+}
+
+function updateDownloadDirection(event: Event) {
+  emit('update:download-direction', inputValue(event) as SortDirection);
 }
 </script>
 
@@ -134,6 +156,33 @@ function updateDirection(event: Event) {
         </option>
       </select>
       <select :aria-label="t('library.sortDirection')" :value="direction" @change="updateDirection">
+        <option v-for="option in DIRECTION_OPTIONS" :key="option.value" :value="option.value">
+          {{ t('options.direction.' + option.value) }}
+        </option>
+      </select>
+    </div>
+
+    <div
+      v-if="activeTab === 'downloads' && ffmpegReady"
+      class="grid grid-cols-[minmax(220px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      data-test="download-filters"
+    >
+      <input
+        type="search"
+        :placeholder="t('downloadList.searchPlaceholder')"
+        :value="downloadSearch"
+        @input="emit('update:download-search', inputValue($event))"
+      />
+      <select :aria-label="t('downloadList.sort')" :value="downloadSort" @change="updateDownloadSort">
+        <option v-for="option in DOWNLOAD_SORT_OPTIONS" :key="option.value" :value="option.value">
+          {{ t('options.downloadSort.' + option.value) }}
+        </option>
+      </select>
+      <select
+        :aria-label="t('downloadList.sortDirection')"
+        :value="downloadDirection"
+        @change="updateDownloadDirection"
+      >
         <option v-for="option in DIRECTION_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.direction.' + option.value) }}
         </option>

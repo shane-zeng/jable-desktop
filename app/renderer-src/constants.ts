@@ -1,4 +1,11 @@
-import type { CollectionDefinition, CollectionKey, SearchMode, SortDirection, SortKey } from '../types/jable';
+import type {
+  CollectionDefinition,
+  CollectionKey,
+  DownloadSortKey,
+  SearchMode,
+  SortDirection,
+  SortKey
+} from '../types/jable';
 import { DEFAULT_APP_SETTINGS, MAX_BROWSER_TABS_WARNING_THRESHOLD, PAGE_SIZE } from '../app-contract';
 import { JABLE_PRIMARY_ORIGIN, jableCollectionUrl } from '../url-policy';
 
@@ -35,3 +42,10 @@ export const SORT_OPTIONS: ValueOption<SortKey>[] = [
 export const SEARCH_MODE_OPTIONS: ValueOption<SearchMode>[] = [{ value: 'any' }, { value: 'all' }, { value: 'phrase' }];
 
 export const DIRECTION_OPTIONS: ValueOption<SortDirection>[] = [{ value: 'asc' }, { value: 'desc' }];
+
+export const DOWNLOAD_SORT_OPTIONS: ValueOption<DownloadSortKey>[] = [
+  { value: 'updated_at' },
+  { value: 'title' },
+  { value: 'state' },
+  { value: 'file_size' }
+];

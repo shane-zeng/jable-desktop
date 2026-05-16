@@ -7,6 +7,7 @@ export type BrowserTabKind = 'normal' | 'sync';
 export type AppView = 'browser' | 'library' | 'settings';
 export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 export type LibraryTabKey = CollectionKey | 'downloads' | 'pending_remote';
+export type DownloadSortKey = 'updated_at' | 'title' | 'state' | 'file_size';
 export type CollectionAction = 'add' | 'remove';
 export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
 export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsupported';

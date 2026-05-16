@@ -304,6 +304,10 @@ describe('LibraryPanel', function () {
     });
 
     expect(empty.get('[data-test="download-list-empty"]').text()).toBe('目前沒有下載項目');
+    expect(empty.get('[data-test="download-filters"]').text()).toContain('更新時間');
+    expect(empty.find('[data-test="download-filters"] input[type="search"]').attributes('placeholder')).toBe(
+      '搜尋下載標題或 URL'
+    );
   });
 
   it('renders download records and emits ready file open actions', async function () {

@@ -19,6 +19,12 @@
       "views": "觀看數",
       "likes": "喜歡數"
     },
+    "downloadSort": {
+      "updated_at": "更新時間",
+      "title": "標題",
+      "state": "狀態",
+      "file_size": "檔案大小"
+    },
     "searchMode": {
       "any": "任一詞",
       "all": "全部詞",
@@ -96,6 +102,9 @@
     "setupRequired": "需要安裝 FFmpeg",
     "empty": "目前沒有下載項目",
     "unknownCollection": "未知清單",
+    "searchPlaceholder": "搜尋下載標題或 URL",
+    "sort": "下載排序",
+    "sortDirection": "下載排序方向",
     "openPage": "開啟頁面",
     "retry": "重試",
     "cancel": "取消",

@@ -4,7 +4,7 @@ import { effectScope, nextTick } from 'vue';
 import { PAGE_SIZE } from '@/constants';
 import { setLocale } from '@/i18n';
 import { useLibraryState } from '@/composables/useLibraryState';
-import type { JableAppApi, ListVideosOptions, SortKey, VideoRow } from '../../../app/types/jable';
+import type { DownloadRecord, JableAppApi, ListVideosOptions, SortKey, VideoRow } from '../../../app/types/jable';
 
 function makeRows(count: number): VideoRow[] {
   return Array.from({ length: count }, function (_, index) {
@@ -192,6 +192,64 @@ describe('useLibraryState', function () {
       expect(setup.state.countLabel.value).toBe('0 筆下載');
       expect(api.countVideos).not.toHaveBeenCalled();
       expect(api.listVideos).not.toHaveBeenCalled();
+      expect(api.listDownloads).toHaveBeenCalledTimes(1);
+    } finally {
+      setup.stop();
+    }
+  });
+
+  it('filters and sorts download records locally', async function () {
+    const downloads: DownloadRecord[] = [
+      {
+        videoUrl: 'https://jable.tv/videos/beta/',
+        collectionKey: 'favourites',
+        title: 'Beta Video',
+        img: null,
+        localPath: '/tmp/beta.mp4',
+        state: 'ready',
+        progress: null,
+        fileSizeBytes: 2048,
+        error: null,
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:02.000Z',
+        completedAt: '2026-05-16T00:00:02.000Z'
+      },
+      {
+        videoUrl: 'https://jable.tv/videos/alpha/',
+        collectionKey: 'watch_later',
+        title: 'Alpha Video',
+        img: null,
+        localPath: '/tmp/alpha.mp4',
+        state: 'failed',
+        progress: null,
+        fileSizeBytes: null,
+        error: 'HTTP 403',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:01.000Z',
+        completedAt: null
+      }
+    ];
+    const api = createPagedApi([]);
+    api.listDownloads.mockResolvedValue(downloads);
+    const setup = createState(api);
+
+    try {
+      await setup.state.selectTab('downloads');
+
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Beta Video', 'Alpha Video']);
+      expect(setup.state.countLabel.value).toBe('2 筆下載');
+
+      setup.state.downloadSearch.value = 'alpha';
+      await nextTick();
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Alpha Video']);
+      expect(setup.state.countLabel.value).toBe('1 筆下載');
+
+      setup.state.downloadSearch.value = '';
+      setup.state.downloadSort.value = 'file_size';
+      setup.state.downloadDirection.value = 'asc';
+      await nextTick();
+
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Alpha Video', 'Beta Video']);
       expect(api.listDownloads).toHaveBeenCalledTimes(1);
     } finally {
       setup.stop();

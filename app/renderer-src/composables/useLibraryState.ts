@@ -1,8 +1,9 @@
 import { computed, ref, watch } from 'vue';
-import { COLLECTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import { COLLECTIONS, DOWNLOAD_SORT_OPTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
 import { t } from '../i18n';
 import type {
   CollectionKey,
+  DownloadSortKey,
   DownloadRecord,
   FullSyncContinuation,
   JableAppApi,
@@ -23,6 +24,10 @@ const DEFAULT_SEARCH_MODE: SearchMode = 'any';
 const SEARCH_MODE_VALUES = SEARCH_MODE_OPTIONS.map(function (option) {
   return option.value;
 });
+const DEFAULT_DOWNLOAD_SORT: DownloadSortKey = 'updated_at';
+const DOWNLOAD_SORT_VALUES = DOWNLOAD_SORT_OPTIONS.map(function (option) {
+  return option.value;
+});
 
 function normalizeSort(value: string): SortKey {
   return SORT_VALUES.indexOf(value as SortKey) === -1 ? DEFAULT_SORT : (value as SortKey);
@@ -32,8 +37,44 @@ function normalizeSearchMode(value: string): SearchMode {
   return SEARCH_MODE_VALUES.indexOf(value as SearchMode) === -1 ? DEFAULT_SEARCH_MODE : (value as SearchMode);
 }
 
+function normalizeDownloadSort(value: string): DownloadSortKey {
+  return DOWNLOAD_SORT_VALUES.indexOf(value as DownloadSortKey) === -1
+    ? DEFAULT_DOWNLOAD_SORT
+    : (value as DownloadSortKey);
+}
+
 function isCollectionKey(value: string): value is CollectionKey {
   return Object.prototype.hasOwnProperty.call(COLLECTIONS, value);
+}
+
+function searchableDownloadText(record: DownloadRecord): string {
+  return [record.title, record.videoUrl, record.localPath, record.collectionKey, record.state]
+    .filter(function (value) {
+      return typeof value === 'string' && value;
+    })
+    .join(' ')
+    .toLowerCase();
+}
+
+function downloadSortValue(record: DownloadRecord, sortKey: DownloadSortKey): string | number {
+  if (sortKey === 'title') return (record.title || record.videoUrl).toLowerCase();
+  if (sortKey === 'state') return record.state;
+  if (sortKey === 'file_size') return record.fileSizeBytes ?? -1;
+  return record.updatedAt;
+}
+
+function compareDownloadRecords(
+  a: DownloadRecord,
+  b: DownloadRecord,
+  sortKey: DownloadSortKey,
+  direction: SortDirection
+) {
+  const left = downloadSortValue(a, sortKey);
+  const right = downloadSortValue(b, sortKey);
+  const multiplier = direction === 'desc' ? -1 : 1;
+
+  if (typeof left === 'number' && typeof right === 'number') return (left - right) * multiplier;
+  return String(left).localeCompare(String(right)) * multiplier;
 }
 
 export function useLibraryState(api: JableAppApi) {
@@ -41,13 +82,16 @@ export function useLibraryState(api: JableAppApi) {
   const activeCollection = ref<CollectionKey>('favourites');
   const currentPage = ref(1);
   const rows = ref<VideoRow[]>([]);
-  const downloads = ref<DownloadRecord[]>([]);
+  const downloadRecords = ref<DownloadRecord[]>([]);
   const pendingGroups = ref<PendingRemoteOperationGroup[]>([]);
   const totalRows = ref(0);
   const search = ref('');
   const searchMode = ref<SearchMode>('any');
   const sort = ref<SortKey>('site_order');
   const direction = ref<SortDirection>('asc');
+  const downloadSearch = ref('');
+  const downloadSort = ref<DownloadSortKey>('updated_at');
+  const downloadDirection = ref<SortDirection>('desc');
   const fullSyncContinuation = ref<FullSyncContinuation | null>(null);
   let refreshToken = 0;
 
@@ -70,6 +114,20 @@ export function useLibraryState(api: JableAppApi) {
 
   const pageRows = computed(function () {
     return rows.value;
+  });
+
+  const downloads = computed(function () {
+    const query = downloadSearch.value.trim().toLowerCase();
+    const safeSort = normalizeDownloadSort(downloadSort.value);
+
+    return downloadRecords.value
+      .filter(function (record) {
+        return !query || searchableDownloadText(record).indexOf(query) !== -1;
+      })
+      .slice()
+      .sort(function (a, b) {
+        return compareDownloadRecords(a, b, safeSort, downloadDirection.value);
+      });
   });
 
   const countLabel = computed(function () {
@@ -110,7 +168,7 @@ export function useLibraryState(api: JableAppApi) {
 
       if (token !== refreshToken) return;
 
-      downloads.value = Array.isArray(records) ? records : [];
+      downloadRecords.value = Array.isArray(records) ? records : [];
       rows.value = [];
       totalRows.value = downloads.value.length;
       currentPage.value = 1;
@@ -197,6 +255,13 @@ export function useLibraryState(api: JableAppApi) {
     refreshVideos();
   });
 
+  watch([downloadSearch, downloadSort, downloadDirection], function () {
+    if (!isDownloadsTab.value) return;
+    const safeSort = normalizeDownloadSort(downloadSort.value);
+    if (safeSort !== downloadSort.value) downloadSort.value = safeSort;
+    currentPage.value = 1;
+  });
+
   return {
     activeTab: activeTab,
     activeCollection: activeCollection,
@@ -206,6 +271,9 @@ export function useLibraryState(api: JableAppApi) {
     currentPage: currentPage,
     rows: rows,
     downloads: downloads,
+    downloadSearch: downloadSearch,
+    downloadSort: downloadSort,
+    downloadDirection: downloadDirection,
     pendingGroups: pendingGroups,
     totalRows: totalRows,
     pendingCount: computed(function () {

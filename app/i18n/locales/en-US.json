@@ -19,6 +19,12 @@
       "views": "Views",
       "likes": "Likes"
     },
+    "downloadSort": {
+      "updated_at": "Updated",
+      "title": "Title",
+      "state": "State",
+      "file_size": "File Size"
+    },
     "searchMode": {
       "any": "Any Word",
       "all": "All Words",
@@ -96,6 +102,9 @@
     "setupRequired": "FFmpeg is required",
     "empty": "No downloads yet",
     "unknownCollection": "Unknown list",
+    "searchPlaceholder": "Search download title or URL",
+    "sort": "Download Sort",
+    "sortDirection": "Download Sort Direction",
     "openPage": "Open Page",
     "retry": "Retry",
     "cancel": "Cancel",
