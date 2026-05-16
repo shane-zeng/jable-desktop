@@ -36,6 +36,21 @@ const jableApp: JableAppApi = {
   clearFfmpegPath: function () {
     return ipcRenderer.invoke('app:clear-ffmpeg-path');
   },
+  getDownloadRoot: function () {
+    return ipcRenderer.invoke('app:get-download-root');
+  },
+  chooseDownloadRoot: function () {
+    return ipcRenderer.invoke('app:choose-download-root');
+  },
+  setDownloadRoot: function (filePath) {
+    return ipcRenderer.invoke('app:set-download-root', filePath);
+  },
+  clearDownloadRoot: function () {
+    return ipcRenderer.invoke('app:clear-download-root');
+  },
+  openDownloadRoot: function () {
+    return ipcRenderer.invoke('app:open-download-root');
+  },
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
   },

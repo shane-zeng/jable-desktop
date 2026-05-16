@@ -19,6 +19,8 @@ import type {
   CollectionAction,
   CollectionKey,
   CreateBrowserTabPayload,
+  DownloadRootInfo,
+  DownloadRootSelectionResult,
   ExportJsonFileResult,
   ExportResource,
   FfmpegPathSelectionResult,
@@ -539,6 +541,70 @@ async function chooseFfmpegPath(): Promise<FfmpegPathSelectionResult> {
   }
 
   return setFfmpegPath(result.filePaths[0]);
+}
+
+function defaultDownloadRootPath(): string {
+  return path.join(app.getPath('userData'), 'downloads');
+}
+
+function getDownloadRoot(): DownloadRootInfo {
+  const manualRoot = getAppSettings().downloadRoot;
+  const rootPath = manualRoot ? path.resolve(manualRoot) : defaultDownloadRootPath();
+  let exists = false;
+
+  try {
+    exists = fs.statSync(rootPath).isDirectory();
+  } catch (error) {
+    exists = false;
+  }
+
+  return {
+    source: manualRoot ? 'manual' : 'default',
+    path: rootPath,
+    exists: exists
+  };
+}
+
+function setDownloadRoot(value: unknown): DownloadRootInfo {
+  const rootPath = typeof value === 'string' && value.trim() ? path.resolve(value.trim()) : null;
+  updateAppSettings({ downloadRoot: rootPath });
+  return getDownloadRoot();
+}
+
+function clearDownloadRoot(): DownloadRootInfo {
+  updateAppSettings({ downloadRoot: null });
+  return getDownloadRoot();
+}
+
+async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
+  const dialogOptions = {
+    title: t('dialog.chooseDownloadRoot'),
+    defaultPath: getDownloadRoot().path,
+    properties: ['openDirectory', 'createDirectory'] as Electron.OpenDialogOptions['properties']
+  };
+  const result =
+    mainWindow && !mainWindow.isDestroyed()
+      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || !result.filePaths.length) {
+    return Object.assign(getDownloadRoot(), { canceled: true });
+  }
+
+  return setDownloadRoot(result.filePaths[0]);
+}
+
+function openDownloadRoot(): Promise<{ opened: boolean; path: string }> {
+  const root = getDownloadRoot();
+  fs.mkdirSync(root.path, { recursive: true });
+
+  return shell.openPath(root.path).then(function (errorMessage: string) {
+    if (errorMessage) throw new Error(errorMessage);
+    return {
+      opened: true,
+      path: root.path
+    };
+  });
 }
 
 function getDatabase(): DataEngineInstance {
@@ -2570,6 +2636,26 @@ function registerIpcHandlers() {
 
   ipcMain.handle('app:clear-ffmpeg-path', function () {
     return clearFfmpegPath();
+  });
+
+  ipcMain.handle('app:get-download-root', function () {
+    return getDownloadRoot();
+  });
+
+  ipcMain.handle('app:choose-download-root', function () {
+    return chooseDownloadRoot();
+  });
+
+  ipcMain.handle('app:set-download-root', function (_event, filePath) {
+    return setDownloadRoot(filePath);
+  });
+
+  ipcMain.handle('app:clear-download-root', function () {
+    return clearDownloadRoot();
+  });
+
+  ipcMain.handle('app:open-download-root', function () {
+    return openDownloadRoot();
   });
 
   ipcMain.handle('app:open-local-data-folder', function () {

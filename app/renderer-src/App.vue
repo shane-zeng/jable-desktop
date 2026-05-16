@@ -31,6 +31,7 @@ import type {
   BrowserTabsState,
   CollectionKey,
   CollectionToggleResult,
+  DownloadRootInfo,
   ExportResource,
   FfmpegStatus,
   LibraryVideoMenuAction,
@@ -54,6 +55,7 @@ const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
 const appSettings = ref<AppSettings>(Object.assign({}, DEFAULT_APP_SETTINGS));
 const ffmpegStatus = ref<FfmpegStatus | null>(null);
+const downloadRoot = ref<DownloadRootInfo | null>(null);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
@@ -462,6 +464,47 @@ async function clearFfmpegPath() {
   }
 }
 
+async function chooseDownloadRoot() {
+  try {
+    const result = await api.chooseDownloadRoot();
+    downloadRoot.value = result;
+    if (result.canceled) return;
+    applyAppSettings(await api.getSettings());
+    setStatus(i18n.t('status.downloadRootSelected', { path: result.path }), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadRootSelectFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function clearDownloadRoot() {
+  try {
+    downloadRoot.value = await api.clearDownloadRoot();
+    applyAppSettings(await api.getSettings());
+    setStatus(i18n.t('status.downloadRootDefault', { path: downloadRoot.value.path }), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadRootClearFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function openDownloadRoot() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    const result = await api.openDownloadRoot();
+    downloadRoot.value = await api.getDownloadRoot();
+    setStatus(i18n.t('status.downloadRootOpened', { path: result.path }), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadRootOpenFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function openLocalDataFolder() {
   if (busy.value || syncing.value) return;
 
@@ -513,6 +556,7 @@ onMounted(async function () {
   appInfo.value = await api.getAppInfo();
   applyAppSettings(await api.getSettings());
   ffmpegStatus.value = await api.getFfmpegStatus();
+  downloadRoot.value = await api.getDownloadRoot();
   const legacyCompact = loadLegacyBrowserTabsCompact();
   if (legacyCompact !== null) {
     applyAppSettings(await api.updateSettings({ compactBrowserTabs: legacyCompact }));
@@ -627,6 +671,7 @@ onMounted(async function () {
         :busy="busy || syncing"
         :settings="appSettings"
         :ffmpeg-status="ffmpegStatus"
+        :download-root="downloadRoot"
         :database-path="appInfo && appInfo.databasePath"
         @update-settings="updateAppSettings"
         @change-locale="changeLocale"
@@ -634,6 +679,9 @@ onMounted(async function () {
         @refresh-ffmpeg="refreshFfmpegStatus"
         @choose-ffmpeg="chooseFfmpegPath"
         @clear-ffmpeg="clearFfmpegPath"
+        @choose-download-root="chooseDownloadRoot"
+        @clear-download-root="clearDownloadRoot"
+        @open-download-root="openDownloadRoot"
         @open-data-folder="openLocalDataFolder"
         @check-updates="checkForUpdates"
         @import-json="importJsonToCollection"

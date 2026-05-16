@@ -9,7 +9,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   compactBrowserTabs: false,
   fullSyncAjaxWindowSize: 3,
   autoReplayDeferredSyncOperations: false,
-  ffmpegPath: null
+  ffmpegPath: null,
+  downloadRoot: null
 };
 
 export const MAX_BROWSER_TABS_LIMITS = {

@@ -157,6 +157,17 @@
           "invalid_path": "Invalid path",
           "unsupported": "Unavailable"
         }
+      },
+      "root": {
+        "label": "Download Location",
+        "description": "Downloaded files are saved in this folder.",
+        "missingHint": "The folder has not been created yet.",
+        "chooseFolder": "Choose Folder",
+        "useDefault": "Use Default",
+        "openFolder": "Open Folder",
+        "pathUnavailable": "Download location has not been configured",
+        "sourceManual": "Manual folder",
+        "sourceDefault": "Default location"
       }
     },
     "data": {
@@ -241,6 +252,12 @@
     "ffmpegCheckFailed": "FFmpeg check failed: {error}",
     "ffmpegPathSelectFailed": "Failed to choose FFmpeg: {error}",
     "ffmpegPathClearFailed": "Failed to clear FFmpeg path: {error}",
+    "downloadRootSelected": "Download location updated: {path}",
+    "downloadRootDefault": "Using default download location: {path}",
+    "downloadRootOpened": "Opened the download folder",
+    "downloadRootSelectFailed": "Failed to choose download location: {error}",
+    "downloadRootClearFailed": "Failed to reset download location: {error}",
+    "downloadRootOpenFailed": "Failed to open download folder: {error}",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "checkingUpdates": "Checking for updates...",
@@ -312,7 +329,8 @@
   },
   "dialog": {
     "exportJson": "Export JSON",
-    "chooseFfmpeg": "Choose FFmpeg Binary"
+    "chooseFfmpeg": "Choose FFmpeg Binary",
+    "chooseDownloadRoot": "Choose Download Folder"
   },
   "errors": {
     "maxTabs": "You can open at most {count} browser tabs",

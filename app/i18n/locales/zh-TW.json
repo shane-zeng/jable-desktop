@@ -157,6 +157,17 @@
           "invalid_path": "路徑無效",
           "unsupported": "無法使用"
         }
+      },
+      "root": {
+        "label": "下載位置",
+        "description": "下載檔案會儲存在這個資料夾。",
+        "missingHint": "資料夾尚未建立。",
+        "chooseFolder": "選擇資料夾",
+        "useDefault": "使用預設",
+        "openFolder": "開啟資料夾",
+        "pathUnavailable": "尚未設定下載位置",
+        "sourceManual": "手動指定",
+        "sourceDefault": "預設位置"
       }
     },
     "data": {
@@ -241,6 +252,12 @@
     "ffmpegCheckFailed": "檢查 FFmpeg 失敗：{error}",
     "ffmpegPathSelectFailed": "選擇 FFmpeg 失敗：{error}",
     "ffmpegPathClearFailed": "清除 FFmpeg 路徑失敗：{error}",
+    "downloadRootSelected": "下載位置已更新：{path}",
+    "downloadRootDefault": "已使用預設下載位置：{path}",
+    "downloadRootOpened": "已開啟下載資料夾",
+    "downloadRootSelectFailed": "選擇下載位置失敗：{error}",
+    "downloadRootClearFailed": "重設下載位置失敗：{error}",
+    "downloadRootOpenFailed": "開啟下載資料夾失敗：{error}",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
     "checkingUpdates": "正在檢查更新…",
@@ -312,7 +329,8 @@
   },
   "dialog": {
     "exportJson": "匯出 JSON",
-    "chooseFfmpeg": "選擇 FFmpeg 執行檔"
+    "chooseFfmpeg": "選擇 FFmpeg 執行檔",
+    "chooseDownloadRoot": "選擇下載資料夾"
   },
   "errors": {
     "maxTabs": "最多只能開啟 {count} 個瀏覽器分頁",

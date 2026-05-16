@@ -9,7 +9,8 @@ const settings: AppSettings = {
   compactBrowserTabs: true,
   fullSyncAjaxWindowSize: 5,
   autoReplayDeferredSyncOperations: false,
-  ffmpegPath: null
+  ffmpegPath: null,
+  downloadRoot: null
 };
 
 function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | null = '/tmp/jable-favourites.sqlite') {
@@ -24,6 +25,11 @@ function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | nul
         path: null,
         version: null,
         error: null
+      },
+      downloadRoot: {
+        source: 'default',
+        path: '/tmp/jable-downloads',
+        exists: false
       },
       settings: Object.assign({}, settings, overrides || {})
     }
@@ -55,6 +61,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('瀏覽器');
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('下載');
+    expect(wrapper.text()).toContain('下載位置');
     expect(wrapper.text()).toContain('資料');
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
@@ -72,6 +79,12 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-ffmpeg-refresh"]').trigger('click');
     expect(wrapper.emitted('refresh-ffmpeg')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-download-root-choose"]').trigger('click');
+    expect(wrapper.emitted('choose-download-root')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-download-root-open"]').trigger('click');
+    expect(wrapper.emitted('open-download-root')).toEqual([[]]);
 
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);

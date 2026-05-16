@@ -46,7 +46,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS.max
     ),
     autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations),
-    ffmpegPath: normalizeNullableString(record.ffmpegPath)
+    ffmpegPath: normalizeNullableString(record.ffmpegPath),
+    downloadRoot: normalizeNullableString(record.downloadRoot)
   };
 }
 
@@ -79,6 +80,9 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   }
   if (Object.prototype.hasOwnProperty.call(value, 'ffmpegPath')) {
     patch.ffmpegPath = normalizeNullableString(value.ffmpegPath);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'downloadRoot')) {
+    patch.downloadRoot = normalizeNullableString(value.downloadRoot);
   }
 
   return patch;

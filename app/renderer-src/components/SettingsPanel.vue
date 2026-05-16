@@ -6,6 +6,7 @@ import type {
   AppSettings,
   AppSettingsPatch,
   CollectionKey,
+  DownloadRootInfo,
   ExportResource,
   FfmpegStatus,
   SupportedLocale
@@ -22,6 +23,7 @@ const props = defineProps<{
   busy: boolean;
   settings: AppSettings;
   ffmpegStatus: FfmpegStatus | null;
+  downloadRoot: DownloadRootInfo | null;
   databasePath: string | null;
 }>();
 
@@ -32,6 +34,9 @@ const emit = defineEmits<{
   'refresh-ffmpeg': [];
   'choose-ffmpeg': [];
   'clear-ffmpeg': [];
+  'choose-download-root': [];
+  'clear-download-root': [];
+  'open-download-root': [];
   'open-data-folder': [];
   'check-updates': [];
   'import-json': [payload: { collectionKey: CollectionKey; resource: ExportResource }];
@@ -85,6 +90,17 @@ const ffmpegSourceLabel = computed(function () {
 
 const ffmpegStatusClass = computed(function () {
   return props.ffmpegStatus && props.ffmpegStatus.state === 'detected' ? 'text-[#78d17f]' : 'text-[#f2b35d]';
+});
+
+const downloadRootPath = computed(function () {
+  if (props.downloadRoot && props.downloadRoot.path) return props.downloadRoot.path;
+  if (props.settings.downloadRoot) return props.settings.downloadRoot;
+  return t('settings.downloads.root.pathUnavailable');
+});
+
+const downloadRootSourceLabel = computed(function () {
+  if (props.downloadRoot && props.downloadRoot.source === 'manual') return t('settings.downloads.root.sourceManual');
+  return t('settings.downloads.root.sourceDefault');
 });
 
 function eventValue(event: Event) {
@@ -394,6 +410,56 @@ function confirmImport() {
                   @click="emit('clear-ffmpeg')"
                 >
                   {{ t('settings.downloads.ffmpeg.usePath') }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
+            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.root.label') }}</span>
+            <div class="grid gap-2">
+              <div class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="font-semibold text-[var(--text)]">{{ downloadRootSourceLabel }}</span>
+              </div>
+              <code
+                class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]"
+                data-test="settings-download-root-path"
+              >
+                {{ downloadRootPath }}
+              </code>
+              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+                {{ t('settings.downloads.root.description') }}
+              </p>
+              <p
+                v-if="downloadRoot && !downloadRoot.exists"
+                class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]"
+              >
+                {{ t('settings.downloads.root.missingHint') }}
+              </p>
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-test="settings-download-root-choose"
+                  :disabled="busy"
+                  @click="emit('choose-download-root')"
+                >
+                  {{ t('settings.downloads.root.chooseFolder') }}
+                </button>
+                <button
+                  type="button"
+                  data-test="settings-download-root-clear"
+                  :disabled="busy || !settings.downloadRoot"
+                  @click="emit('clear-download-root')"
+                >
+                  {{ t('settings.downloads.root.useDefault') }}
+                </button>
+                <button
+                  type="button"
+                  data-test="settings-download-root-open"
+                  :disabled="busy"
+                  @click="emit('open-download-root')"
+                >
+                  {{ t('settings.downloads.root.openFolder') }}
                 </button>
               </div>
             </div>

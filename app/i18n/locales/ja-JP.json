@@ -157,6 +157,17 @@
           "invalid_path": "無効なパス",
           "unsupported": "使用不可"
         }
+      },
+      "root": {
+        "label": "ダウンロード先",
+        "description": "ダウンロードしたファイルはこのフォルダーに保存されます。",
+        "missingHint": "フォルダーはまだ作成されていません。",
+        "chooseFolder": "フォルダーを選択",
+        "useDefault": "デフォルトを使用",
+        "openFolder": "フォルダーを開く",
+        "pathUnavailable": "ダウンロード先はまだ設定されていません",
+        "sourceManual": "手動指定",
+        "sourceDefault": "デフォルトの場所"
       }
     },
     "data": {
@@ -241,6 +252,12 @@
     "ffmpegCheckFailed": "FFmpeg の確認に失敗しました: {error}",
     "ffmpegPathSelectFailed": "FFmpeg の選択に失敗しました: {error}",
     "ffmpegPathClearFailed": "FFmpeg パスのクリアに失敗しました: {error}",
+    "downloadRootSelected": "ダウンロード先を更新しました: {path}",
+    "downloadRootDefault": "デフォルトのダウンロード先を使用します: {path}",
+    "downloadRootOpened": "ダウンロードフォルダーを開きました",
+    "downloadRootSelectFailed": "ダウンロード先の選択に失敗しました: {error}",
+    "downloadRootClearFailed": "ダウンロード先をリセットできませんでした: {error}",
+    "downloadRootOpenFailed": "ダウンロードフォルダーを開けませんでした: {error}",
     "localDataFolderOpened": "ローカルデータフォルダーを開きました",
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
     "checkingUpdates": "更新を確認しています...",
@@ -312,7 +329,8 @@
   },
   "dialog": {
     "exportJson": "Export JSON",
-    "chooseFfmpeg": "FFmpeg 実行ファイルを選択"
+    "chooseFfmpeg": "FFmpeg 実行ファイルを選択",
+    "chooseDownloadRoot": "ダウンロードフォルダーを選択"
   },
   "errors": {
     "maxTabs": "最大 {count} 個までブラウザータブを開けます",

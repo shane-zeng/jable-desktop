@@ -21,7 +21,8 @@ test('app settings store returns defaults and persists updates', function () {
     compactBrowserTabs: false,
     fullSyncAjaxWindowSize: 3,
     autoReplayDeferredSyncOperations: false,
-    ffmpegPath: null
+    ffmpegPath: null,
+    downloadRoot: null
   });
 
   assert.deepEqual(
@@ -30,14 +31,16 @@ test('app settings store returns defaults and persists updates', function () {
       compactBrowserTabs: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
-      ffmpegPath: '/usr/local/bin/ffmpeg'
+      ffmpegPath: '/usr/local/bin/ffmpeg',
+      downloadRoot: '/Users/example/Jable Downloads'
     }),
     {
       maxBrowserTabs: 22,
       compactBrowserTabs: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
-      ffmpegPath: '/usr/local/bin/ffmpeg'
+      ffmpegPath: '/usr/local/bin/ffmpeg',
+      downloadRoot: '/Users/example/Jable Downloads'
     }
   );
 
@@ -47,6 +50,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().fullSyncAjaxWindowSize, 5);
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
+  assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
 });
 
 test('app settings patch clamps user-facing limits', function () {
@@ -80,5 +84,15 @@ test('app settings normalize optional ffmpeg path', function () {
 
   assert.deepEqual(settings.normalizeAppSettingsPatch({ ffmpegPath: '' }), {
     ffmpegPath: null
+  });
+});
+
+test('app settings normalize optional download root', function () {
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadRoot: '  /Users/example/Jable Downloads  ' }), {
+    downloadRoot: '/Users/example/Jable Downloads'
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadRoot: '' }), {
+    downloadRoot: null
   });
 });

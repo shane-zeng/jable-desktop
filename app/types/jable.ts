@@ -11,6 +11,7 @@ export type CollectionAction = 'add' | 'remove';
 export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
 export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsupported';
 export type FfmpegStatusSource = 'path' | 'manual' | null;
+export type DownloadRootSource = 'default' | 'manual';
 
 export interface CollectionDefinition {
   url: string;
@@ -124,6 +125,7 @@ export interface AppSettings {
   fullSyncAjaxWindowSize: number;
   autoReplayDeferredSyncOperations: boolean;
   ffmpegPath: string | null;
+  downloadRoot: string | null;
 }
 
 export type AppSettingsPatch = Partial<AppSettings>;
@@ -137,6 +139,16 @@ export interface FfmpegStatus {
 }
 
 export interface FfmpegPathSelectionResult extends FfmpegStatus {
+  canceled?: boolean;
+}
+
+export interface DownloadRootInfo {
+  source: DownloadRootSource;
+  path: string;
+  exists: boolean;
+}
+
+export interface DownloadRootSelectionResult extends DownloadRootInfo {
   canceled?: boolean;
 }
 
@@ -398,6 +410,11 @@ export interface JableAppApi {
   chooseFfmpegPath(): Promise<FfmpegPathSelectionResult>;
   setFfmpegPath(filePath: string | null): Promise<FfmpegStatus>;
   clearFfmpegPath(): Promise<FfmpegStatus>;
+  getDownloadRoot(): Promise<DownloadRootInfo>;
+  chooseDownloadRoot(): Promise<DownloadRootSelectionResult>;
+  setDownloadRoot(filePath: string | null): Promise<DownloadRootInfo>;
+  clearDownloadRoot(): Promise<DownloadRootInfo>;
+  openDownloadRoot(): Promise<OpenLocalDataFolderResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;
