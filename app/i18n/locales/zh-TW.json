@@ -111,6 +111,8 @@
     "reveal": "顯示位置",
     "delete": "刪除",
     "fileSize": "檔案大小：{size}",
+    "completedAt": "完成時間：{time}",
+    "updatedAt": "更新時間：{time}",
     "error": "錯誤：{error}",
     "state": {
       "queued": "等待中",

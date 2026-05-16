@@ -42,6 +42,29 @@ function fileSizeLabel(record: DownloadRecord) {
     unitIndex === 0 || Number.isInteger(value) || value >= 10 ? String(Math.round(value)) : value.toFixed(1);
   return t('downloadList.fileSize', { size: formatted + ' ' + units[unitIndex] });
 }
+
+function formatTimestamp(value: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes;
+}
+
+function timestampLabel(record: DownloadRecord) {
+  const completedAt = formatTimestamp(record.completedAt);
+  if (record.state === 'ready' && completedAt) {
+    return t('downloadList.completedAt', { time: completedAt });
+  }
+
+  const updatedAt = formatTimestamp(record.updatedAt);
+  return updatedAt ? t('downloadList.updatedAt', { time: updatedAt }) : '';
+}
 </script>
 
 <template>
@@ -72,6 +95,9 @@ function fileSizeLabel(record: DownloadRecord) {
       </p>
       <p v-if="fileSizeLabel(record)" class="m-0 text-xs text-[var(--muted)]">
         {{ fileSizeLabel(record) }}
+      </p>
+      <p v-if="timestampLabel(record)" class="m-0 text-xs text-[var(--muted)]">
+        {{ timestampLabel(record) }}
       </p>
     </div>
 

@@ -111,6 +111,8 @@
     "reveal": "Reveal",
     "delete": "Delete",
     "fileSize": "File size: {size}",
+    "completedAt": "Completed: {time}",
+    "updatedAt": "Updated: {time}",
     "error": "Error: {error}",
     "state": {
       "queued": "Queued",
