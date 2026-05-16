@@ -9,4 +9,3 @@ native/local-data-engine/target/
 **/.DS_Store
 *.local.md
 .vscode/
-docs/proposals/
