@@ -223,6 +223,13 @@ test('main process accepts only canonical trusted Jable video URLs for downloads
   assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:open-file'\)/);
 });
 
+test('main process forces MP4 muxing for partial download files', function () {
+  const source = readSource(MAIN_SOURCE_PATH);
+
+  assert.match(source, /const tempPath = outputPath \+ '\.part'/);
+  assert.match(source, /'-movflags',\n\s*'\+faststart',\n\s*'-f',\n\s*'mp4',\n\s*tempPath/);
+});
+
 test('renderer sends cloneable plain download payloads', function () {
   const source = readSource(APP_SOURCE_PATH);
 

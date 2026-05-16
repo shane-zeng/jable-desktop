@@ -991,6 +991,8 @@ function runFfmpegDownload(command: string, playlistUrl: string, videoUrl: strin
           'copy',
           '-movflags',
           '+faststart',
+          '-f',
+          'mp4',
           tempPath
         ],
         {

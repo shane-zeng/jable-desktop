@@ -148,6 +148,7 @@ This document specifies the current Download List and local video file managemen
   - playlist URL as input
   - `-c copy`
   - `-movflags +faststart`
+  - `-f mp4` because the temporary output file uses a `.part` suffix
 - FFmpeg is responsible for HLS playlist reading, segment fetching, supported HLS decryption, and MP4 remuxing.
 - On success the `.part` file is renamed to the final MP4, file size is recorded, and state becomes `ready`.
 - On failure the partial file is removed where possible and state becomes `failed`.
