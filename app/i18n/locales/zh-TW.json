@@ -113,7 +113,9 @@
     "title": "設定",
     "subtitle": "調整瀏覽器、同步與資料匯入匯出的行為。",
     "general": {
-      "title": "一般"
+      "title": "一般",
+      "updates": "應用程式更新",
+      "checkForUpdates": "檢查更新"
     },
     "browser": {
       "title": "瀏覽器",
@@ -153,7 +155,8 @@
       "exportTarget": "匯出清單",
       "exportAction": "匯出",
       "databasePath": "本機資料庫位置",
-      "databasePathUnavailable": "尚未建立資料庫"
+      "databasePathUnavailable": "尚未建立資料庫",
+      "openFolder": "開啟資料夾"
     }
   },
   "status": {
@@ -210,6 +213,10 @@
     "importFailed": "匯入失敗：{error}",
     "settingsSaved": "設定已更新",
     "settingsSaveFailed": "儲存設定失敗：{error}",
+    "localDataFolderOpened": "已開啟本機資料夾",
+    "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
+    "checkingUpdates": "正在檢查更新…",
+    "updateCheckFailed": "檢查更新失敗：{error}",
     "newTabFailed": "新增分頁失敗：{error}",
     "activateTabFailed": "切換分頁失敗：{error}",
     "closeTabFailed": "關閉分頁失敗：{error}",

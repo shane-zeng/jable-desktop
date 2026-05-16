@@ -332,6 +332,20 @@ export interface AppInfo {
   systemLocale: string;
 }
 
+export interface OpenLocalDataFolderResult {
+  opened: boolean;
+  path: string;
+}
+
+export interface UpdateCheckResult {
+  available?: boolean;
+  currentVersion?: string;
+  latestVersion?: string;
+  releaseUrl?: string;
+  error?: string;
+  reason?: string;
+}
+
 export interface ImportJsonPayload {
   collectionKey: CollectionKey;
   resource: ExportResource;
@@ -364,6 +378,8 @@ export interface JableAppApi {
   getSettings(): Promise<AppSettings>;
   updateSettings(patch: AppSettingsPatch): Promise<AppSettings>;
   setLocale(locale: string): Promise<{ locale: SupportedLocale }>;
+  openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
+  checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;
   countVideos(options: ListVideosOptions): Promise<number>;
   getCollectionUrls(collectionKey: CollectionKey): Promise<string[]>;

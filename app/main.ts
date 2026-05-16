@@ -1,6 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
+import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type {
   AppSettings,
@@ -242,6 +243,7 @@ type UpdateCheckOptions = { manual?: boolean };
 type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 const electron: typeof Electron = require('electron');
+const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
@@ -417,6 +419,25 @@ function getDatabase(): DataEngineInstance {
   }
 
   return database;
+}
+
+function localDataFolderPath(): string {
+  getDatabase();
+  if (!databasePath) throw new Error(t('status.unknownError'));
+  return path.dirname(databasePath);
+}
+
+function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
+  const folderPath = localDataFolderPath();
+  fs.mkdirSync(folderPath, { recursive: true });
+
+  return shell.openPath(folderPath).then(function (errorMessage: string) {
+    if (errorMessage) throw new Error(errorMessage);
+    return {
+      opened: true,
+      path: folderPath
+    };
+  });
 }
 
 function createWindow() {
@@ -2400,6 +2421,14 @@ function registerIpcHandlers() {
     return {
       locale: setCurrentLocale(locale)
     };
+  });
+
+  ipcMain.handle('app:open-local-data-folder', function () {
+    return openLocalDataFolder();
+  });
+
+  ipcMain.handle('app:check-for-updates', function () {
+    return checkForUpdates({ manual: true });
   });
 
   ipcMain.handle('db:list-videos', function (_event, options) {

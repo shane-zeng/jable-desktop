@@ -117,7 +117,8 @@ The Settings page controls:
 - Maximum open browser tabs, with a memory and playback warning above the recommended range
 - Full Sync acceleration: Safe, Standard, or Fast
 - Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
-- JSON import, JSON export, and the local database path
+- JSON import, JSON export, the local database path, and opening the local data folder in Finder or File Explorer
+- Manual update checks
 
 Fast mode prefetches more pages at once and helps large lists. If it hits timeout, 403, or 429 responses, the app falls back to conservative page-by-page sync.
 

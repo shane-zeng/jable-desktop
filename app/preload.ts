@@ -21,6 +21,12 @@ const jableApp: JableAppApi = {
   setLocale: function (locale) {
     return ipcRenderer.invoke('app:set-locale', locale);
   },
+  openLocalDataFolder: function () {
+    return ipcRenderer.invoke('app:open-local-data-folder');
+  },
+  checkForUpdates: function () {
+    return ipcRenderer.invoke('app:check-for-updates');
+  },
   listVideos: function (options) {
     return ipcRenderer.invoke('db:list-videos', options);
   },

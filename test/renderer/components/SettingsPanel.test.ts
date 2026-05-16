@@ -11,12 +11,12 @@ const settings: AppSettings = {
   autoReplayDeferredSyncOperations: false
 };
 
-function mountPanel(overrides?: Partial<AppSettings>) {
+function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | null = '/tmp/jable-favourites.sqlite') {
   return mount(SettingsPanel, {
     props: {
       active: true,
       busy: false,
-      databasePath: '/tmp/jable-favourites.sqlite',
+      databasePath: databasePath,
       settings: Object.assign({}, settings, overrides || {})
     }
   });
@@ -47,15 +47,29 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('瀏覽器');
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('資料');
+    expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
     expect(wrapper.get('[data-test="settings-speed-fast"]').classes()).toContain('is-active');
     expect(wrapper.text()).toContain('403、429');
+
+    await wrapper.get('[data-test="settings-check-updates"]').trigger('click');
+    expect(wrapper.emitted('check-updates')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-open-data-folder"]').trigger('click');
+    expect(wrapper.emitted('open-data-folder')).toEqual([[]]);
 
     await wrapper.get('[data-test="settings-auto-replay"]').setValue(true);
     expect(wrapper.emitted('update-settings')).toContainEqual([{ autoReplayDeferredSyncOperations: true }]);
 
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);
+  });
+
+  it('disables opening the data folder until the database path is available', function () {
+    const wrapper = mountPanel(undefined, null);
+
+    expect(wrapper.text()).toContain('尚未建立資料庫');
+    expect(wrapper.get('[data-test="settings-open-data-folder"]').attributes('disabled')).toBeDefined();
   });
 
   it('detects import target from JSON metadata and confirms the selected collection', async function () {

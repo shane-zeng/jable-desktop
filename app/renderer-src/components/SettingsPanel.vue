@@ -21,6 +21,8 @@ const emit = defineEmits<{
   'update-settings': [patch: AppSettingsPatch];
   'change-locale': [locale: SupportedLocale];
   'reset-tabs-width': [];
+  'open-data-folder': [];
+  'check-updates': [];
   'import-json': [payload: { collectionKey: CollectionKey; resource: ExportResource }];
   'export-json': [collectionKey: CollectionKey];
 }>();
@@ -185,6 +187,20 @@ function confirmImport() {
                 {{ option.label }}
               </option>
             </select>
+          </div>
+          <div
+            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
+          >
+            <span class="text-sm font-semibold">{{ t('settings.general.updates') }}</span>
+            <button
+              type="button"
+              class="w-fit"
+              data-test="settings-check-updates"
+              :disabled="busy"
+              @click="emit('check-updates')"
+            >
+              {{ t('settings.general.checkForUpdates') }}
+            </button>
           </div>
         </section>
 
@@ -373,9 +389,20 @@ function confirmImport() {
 
           <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
             <span class="text-sm font-semibold">{{ t('settings.data.databasePath') }}</span>
-            <code class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]">
-              {{ databasePath || t('settings.data.databasePathUnavailable') }}
-            </code>
+            <div class="grid gap-2">
+              <code class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]">
+                {{ databasePath || t('settings.data.databasePathUnavailable') }}
+              </code>
+              <button
+                type="button"
+                class="w-fit"
+                data-test="settings-open-data-folder"
+                :disabled="busy || !databasePath"
+                @click="emit('open-data-folder')"
+              >
+                {{ t('settings.data.openFolder') }}
+              </button>
+            </div>
           </div>
         </section>
       </div>

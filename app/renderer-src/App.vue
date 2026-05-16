@@ -408,6 +408,39 @@ function resetBrowserTabsWidth() {
   setStatus(i18n.t('status.settingsSaved'), 'success');
 }
 
+async function openLocalDataFolder() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    await api.openLocalDataFolder();
+    setStatus(i18n.t('status.localDataFolderOpened'), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.localDataFolderOpenFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function checkForUpdates() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+  setStatus(i18n.t('status.checkingUpdates'), 'info', { sticky: true });
+
+  try {
+    await api.checkForUpdates();
+    hideToast();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.updateCheckFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function syncMainLocale(locale: string) {
   try {
     await api.setLocale(locale);
@@ -542,6 +575,8 @@ onMounted(async function () {
         @update-settings="updateAppSettings"
         @change-locale="changeLocale"
         @reset-tabs-width="resetBrowserTabsWidth"
+        @open-data-folder="openLocalDataFolder"
+        @check-updates="checkForUpdates"
         @import-json="importJsonToCollection"
         @export-json="exportCollection"
       />

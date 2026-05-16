@@ -67,6 +67,7 @@ This document specifies the current user-facing Electron desktop application beh
 
 - General settings:
   - UI locale
+  - Manual update check
 - Browser settings:
   - Maximum browser tabs
   - Compact browser tabs
@@ -78,6 +79,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Import JSON
   - Export JSON
   - Display local database path
+  - Open the local data folder in the OS file manager
 - Maximum browser tabs are clamped from 4 to 30.
 - A warning is shown when the maximum browser tab count is above the warning threshold.
 - Full sync AJAX window size is clamped from 1 to 5.

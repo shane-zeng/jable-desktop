@@ -117,7 +117,8 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 - 最大タブ数。推奨値を超えるとメモリ使用量と再生性能への注意を表示
 - フル同期の加速: 保守、標準、高速
 - 同期中に発生したお気に入りと後で見るの変更を同期後に元の操作順で自動送信するか
-- JSON Import、JSON Export、ローカルデータベースの場所
+- JSON Import、JSON Export、ローカルデータベースの場所、Finder または File Explorer でのローカルデータフォルダー表示
+- 手動で更新を確認
 
 高速モードは同時に先読みするページ数を増やすため、大きなリストに向いています。timeout、403、429 が発生した場合は保守的なページ単位同期へ fallback します。
 

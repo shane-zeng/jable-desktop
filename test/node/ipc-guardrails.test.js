@@ -36,8 +36,12 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(source, /browser:diagnose-request/);
   assert.match(source, /app:get-settings/);
   assert.match(source, /app:update-settings/);
+  assert.match(source, /app:open-local-data-folder/);
+  assert.match(source, /app:check-for-updates/);
   assert.match(preloadSource, /getSettings/);
   assert.match(preloadSource, /updateSettings/);
+  assert.match(preloadSource, /openLocalDataFolder/);
+  assert.match(preloadSource, /checkForUpdates/);
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {

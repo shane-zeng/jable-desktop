@@ -113,7 +113,9 @@
     "title": "Settings",
     "subtitle": "Adjust browser, sync, import, and export behavior.",
     "general": {
-      "title": "General"
+      "title": "General",
+      "updates": "App Updates",
+      "checkForUpdates": "Check for Updates"
     },
     "browser": {
       "title": "Browser",
@@ -153,7 +155,8 @@
       "exportTarget": "Export List",
       "exportAction": "Export",
       "databasePath": "Local Database Path",
-      "databasePathUnavailable": "Database has not been created yet"
+      "databasePathUnavailable": "Database has not been created yet",
+      "openFolder": "Open Folder"
     }
   },
   "status": {
@@ -210,6 +213,10 @@
     "importFailed": "Import failed: {error}",
     "settingsSaved": "Settings updated",
     "settingsSaveFailed": "Failed to save settings: {error}",
+    "localDataFolderOpened": "Opened the local data folder",
+    "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
+    "checkingUpdates": "Checking for updates...",
+    "updateCheckFailed": "Update check failed: {error}",
     "newTabFailed": "Failed to create tab: {error}",
     "activateTabFailed": "Failed to switch tabs: {error}",
     "closeTabFailed": "Failed to close tab: {error}",

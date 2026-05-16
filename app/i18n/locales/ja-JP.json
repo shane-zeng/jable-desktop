@@ -113,7 +113,9 @@
     "title": "設定",
     "subtitle": "ブラウザー、同期、Import、Export の動作を調整します。",
     "general": {
-      "title": "一般"
+      "title": "一般",
+      "updates": "アプリの更新",
+      "checkForUpdates": "更新を確認"
     },
     "browser": {
       "title": "ブラウザー",
@@ -153,7 +155,8 @@
       "exportTarget": "Export するリスト",
       "exportAction": "Export",
       "databasePath": "ローカルデータベースの場所",
-      "databasePathUnavailable": "データベースはまだ作成されていません"
+      "databasePathUnavailable": "データベースはまだ作成されていません",
+      "openFolder": "フォルダーを開く"
     }
   },
   "status": {
@@ -210,6 +213,10 @@
     "importFailed": "Import に失敗しました: {error}",
     "settingsSaved": "設定を更新しました",
     "settingsSaveFailed": "設定を保存できませんでした: {error}",
+    "localDataFolderOpened": "ローカルデータフォルダーを開きました",
+    "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
+    "checkingUpdates": "更新を確認しています...",
+    "updateCheckFailed": "更新の確認に失敗しました: {error}",
     "newTabFailed": "タブを作成できませんでした: {error}",
     "activateTabFailed": "タブを切り替えられませんでした: {error}",
     "closeTabFailed": "タブを閉じられませんでした: {error}",

@@ -105,7 +105,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - The latest release endpoint is `https://api.github.com/repos/shane-zeng/jable-desktop/releases/latest`.
 - Draft and prerelease releases are ignored.
 - Versions must match `vX.Y.Z` or `X.Y.Z`.
-- Manual checks show a no-update or failure dialog.
+- Manual checks from the Help menu or Settings show a no-update or failure dialog.
 - Background checks show an update dialog only once per latest version.
 - External release opening is guarded by the release URL allowlist.
 
