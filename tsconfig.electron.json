@@ -16,10 +16,12 @@
   "include": [
     "app/ad-blocker.ts",
     "app/ad-cosmetic-policy.ts",
+    "app/browser-tab-manager.ts",
     "app/app-contract.ts",
     "app/browser-tab-policy.ts",
     "app/collections.ts",
     "app/data-engine.ts",
+    "app/download-manager.ts",
     "app/download-helpers.ts",
     "app/i18n/index.ts",
     "app/ipc-normalizers.ts",

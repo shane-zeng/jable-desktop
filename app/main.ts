@@ -1,10 +1,15 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
-import type { NativeDownloadEngineModule } from './native-download-engine';
+import type {
+  BrowserLoadFailure,
+  BrowserTab,
+  BrowserTabManager,
+  BrowserTabManagerContext
+} from './browser-tab-manager';
+import type { DownloadManager, DownloadManagerContext } from './download-manager';
 import type {
   AppSettings,
   AppSettingsPatch,
@@ -17,29 +22,18 @@ import type {
   BrowserTabMenuPayload,
   BrowserTabMutedPayload,
   BrowserTabsState,
-  CancelDownloadResult,
   CollectionAction,
   CollectionKey,
   CreateBrowserTabPayload,
-  DeleteDownloadResult,
   DownloadRecord,
   DownloadRecordPatch,
-  DownloadRequestPayload,
-  DownloadRootInfo,
-  DownloadRootSelectionResult,
-  EnqueueDownloadResult,
   ExportJsonFileResult,
   ExportResource,
-  FfmpegPathSelectionResult,
-  FfmpegStatus,
   FinishSyncPayload,
   LibraryVideoMenuPayload,
   ListVideosOptions,
-  OpenDownloadFileResult,
-  PauseDownloadResult,
   PendingRemoteOperationActionResult,
   PendingRemoteOperationGroup,
-  RevealDownloadFileResult,
   SupportedLocale,
   SyncBrowserCollectionOptions,
   SyncMode,
@@ -76,28 +70,6 @@ import {
 import type { CollectionTogglePayload } from './ipc-normalizers';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
-type BrowserBoundsState = { visible: boolean; x: number; y: number; width: number; height: number };
-type BrowserLoadFailure = { url: string; errorCode: number };
-type BrowserTab = {
-  id: string;
-  kind: BrowserTabKind;
-  view: Electron.WebContentsView;
-  attached: boolean;
-  locked: boolean;
-  title: string;
-  url: string;
-  favicon: string;
-  loading: boolean;
-  muted: boolean;
-  audible: boolean;
-  mediaPlaying: boolean;
-  pictureInPicture: boolean;
-  discarded: boolean;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  controlledLoad: boolean;
-  lastMainFrameLoadFailure: BrowserLoadFailure | null;
-};
 type SyncWorker = {
   id: string;
   window: Electron.BrowserWindow;
@@ -123,18 +95,6 @@ type CollectionToggleResult = {
   url: string;
   visible: boolean;
 };
-type DownloadRuntimeProgress = {
-  downloadedBytes: number | null;
-  downloadSpeedBytesPerSecond: number | null;
-  lastBytes: number | null;
-  lastSampledAt: number | null;
-  lastNotifiedAt: number | null;
-};
-type ActiveDownloadRuntime = {
-  abortController: AbortController;
-  process: NodeChildProcess.ChildProcess | null;
-  nativeId: string | null;
-};
 type DeferredSyncOperation = {
   id: number;
   action: 'add' | 'remove';
@@ -158,32 +118,6 @@ type SettingsModule = {
   };
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
-};
-type HlsKey = {
-  method: string;
-  uri: string | null;
-  iv: string | null;
-};
-type HlsSegment = {
-  url: string;
-  duration: number | null;
-  key: HlsKey | null;
-};
-type HlsPlaylist = {
-  variants: Array<{ url: string; bandwidth: number | null }>;
-  segments: HlsSegment[];
-  targetDuration: number | null;
-};
-type DownloadHelpersModule = {
-  extractHlsPlaylistUrl(html: string, pageUrl: string): string | null;
-  parseHlsPlaylist(content: string, playlistUrl: string): HlsPlaylist;
-  videoPageRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
-  hlsRequestHeaders(videoUrl: string, cookieHeader: string): Record<string, string>;
-};
-type NativeDownloadEngineInstance = InstanceType<NativeDownloadEngineModule['JableDownloadEngine']>;
-type NativeDownloadSegmentsResult = {
-  playlistPath: string;
-  downloadedBytes: number;
 };
 type DataEngineInstance = {
   close(): void;
@@ -231,19 +165,9 @@ type BrowserTabShortcutInput = Electron.Input & {
   alt?: boolean;
   shift?: boolean;
 };
-type SerializedMediaState = {
-  muted: boolean;
-  audible: boolean;
-  mediaPlaying: boolean;
-  pictureInPicture: boolean;
-  discarded: boolean;
-};
 type BrowserTabPolicyModule = {
   browserTabShortcutOffset(input: BrowserTabShortcutInput | null | undefined, isMacos: boolean): number;
   browserTabWebPreferences(kind: BrowserTabKind, preloadPath: string, partition: string): Electron.WebPreferences;
-  nextActiveTabIdByOffset(tabs: BrowserTab[], activeTabId: string | null, offset: number): string | null;
-  nextActiveTabIdAfterClose(tabs: BrowserTab[], activeTabId: string | null, closingTabId: string): string | null;
-  serializedMediaState(tab: BrowserTab): SerializedMediaState;
 };
 type BrowserPreloadRequest = {
   webContentsId: number;
@@ -301,17 +225,18 @@ type UpdateCheckOptions = { manual?: boolean };
 type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 const electron: typeof Electron = require('electron');
-const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const adBlocker = require('./ad-blocker') as AdBlockerModule;
+const browserTabManagerModule = require('./browser-tab-manager') as {
+  createBrowserTabManager(context: BrowserTabManagerContext): BrowserTabManager;
+};
 const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
 const dataEngineModule = require('./data-engine') as DataEngineModule;
-const downloadHelpers = require('./download-helpers') as DownloadHelpersModule;
-const i18n = require('./i18n') as I18nModule;
-const nativeDownloadEngineModule = require('./native-download-engine') as {
-  loadNativeDownloadEngine(): NativeDownloadEngineModule;
+const downloadManagerModule = require('./download-manager') as {
+  createDownloadManager(context: DownloadManagerContext): DownloadManager;
 };
+const i18n = require('./i18n') as I18nModule;
 const settingsModule = require('./settings') as SettingsModule;
 const updateChecker = require('./update-checker') as UpdateCheckerModule;
 const urlPolicy = require('./url-policy') as UrlPolicyModule;
@@ -328,9 +253,6 @@ const session = electron.session;
 const shell = electron.shell;
 const browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
 const browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
-const nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
-const nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
-const serializedMediaState = browserTabPolicy.serializedMediaState;
 
 const DEFAULT_JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
 const JABLE_HOME_URL = configuredHomeUrl();
@@ -338,44 +260,24 @@ const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 const BROWSER_SYNC_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
-const FFMPEG_CHECK_TIMEOUT_MS = 5000;
-const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
-const DOWNLOAD_SEGMENT_MIN_CONCURRENCY = 8;
-const DOWNLOAD_SEGMENT_MAX_CONCURRENCY = 32;
-const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
-const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
 
 let mainWindow: Electron.BrowserWindow | null = null;
-const browserTabs: BrowserTab[] = [];
-const browserTabsById: Record<string, BrowserTab> = {};
-const webContentsTabIds: Record<string, string> = {};
 const syncWorkersById: Record<string, SyncWorker> = {};
 const activeSyncRunsByCollection: Partial<Record<CollectionKey, ActiveSyncRun>> = {};
 const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
-let activeBrowserTabId: string | null = null;
-let nextBrowserTabId = 1;
 let nextSyncWorkerId = 1;
 let nextBrowserPreloadRequestId = 1;
 let activeJableOrigin = urlPolicy.JABLE_PRIMARY_ORIGIN;
-let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
-let browserHtmlFullScreenTabId: string | null = null;
+let browserTabManager: BrowserTabManager | null = null;
 let database: DataEngineInstance | null = null;
 let databasePath: string | null = null;
-let downloadEngine: NativeDownloadEngineInstance | null = null;
+let downloadManager: DownloadManager | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
-const downloadQueue: string[] = [];
-const canceledDownloadUrls = new Set<string>();
-const pausedDownloadUrls = new Set<string>();
-const resumedDownloadUrls = new Set<string>();
-const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
-const activeDownloads = new Map<string, ActiveDownloadRuntime>();
 let allowDownloadAppQuit = false;
 let allowDownloadWindowClose = false;
-let downloadClosePromptInFlight = false;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -420,131 +322,6 @@ function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function sanitizedDownloadErrorDetail(error: unknown): string {
-  let message = mainErrorMessage(error).replace(/https?:\/\/[^\s"'<>]+/g, '[remote URL]');
-  const rootPath = getDownloadRoot().path;
-  if (rootPath) {
-    message = message.replace(new RegExp(escapeRegExp(rootPath), 'g'), '[download root]');
-  }
-  return message;
-}
-
-class DownloadHttpError extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
-    super('HTTP ' + status);
-    this.name = 'DownloadHttpError';
-    this.status = status;
-  }
-}
-
-class HlsPlaylistNotFoundError extends Error {
-  constructor() {
-    super('HLS playlist was not found');
-    this.name = 'HlsPlaylistNotFoundError';
-  }
-}
-
-class HlsPlaylistUnsupportedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'HlsPlaylistUnsupportedError';
-  }
-}
-
-class DownloadSegmentError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'DownloadSegmentError';
-  }
-}
-
-class FfmpegDownloadError extends Error {
-  constructor(message: string) {
-    super(message || 'FFmpeg failed');
-    this.name = 'FfmpegDownloadError';
-  }
-}
-
-class DownloadFileSystemError extends Error {
-  constructor(error: unknown) {
-    super(mainErrorMessage(error));
-    this.name = 'DownloadFileSystemError';
-  }
-}
-
-class DownloadCanceledError extends Error {
-  constructor() {
-    super(t('status.downloadCanceled'));
-    this.name = 'DownloadCanceledError';
-  }
-}
-
-class DownloadPausedError extends Error {
-  constructor() {
-    super(t('status.downloadPaused'));
-    this.name = 'DownloadPausedError';
-  }
-}
-
-function downloadCanceledError() {
-  return new DownloadCanceledError();
-}
-
-function downloadPausedError() {
-  return new DownloadPausedError();
-}
-
-function isDownloadCanceledError(error: unknown): boolean {
-  return error instanceof DownloadCanceledError;
-}
-
-function isDownloadPausedError(error: unknown): boolean {
-  return error instanceof DownloadPausedError;
-}
-
-function throwIfDownloadCanceled(videoUrl: string) {
-  if (pausedDownloadUrls.has(videoUrl)) throw downloadPausedError();
-  if (canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
-}
-
-function downloadFileSystemError(error: unknown) {
-  return new DownloadFileSystemError(error);
-}
-
-function isLikelyNetworkError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return error.name === 'TypeError' || /fetch|network|socket|timed out|ECONN|ENOTFOUND|EAI_AGAIN/i.test(error.message);
-}
-
-function downloadErrorMessage(error: unknown): string {
-  if (isDownloadPausedError(error)) return t('status.downloadPaused');
-  if (isDownloadCanceledError(error)) return t('status.downloadCanceled');
-  if (error instanceof Error && error.name === 'AbortError') return t('status.downloadCanceled');
-  if (error instanceof DownloadHttpError) return t('status.downloadErrorVideoPageHttp', { status: error.status });
-  if (error instanceof HlsPlaylistNotFoundError) return t('status.downloadErrorPlaylistMissing');
-  if (error instanceof HlsPlaylistUnsupportedError) {
-    return t('status.downloadErrorPlaylistUnsupported', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (error instanceof DownloadSegmentError) {
-    return t('status.downloadErrorSegment', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (error instanceof FfmpegDownloadError) {
-    return t('status.downloadErrorFfmpeg', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (error instanceof DownloadFileSystemError) {
-    return t('status.downloadErrorFileSystem', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (isLikelyNetworkError(error))
-    return t('status.downloadErrorNetwork', { error: sanitizedDownloadErrorDetail(error) });
-  return t('status.downloadErrorUnknown', { error: sanitizedDownloadErrorDetail(error) });
-}
-
 function normalizeBrowserNavigationUrl(value: unknown): string {
   const url = String(value || '').trim();
   if (!url) return '';
@@ -566,15 +343,6 @@ function fallbackUrlForLoadFailure(failure: BrowserLoadFailure | null | undefine
   if (!failure || failure.errorCode === -3) return null;
   if (activeJableOrigin !== urlPolicy.JABLE_PRIMARY_ORIGIN) return null;
   return urlPolicy.fallbackJableUrl(failure.url);
-}
-
-function autoFallbackBrowserTab(tab: BrowserTab, failure: BrowserLoadFailure | null | undefined): boolean {
-  const fallbackUrl = fallbackUrlForLoadFailure(failure);
-  if (!fallbackUrl) return false;
-
-  activateJableFallbackOrigin();
-  loadTabUrl(tab, fallbackUrl, true);
-  return true;
 }
 
 function browserSyncCollectionPayloadWithSettings(payload: {
@@ -610,1321 +378,34 @@ function getAppSettings(): AppSettings {
   return getSettingsStore().get();
 }
 
-function maxConcurrentDownloads() {
-  return getAppSettings().maxConcurrentDownloads;
+function getDownloadManager(): DownloadManager {
+  if (!downloadManager) {
+    downloadManager = downloadManagerModule.createDownloadManager({
+      app: app,
+      dialog: dialog,
+      getAppSettings: getAppSettings,
+      getDatabase: getDatabase,
+      getMainWindow: function () {
+        return mainWindow;
+      },
+      forwardBrowserMessage: forwardBrowserMessage,
+      session: session,
+      shell: shell,
+      showAppDialog: showAppDialog,
+      t: t,
+      updateAppSettings: updateAppSettings
+    });
+  }
+
+  return downloadManager;
 }
 
 function updateAppSettings(patch: unknown): AppSettings {
   const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
   notifyBrowserTabsChanged();
   forwardBrowserMessage('settings-changed', settings);
-  processDownloadQueue();
+  if (downloadManager) downloadManager.processQueue();
   return settings;
-}
-
-function ffmpegVersion(command: string): Promise<{ version: string; path: string }> {
-  return new Promise(function (resolve, reject) {
-    childProcess.execFile(
-      command,
-      ['-version'],
-      {
-        timeout: FFMPEG_CHECK_TIMEOUT_MS,
-        windowsHide: true
-      },
-      function (error, stdout) {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        const firstLine = String(stdout || '').split(/\r?\n/)[0] || 'ffmpeg';
-        resolve({
-          version: firstLine,
-          path: command
-        });
-      }
-    );
-  });
-}
-
-function ffmpegPathErrorStatus(filePath: string, error: unknown): FfmpegStatus {
-  return {
-    state: 'invalid_path',
-    source: 'manual',
-    path: filePath,
-    version: null,
-    error: mainErrorMessage(error)
-  };
-}
-
-async function getFfmpegStatus(): Promise<FfmpegStatus> {
-  const manualPath = getAppSettings().ffmpegPath;
-
-  if (manualPath) {
-    const resolvedPath = path.resolve(manualPath);
-
-    try {
-      const stat = fs.statSync(resolvedPath);
-      if (!stat.isFile()) return ffmpegPathErrorStatus(resolvedPath, new Error('Selected path is not a file'));
-    } catch (error) {
-      return ffmpegPathErrorStatus(resolvedPath, error);
-    }
-
-    try {
-      const result = await ffmpegVersion(resolvedPath);
-      return {
-        state: 'detected',
-        source: 'manual',
-        path: result.path,
-        version: result.version,
-        error: null
-      };
-    } catch (error) {
-      return {
-        state: 'unsupported',
-        source: 'manual',
-        path: resolvedPath,
-        version: null,
-        error: mainErrorMessage(error)
-      };
-    }
-  }
-
-  try {
-    const result = await ffmpegVersion(FFMPEG_COMMAND);
-    return {
-      state: 'detected',
-      source: 'path',
-      path: result.path,
-      version: result.version,
-      error: null
-    };
-  } catch (error) {
-    return {
-      state: 'missing',
-      source: null,
-      path: null,
-      version: null,
-      error: mainErrorMessage(error)
-    };
-  }
-}
-
-function setFfmpegPath(value: unknown): Promise<FfmpegStatus> {
-  const filePath = typeof value === 'string' && value.trim() ? path.resolve(value.trim()) : null;
-  updateAppSettings({ ffmpegPath: filePath });
-  return getFfmpegStatus();
-}
-
-function clearFfmpegPath(): Promise<FfmpegStatus> {
-  updateAppSettings({ ffmpegPath: null });
-  return getFfmpegStatus();
-}
-
-async function chooseFfmpegPath(): Promise<FfmpegPathSelectionResult> {
-  const dialogOptions = {
-    title: t('dialog.chooseFfmpeg'),
-    properties: ['openFile'] as Electron.OpenDialogOptions['properties'],
-    filters:
-      process.platform === 'win32'
-        ? [
-            { name: 'FFmpeg', extensions: ['exe'] },
-            { name: 'All Files', extensions: ['*'] }
-          ]
-        : [{ name: 'All Files', extensions: ['*'] }]
-  };
-  const result =
-    mainWindow && !mainWindow.isDestroyed()
-      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
-      : await dialog.showOpenDialog(dialogOptions);
-
-  if (result.canceled || !result.filePaths.length) {
-    return Object.assign(await getFfmpegStatus(), { canceled: true });
-  }
-
-  return setFfmpegPath(result.filePaths[0]);
-}
-
-function defaultDownloadRootPath(): string {
-  return path.join(app.getPath('userData'), 'downloads');
-}
-
-function getDownloadRoot(): DownloadRootInfo {
-  const manualRoot = getAppSettings().downloadRoot;
-  const rootPath = manualRoot ? path.resolve(manualRoot) : defaultDownloadRootPath();
-  let exists = false;
-
-  try {
-    exists = fs.statSync(rootPath).isDirectory();
-  } catch (error) {
-    exists = false;
-  }
-
-  return {
-    source: manualRoot ? 'manual' : 'default',
-    path: rootPath,
-    exists: exists
-  };
-}
-
-function ensureDownloadRootReady() {
-  const root = getDownloadRoot();
-
-  try {
-    fs.mkdirSync(root.path, { recursive: true });
-    if (!fs.statSync(root.path).isDirectory()) {
-      throw new Error('Download location is not a directory');
-    }
-    fs.accessSync(root.path, fs.constants.W_OK);
-  } catch (error) {
-    throw new Error(t('status.downloadErrorFileSystem', { error: sanitizedDownloadErrorDetail(error) }));
-  }
-}
-
-function setDownloadRoot(value: unknown): DownloadRootInfo {
-  const rootPath = typeof value === 'string' && value.trim() ? path.resolve(value.trim()) : null;
-  updateAppSettings({ downloadRoot: rootPath });
-  return getDownloadRoot();
-}
-
-function clearDownloadRoot(): DownloadRootInfo {
-  updateAppSettings({ downloadRoot: null });
-  return getDownloadRoot();
-}
-
-async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
-  const dialogOptions = {
-    title: t('dialog.chooseDownloadRoot'),
-    defaultPath: getDownloadRoot().path,
-    properties: ['openDirectory', 'createDirectory'] as Electron.OpenDialogOptions['properties']
-  };
-  const result =
-    mainWindow && !mainWindow.isDestroyed()
-      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
-      : await dialog.showOpenDialog(dialogOptions);
-
-  if (result.canceled || !result.filePaths.length) {
-    return Object.assign(getDownloadRoot(), { canceled: true });
-  }
-
-  return setDownloadRoot(result.filePaths[0]);
-}
-
-function openDownloadRoot(): Promise<{ opened: boolean; path: string }> {
-  const root = getDownloadRoot();
-  fs.mkdirSync(root.path, { recursive: true });
-
-  return shell.openPath(root.path).then(function (errorMessage: string) {
-    if (errorMessage) throw new Error(errorMessage);
-    return {
-      opened: true,
-      path: root.path
-    };
-  });
-}
-
-function shouldBypassShellOpenForTests(): boolean {
-  return process.env.JABLE_DESKTOP_TEST_BYPASS_SHELL_OPEN === '1';
-}
-
-function openShellPath(filePath: string): Promise<void> {
-  if (shouldBypassShellOpenForTests()) return Promise.resolve();
-
-  return shell.openPath(filePath).then(function (errorMessage: string) {
-    if (errorMessage) throw new Error(errorMessage);
-  });
-}
-
-function revealShellPath(filePath: string) {
-  if (shouldBypassShellOpenForTests()) return;
-  shell.showItemInFolder(filePath);
-}
-
-function listPersistedDownloads(): DownloadRecord[] {
-  return getDatabase().listDownloadAssets();
-}
-
-function getPersistedDownload(videoUrl: string): DownloadRecord | null {
-  return getDatabase().getDownloadAsset(videoUrl);
-}
-
-function upsertPersistedDownload(patch: DownloadRecordPatch): DownloadRecord {
-  return getDatabase().upsertDownloadAsset(patch);
-}
-
-function removePersistedDownload(videoUrl: string): boolean {
-  return getDatabase().removeDownloadAsset(videoUrl);
-}
-
-function downloadRecordFileStats(record: DownloadRecord): NodeFs.Stats | null {
-  const filePath = resolveManagedDownloadPath(record.localPath);
-  if (!filePath) return null;
-  try {
-    return fs.statSync(filePath);
-  } catch (error) {
-    return null;
-  }
-}
-
-function downloadRecordWithFileState(record: DownloadRecord): DownloadRecord {
-  if (record.state !== 'ready' && record.state !== 'missing') return record;
-
-  const stats = downloadRecordFileStats(record);
-  const exists = Boolean(stats && stats.isFile());
-  if (record.state === 'ready' && !exists) {
-    return Object.assign({}, record, {
-      state: 'missing' as const,
-      fileSizeBytes: null,
-      error: null
-    });
-  }
-  if (record.state === 'missing' && exists) {
-    return Object.assign({}, record, {
-      state: 'ready' as const,
-      error: null,
-      fileSizeBytes: stats ? stats.size : record.fileSizeBytes
-    });
-  }
-  if (record.state === 'ready' && exists && stats && record.fileSizeBytes !== stats.size) {
-    return Object.assign({}, record, {
-      fileSizeBytes: stats.size
-    });
-  }
-
-  return record;
-}
-
-function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord {
-  const fileRecord = downloadRecordWithFileState(record);
-  if (fileRecord.state !== 'queued' && fileRecord.state !== 'downloading') return fileRecord;
-
-  const isActive = activeDownloads.has(fileRecord.videoUrl);
-  const isQueued = downloadQueue.indexOf(fileRecord.videoUrl) !== -1;
-  if (isActive || isQueued) return fileRecord;
-
-  return Object.assign({}, fileRecord, {
-    state: 'paused' as const,
-    progress: null,
-    error: t('status.downloadPausedAfterRestart')
-  });
-}
-
-function downloadRecordWithRuntimeProgress(record: DownloadRecord): DownloadRecord {
-  if (record.state !== 'downloading') return record;
-
-  const runtimeProgress = downloadRuntimeProgress.get(record.videoUrl);
-  if (!runtimeProgress) return record;
-
-  return Object.assign({}, record, {
-    downloadedBytes: runtimeProgress.downloadedBytes,
-    downloadSpeedBytesPerSecond: runtimeProgress.downloadSpeedBytesPerSecond
-  });
-}
-
-function reconcileDownloadRecordFileState(record: DownloadRecord): DownloadRecord {
-  const next = downloadRecordWithFileState(record);
-  if (!downloadRecordNeedsPersistence(record, next)) return next;
-
-  const persisted = upsertPersistedDownload({
-    videoUrl: next.videoUrl,
-    state: next.state,
-    progress: next.progress,
-    error: next.error,
-    fileSizeBytes: next.fileSizeBytes
-  });
-  notifyDownloadsChanged();
-  return persisted;
-}
-
-function downloadRecordNeedsPersistence(current: DownloadRecord, next: DownloadRecord): boolean {
-  return (
-    current.state !== next.state ||
-    current.progress !== next.progress ||
-    current.error !== next.error ||
-    current.fileSizeBytes !== next.fileSizeBytes
-  );
-}
-
-function listDownloads(): DownloadRecord[] {
-  return listPersistedDownloads().map(function (record) {
-    const next = downloadRecordWithRuntimeState(record);
-    if (!downloadRecordNeedsPersistence(record, next)) return downloadRecordWithRuntimeProgress(next);
-
-    const persisted = upsertPersistedDownload({
-      videoUrl: next.videoUrl,
-      state: next.state,
-      progress: next.progress,
-      error: next.error,
-      fileSizeBytes: next.fileSizeBytes
-    });
-    return downloadRecordWithRuntimeProgress(persisted);
-  });
-}
-
-function notifyDownloadsChanged() {
-  forwardBrowserMessage('downloads-changed', listDownloads());
-}
-
-function downloadTimestamp() {
-  return new Date().toISOString();
-}
-
-function normalizeDownloadVideoUrl(value: unknown, field: string, channel: string): string {
-  const videoUrl = urlPolicy.canonicalJableVideoUrl(requiredStringValue(value, field, channel));
-  if (!videoUrl) throw new Error(t('errors.untrustedDownloadUrl'));
-  return videoUrl;
-}
-
-function normalizeDownloadRequestPayload(value: unknown): DownloadRequestPayload {
-  const channel = 'download:enqueue';
-  const payload = requiredRecord(value, channel);
-  const video = requiredRecord(payload.video, channel);
-
-  return {
-    collectionKey: normalizeCollectionKey(payload.collectionKey, channel),
-    video: {
-      title: typeof video.title === 'string' ? video.title : null,
-      url: normalizeDownloadVideoUrl(video.url, 'video.url', channel),
-      views: null,
-      likes: null,
-      img: typeof video.img === 'string' ? video.img : null,
-      preview: typeof video.preview === 'string' ? video.preview : null
-    }
-  };
-}
-
-function sanitizeDownloadFileName(value: string): string {
-  const sanitized = value
-    .replace(/[<>:"/\\|?*]/g, ' ')
-    .split('')
-    .map(function (character) {
-      return character.charCodeAt(0) < 32 ? ' ' : character;
-    })
-    .join('')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return (sanitized || 'video').slice(0, 120);
-}
-
-function videoUrlSlug(videoUrl: string): string {
-  try {
-    const parts = new URL(videoUrl).pathname.split('/').filter(Boolean);
-    return parts[parts.length - 1] || 'video';
-  } catch (error) {
-    return 'video';
-  }
-}
-
-function usedDownloadRelativePaths(excludeVideoUrl: string): Set<string> {
-  const used = new Set<string>();
-  const records = listPersistedDownloads();
-
-  for (const record of records) {
-    if (record.videoUrl === excludeVideoUrl || !record.localPath) continue;
-    used.add(path.normalize(record.localPath));
-  }
-
-  return used;
-}
-
-function downloadOutputRelativePath(payload: DownloadRequestPayload): string {
-  const name = sanitizeDownloadFileName(payload.video.title || videoUrlSlug(payload.video.url));
-  const usedPaths = usedDownloadRelativePaths(payload.video.url);
-
-  for (let index = 1; index <= 9999; index++) {
-    const candidateName = index === 1 ? name : name + ' (' + index + ')';
-    const relativePath = candidateName + '.mp4';
-    const filePath = resolveManagedDownloadPath(relativePath);
-    if (!filePath) continue;
-    if (usedPaths.has(path.normalize(relativePath))) continue;
-    if (fs.existsSync(filePath) || fs.existsSync(filePath + '.part')) continue;
-    return relativePath;
-  }
-
-  throw new Error('Unable to choose a download filename');
-}
-
-function resolveManagedDownloadPath(fileRelativePath: string | null): string | null {
-  if (!fileRelativePath || path.isAbsolute(fileRelativePath)) return null;
-
-  const downloadRootPath = getDownloadRoot().path;
-  const filePath = path.resolve(downloadRootPath, fileRelativePath);
-  if (!isPathInsideDirectory(filePath, downloadRootPath)) return null;
-
-  return filePath;
-}
-
-async function cookieHeaderForUrl(targetUrl: string): Promise<string> {
-  const origin = new URL(targetUrl).origin;
-  const cookies = await session.fromPartition(JABLE_SESSION_PARTITION).cookies.get({ url: origin });
-  return cookies
-    .map(function (cookie) {
-      return cookie.name + '=' + cookie.value;
-    })
-    .join('; ');
-}
-
-async function fetchVideoPageHtml(videoUrl: string, signal?: AbortSignal | null): Promise<string> {
-  const cookieHeader = await cookieHeaderForUrl(videoUrl);
-  const headers = downloadHelpers.videoPageRequestHeaders(videoUrl, cookieHeader);
-
-  const response = await fetch(videoUrl, { headers: headers, signal: signal || undefined });
-  if (!response.ok) throw new DownloadHttpError(response.status);
-  return response.text();
-}
-
-async function ffmpegCommandForDownload(): Promise<string> {
-  const status = await getFfmpegStatus();
-  if (status.state !== 'detected') throw new Error(t('status.ffmpegMissing'));
-  return status.path || FFMPEG_COMMAND;
-}
-
-function removePartialDownloadFile(outputPath: string) {
-  try {
-    fs.unlinkSync(outputPath + '.part');
-  } catch (error) {}
-}
-
-function updateDownloadRuntimeProgress(videoUrl: string, downloadedBytes: number) {
-  if (!Number.isFinite(downloadedBytes) || downloadedBytes < 0) return;
-
-  const now = Date.now();
-  const current = downloadRuntimeProgress.get(videoUrl) || {
-    downloadedBytes: null,
-    downloadSpeedBytesPerSecond: null,
-    lastBytes: null,
-    lastSampledAt: null,
-    lastNotifiedAt: null
-  };
-  const nextDownloadedBytes =
-    typeof current.downloadedBytes === 'number' ? Math.max(downloadedBytes, current.downloadedBytes) : downloadedBytes;
-  let speedBytesPerSecond = current.downloadSpeedBytesPerSecond;
-  let lastBytes = current.lastBytes;
-  let lastSampledAt = current.lastSampledAt;
-  const shouldNotify =
-    current.lastNotifiedAt === null || now - current.lastNotifiedAt >= DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS;
-
-  if (shouldNotify) {
-    if (
-      typeof current.lastBytes === 'number' &&
-      typeof current.lastSampledAt === 'number' &&
-      nextDownloadedBytes >= current.lastBytes &&
-      now > current.lastSampledAt
-    ) {
-      speedBytesPerSecond = Math.round(
-        ((nextDownloadedBytes - current.lastBytes) * 1000) / (now - current.lastSampledAt)
-      );
-    }
-    lastBytes = nextDownloadedBytes;
-    lastSampledAt = now;
-  }
-
-  downloadRuntimeProgress.set(videoUrl, {
-    downloadedBytes: nextDownloadedBytes,
-    downloadSpeedBytesPerSecond: speedBytesPerSecond,
-    lastBytes: lastBytes,
-    lastSampledAt: lastSampledAt,
-    lastNotifiedAt: shouldNotify ? now : current.lastNotifiedAt
-  });
-
-  if (shouldNotify) notifyDownloadsChanged();
-}
-
-function handleFfmpegProgressLine(videoUrl: string, line: string) {
-  const separatorIndex = line.indexOf('=');
-  if (separatorIndex === -1) return;
-
-  const key = line.slice(0, separatorIndex);
-  if (key !== 'total_size') return;
-
-  const downloadedBytes = Number(line.slice(separatorIndex + 1));
-  updateDownloadRuntimeProgress(videoUrl, downloadedBytes);
-}
-
-function handleFfmpegProgressChunk(
-  videoUrl: string,
-  chunk: Buffer,
-  readRemainder: () => string,
-  writeRemainder: (value: string) => void
-) {
-  const text = readRemainder() + String(chunk);
-  const lines = text.split(/\r?\n/);
-  writeRemainder(lines.pop() || '');
-
-  for (const line of lines) {
-    handleFfmpegProgressLine(videoUrl, line);
-  }
-}
-
-function downloadSegmentTempDirectory(outputPath: string): string {
-  return outputPath + '.segments';
-}
-
-function downloadResumeManifestPath(outputPath: string): string {
-  return path.join(downloadSegmentTempDirectory(outputPath), 'resume.json');
-}
-
-function removeDownloadSegmentTempDirectory(outputPath: string) {
-  try {
-    fs.rmSync(downloadSegmentTempDirectory(outputPath), { recursive: true, force: true });
-  } catch (error) {}
-}
-
-function stableMediaUrlIdentity(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return url.origin + url.pathname;
-  } catch (error) {
-    return value.split('?')[0] || value;
-  }
-}
-
-function roundedDuration(value: number | null): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 1000) / 1000 : null;
-}
-
-function playlistResumeIdentity(playlist: HlsPlaylist) {
-  return {
-    version: 1,
-    targetDuration: roundedDuration(playlist.targetDuration),
-    segments: playlist.segments.map(function (segment) {
-      return {
-        url: stableMediaUrlIdentity(segment.url),
-        duration: roundedDuration(segment.duration),
-        key: segment.key
-          ? {
-              method: segment.key.method,
-              uri: stableMediaUrlIdentity(segment.key.uri),
-              iv: segment.key.iv || null
-            }
-          : null
-      };
-    })
-  };
-}
-
-function resumeManifestMatches(outputPath: string, playlist: HlsPlaylist): boolean {
-  let current: unknown;
-  try {
-    current = JSON.parse(fs.readFileSync(downloadResumeManifestPath(outputPath), 'utf8'));
-  } catch (error) {
-    return false;
-  }
-
-  return JSON.stringify(current) === JSON.stringify(playlistResumeIdentity(playlist));
-}
-
-function prepareDownloadSegmentTempDirectory(
-  outputPath: string,
-  playlist: HlsPlaylist,
-  reuseExistingSegments: boolean
-) {
-  if (!reuseExistingSegments || !resumeManifestMatches(outputPath, playlist)) {
-    removeDownloadSegmentTempDirectory(outputPath);
-  }
-
-  const tempDir = downloadSegmentTempDirectory(outputPath);
-  fs.mkdirSync(tempDir, { recursive: true });
-  fs.writeFileSync(downloadResumeManifestPath(outputPath), JSON.stringify(playlistResumeIdentity(playlist), null, 2));
-}
-
-function removeDownloadWorkingFiles(record: DownloadRecord) {
-  const outputPath = resolveManagedDownloadPath(record.localPath);
-  if (!outputPath) return;
-  removePartialDownloadFile(outputPath);
-  removeDownloadSegmentTempDirectory(outputPath);
-}
-
-function removePartialDownloadFileForRecord(record: DownloadRecord) {
-  const outputPath = resolveManagedDownloadPath(record.localPath);
-  if (!outputPath) return;
-  removePartialDownloadFile(outputPath);
-}
-
-async function fetchHlsText(
-  playlistUrl: string,
-  videoUrl: string,
-  cookieHeader: string,
-  signal: AbortSignal
-): Promise<string> {
-  const response = await fetch(playlistUrl, {
-    headers: downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader),
-    signal: signal
-  });
-  if (!response.ok) throw new DownloadSegmentError('playlist HTTP ' + response.status);
-  return response.text();
-}
-
-function highestBandwidthVariant(playlist: HlsPlaylist): string | null {
-  const variants = playlist.variants.slice();
-  if (!variants.length) return null;
-
-  variants.sort(function (a, b) {
-    return (b.bandwidth || 0) - (a.bandwidth || 0);
-  });
-  return variants[0].url;
-}
-
-async function resolveHlsMediaPlaylist(
-  playlistUrl: string,
-  videoUrl: string,
-  cookieHeader: string,
-  signal: AbortSignal
-): Promise<HlsPlaylist> {
-  let currentPlaylistUrl = playlistUrl;
-
-  for (let i = 0; i < 3; i++) {
-    throwIfDownloadCanceled(videoUrl);
-    const content = await fetchHlsText(currentPlaylistUrl, videoUrl, cookieHeader, signal);
-    const playlist = downloadHelpers.parseHlsPlaylist(content, currentPlaylistUrl);
-    if (playlist.segments.length) return playlist;
-
-    const variantUrl = highestBandwidthVariant(playlist);
-    if (!variantUrl || variantUrl === currentPlaylistUrl) break;
-    currentPlaylistUrl = variantUrl;
-  }
-
-  throw new HlsPlaylistNotFoundError();
-}
-
-function downloadSegmentDirectorySize(tempDir: string): number {
-  let total = 0;
-  let entries: NodeFs.Dirent[];
-  try {
-    entries = fs.readdirSync(tempDir, { withFileTypes: true });
-  } catch (error) {
-    return 0;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    if (!/^segment-\d{6}\.(aac|m4s|mp4|ts)$/.test(entry.name)) continue;
-    try {
-      total += fs.statSync(path.join(tempDir, entry.name)).size;
-    } catch (error) {}
-  }
-
-  return total;
-}
-
-function startNativeDownloadProgress(videoUrl: string, tempDir: string): ReturnType<typeof setInterval> {
-  return setInterval(function () {
-    updateDownloadRuntimeProgress(videoUrl, downloadSegmentDirectorySize(tempDir));
-  }, DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS);
-}
-
-function parseNativeDownloadSegmentsResult(value: string): NativeDownloadSegmentsResult {
-  const result = JSON.parse(value) as Partial<NativeDownloadSegmentsResult>;
-  if (typeof result.playlistPath !== 'string' || !result.playlistPath) {
-    throw new DownloadSegmentError('native download engine did not return playlistPath');
-  }
-  return {
-    playlistPath: result.playlistPath,
-    downloadedBytes:
-      typeof result.downloadedBytes === 'number' && Number.isFinite(result.downloadedBytes) ? result.downloadedBytes : 0
-  };
-}
-
-function nativeDownloadError(error: unknown): Error {
-  const message = mainErrorMessage(error);
-  if (/download canceled|AbortError/i.test(message)) return downloadCanceledError();
-  if (/unsupported HLS key method/i.test(message)) return new HlsPlaylistUnsupportedError(message);
-  return new DownloadSegmentError(message);
-}
-
-async function downloadHlsSegmentsWithNative(
-  playlist: HlsPlaylist,
-  videoUrl: string,
-  cookieHeader: string,
-  outputPath: string,
-  signal: AbortSignal,
-  runtime: ActiveDownloadRuntime,
-  reuseExistingSegments: boolean
-): Promise<string> {
-  const tempDir = downloadSegmentTempDirectory(outputPath);
-  const headers = downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader);
-  const downloadId = videoUrl;
-  let progressTimer: ReturnType<typeof setInterval> | null = null;
-
-  try {
-    throwIfDownloadCanceled(videoUrl);
-    try {
-      prepareDownloadSegmentTempDirectory(outputPath, playlist, reuseExistingSegments);
-    } catch (error) {
-      throw downloadFileSystemError(error);
-    }
-    runtime.nativeId = downloadId;
-    progressTimer = startNativeDownloadProgress(videoUrl, tempDir);
-    const result = parseNativeDownloadSegmentsResult(
-      await getDownloadEngine().downloadHlsSegments(
-        JSON.stringify({
-          downloadId: downloadId,
-          tempDir: tempDir,
-          headers: headers,
-          minConcurrency: DOWNLOAD_SEGMENT_MIN_CONCURRENCY,
-          maxConcurrency: DOWNLOAD_SEGMENT_MAX_CONCURRENCY,
-          sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT,
-          retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT,
-          targetDuration: playlist.targetDuration,
-          segments: playlist.segments
-        })
-      )
-    );
-    throwIfDownloadCanceled(videoUrl);
-    updateDownloadRuntimeProgress(videoUrl, result.downloadedBytes);
-    return result.playlistPath;
-  } catch (error) {
-    if (pausedDownloadUrls.has(videoUrl)) throw downloadPausedError();
-    if (signal.aborted || canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
-    throw nativeDownloadError(error);
-  } finally {
-    if (progressTimer) clearInterval(progressTimer);
-    if (runtime.nativeId === downloadId) runtime.nativeId = null;
-  }
-}
-
-function runFfmpegRemux(
-  command: string,
-  inputPlaylistPath: string,
-  videoUrl: string,
-  outputPath: string,
-  runtime: ActiveDownloadRuntime
-): Promise<void> {
-  return new Promise(function (resolve, reject) {
-    const tempPath = outputPath + '.part';
-    let progressRemainder = '';
-    try {
-      fs.unlinkSync(tempPath);
-    } catch (error) {}
-
-    try {
-      throwIfDownloadCanceled(videoUrl);
-    } catch (error) {
-      reject(error);
-      return;
-    }
-
-    const child = childProcess.spawn(
-      command,
-      [
-        '-y',
-        '-nostdin',
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-progress',
-        'pipe:1',
-        '-allowed_extensions',
-        'ALL',
-        '-protocol_whitelist',
-        'file,crypto',
-        '-i',
-        inputPlaylistPath,
-        '-c',
-        'copy',
-        '-bsf:a',
-        'aac_adtstoasc',
-        '-movflags',
-        '+faststart',
-        '-f',
-        'mp4',
-        tempPath
-      ],
-      {
-        windowsHide: true
-      }
-    );
-    let stderr = '';
-
-    runtime.process = child;
-    child.stdout?.on('data', function (chunk: Buffer) {
-      handleFfmpegProgressChunk(
-        videoUrl,
-        chunk,
-        function () {
-          return progressRemainder;
-        },
-        function (value) {
-          progressRemainder = value;
-        }
-      );
-    });
-    child.stderr.on('data', function (chunk) {
-      stderr = (stderr + String(chunk)).slice(-4000);
-    });
-    child.on('error', function (error) {
-      if (runtime.process === child) runtime.process = null;
-      reject(new FfmpegDownloadError(mainErrorMessage(error)));
-    });
-    child.on('close', function (code) {
-      if (runtime.process === child) runtime.process = null;
-
-      if (pausedDownloadUrls.has(videoUrl)) {
-        removePartialDownloadFile(outputPath);
-        reject(downloadPausedError());
-        return;
-      }
-
-      if (canceledDownloadUrls.has(videoUrl)) {
-        removePartialDownloadFile(outputPath);
-        reject(downloadCanceledError());
-        return;
-      }
-
-      if (code !== 0) {
-        removePartialDownloadFile(outputPath);
-        reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
-        return;
-      }
-
-      try {
-        throwIfDownloadCanceled(videoUrl);
-        fs.renameSync(tempPath, outputPath);
-        resolve();
-      } catch (error) {
-        reject(error instanceof DownloadCanceledError ? error : downloadFileSystemError(error));
-      }
-    });
-  });
-}
-
-async function runQueuedDownload(record: DownloadRecord) {
-  const outputPath = resolveManagedDownloadPath(record.localPath);
-  const reuseExistingSegments = resumedDownloadUrls.has(record.videoUrl);
-  const abortController = new AbortController();
-  const runtime: ActiveDownloadRuntime = {
-    abortController: abortController,
-    process: null,
-    nativeId: null
-  };
-  activeDownloads.set(record.videoUrl, runtime);
-
-  upsertPersistedDownload({
-    videoUrl: record.videoUrl,
-    state: 'downloading',
-    progress: null,
-    error: null,
-    localPath: record.localPath
-  });
-  notifyDownloadsChanged();
-
-  try {
-    if (!outputPath) throw new Error(t('status.downloadFileUnavailable'));
-    throwIfDownloadCanceled(record.videoUrl);
-    try {
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    } catch (error) {
-      throw downloadFileSystemError(error);
-    }
-    const command = await ffmpegCommandForDownload();
-    throwIfDownloadCanceled(record.videoUrl);
-    const cookieHeader = await cookieHeaderForUrl(record.videoUrl);
-    const html = await fetchVideoPageHtml(record.videoUrl, abortController.signal);
-    throwIfDownloadCanceled(record.videoUrl);
-    const playlistUrl = downloadHelpers.extractHlsPlaylistUrl(html, record.videoUrl);
-    if (!playlistUrl) throw new HlsPlaylistNotFoundError();
-    throwIfDownloadCanceled(record.videoUrl);
-    const playlist = await resolveHlsMediaPlaylist(playlistUrl, record.videoUrl, cookieHeader, abortController.signal);
-    throwIfDownloadCanceled(record.videoUrl);
-    const localPlaylistPath = await downloadHlsSegmentsWithNative(
-      playlist,
-      record.videoUrl,
-      cookieHeader,
-      outputPath,
-      abortController.signal,
-      runtime,
-      reuseExistingSegments
-    );
-    throwIfDownloadCanceled(record.videoUrl);
-
-    await runFfmpegRemux(command, localPlaylistPath, record.videoUrl, outputPath, runtime);
-    throwIfDownloadCanceled(record.videoUrl);
-    let stats: NodeFs.Stats;
-    try {
-      stats = fs.statSync(outputPath);
-    } catch (error) {
-      throw downloadFileSystemError(error);
-    }
-
-    upsertPersistedDownload({
-      videoUrl: record.videoUrl,
-      state: 'ready',
-      progress: 1,
-      error: null,
-      localPath: record.localPath,
-      fileSizeBytes: stats.isFile() ? stats.size : null,
-      completedAt: downloadTimestamp()
-    });
-    notifyDownloadsChanged();
-  } catch (error) {
-    const paused = pausedDownloadUrls.has(record.videoUrl) || isDownloadPausedError(error);
-    upsertPersistedDownload({
-      videoUrl: record.videoUrl,
-      state: paused ? 'paused' : 'failed',
-      progress: null,
-      error: paused ? t('status.downloadPaused') : downloadErrorMessage(error)
-    });
-    notifyDownloadsChanged();
-  } finally {
-    const paused = pausedDownloadUrls.has(record.videoUrl);
-    if (outputPath) {
-      removePartialDownloadFile(outputPath);
-      if (!paused) removeDownloadSegmentTempDirectory(outputPath);
-    }
-    downloadRuntimeProgress.delete(record.videoUrl);
-    canceledDownloadUrls.delete(record.videoUrl);
-    pausedDownloadUrls.delete(record.videoUrl);
-    resumedDownloadUrls.delete(record.videoUrl);
-    activeDownloads.delete(record.videoUrl);
-  }
-}
-
-function processDownloadQueue() {
-  while (activeDownloads.size < maxConcurrentDownloads()) {
-    const nextUrl = downloadQueue.shift();
-    if (!nextUrl) return;
-
-    const record = getPersistedDownload(nextUrl);
-    if (!record || record.state !== 'queued') continue;
-
-    runQueuedDownload(record)
-      .catch(function (error) {
-        console.error(error);
-      })
-      .finally(function () {
-        processDownloadQueue();
-      });
-  }
-}
-
-function queueDownloadRecord(record: DownloadRecord) {
-  if (downloadQueue.indexOf(record.videoUrl) === -1 && !activeDownloads.has(record.videoUrl)) {
-    downloadQueue.push(record.videoUrl);
-  }
-  notifyDownloadsChanged();
-  processDownloadQueue();
-}
-
-async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
-  const payload = normalizeDownloadRequestPayload(value);
-  const existing = getPersistedDownload(payload.video.url);
-  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
-  const existingState = existingRecord ? existingRecord.state : null;
-
-  if (existingRecord && (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready')) {
-    return {
-      record: existingRecord,
-      queued: false
-    };
-  }
-
-  await ffmpegCommandForDownload();
-  ensureDownloadRootReady();
-
-  const record = upsertPersistedDownload({
-    videoUrl: payload.video.url,
-    title: payload.video.title,
-    img: payload.video.img,
-    preview: payload.video.preview,
-    localPath: downloadOutputRelativePath(payload),
-    state: 'queued',
-    progress: null,
-    error: null,
-    completedAt: null
-  });
-
-  queueDownloadRecord(record);
-
-  return {
-    record: record,
-    queued: true
-  };
-}
-
-async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:retry');
-  const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
-  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
-  const existingState = existingRecord ? existingRecord.state : null;
-
-  if (!existing) throw new Error(t('status.downloadFileUnavailable'));
-  if (existingRecord && (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready')) {
-    return {
-      record: existingRecord,
-      queued: false
-    };
-  }
-  if (existingState === 'paused') return resumeDownload(videoUrl);
-
-  await ffmpegCommandForDownload();
-  ensureDownloadRootReady();
-
-  const record = upsertPersistedDownload({
-    videoUrl: existing.videoUrl,
-    state: 'queued',
-    progress: null,
-    error: null,
-    completedAt: null
-  });
-  queueDownloadRecord(record);
-
-  return {
-    record: record,
-    queued: true
-  };
-}
-
-function removeQueuedDownload(videoUrl: string): boolean {
-  const queueIndex = downloadQueue.indexOf(videoUrl);
-  if (queueIndex === -1) return false;
-  downloadQueue.splice(queueIndex, 1);
-  return true;
-}
-
-async function resumeDownload(value: unknown): Promise<EnqueueDownloadResult> {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:resume');
-  const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
-  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
-  const existingState = existingRecord ? existingRecord.state : null;
-
-  if (!existingRecord) throw new Error(t('status.downloadFileUnavailable'));
-  if (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready') {
-    return {
-      record: existingRecord,
-      queued: false
-    };
-  }
-  if (existingState !== 'paused') throw new Error(t('status.downloadResumeUnavailable'));
-
-  await ffmpegCommandForDownload();
-  ensureDownloadRootReady();
-
-  canceledDownloadUrls.delete(videoUrl);
-  pausedDownloadUrls.delete(videoUrl);
-  resumedDownloadUrls.add(videoUrl);
-
-  const record = upsertPersistedDownload({
-    videoUrl: existingRecord.videoUrl,
-    state: 'queued',
-    progress: null,
-    error: null,
-    completedAt: null
-  });
-  queueDownloadRecord(record);
-
-  return {
-    record: record,
-    queued: true
-  };
-}
-
-function pauseDownload(value: unknown): PauseDownloadResult {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:pause');
-  const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
-  const currentRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
-  if (!currentRecord) throw new Error(t('status.downloadPauseUnavailable'));
-
-  const runtime = activeDownloads.get(videoUrl) || null;
-  const isActive = Boolean(runtime);
-  const isQueued = removeQueuedDownload(videoUrl);
-  if (!isActive && !isQueued && currentRecord.state !== 'paused') {
-    throw new Error(t('status.downloadPauseUnavailable'));
-  }
-
-  canceledDownloadUrls.delete(videoUrl);
-  pausedDownloadUrls.add(videoUrl);
-
-  const record = upsertPersistedDownload({
-    videoUrl: videoUrl,
-    state: 'paused',
-    progress: null,
-    error: t('status.downloadPaused'),
-    completedAt: null
-  });
-
-  if (runtime) {
-    runtime.abortController.abort();
-    if (runtime.nativeId) getDownloadEngine().cancelDownload(runtime.nativeId);
-    if (runtime.process) runtime.process.kill('SIGTERM');
-  } else {
-    removePartialDownloadFileForRecord(record);
-  }
-
-  notifyDownloadsChanged();
-
-  return {
-    paused: currentRecord.state !== 'paused',
-    record: record
-  };
-}
-
-function cancelDownload(value: unknown): CancelDownloadResult {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:cancel');
-  if (!videoUrl) throw new Error(t('status.downloadCancelUnavailable'));
-
-  const existing = getPersistedDownload(videoUrl);
-  const currentRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
-  if (!currentRecord) throw new Error(t('status.downloadCancelUnavailable'));
-
-  const runtime = activeDownloads.get(videoUrl) || null;
-  const isActive = Boolean(runtime);
-  if (!isActive && currentRecord.state !== 'queued') throw new Error(t('status.downloadCancelUnavailable'));
-
-  removeQueuedDownload(videoUrl);
-  if (isActive) canceledDownloadUrls.add(videoUrl);
-  pausedDownloadUrls.delete(videoUrl);
-  resumedDownloadUrls.delete(videoUrl);
-
-  const record = upsertPersistedDownload({
-    videoUrl: videoUrl,
-    state: 'failed',
-    progress: null,
-    error: t('status.downloadCanceled'),
-    completedAt: null
-  });
-
-  if (runtime) {
-    runtime.abortController.abort();
-    if (runtime.nativeId) getDownloadEngine().cancelDownload(runtime.nativeId);
-    if (runtime.process) runtime.process.kill('SIGTERM');
-  } else {
-    removeDownloadWorkingFiles(currentRecord);
-  }
-  notifyDownloadsChanged();
-
-  return {
-    canceled: true,
-    record: record
-  };
-}
-
-function isPathInsideDirectory(filePath: string, directoryPath: string): boolean {
-  const targetPath = path.resolve(filePath);
-  const rootPath = path.resolve(directoryPath);
-  const normalizedTarget = process.platform === 'win32' ? targetPath.toLowerCase() : targetPath;
-  const normalizedRoot = process.platform === 'win32' ? rootPath.toLowerCase() : rootPath;
-
-  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(normalizedRoot + path.sep);
-}
-
-function deleteManagedDownloadFile(record: DownloadRecord): boolean {
-  if (!record.localPath) return false;
-  const filePath = resolveManagedDownloadPath(record.localPath);
-  if (!filePath) throw new Error(t('status.downloadFileOutsideRoot'));
-
-  let stats: NodeFs.Stats;
-  try {
-    stats = fs.statSync(filePath);
-  } catch (error) {
-    return false;
-  }
-
-  if (!stats.isFile()) throw new Error(t('status.downloadFileUnavailable'));
-
-  fs.unlinkSync(filePath);
-  return true;
-}
-
-function downloadRecordHasManagedFile(record: DownloadRecord): boolean {
-  if (!record.localPath) return false;
-  const filePath = resolveManagedDownloadPath(record.localPath);
-  if (!filePath) return false;
-
-  try {
-    return fs.statSync(filePath).isFile();
-  } catch (error) {
-    return false;
-  }
-}
-
-function confirmDeleteDownload(hasManagedFile: boolean): Promise<boolean> {
-  return showAppDialog({
-    type: 'warning',
-    buttons: [t('dialog.deleteDownloadConfirm'), t('dialog.cancel')],
-    defaultId: 1,
-    cancelId: 1,
-    title: t('dialog.deleteDownloadTitle'),
-    message: hasManagedFile ? t('dialog.deleteDownloadMessage') : t('dialog.deleteDownloadRecordMessage')
-  }).then(function (dialogResult: Electron.MessageBoxReturnValue) {
-    return dialogResult.response === 0;
-  });
-}
-
-async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:delete');
-  if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
-
-  if (activeDownloads.has(videoUrl)) throw new Error(t('status.downloadDeleteActiveBlocked'));
-
-  const record = getPersistedDownload(videoUrl);
-  const visibleRecord = record ? downloadRecordWithRuntimeState(record) : null;
-  if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
-  if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
-
-  const confirmed = await confirmDeleteDownload(downloadRecordHasManagedFile(visibleRecord));
-  if (!confirmed) {
-    return {
-      deleted: false,
-      removed: false,
-      canceled: true
-    };
-  }
-
-  const queueIndex = downloadQueue.indexOf(videoUrl);
-  if (queueIndex !== -1) downloadQueue.splice(queueIndex, 1);
-  canceledDownloadUrls.delete(videoUrl);
-  pausedDownloadUrls.delete(videoUrl);
-  resumedDownloadUrls.delete(videoUrl);
-
-  const deleted = deleteManagedDownloadFile(visibleRecord);
-  removeDownloadWorkingFiles(visibleRecord);
-  const removed = removePersistedDownload(videoUrl);
-  notifyDownloadsChanged();
-
-  return {
-    deleted: deleted,
-    removed: removed
-  };
-}
-
-function openDownloadFile(value: unknown): Promise<OpenDownloadFileResult> {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:open-file');
-  if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
-
-  const record = getPersistedDownload(videoUrl);
-  const readyRecord = record ? reconcileDownloadRecordFileState(record) : null;
-  if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
-    throw new Error(t('status.downloadFileUnavailable'));
-  }
-  const filePath = resolveManagedDownloadPath(readyRecord.localPath);
-  if (!filePath) throw new Error(t('status.downloadFileUnavailable'));
-
-  return openShellPath(filePath).then(function () {
-    return {
-      opened: true,
-      path: filePath
-    };
-  });
-}
-
-function revealDownloadFile(value: unknown): RevealDownloadFileResult {
-  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:reveal-file');
-  if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
-
-  const record = getPersistedDownload(videoUrl);
-  const readyRecord = record ? reconcileDownloadRecordFileState(record) : null;
-  if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) {
-    throw new Error(t('status.downloadFileUnavailable'));
-  }
-  const filePath = resolveManagedDownloadPath(readyRecord.localPath);
-  if (!filePath) throw new Error(t('status.downloadFileUnavailable'));
-
-  revealShellPath(filePath);
-  return {
-    revealed: true,
-    path: filePath
-  };
 }
 
 function getDatabase(): DataEngineInstance {
@@ -1934,15 +415,6 @@ function getDatabase(): DataEngineInstance {
   }
 
   return database;
-}
-
-function getDownloadEngine(): NativeDownloadEngineInstance {
-  if (!downloadEngine) {
-    const nativeModule = nativeDownloadEngineModule.loadNativeDownloadEngine();
-    downloadEngine = new nativeModule.JableDownloadEngine();
-  }
-
-  return downloadEngine;
 }
 
 function localDataFolderPath(): string {
@@ -1965,60 +437,15 @@ function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
 }
 
 function hasQueuedOrActiveDownloads(): boolean {
-  return downloadQueue.length > 0 || activeDownloads.size > 0;
+  return getDownloadManager().hasQueuedOrActiveDownloads();
 }
 
 function pauseDownloadsForShutdown() {
-  const queuedUrls = downloadQueue.splice(0);
-
-  for (const videoUrl of queuedUrls) {
-    const record = getPersistedDownload(videoUrl);
-    if (!record) continue;
-    pausedDownloadUrls.add(videoUrl);
-    upsertPersistedDownload({
-      videoUrl: videoUrl,
-      state: 'paused',
-      progress: null,
-      error: t('status.downloadPaused'),
-      completedAt: null
-    });
-  }
-
-  for (const [videoUrl, runtime] of activeDownloads) {
-    pausedDownloadUrls.add(videoUrl);
-    upsertPersistedDownload({
-      videoUrl: videoUrl,
-      state: 'paused',
-      progress: null,
-      error: t('status.downloadPaused'),
-      completedAt: null
-    });
-    runtime.abortController.abort();
-    if (runtime.nativeId && downloadEngine) downloadEngine.cancelDownload(runtime.nativeId);
-    if (runtime.process) runtime.process.kill('SIGTERM');
-  }
-
-  if (queuedUrls.length || activeDownloads.size) notifyDownloadsChanged();
+  getDownloadManager().pauseDownloadsForShutdown();
 }
 
 function confirmPauseDownloadsBeforeClose(): Promise<boolean> {
-  if (downloadClosePromptInFlight) return Promise.resolve(false);
-  downloadClosePromptInFlight = true;
-
-  return showAppDialog({
-    type: 'warning',
-    buttons: [t('dialog.pauseDownloadsAndClose'), t('dialog.returnToApp')],
-    defaultId: 0,
-    cancelId: 1,
-    title: t('dialog.pauseDownloadsBeforeQuitTitle'),
-    message: t('dialog.pauseDownloadsBeforeQuitMessage')
-  })
-    .then(function (dialogResult: Electron.MessageBoxReturnValue) {
-      return dialogResult.response === 0;
-    })
-    .finally(function () {
-      downloadClosePromptInFlight = false;
-    });
+  return getDownloadManager().confirmPauseDownloadsBeforeClose();
 }
 
 function promptPauseDownloadsAndClose(browserWindow: Electron.BrowserWindow) {
@@ -2165,7 +592,7 @@ function closeActiveTabFromShortcut() {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
     try {
-      closeBrowserTab(activeBrowserTabId);
+      closeBrowserTab(null);
       forwardBrowserMessage('browser-tab-shortcut', {});
     } catch (error) {
       forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
@@ -2178,10 +605,7 @@ function activateRelativeBrowserTabFromShortcut(offset: number) {
     if (!mainWindow || mainWindow.isDestroyed()) return;
 
     try {
-      const tabId = nextActiveTabIdByOffset(browserTabs, activeBrowserTabId, offset);
-      if (!tabId || tabId === activeBrowserTabId) return;
-
-      activateBrowserTab(tabId);
+      getBrowserTabManager().activateRelativeTab(offset);
       forwardBrowserMessage('browser-tab-shortcut', {});
     } catch (error) {
       forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
@@ -2432,213 +856,105 @@ function scheduleBackgroundUpdateCheck() {
   }, BACKGROUND_UPDATE_CHECK_DELAY_MS);
 }
 
+function getBrowserTabManager(): BrowserTabManager {
+  if (!browserTabManager) {
+    browserTabManager = browserTabManagerModule.createBrowserTabManager({
+      activateFallbackOrigin: activateJableFallbackOrigin,
+      fallbackUrlForLoadFailure: fallbackUrlForLoadFailure,
+      forwardBrowserMessage: forwardBrowserMessage,
+      getMainWindow: function () {
+        return mainWindow;
+      },
+      getMaxBrowserTabs: function () {
+        return getAppSettings().maxBrowserTabs;
+      },
+      homeUrl: JABLE_HOME_URL,
+      normalizeNavigationUrl: normalizeBrowserNavigationUrl,
+      registerShortcuts: registerAppShortcuts,
+      rejectPreloadRequestsForWebContents: rejectBrowserPreloadRequestsForWebContents,
+      sessionPartition: JABLE_SESSION_PARTITION,
+      shouldActivateWindowOpen: shouldActivateWindowOpen,
+      shouldDenyAdNavigation: shouldDenyAdNavigation,
+      showBrowserContextMenu: showBrowserContextMenu,
+      t: t,
+      WebContentsView: WebContentsView,
+      webviewPreloadPath: path.join(__dirname, 'webview-preload.js')
+    });
+  }
+
+  return browserTabManager;
+}
+
 function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
-  const normalizedOptions = options || {};
-  const targetUrl = normalizeBrowserNavigationUrl(normalizedOptions.url);
-  const maxTabs = getAppSettings().maxBrowserTabs;
-
-  if (browserTabs.length >= maxTabs) {
-    throw new Error(t('errors.maxTabs', { count: maxTabs }));
-  }
-
-  const kind: BrowserTabKind = normalizedOptions.kind === 'sync' ? 'sync' : 'normal';
-  const id = 'tab-' + nextBrowserTabId++;
-  const preloadPath = path.join(__dirname, 'webview-preload.js');
-  const tab: BrowserTab = {
-    id: id,
-    kind: kind,
-    view: new WebContentsView({
-      webPreferences: browserTabWebPreferences(kind, preloadPath, JABLE_SESSION_PARTITION)
-    }),
-    attached: false,
-    locked: Boolean(normalizedOptions.locked),
-    title: normalizedOptions.title || (kind === 'sync' ? t('browser.sync') : 'Jable'),
-    url: targetUrl,
-    favicon: normalizedOptions.favicon || '',
-    loading: false,
-    muted: Boolean(normalizedOptions.muted),
-    audible: false,
-    mediaPlaying: false,
-    pictureInPicture: false,
-    discarded: false,
-    canGoBack: false,
-    canGoForward: false,
-    controlledLoad: false,
-    lastMainFrameLoadFailure: null
-  };
-
-  browserTabs.push(tab);
-  browserTabsById[id] = tab;
-  webContentsTabIds[String(tab.view.webContents.id)] = id;
-  wireBrowserTab(tab);
-
-  if (!activeBrowserTabId || normalizedOptions.active !== false) {
-    activeBrowserTabId = id;
-  }
-
-  if (targetUrl) loadTabUrl(tab, targetUrl, Boolean(normalizedOptions.forceReload));
-  attachActiveBrowserTab();
-  if (activeBrowserTabId === tab.id) focusBrowserTab(tab);
-  notifyBrowserTabsChanged();
-  return browserTabsState();
-}
-
-function wireBrowserTab(tab: BrowserTab) {
-  registerAppShortcuts(tab.view.webContents);
-
-  if (tab.muted) {
-    tab.view.webContents.setAudioMuted(true);
-  }
-
-  tab.view.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
-    if (details.url) {
-      if (shouldDenyAdNavigation(details.url)) return { action: 'deny' };
-
-      try {
-        createBrowserTab({
-          url: details.url,
-          active: shouldActivateWindowOpen(details)
-        });
-      } catch (error) {
-        forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
-      }
-    }
-
-    return { action: 'deny' };
-  });
-
-  tab.view.webContents.on('will-navigate', function (event: Electron.Event, url: string) {
-    if (shouldDenyAdNavigation(url)) event.preventDefault();
-  });
-
-  tab.view.webContents.on('page-title-updated', function (_event: Electron.Event, title: string) {
-    tab.title = cleanTitle(title) || tab.title;
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('page-favicon-updated', function (_event: Electron.Event, favicons: string[]) {
-    if (Array.isArray(favicons) && favicons[0]) {
-      tab.favicon = favicons[0];
-      notifyBrowserTabsChanged();
-    }
-  });
-
-  tab.view.webContents.on('did-start-loading', function () {
-    tab.loading = true;
-    tab.lastMainFrameLoadFailure = null;
-    resetBrowserTabMediaState(tab);
-    updateTabNavigationState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('did-stop-loading', function () {
-    tab.loading = false;
-    updateTabNavigationState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('did-finish-load', function () {
-    tab.loading = false;
-    updateTabNavigationState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on(
-    'did-fail-load',
-    function (
-      _event: Electron.Event,
-      errorCode: number,
-      _errorDescription: string,
-      validatedURL: string,
-      isMainFrame: boolean
-    ) {
-      tab.loading = false;
-      if (isMainFrame) {
-        tab.lastMainFrameLoadFailure = {
-          url: validatedURL || tab.url,
-          errorCode: errorCode
-        };
-      }
-      updateTabNavigationState(tab);
-      notifyBrowserTabsChanged();
-
-      if (isMainFrame && !tab.controlledLoad && autoFallbackBrowserTab(tab, tab.lastMainFrameLoadFailure)) return;
-    }
-  );
-
-  tab.view.webContents.on('render-process-gone', function () {
-    rejectBrowserPreloadRequestsForTab(tab.id, 'Browser tab renderer process ended');
-  });
-
-  tab.view.webContents.on('destroyed', function () {
-    rejectBrowserPreloadRequestsForTab(tab.id, t('errors.tabNotFound'));
-  });
-
-  tab.view.webContents.on('did-navigate', function (_event: Electron.Event, url: string) {
-    tab.url = url || tab.view.webContents.getURL() || tab.url;
-    updateTabNavigationState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('did-navigate-in-page', function (_event: Electron.Event, url: string) {
-    tab.url = url || tab.view.webContents.getURL() || tab.url;
-    updateTabNavigationState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('media-started-playing', function () {
-    tab.mediaPlaying = true;
-    syncBrowserTabMediaState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('media-paused', function () {
-    tab.mediaPlaying = false;
-    syncBrowserTabMediaState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('audio-state-changed', function (event: { audible?: boolean }) {
-    tab.audible = Boolean(event && event.audible);
-    syncBrowserTabMediaState(tab);
-    notifyBrowserTabsChanged();
-  });
-
-  tab.view.webContents.on('enter-html-full-screen', function () {
-    enterBrowserHtmlFullScreen(tab);
-  });
-
-  tab.view.webContents.on('leave-html-full-screen', function () {
-    leaveBrowserHtmlFullScreen(tab);
-  });
-
-  tab.view.webContents.on('context-menu', function (_event: Electron.Event, params: Electron.ContextMenuParams) {
-    showBrowserContextMenu(tab, params);
-  });
-}
-
-function cleanTitle(title: unknown): string {
-  return String(title || '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return getBrowserTabManager().createTab(options);
 }
 
 function getBrowserTab(tabId?: string | null): BrowserTab {
-  const id = tabId || activeBrowserTabId;
-  const tab = id ? browserTabsById[id] : null;
-  const webContents = tab && tab.view ? tab.view.webContents : null;
-
-  if (!tab || !webContents || webContents.isDestroyed()) {
-    throw new Error(t('errors.tabNotFound'));
-  }
-
-  return tab;
+  return getBrowserTabManager().getTab(tabId);
 }
 
 function getBrowserTabByWebContents(webContents: Electron.WebContents | null | undefined): BrowserTab | null {
-  if (!webContents) return null;
-  const tabId = webContentsTabIds[String(webContents.id)];
-  return tabId ? browserTabsById[tabId] : null;
+  return getBrowserTabManager().getTabByWebContents(webContents);
+}
+
+function browserTabsState(): BrowserTabsState {
+  return getBrowserTabManager().listTabs();
+}
+
+function notifyBrowserTabsChanged() {
+  getBrowserTabManager().notifyChanged();
+}
+
+function browserNavigationState(tabId?: string | null): BrowserNavigationState {
+  return getBrowserTabManager().navigationState(tabId);
+}
+
+function scheduleBrowserHtmlFullScreenResize() {
+  getBrowserTabManager().scheduleHtmlFullScreenResize();
+}
+
+function setBrowserBounds(bounds: BrowserBounds | null | undefined): BrowserBounds | null {
+  return getBrowserTabManager().setBounds(bounds);
+}
+
+function activateBrowserTab(tabId: string | null): BrowserTabsState {
+  return getBrowserTabManager().activateTab(tabId);
+}
+
+function closeBrowserTab(tabId: string | null): BrowserTabsState {
+  return getBrowserTabManager().closeTab(tabId);
+}
+
+function setBrowserTabLocked(payload?: BrowserTabLockedPayload | null): BrowserTabsState {
+  return getBrowserTabManager().setTabLocked(payload);
+}
+
+function setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState {
+  return getBrowserTabManager().setTabMuted(payload);
+}
+
+function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string> {
+  return getBrowserTabManager().navigate(payload);
+}
+
+function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {
+  return getBrowserTabManager().reload(tabId);
+}
+
+function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState> {
+  return getBrowserTabManager().goBack(tabId);
+}
+
+function goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState> {
+  return getBrowserTabManager().goForward(tabId);
+}
+
+function safeCreateBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
+  return getBrowserTabManager().safeCreateTab(options);
+}
+
+function syncBrowserTabMediaState(tab: BrowserTab | null | undefined) {
+  getBrowserTabManager().syncTabMediaState(tab);
 }
 
 function normalizeBrowserPreloadResponse(payload: unknown): BrowserPreloadResponse {
@@ -2676,14 +992,6 @@ function rejectBrowserPreloadRequestsForWebContents(webContentsId: number, messa
       rejectBrowserPreloadRequest(requestId, new Error(message));
     }
   }
-}
-
-function rejectBrowserPreloadRequestsForTab(tabId: string, message: string) {
-  const tab = browserTabsById[tabId];
-  const webContents = tab && tab.view ? tab.view.webContents : null;
-
-  if (!webContents || webContents.isDestroyed()) return;
-  rejectBrowserPreloadRequestsForWebContents(webContents.id, message);
 }
 
 function resolveBrowserPreloadResponse(event: Electron.IpcMainEvent, payload: unknown) {
@@ -2977,20 +1285,12 @@ function pendingCollectionOperationsState(): PendingCollectionOperationOverlaySt
 
 function notifyBrowserSyncLocksChanged() {
   const state = activeSyncRunsState();
-
-  for (let i = 0; i < browserTabs.length; i++) {
-    const webContents = browserTabs[i].view.webContents;
-    if (!webContents.isDestroyed()) webContents.send('browser:sync-lock-state', state);
-  }
+  getBrowserTabManager().sendToAllTabs('browser:sync-lock-state', state);
 }
 
 function notifyPendingCollectionOperationsChanged() {
   const state = pendingCollectionOperationsState();
-
-  for (let i = 0; i < browserTabs.length; i++) {
-    const webContents = browserTabs[i].view.webContents;
-    if (!webContents.isDestroyed()) webContents.send('browser:pending-collection-operations', state);
-  }
+  getBrowserTabManager().sendToAllTabs('browser:pending-collection-operations', state);
 }
 
 function markActiveSyncMutated(collectionKey: CollectionKey) {
@@ -3252,419 +1552,6 @@ async function syncBrowserCollectionInWorker(payload: {
   }
 }
 
-function resetBrowserTabMediaState(tab: BrowserTab | null | undefined) {
-  if (!tab) return;
-
-  tab.audible = false;
-  tab.mediaPlaying = false;
-  tab.pictureInPicture = false;
-}
-
-function syncBrowserTabMediaState(tab: BrowserTab | null | undefined) {
-  if (!tab) return;
-
-  const webContents = tab.view.webContents;
-
-  if (!webContents || webContents.isDestroyed()) return;
-
-  try {
-    tab.muted = webContents.isAudioMuted();
-  } catch (error) {}
-
-  try {
-    tab.audible = webContents.isCurrentlyAudible();
-  } catch (error) {}
-}
-
-function serializeBrowserTab(tab: BrowserTab) {
-  updateTabNavigationState(tab);
-  syncBrowserTabMediaState(tab);
-
-  const mediaState = serializedMediaState(tab);
-
-  return {
-    id: tab.id,
-    kind: tab.kind,
-    title: tab.title || t('browser.newPage'),
-    url: tab.url || '',
-    favicon: tab.favicon || '',
-    loading: Boolean(tab.loading),
-    locked: Boolean(tab.locked),
-    muted: mediaState.muted,
-    audible: mediaState.audible,
-    mediaPlaying: mediaState.mediaPlaying,
-    pictureInPicture: mediaState.pictureInPicture,
-    discarded: mediaState.discarded,
-    canGoBack: Boolean(tab.canGoBack),
-    canGoForward: Boolean(tab.canGoForward)
-  };
-}
-
-function browserTabsState(): BrowserTabsState {
-  return {
-    activeTabId: activeBrowserTabId,
-    maxTabs: getAppSettings().maxBrowserTabs,
-    tabs: browserTabs.map(serializeBrowserTab)
-  };
-}
-
-function updateTabNavigationState(tab: BrowserTab | null | undefined) {
-  const webContents = tab && tab.view ? tab.view.webContents : null;
-
-  if (!tab || !webContents || webContents.isDestroyed()) {
-    if (tab) {
-      tab.canGoBack = false;
-      tab.canGoForward = false;
-    }
-    return;
-  }
-
-  const history = webContents.navigationHistory;
-  tab.url = webContents.getURL() || tab.url;
-  tab.canGoBack = history.canGoBack();
-  tab.canGoForward = history.canGoForward();
-}
-
-function notifyBrowserTabsChanged() {
-  forwardBrowserMessage('browser-tabs-changed', browserTabsState());
-  forwardBrowserMessage('browser-navigation-state', browserNavigationState());
-}
-
-function browserNavigationState(tabId?: string | null): BrowserNavigationState {
-  let tab: BrowserTab | null = null;
-
-  try {
-    tab = getBrowserTab(tabId);
-  } catch (error) {
-    return { canGoBack: false, canGoForward: false, locked: false };
-  }
-
-  updateTabNavigationState(tab);
-
-  return {
-    tabId: tab.id,
-    canGoBack: tab.canGoBack,
-    canGoForward: tab.canGoForward,
-    locked: tab.locked
-  };
-}
-
-function detachBrowserTab(tab: BrowserTab | null | undefined) {
-  if (!mainWindow || mainWindow.isDestroyed() || !tab || !tab.attached) return;
-  mainWindow.contentView.removeChildView(tab.view);
-  tab.attached = false;
-}
-
-function detachAllBrowserTabs() {
-  for (let i = 0; i < browserTabs.length; i++) {
-    detachBrowserTab(browserTabs[i]);
-  }
-}
-
-function focusBrowserTab(tab: BrowserTab | null | undefined) {
-  if (!tab || !browserBounds.visible || !mainWindow || mainWindow.isDestroyed()) return;
-
-  setImmediate(function () {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (!browserBounds.visible || activeBrowserTabId !== tab.id || !tab.attached) return;
-    if (tab.view.webContents.isDestroyed()) return;
-
-    mainWindow.focus();
-    tab.view.webContents.focus();
-  });
-}
-
-function attachActiveBrowserTab() {
-  let activeTab: BrowserTab | null = null;
-  let bounds: BrowserBoundsState | null = null;
-
-  try {
-    activeTab = getBrowserTab();
-  } catch (error) {
-    return;
-  }
-
-  for (let i = 0; i < browserTabs.length; i++) {
-    if (browserTabs[i] !== activeTab) detachBrowserTab(browserTabs[i]);
-  }
-
-  if (!browserBounds.visible || !mainWindow || mainWindow.isDestroyed()) return;
-
-  if (!activeTab.attached) {
-    mainWindow.contentView.addChildView(activeTab.view);
-    activeTab.attached = true;
-  }
-
-  bounds = browserTabBounds(activeTab);
-  activeTab.view.setBounds({
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height
-  });
-}
-
-function browserTabBounds(tab: BrowserTab): BrowserBoundsState {
-  // HTML fullscreen expands only within WebContentsView bounds, so stretch the view over the app chrome.
-  if (browserHtmlFullScreenTabId === tab.id && mainWindow && !mainWindow.isDestroyed()) {
-    const size = mainWindow.getContentSize();
-
-    return {
-      visible: true,
-      x: 0,
-      y: 0,
-      width: Math.max(320, Math.floor(size[0] || 0)),
-      height: Math.max(320, Math.floor(size[1] || 0))
-    };
-  }
-
-  return browserBounds;
-}
-
-function scheduleBrowserHtmlFullScreenResize() {
-  if (!browserHtmlFullScreenTabId) return;
-
-  setImmediate(function () {
-    if (!browserHtmlFullScreenTabId) return;
-    attachActiveBrowserTab();
-  });
-}
-
-function enterBrowserHtmlFullScreen(tab: BrowserTab | null | undefined) {
-  if (!tab || !mainWindow || mainWindow.isDestroyed()) return;
-
-  browserHtmlFullScreenTabId = tab.id;
-  activeBrowserTabId = tab.id;
-  attachActiveBrowserTab();
-  focusBrowserTab(tab);
-}
-
-function leaveBrowserHtmlFullScreen(tab: BrowserTab | null | undefined) {
-  if (!tab || browserHtmlFullScreenTabId !== tab.id) return;
-
-  browserHtmlFullScreenTabId = null;
-  attachActiveBrowserTab();
-  focusBrowserTab(tab);
-}
-
-function setBrowserBounds(bounds: BrowserBounds | null | undefined): BrowserBounds | null {
-  if (!bounds) return null;
-
-  if (bounds.visible === false) {
-    browserBounds.visible = false;
-    detachAllBrowserTabs();
-    return { visible: false };
-  }
-
-  browserBounds = {
-    visible: true,
-    x: Math.max(0, Math.floor(bounds.x || 0)),
-    y: Math.max(0, Math.floor(bounds.y || 0)),
-    width: Math.max(320, Math.floor(bounds.width || 0)),
-    height: Math.max(320, Math.floor(bounds.height || 0))
-  };
-
-  attachActiveBrowserTab();
-  return Object.assign({}, browserBounds);
-}
-
-function activateBrowserTab(tabId: string | null): BrowserTabsState {
-  const tab = getBrowserTab(tabId);
-  if (browserHtmlFullScreenTabId && browserHtmlFullScreenTabId !== tab.id) {
-    browserHtmlFullScreenTabId = null;
-  }
-  activeBrowserTabId = tab.id;
-  attachActiveBrowserTab();
-  focusBrowserTab(tab);
-  notifyBrowserTabsChanged();
-  return browserTabsState();
-}
-
-function closeBrowserTab(tabId: string | null): BrowserTabsState {
-  const tab = getBrowserTab(tabId);
-  if (tab.locked) throw new Error(t('errors.lockedClose'));
-
-  const shouldFocusNextTab = activeBrowserTabId === tab.id;
-  const nextActiveTabId = nextActiveTabIdAfterClose(browserTabs, activeBrowserTabId, tab.id);
-  rejectBrowserPreloadRequestsForTab(tab.id, t('errors.tabNotFound'));
-  detachBrowserTab(tab);
-  delete browserTabsById[tab.id];
-  delete webContentsTabIds[String(tab.view.webContents.id)];
-  if (browserHtmlFullScreenTabId === tab.id) browserHtmlFullScreenTabId = null;
-  browserTabs.splice(browserTabs.indexOf(tab), 1);
-
-  try {
-    tab.view.webContents.close({ waitForBeforeUnload: false });
-  } catch (error) {}
-
-  if (activeBrowserTabId === tab.id) {
-    activeBrowserTabId = nextActiveTabId;
-  }
-
-  if (!browserTabs.length) {
-    createBrowserTab({ url: JABLE_HOME_URL, active: true });
-    return browserTabsState();
-  }
-
-  attachActiveBrowserTab();
-  if (shouldFocusNextTab) focusBrowserTab(getBrowserTab());
-  notifyBrowserTabsChanged();
-  return browserTabsState();
-}
-
-function setBrowserTabLocked(payload?: BrowserTabLockedPayload | null): BrowserTabsState {
-  const normalizedPayload: BrowserTabLockedPayload = payload || { locked: false };
-  const tab = getBrowserTab(normalizedPayload.tabId);
-  tab.locked = Boolean(normalizedPayload.locked);
-  notifyBrowserTabsChanged();
-  return browserTabsState();
-}
-
-function setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState {
-  const normalizedPayload: BrowserTabMutedPayload = payload || { muted: false };
-  const tab = getBrowserTab(normalizedPayload.tabId);
-
-  tab.view.webContents.setAudioMuted(Boolean(normalizedPayload.muted));
-  syncBrowserTabMediaState(tab);
-  notifyBrowserTabsChanged();
-  return browserTabsState();
-}
-
-function waitForBrowserStop(tab: BrowserTab, timeoutMs?: number): Promise<string> {
-  return new Promise(function (resolve) {
-    let done = false;
-    const timer = setTimeout(finish, timeoutMs || 25000);
-
-    function finish() {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      tab.view.webContents.removeListener('did-stop-loading', finish);
-      updateTabNavigationState(tab);
-      resolve(tab.view.webContents.getURL());
-    }
-
-    tab.view.webContents.once('did-stop-loading', finish);
-  });
-}
-
-function loadTabUrl(tab: BrowserTab, targetUrl: string, forceReload: boolean) {
-  targetUrl = normalizeBrowserNavigationUrl(targetUrl);
-  const currentUrl = tab.view.webContents.getURL();
-  tab.url = targetUrl || tab.url;
-  tab.loading = true;
-  tab.lastMainFrameLoadFailure = null;
-
-  if (forceReload && currentUrl === targetUrl) tab.view.webContents.reload();
-  else tab.view.webContents.loadURL(targetUrl);
-
-  updateTabNavigationState(tab);
-  notifyBrowserTabsChanged();
-}
-
-async function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string> {
-  const normalizedPayload: BrowserNavigatePayload = payload || { url: '' };
-  const tab = getBrowserTab(normalizedPayload.tabId);
-  const targetUrl = normalizeBrowserNavigationUrl(normalizedPayload.url);
-
-  if (!targetUrl) return tab.view.webContents.getURL();
-  if (tab.locked) throw new Error(t('errors.lockedNavigate'));
-
-  tab.controlledLoad = true;
-
-  try {
-    let wait = waitForBrowserStop(tab);
-    loadTabUrl(tab, targetUrl, Boolean(normalizedPayload.forceReload));
-    let loadedUrl = await wait;
-    const fallbackUrl = fallbackUrlForLoadFailure(tab.lastMainFrameLoadFailure);
-
-    if (fallbackUrl) {
-      activateJableFallbackOrigin();
-      wait = waitForBrowserStop(tab);
-      loadTabUrl(tab, fallbackUrl, true);
-      loadedUrl = await wait;
-    }
-
-    notifyBrowserTabsChanged();
-    return loadedUrl;
-  } finally {
-    tab.controlledLoad = false;
-  }
-}
-
-async function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {
-  const tab = getBrowserTab(tabId);
-  if (tab.locked) throw new Error(t('errors.lockedReload'));
-
-  tab.view.webContents.reload();
-  updateTabNavigationState(tab);
-  notifyBrowserTabsChanged();
-  return Object.assign({ reloaded: true }, browserNavigationState(tab.id));
-}
-
-async function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState> {
-  let tab: BrowserTab | null = null;
-
-  try {
-    tab = getBrowserTab(tabId);
-  } catch (error) {
-    notifyBrowserTabsChanged();
-    return browserNavigationState(tabId);
-  }
-
-  if (tab.locked) {
-    notifyBrowserTabsChanged();
-    return browserNavigationState(tab.id);
-  }
-
-  const history = tab.view.webContents.navigationHistory;
-
-  if (history.canGoBack()) {
-    const wait = waitForBrowserStop(tab);
-    history.goBack();
-    await wait;
-  }
-
-  notifyBrowserTabsChanged();
-  return browserNavigationState(tab.id);
-}
-
-async function goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState> {
-  let tab: BrowserTab | null = null;
-
-  try {
-    tab = getBrowserTab(tabId);
-  } catch (error) {
-    notifyBrowserTabsChanged();
-    return browserNavigationState(tabId);
-  }
-
-  if (tab.locked) {
-    notifyBrowserTabsChanged();
-    return browserNavigationState(tab.id);
-  }
-
-  const history = tab.view.webContents.navigationHistory;
-
-  if (history.canGoForward()) {
-    const wait = waitForBrowserStop(tab);
-    history.goForward();
-    await wait;
-  }
-
-  notifyBrowserTabsChanged();
-  return browserNavigationState(tab.id);
-}
-
-function safeCreateBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
-  try {
-    return createBrowserTab(options);
-  } catch (error) {
-    forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
-    return browserTabsState();
-  }
-}
-
 function copyText(value: unknown) {
   if (!value) return;
   clipboard.writeText(String(value));
@@ -3801,7 +1688,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
 
   items.push({
     label: t('context.newTab'),
-    enabled: browserTabs.length < getAppSettings().maxBrowserTabs,
+    enabled: getBrowserTabManager().canCreateTab(),
     click: function () {
       safeCreateBrowserTab({ url: JABLE_HOME_URL, active: true });
     }
@@ -3827,14 +1714,14 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
   const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.newTab'),
-      enabled: browserTabs.length < getAppSettings().maxBrowserTabs,
+      enabled: getBrowserTabManager().canCreateTab(),
       click: function () {
         safeCreateBrowserTab({ url: JABLE_HOME_URL, active: true });
       }
     },
     {
       label: t('context.switchToTab'),
-      enabled: activeBrowserTabId !== tab.id,
+      enabled: getBrowserTabManager().activeTabId() !== tab.id,
       click: function () {
         activateBrowserTab(tab.id);
       }
@@ -3899,7 +1786,7 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
   let activeTab: BrowserTab | null = null;
 
   try {
-    activeTab = getBrowserTab(activeBrowserTabId);
+    activeTab = getBrowserTab();
   } catch (error) {
     activeTab = null;
   }
@@ -3917,7 +1804,7 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
     },
     {
       label: t('context.openNewTab'),
-      enabled: browserTabs.length < getAppSettings().maxBrowserTabs,
+      enabled: getBrowserTabManager().canCreateTab(),
       click: function () {
         forwardBrowserMessage('library-video-menu-action', {
           action: 'open-new',
@@ -4042,79 +1929,79 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('app:get-ffmpeg-status', function () {
-    return getFfmpegStatus();
+    return getDownloadManager().getFfmpegStatus();
   });
 
   ipcMain.handle('app:refresh-ffmpeg-status', function () {
-    return getFfmpegStatus();
+    return getDownloadManager().getFfmpegStatus();
   });
 
   ipcMain.handle('app:choose-ffmpeg-path', function () {
-    return chooseFfmpegPath();
+    return getDownloadManager().chooseFfmpegPath();
   });
 
   ipcMain.handle('app:set-ffmpeg-path', function (_event, filePath) {
-    return setFfmpegPath(filePath);
+    return getDownloadManager().setFfmpegPath(filePath);
   });
 
   ipcMain.handle('app:clear-ffmpeg-path', function () {
-    return clearFfmpegPath();
+    return getDownloadManager().clearFfmpegPath();
   });
 
   ipcMain.handle('app:get-download-root', function () {
-    return getDownloadRoot();
+    return getDownloadManager().getDownloadRoot();
   });
 
   ipcMain.handle('app:choose-download-root', function () {
-    return chooseDownloadRoot();
+    return getDownloadManager().chooseDownloadRoot();
   });
 
   ipcMain.handle('app:set-download-root', function (_event, filePath) {
-    return setDownloadRoot(filePath);
+    return getDownloadManager().setDownloadRoot(filePath);
   });
 
   ipcMain.handle('app:clear-download-root', function () {
-    return clearDownloadRoot();
+    return getDownloadManager().clearDownloadRoot();
   });
 
   ipcMain.handle('app:open-download-root', function () {
-    return openDownloadRoot();
+    return getDownloadManager().openDownloadRoot();
   });
 
   ipcMain.handle('download:list', function () {
-    return listDownloads();
+    return getDownloadManager().listDownloads();
   });
 
   ipcMain.handle('download:enqueue', function (_event, payload) {
-    return enqueueDownload(payload);
+    return getDownloadManager().enqueueDownload(payload);
   });
 
   ipcMain.handle('download:retry', function (_event, videoUrl) {
-    return retryDownload(videoUrl);
+    return getDownloadManager().retryDownload(videoUrl);
   });
 
   ipcMain.handle('download:pause', function (_event, videoUrl) {
-    return pauseDownload(videoUrl);
+    return getDownloadManager().pauseDownload(videoUrl);
   });
 
   ipcMain.handle('download:resume', function (_event, videoUrl) {
-    return resumeDownload(videoUrl);
+    return getDownloadManager().resumeDownload(videoUrl);
   });
 
   ipcMain.handle('download:cancel', function (_event, videoUrl) {
-    return cancelDownload(videoUrl);
+    return getDownloadManager().cancelDownload(videoUrl);
   });
 
   ipcMain.handle('download:open-file', function (_event, videoUrl) {
-    return openDownloadFile(videoUrl);
+    return getDownloadManager().openDownloadFile(videoUrl);
   });
 
   ipcMain.handle('download:reveal-file', function (_event, videoUrl) {
-    return revealDownloadFile(videoUrl);
+    return getDownloadManager().revealDownloadFile(videoUrl);
   });
 
   ipcMain.handle('download:delete', function (_event, videoUrl) {
-    return deleteDownload(videoUrl);
+    return getDownloadManager().deleteDownload(videoUrl);
   });
 
   ipcMain.handle('app:open-local-data-folder', function () {

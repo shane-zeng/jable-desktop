@@ -200,7 +200,7 @@ ALTER TABLE download_assets ADD COLUMN last_error_at TEXT;
 - Cancellation 在 Rust segment download 與 FFmpeg remux 階段都要保持反應快速。
 - Runtime progress 維持 runtime-only，除了 paused/resumed 這類持久化狀態轉換。
 - 暫停 active download 時，App 會 abort Rust segment downloader 或 kill FFmpeg remux process，將 record 標記為 `paused`，移除不可靠的 `.mp4.part`，並保留 `.segments` directory。
-- 繼續 paused download 時，App 會重新抓取 video page 與 playlist，在可用時用保存的 segment manifest 驗證 playlist 相容性，重用已完成的 segment files，下載缺少的 segments，最後再用 FFmpeg 從 local playlist remux。
+- 繼續 paused download 時，App 會重新抓取 video page 與 playlist，用可重用的媒體結構而不是 signed CDN URL path 驗證相容性，重用已完成的 segment files，下載缺少的 segments，最後再用 FFmpeg 從 local playlist remux。
 - 如果保留的 segments 與重新抓到的 playlist 不相容，App 可以丟棄保留的 `.segments` directory，重新開始 segment 階段，避免產生損壞 MP4。
 - Cancel 維持破壞性：它會丟棄 resumable temp segments，並將 record 標記為 canceled/failed。
 - 使用者在有 active 或 queued downloads 時正常關閉 App，App 會提示是否先暫停下載再關閉。確認後 active 與 queued records 會變成 `paused`。
@@ -215,6 +215,7 @@ ALTER TABLE download_assets ADD COLUMN last_error_at TEXT;
 - 已完成的 segment files 會保留在受管理的 `.segments` working directory。
 - 未完成的 segment `.part` files 不被信任，resume 時可以覆寫。
 - MP4 `.part` files 不會 resume。如果暫停發生在 FFmpeg remux 階段，`.mp4.part` 會被移除，resume 後重新 remux。
+- Resume 相容性使用 segment 順序/數量、segment 副檔名、duration、key method/IV。Signed playlist、segment、key URLs 預期可能會變動，不應單獨造成從頭開始。
 - Resume 需要下載紀錄保留原本的受管理 `localPath`；如果使用者更換下載根目錄，舊 working files 可能無法使用。
 - Resume 由使用者手動觸發。App 啟動時不應自動 resume paused downloads。
 

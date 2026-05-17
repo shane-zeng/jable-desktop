@@ -201,7 +201,7 @@ Recommended V2 pipeline improvements:
 - Cancellation should stay responsive in both Rust segment download and FFmpeg remux phases.
 - Runtime progress should stay runtime-only except for persisted download state transitions such as paused/resumed.
 - Pausing an active download aborts the Rust segment downloader or kills the FFmpeg remux process, marks the record `paused`, removes the unreliable `.mp4.part` file, and preserves the `.segments` directory.
-- Resuming a paused download refreshes the video page and playlist, validates the refreshed playlist against the preserved segment manifest when available, reuses already completed segment files, downloads missing segments, then runs FFmpeg remux from the local playlist.
+- Resuming a paused download refreshes the video page and playlist, validates the refreshed playlist against reusable media structure rather than signed CDN URL path, reuses already completed segment files, downloads missing segments, then runs FFmpeg remux from the local playlist.
 - If preserved segments are incompatible with the refreshed playlist, the app may discard the preserved `.segments` directory and restart the segment phase rather than producing a corrupt MP4.
 - Cancelling remains destructive for in-progress work: it discards resumable temp segments and marks the record canceled/failed.
 - Graceful app quit with active or queued downloads prompts the user to pause downloads before closing. If the user confirms, active and queued records become `paused`.
@@ -216,6 +216,7 @@ The supported model is segment-level resume:
 - Completed segment files are kept under the managed `.segments` working directory.
 - Incomplete segment `.part` files are not trusted and may be overwritten on resume.
 - MP4 `.part` files are not resumed. If pause happens during FFmpeg remux, the `.mp4.part` file is removed and remux restarts after resume.
+- Resume compatibility uses segment order/count, segment extension, duration, and key method/IV. Signed playlist, segment, and key URLs are expected to change and must not force a restart by themselves.
 - Resume requires the download record to keep its managed `localPath`; changing the download root may make old working files unavailable.
 - Resume is user-initiated. The app should not automatically resume paused downloads on startup.
 

@@ -7,6 +7,7 @@ const test = require('node:test');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
+const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'download-manager.ts');
 const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
 const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'ipc-normalizers.ts');
 const SYNC_WORKFLOW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'composables', 'useSyncWorkflow.ts');
@@ -168,7 +169,7 @@ test('renderer surfaces ajax retry and fallback reasons', function () {
 });
 
 test('main process persists managed-root-relative download paths', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
   assert.match(source, /function downloadOutputRelativePath/);
   assert.match(source, /function usedDownloadRelativePaths/);
@@ -189,7 +190,7 @@ test('main process persists managed-root-relative download paths', function () {
 });
 
 test('main process validates the download root before queueing work', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
   assert.match(source, /function ensureDownloadRootReady/);
   assert.match(source, /fs\.mkdirSync\(root\.path, \{ recursive: true \}\)/);
@@ -202,7 +203,7 @@ test('main process validates the download root before queueing work', function (
 });
 
 test('main process persists missing state discovered by open or reveal', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
   assert.match(source, /function reconcileDownloadRecordFileState/);
   assert.match(source, /const next = downloadRecordWithFileState\(record\)/);
@@ -211,7 +212,7 @@ test('main process persists missing state discovered by open or reveal', functio
 });
 
 test('main process accepts only canonical trusted Jable video URLs for downloads', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
   assert.match(source, /function normalizeDownloadVideoUrl/);
   assert.match(source, /urlPolicy\.canonicalJableVideoUrl/);
@@ -222,14 +223,14 @@ test('main process accepts only canonical trusted Jable video URLs for downloads
 });
 
 test('main process forces MP4 muxing for partial download files', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
   assert.match(source, /const tempPath = outputPath \+ '\.part'/);
   assert.match(source, /'-movflags',\n\s*'\+faststart',\n\s*'-f',\n\s*'mp4',\n\s*tempPath/);
 });
 
 test('main process streams FFmpeg download progress without persisting runtime fields', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
   const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
 
   assert.match(source, /const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>\(\)/);
@@ -243,7 +244,8 @@ test('main process streams FFmpeg download progress without persisting runtime f
 });
 
 test('main process downloads HLS segments in bounded parallel batches', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const mainSource = readSource(MAIN_SOURCE_PATH);
   const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
   const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
   const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'native-download-engine.ts'));
@@ -264,8 +266,15 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /const resumedDownloadUrls = new Set<string>\(\)/);
   assert.match(source, /state: 'paused'/);
   assert.match(source, /resumeManifestMatches\(outputPath, playlist\)/);
-  assert.match(source, /ipcMain\.handle\('download:pause'/);
-  assert.match(source, /ipcMain\.handle\('download:resume'/);
+  assert.match(source, /function shouldReuseDownloadSegmentTempDirectory/);
+  assert.match(source, /function reusableSegmentFileCount/);
+  assert.match(source, /function segmentResumeExtension/);
+  assert.match(source, /version: 2/);
+  assert.match(source, /extension: segmentResumeExtension\(segment\.url\)/);
+  assert.match(source, /updateDownloadRuntimeProgress\(videoUrl, downloadSegmentDirectorySize\(tempDir\)\)/);
+  assert.doesNotMatch(source, /stableMediaUrlIdentity/);
+  assert.match(mainSource, /ipcMain\.handle\('download:pause'/);
+  assert.match(mainSource, /ipcMain\.handle\('download:resume'/);
   assert.match(preload, /ipcRenderer\.invoke\('download:pause', videoUrl\)/);
   assert.match(preload, /ipcRenderer\.invoke\('download:resume', videoUrl\)/);
   assert.match(types, /pauseDownload\(videoUrl: string\): Promise<PauseDownloadResult>/);
@@ -275,7 +284,7 @@ test('main process downloads HLS segments in bounded parallel batches', function
 });
 
 test('main process remuxes downloaded local HLS segments with FFmpeg', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
   assert.match(source, /const localPlaylistPath = await downloadHlsSegmentsWithNative/);
   assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath, runtime\)/);
