@@ -23,7 +23,8 @@ test('app settings store returns defaults and persists updates', function () {
     autoReplayDeferredSyncOperations: false,
     ffmpegPath: null,
     downloadRoot: null,
-    downloadStateFilter: 'all'
+    downloadStateFilter: 'all',
+    maxConcurrentDownloads: 1
   });
 
   assert.deepEqual(
@@ -34,7 +35,8 @@ test('app settings store returns defaults and persists updates', function () {
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
       downloadRoot: '/Users/example/Jable Downloads',
-      downloadStateFilter: 'ready_downloading'
+      downloadStateFilter: 'ready_downloading',
+      maxConcurrentDownloads: 3
     }),
     {
       maxBrowserTabs: 22,
@@ -43,7 +45,8 @@ test('app settings store returns defaults and persists updates', function () {
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
       downloadRoot: '/Users/example/Jable Downloads',
-      downloadStateFilter: 'ready_downloading'
+      downloadStateFilter: 'ready_downloading',
+      maxConcurrentDownloads: 3
     }
   );
 
@@ -55,28 +58,33 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
   assert.equal(secondStore.get().downloadStateFilter, 'ready_downloading');
+  assert.equal(secondStore.get().maxConcurrentDownloads, 3);
 });
 
 test('app settings patch clamps user-facing limits', function () {
   assert.deepEqual(
     settings.normalizeAppSettingsPatch({
       maxBrowserTabs: 999,
-      fullSyncAjaxWindowSize: 999
+      fullSyncAjaxWindowSize: 999,
+      maxConcurrentDownloads: 999
     }),
     {
       maxBrowserTabs: 30,
-      fullSyncAjaxWindowSize: 5
+      fullSyncAjaxWindowSize: 5,
+      maxConcurrentDownloads: 3
     }
   );
 
   assert.deepEqual(
     settings.normalizeAppSettingsPatch({
       maxBrowserTabs: -10,
-      fullSyncAjaxWindowSize: -10
+      fullSyncAjaxWindowSize: -10,
+      maxConcurrentDownloads: -10
     }),
     {
       maxBrowserTabs: 4,
-      fullSyncAjaxWindowSize: 1
+      fullSyncAjaxWindowSize: 1,
+      maxConcurrentDownloads: 1
     }
   );
 });

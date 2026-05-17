@@ -7,7 +7,12 @@ import type {
   SortDirection,
   SortKey
 } from '../types/jable';
-import { DEFAULT_APP_SETTINGS, MAX_BROWSER_TABS_WARNING_THRESHOLD, PAGE_SIZE } from '../app-contract';
+import {
+  DEFAULT_APP_SETTINGS,
+  MAX_BROWSER_TABS_WARNING_THRESHOLD,
+  MAX_CONCURRENT_DOWNLOADS_LIMITS,
+  PAGE_SIZE
+} from '../app-contract';
 import { JABLE_PRIMARY_ORIGIN, jableCollectionUrl } from '../url-policy';
 
 interface ValueOption<T extends string> {
@@ -20,7 +25,7 @@ export const BROWSER_TABS_WIDTH_STORAGE_KEY = 'jable-desktop:browser-tabs-width'
 export const BROWSER_TABS_DEFAULT_WIDTH = 280;
 export const BROWSER_TABS_MIN_WIDTH = 180;
 export const BROWSER_TABS_MAX_WIDTH = 420;
-export { DEFAULT_APP_SETTINGS, MAX_BROWSER_TABS_WARNING_THRESHOLD, PAGE_SIZE };
+export { DEFAULT_APP_SETTINGS, MAX_BROWSER_TABS_WARNING_THRESHOLD, MAX_CONCURRENT_DOWNLOADS_LIMITS, PAGE_SIZE };
 
 export const COLLECTIONS: Record<CollectionKey, CollectionDefinition> = {
   favourites: {

@@ -40,6 +40,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Each collection tab supports:
   - Quick Sync
   - Full Sync
+  - Selected batch download for explicitly checked visible video cards
   - Search text
   - Search mode: `any`, `all`, `phrase`
   - Sort key: `site_order`, `title`, `views`, `likes`
@@ -47,7 +48,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Pagination
 - Page size is 24 rows.
 - Video cards show thumbnail, optional hover preview, title, views, likes, and last synced time.
-- Video cards show a compact download button. The button reflects the global download state for that video URL and avoids showing detailed progress or error text on source collection cards.
+- Video cards show a compact download button and a checkbox for selected batch download. Download controls reflect the global download state for that video URL and avoid showing detailed progress or error text on source collection cards.
 - Clicking a local video opens it in the current browser tab.
 - Middle-click or platform new-tab click opens a local video in a new browser tab.
 - Right-clicking a local video opens a native context menu with open/copy actions.
@@ -96,6 +97,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Check Again for FFmpeg detection
   - Choose FFmpeg for manual binary selection
   - Use PATH for clearing a manual FFmpeg path
+  - Maximum active video downloads
   - Current download folder
   - Choose, reset, and open download folder actions
 - Data settings:
@@ -108,6 +110,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Full sync AJAX window size is clamped from 1 to 5.
 - A warning is shown for the fastest sync acceleration option.
 - Automatic replay of deferred sync operations defaults to off.
+- Maximum active video downloads is clamped from 1 to 3 and defaults to 1.
 
 ## Import And Export UX
 

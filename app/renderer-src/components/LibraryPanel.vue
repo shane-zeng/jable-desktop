@@ -49,6 +49,7 @@ const props = withDefaults(
     pageLabel: string;
     downloads: DownloadRecord[];
     downloadRecords?: DownloadRecord[];
+    batchDownloadSelection?: string[];
     rows: VideoRow[];
     currentPage: number;
     totalPages: number;
@@ -59,6 +60,9 @@ const props = withDefaults(
     downloadDirection: 'desc',
     downloadStateFilter: 'all',
     downloadRecords: function () {
+      return [];
+    },
+    batchDownloadSelection: function () {
       return [];
     }
   }
@@ -85,6 +89,9 @@ const emit = defineEmits<{
   'cancel-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
   'download-video': [video: VideoRow];
+  'download-selected': [];
+  'clear-download-selection': [];
+  'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
   'add-pending-group': [groupId: string];
@@ -131,8 +138,20 @@ const downloadRecordByVideoUrl = computed(function () {
   return records;
 });
 
+const batchDownloadSelectionSet = computed(function () {
+  return new Set(props.batchDownloadSelection);
+});
+
+const batchDownloadSelectionCount = computed(function () {
+  return props.batchDownloadSelection.length;
+});
+
 function downloadRecordForVideo(video: VideoRow) {
   return downloadRecordByVideoUrl.value.get(video.url) || null;
+}
+
+function isVideoSelectedForDownload(video: VideoRow) {
+  return batchDownloadSelectionSet.value.has(video.url);
 }
 </script>
 
@@ -153,6 +172,23 @@ function downloadRecordForVideo(video: VideoRow) {
       />
 
       <div v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'" class="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          :disabled="busy || batchDownloadSelectionCount === 0"
+          data-test="library-download-selected"
+          @click="emit('download-selected')"
+        >
+          {{ t('library.downloadSelected', { count: batchDownloadSelectionCount }) }}
+        </button>
+        <button
+          v-if="batchDownloadSelectionCount > 0"
+          type="button"
+          :disabled="busy"
+          data-test="library-clear-download-selection"
+          @click="emit('clear-download-selection')"
+        >
+          {{ t('library.clearSelection') }}
+        </button>
         <button class="primary" type="button" :disabled="busy" @click="emit('quick-sync')">
           {{ t('library.quickSync') }}
         </button>
@@ -303,10 +339,13 @@ function downloadRecordForVideo(video: VideoRow) {
           :key="video.url"
           :video="video"
           :download-record="downloadRecordForVideo(video)"
+          :show-download-selection="true"
+          :download-selection-selected="isVideoSelectedForDownload(video)"
           @open="emit('open-video', $event)"
           @open-new="emit('open-video-new-tab', $event)"
           @download="emit('download-video', $event)"
           @retry-download="emit('retry-download', $event)"
+          @toggle-download-selection="emit('toggle-download-selection', $event)"
           @context-menu="emit('video-context-menu', $event)"
         />
       </template>

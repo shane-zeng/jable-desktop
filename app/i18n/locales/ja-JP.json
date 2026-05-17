@@ -75,6 +75,8 @@
     "searchPlaceholder": "タイトルまたは URL を検索",
     "sort": "並び替え",
     "sortDirection": "並び順",
+    "downloadSelected": "選択をダウンロード ({count})",
+    "clearSelection": "選択を解除",
     "empty": "ローカルデータはまだありません",
     "count": "{total} 件 · 1ページ {pageSize} 件",
     "page": "ページ {current} / {total}"
@@ -157,6 +159,7 @@
   },
   "video": {
     "open": "動画を開く: {target}",
+    "selectForDownload": "ダウンロード対象に選択",
     "download": "ダウンロード",
     "downloadQueued": "待機中",
     "downloadDownloading": "ダウンロード中",
@@ -219,6 +222,10 @@
           "invalid_path": "無効なパス",
           "unsupported": "使用不可"
         }
+      },
+      "concurrent": {
+        "label": "最大同時ダウンロード数",
+        "description": "各動画は内部でセグメントを並列取得します。値を上げるほどネットワークと CPU を使います。"
       },
       "root": {
         "label": "ダウンロード先",
@@ -326,6 +333,8 @@
     "downloadFileOpenFailed": "ダウンロードファイルを開けませんでした: {error}",
     "downloadFileRevealFailed": "ダウンロードファイルの場所を表示できませんでした: {error}",
     "downloadQueued": "ダウンロード一覧に追加しました",
+    "downloadBatchQueued": "{queued} 件を追加、{skipped} 件をスキップ、{failed} 件が失敗しました",
+    "downloadBatchNoSelection": "ダウンロードする動画を選択してください",
     "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
     "downloadCompleted": "ダウンロード完了: {title}",
     "downloadFailed": "ダウンロード失敗: {title}: {error}",

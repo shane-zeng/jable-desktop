@@ -130,6 +130,7 @@ export interface AppSettings {
   ffmpegPath: string | null;
   downloadRoot: string | null;
   downloadStateFilter: DownloadStateFilter;
+  maxConcurrentDownloads: number;
 }
 
 export type AppSettingsPatch = Partial<AppSettings>;

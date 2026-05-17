@@ -11,7 +11,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
   downloadRoot: null,
-  downloadStateFilter: 'all'
+  downloadStateFilter: 'all',
+  maxConcurrentDownloads: 1
 };
 
 export const MAX_BROWSER_TABS_LIMITS = {
@@ -22,6 +23,11 @@ export const MAX_BROWSER_TABS_LIMITS = {
 export const FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS = {
   min: 1,
   max: 5
+} as const;
+
+export const MAX_CONCURRENT_DOWNLOADS_LIMITS = {
+  min: 1,
+  max: 3
 } as const;
 
 export const MAX_BROWSER_TABS_WARNING_THRESHOLD = 20;

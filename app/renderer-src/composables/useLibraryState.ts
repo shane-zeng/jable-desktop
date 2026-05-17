@@ -118,6 +118,7 @@ export function useLibraryState(api: JableAppApi) {
   const downloadSort = ref<DownloadSortKey>('updated_at');
   const downloadDirection = ref<SortDirection>('desc');
   const downloadStateFilter = ref<DownloadStateFilter>('all');
+  const batchDownloadSelection = ref<string[]>([]);
   const fullSyncContinuation = ref<FullSyncContinuation | null>(null);
   let refreshToken = 0;
   let downloadRefreshToken = 0;
@@ -172,6 +173,17 @@ export function useLibraryState(api: JableAppApi) {
   const fullSyncButtonLabel = computed(function () {
     const pending = fullSyncContinuation.value && fullSyncContinuation.value.collectionKey === activeCollection.value;
     return pending ? t('library.continueFullSync') : t('library.fullSync');
+  });
+
+  const batchDownloadSelectionSet = computed(function () {
+    return new Set(batchDownloadSelection.value);
+  });
+
+  const selectedBatchDownloadVideos = computed(function () {
+    const selected = batchDownloadSelectionSet.value;
+    return pageRows.value.filter(function (video) {
+      return selected.has(video.url);
+    });
   });
 
   async function refreshPendingGroups() {
@@ -247,6 +259,7 @@ export function useLibraryState(api: JableAppApi) {
   async function selectCollection(collectionKey: string) {
     if (!isCollectionKey(collectionKey)) return;
 
+    clearBatchDownloadSelection();
     activeTab.value = collectionKey;
     activeCollection.value = collectionKey;
     currentPage.value = 1;
@@ -255,6 +268,7 @@ export function useLibraryState(api: JableAppApi) {
 
   async function selectTab(tabKey: string) {
     if (tabKey === 'downloads') {
+      clearBatchDownloadSelection();
       activeTab.value = 'downloads';
       currentPage.value = 1;
       await refreshVideos();
@@ -262,6 +276,7 @@ export function useLibraryState(api: JableAppApi) {
     }
 
     if (tabKey === 'pending_remote') {
+      clearBatchDownloadSelection();
       activeTab.value = 'pending_remote';
       currentPage.value = 1;
       await refreshPendingGroups();
@@ -273,6 +288,7 @@ export function useLibraryState(api: JableAppApi) {
 
   function resetPage() {
     currentPage.value = 1;
+    clearBatchDownloadSelection();
   }
 
   async function goToPage(page: number) {
@@ -281,6 +297,7 @@ export function useLibraryState(api: JableAppApi) {
     const nextPage = Math.max(1, Math.min(totalPages.value, page));
     if (nextPage === currentPage.value) return;
 
+    clearBatchDownloadSelection();
     currentPage.value = nextPage;
     await refreshVideos();
   }
@@ -289,6 +306,7 @@ export function useLibraryState(api: JableAppApi) {
     if (isPendingTab.value || isDownloadsTab.value) return;
 
     currentPage.value = 1;
+    clearBatchDownloadSelection();
     refreshVideos();
   });
 
@@ -300,6 +318,18 @@ export function useLibraryState(api: JableAppApi) {
     if (safeStateFilter !== downloadStateFilter.value) downloadStateFilter.value = safeStateFilter;
     currentPage.value = 1;
   });
+
+  function toggleBatchDownloadSelection(videoUrl: string, selected: boolean) {
+    const next = new Set(batchDownloadSelection.value);
+    if (selected) next.add(videoUrl);
+    else next.delete(videoUrl);
+    batchDownloadSelection.value = Array.from(next);
+  }
+
+  function clearBatchDownloadSelection() {
+    if (!batchDownloadSelection.value.length) return;
+    batchDownloadSelection.value = [];
+  }
 
   return {
     activeTab: activeTab,
@@ -315,6 +345,9 @@ export function useLibraryState(api: JableAppApi) {
     downloadSort: downloadSort,
     downloadDirection: downloadDirection,
     downloadStateFilter: downloadStateFilter,
+    batchDownloadSelection: batchDownloadSelection,
+    batchDownloadSelectionSet: batchDownloadSelectionSet,
+    selectedBatchDownloadVideos: selectedBatchDownloadVideos,
     pendingGroups: pendingGroups,
     totalRows: totalRows,
     pendingCount: computed(function () {
@@ -336,6 +369,8 @@ export function useLibraryState(api: JableAppApi) {
     selectCollection: selectCollection,
     selectTab: selectTab,
     resetPage: resetPage,
-    goToPage: goToPage
+    goToPage: goToPage,
+    toggleBatchDownloadSelection: toggleBatchDownloadSelection,
+    clearBatchDownloadSelection: clearBatchDownloadSelection
   };
 }

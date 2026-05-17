@@ -253,7 +253,9 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /maxConcurrency: DOWNLOAD_SEGMENT_MAX_CONCURRENCY/);
   assert.match(source, /sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT/);
   assert.match(source, /retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT/);
-  assert.match(source, /if \(isActive && activeDownloadNativeId\) getDownloadEngine\(\)\.cancelDownload/);
+  assert.match(source, /const activeDownloads = new Map<string, ActiveDownloadRuntime>\(\)/);
+  assert.match(source, /while \(activeDownloads\.size < maxConcurrentDownloads\(\)\)/);
+  assert.match(source, /if \(runtime\.nativeId\) getDownloadEngine\(\)\.cancelDownload\(runtime\.nativeId\)/);
   assert.match(nativeLoader, /jable_download_engine\.' \+ process\.platform \+ '-' \+ process\.arch \+ '\.node'/);
   assert.match(buildScript, /libraryName: 'jable_download_engine'/);
 });
@@ -262,7 +264,7 @@ test('main process remuxes downloaded local HLS segments with FFmpeg', function 
   const source = readSource(MAIN_SOURCE_PATH);
 
   assert.match(source, /const localPlaylistPath = await downloadHlsSegmentsWithNative/);
-  assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath\)/);
+  assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath, runtime\)/);
   assert.match(source, /'-allowed_extensions',\n\s*'ALL',\n\s*'-protocol_whitelist',\n\s*'file,crypto'/);
 });
 

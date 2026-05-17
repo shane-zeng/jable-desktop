@@ -12,7 +12,7 @@ The English files in this directory are the version-controlled source of truth. 
 - [Desktop App](desktop-app.md): user-facing Electron/Vue desktop behavior, including Browser, Local Data, Settings, video cards, and Pending Sync.
 - [Browser Runtime](browser-runtime.md): embedded `WebContentsView` browser runtime, tab policy, navigation, fallback origin handling, ad blocking, fullscreen, context menus, and update checks.
 - [Data And Sync](data-sync.md): collections, local storage, search, quick/full sync, AJAX acceleration, outbox handling, pending remote operations, and JSON import/export.
-- [Download Manager](download-manager.md): Download List, FFmpeg detection, managed local MP4 files, source-card download states, and OS default-player handoff.
+- [Download Manager](download-manager.md): Download List, selected batch downloads, FFmpeg detection, managed local MP4 files, source-card download states, and OS default-player handoff.
 - [IPC Contract](ipc-contract.md): renderer-to-main `window.jableApp` boundary, IPC groups, preload event flow, and validation rules.
 - [Testing And Validation](testing-validation.md): automated test coverage map, quality gates, and manual validation checklist.
 

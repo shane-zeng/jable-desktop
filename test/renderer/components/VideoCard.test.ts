@@ -201,6 +201,20 @@ describe('VideoCard', function () {
     expect(wrapper.emitted('open')).toBeUndefined();
   });
 
+  it('emits selection changes when the download checkbox is enabled', async function () {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
+      props: {
+        video: video,
+        showDownloadSelection: true
+      }
+    });
+
+    await wrapper.get('[data-test="video-download-select"]').setValue(true);
+
+    expect(wrapper.emitted('toggle-download-selection')).toEqual([[{ video: video, selected: true }]]);
+  });
+
   it('shows completed downloads as disabled on the source card', async function () {
     const video = makeVideo();
     const wrapper = mount(VideoCard, {
@@ -213,10 +227,27 @@ describe('VideoCard', function () {
 
     expect(button.text()).toBe('已下載');
     expect((button.element as HTMLButtonElement).disabled).toBe(true);
+    expect(wrapper.find('[data-test="video-download-select"]').exists()).toBe(false);
 
     await button.trigger('click');
 
     expect(wrapper.emitted('download')).toBeUndefined();
+  });
+
+  it('disables selection for completed downloads', function () {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
+      props: {
+        video: video,
+        downloadRecord: makeDownloadRecord(video),
+        showDownloadSelection: true,
+        downloadSelectionSelected: true
+      }
+    });
+
+    const checkbox = wrapper.get('[data-test="video-download-select"]').element as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.disabled).toBe(true);
   });
 
   it('emits retry for failed downloads from the source card', async function () {

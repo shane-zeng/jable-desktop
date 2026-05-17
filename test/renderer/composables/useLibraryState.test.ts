@@ -347,6 +347,38 @@ describe('useLibraryState', function () {
     }
   });
 
+  it('tracks selected videos for batch downloads and clears selection when the page changes', async function () {
+    const rows = makeRows(PAGE_SIZE + 1);
+    const api = createPagedApi(rows);
+    const setup = createState(api);
+
+    try {
+      await setup.state.refreshVideos();
+
+      setup.state.toggleBatchDownloadSelection(rows[0].url, true);
+      setup.state.toggleBatchDownloadSelection(rows[1].url, true);
+
+      expect(setup.state.batchDownloadSelection.value).toEqual([rows[0].url, rows[1].url]);
+      expect(setup.state.selectedBatchDownloadVideos.value.map((video) => video.url)).toEqual([
+        rows[0].url,
+        rows[1].url
+      ]);
+
+      setup.state.toggleBatchDownloadSelection(rows[0].url, false);
+      expect(setup.state.batchDownloadSelection.value).toEqual([rows[1].url]);
+
+      await setup.state.goToPage(2);
+      expect(setup.state.batchDownloadSelection.value).toEqual([]);
+
+      setup.state.toggleBatchDownloadSelection(rows[PAGE_SIZE].url, true);
+      setup.state.search.value = 'Video';
+      await settleWatchers();
+      expect(setup.state.batchDownloadSelection.value).toEqual([]);
+    } finally {
+      setup.stop();
+    }
+  });
+
   it('formats pagination labels in English', async function () {
     setLocale('en-US', false);
     const rows = makeRows(PAGE_SIZE + 1);

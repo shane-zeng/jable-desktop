@@ -75,6 +75,8 @@
     "searchPlaceholder": "Search title or URL",
     "sort": "Sort",
     "sortDirection": "Sort Direction",
+    "downloadSelected": "Download Selected ({count})",
+    "clearSelection": "Clear Selection",
     "empty": "No local data yet",
     "count": "{total} items · {pageSize} per page",
     "page": "Page {current} / {total}"
@@ -157,6 +159,7 @@
   },
   "video": {
     "open": "Open video: {target}",
+    "selectForDownload": "Select for download",
     "download": "Download",
     "downloadQueued": "Queued",
     "downloadDownloading": "Downloading",
@@ -219,6 +222,10 @@
           "invalid_path": "Invalid path",
           "unsupported": "Unavailable"
         }
+      },
+      "concurrent": {
+        "label": "Maximum Concurrent Downloads",
+        "description": "Each video still fetches segments in parallel. Higher values use more network and CPU."
       },
       "root": {
         "label": "Download Location",
@@ -326,6 +333,8 @@
     "downloadFileOpenFailed": "Failed to open downloaded file: {error}",
     "downloadFileRevealFailed": "Failed to reveal downloaded file: {error}",
     "downloadQueued": "Added to the download list",
+    "downloadBatchQueued": "Added {queued} downloads, skipped {skipped}, failed {failed}",
+    "downloadBatchNoSelection": "Select videos to download first",
     "downloadAlreadyQueued": "Video is already in the download list",
     "downloadCompleted": "Download complete: {title}",
     "downloadFailed": "Download failed: {title}: {error}",

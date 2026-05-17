@@ -6,6 +6,8 @@ import type { DownloadRecord, LibraryVideoMenuPayload, VideoRow } from '../../ty
 const props = defineProps<{
   video: VideoRow;
   downloadRecord?: DownloadRecord | null;
+  downloadSelectionSelected?: boolean;
+  showDownloadSelection?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -13,6 +15,7 @@ const emit = defineEmits<{
   'open-new': [url: string];
   download: [video: VideoRow];
   'retry-download': [videoUrl: string];
+  'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 const i18n = useI18n();
@@ -30,6 +33,10 @@ const downloadButtonLabel = computed(function () {
 const downloadButtonDisabled = computed(function () {
   const state = props.downloadRecord && props.downloadRecord.state;
   return state === 'queued' || state === 'downloading' || state === 'ready';
+});
+
+const downloadSelectionDisabled = computed(function () {
+  return downloadButtonDisabled.value;
 });
 
 function formatNumber(value: number | null | undefined) {
@@ -119,13 +126,37 @@ function downloadVideo(event: MouseEvent) {
   }
   emit('download', props.video);
 }
+
+function toggleDownloadSelection(event: Event) {
+  emit('toggle-download-selection', {
+    video: props.video,
+    selected: (event.target as HTMLInputElement).checked
+  });
+}
 </script>
 
 <template>
   <article
-    class="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
+    class="relative grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
     @contextmenu="openVideoMenu"
   >
+    <label
+      v-if="showDownloadSelection"
+      class="absolute left-4 top-4 z-10 grid h-7 w-7 place-items-center rounded-md border border-[var(--panel-border)] bg-[rgba(17,19,24,0.82)] shadow-[var(--shadow)]"
+      :class="downloadSelectionDisabled ? 'opacity-45' : 'cursor-pointer hover:border-[var(--control-border-hover)]'"
+      :aria-label="i18n.t('video.selectForDownload')"
+      @click.stop
+    >
+      <input
+        class="m-0"
+        type="checkbox"
+        data-test="video-download-select"
+        :checked="downloadSelectionSelected"
+        :disabled="downloadSelectionDisabled"
+        @change="toggleDownloadSelection"
+      />
+    </label>
+
     <a
       class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       :href="video.url"

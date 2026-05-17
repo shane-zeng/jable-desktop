@@ -2,7 +2,12 @@
 
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
-import { DEFAULT_APP_SETTINGS, FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS, MAX_BROWSER_TABS_LIMITS } from './app-contract';
+import {
+  DEFAULT_APP_SETTINGS,
+  FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS,
+  MAX_BROWSER_TABS_LIMITS,
+  MAX_CONCURRENT_DOWNLOADS_LIMITS
+} from './app-contract';
 import type { AppSettings, AppSettingsPatch, DownloadStateFilter } from './types/jable';
 
 const fs: typeof NodeFs = require('node:fs');
@@ -53,7 +58,13 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations),
     ffmpegPath: normalizeNullableString(record.ffmpegPath),
     downloadRoot: normalizeNullableString(record.downloadRoot),
-    downloadStateFilter: normalizeDownloadStateFilter(record.downloadStateFilter)
+    downloadStateFilter: normalizeDownloadStateFilter(record.downloadStateFilter),
+    maxConcurrentDownloads: clampInteger(
+      record.maxConcurrentDownloads,
+      DEFAULT_APP_SETTINGS.maxConcurrentDownloads,
+      MAX_CONCURRENT_DOWNLOADS_LIMITS.min,
+      MAX_CONCURRENT_DOWNLOADS_LIMITS.max
+    )
   };
 }
 
@@ -92,6 +103,14 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   }
   if (Object.prototype.hasOwnProperty.call(value, 'downloadStateFilter')) {
     patch.downloadStateFilter = normalizeDownloadStateFilter(value.downloadStateFilter);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'maxConcurrentDownloads')) {
+    patch.maxConcurrentDownloads = clampInteger(
+      value.maxConcurrentDownloads,
+      DEFAULT_APP_SETTINGS.maxConcurrentDownloads,
+      MAX_CONCURRENT_DOWNLOADS_LIMITS.min,
+      MAX_CONCURRENT_DOWNLOADS_LIMITS.max
+    );
   }
 
   return patch;

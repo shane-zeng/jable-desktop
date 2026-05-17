@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { MAX_BROWSER_TABS_WARNING_THRESHOLD } from '../constants';
+import { MAX_BROWSER_TABS_WARNING_THRESHOLD, MAX_CONCURRENT_DOWNLOADS_LIMITS } from '../constants';
 import { t, useI18n } from '../i18n';
 import type {
   AppSettings,
@@ -117,6 +117,10 @@ function updateSettings(patch: AppSettingsPatch) {
 
 function updateMaxBrowserTabs(event: Event) {
   updateSettings({ maxBrowserTabs: Number(eventValue(event)) });
+}
+
+function updateMaxConcurrentDownloads(event: Event) {
+  updateSettings({ maxConcurrentDownloads: Number(eventValue(event)) });
 }
 
 function updateLocale(event: Event) {
@@ -412,6 +416,29 @@ function confirmImport() {
                   {{ t('settings.downloads.ffmpeg.usePath') }}
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
+            <label for="settings-max-concurrent-downloads" class="pt-1 text-sm font-semibold">
+              {{ t('settings.downloads.concurrent.label') }}
+            </label>
+            <div class="grid gap-2">
+              <input
+                id="settings-max-concurrent-downloads"
+                class="w-[120px]"
+                data-test="settings-max-concurrent-downloads"
+                type="number"
+                :min="MAX_CONCURRENT_DOWNLOADS_LIMITS.min"
+                :max="MAX_CONCURRENT_DOWNLOADS_LIMITS.max"
+                step="1"
+                :value="settings.maxConcurrentDownloads"
+                :disabled="busy"
+                @change="updateMaxConcurrentDownloads"
+              />
+              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+                {{ t('settings.downloads.concurrent.description') }}
+              </p>
             </div>
           </div>
 

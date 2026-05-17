@@ -11,7 +11,8 @@ const settings: AppSettings = {
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
   downloadRoot: null,
-  downloadStateFilter: 'all'
+  downloadStateFilter: 'all',
+  maxConcurrentDownloads: 1
 };
 
 function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | null = '/tmp/jable-favourites.sqlite') {
@@ -63,6 +64,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('下載');
     expect(wrapper.text()).toContain('下載位置');
+    expect(wrapper.text()).toContain('最多同時下載數');
     expect(wrapper.text()).toContain('資料');
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
@@ -86,6 +88,10 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-download-root-open"]').trigger('click');
     expect(wrapper.emitted('open-download-root')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-max-concurrent-downloads"]').setValue('3');
+    await wrapper.get('[data-test="settings-max-concurrent-downloads"]').trigger('change');
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ maxConcurrentDownloads: 3 }]);
 
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);

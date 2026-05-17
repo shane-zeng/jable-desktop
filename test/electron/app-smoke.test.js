@@ -136,6 +136,7 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     });
     expect(defaultSettings.autoReplayDeferredSyncOperations).toBe(false);
     expect(defaultSettings.maxBrowserTabs).toBe(14);
+    expect(defaultSettings.maxConcurrentDownloads).toBe(1);
 
     const initialDownloads = await window.evaluate(function () {
       return globalThis.jableApp.listDownloads();
@@ -177,10 +178,15 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     expect(missingDownloads[0].state).toBe('missing');
 
     const updatedSettings = await window.evaluate(function () {
-      return globalThis.jableApp.updateSettings({ maxBrowserTabs: 6, fullSyncAjaxWindowSize: 5 });
+      return globalThis.jableApp.updateSettings({
+        maxBrowserTabs: 6,
+        fullSyncAjaxWindowSize: 5,
+        maxConcurrentDownloads: 3
+      });
     });
     expect(updatedSettings.maxBrowserTabs).toBe(6);
     expect(updatedSettings.fullSyncAjaxWindowSize).toBe(5);
+    expect(updatedSettings.maxConcurrentDownloads).toBe(3);
 
     const initialTabs = await window.evaluate(function () {
       return globalThis.jableApp.listBrowserTabs();

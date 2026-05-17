@@ -605,6 +605,14 @@ function downloadRequestVideo(video: VideoRow): DownloadRequestPayload['video'] 
   };
 }
 
+function downloadRecordForVideoUrl(videoUrl: string) {
+  return (
+    library.downloadRecords.value.find(function (record) {
+      return record.videoUrl === videoUrl;
+    }) || null
+  );
+}
+
 async function downloadVideo(video: VideoRow) {
   if (!video || !video.url || busy.value || syncing.value) return;
 
@@ -621,6 +629,55 @@ async function downloadVideo(video: VideoRow) {
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadStartFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function downloadSelectedVideos() {
+  if (busy.value || syncing.value) return;
+
+  const videos = library.selectedBatchDownloadVideos.value.slice();
+  if (!videos.length) {
+    setStatus(i18n.t('status.downloadBatchNoSelection'), 'info');
+    return;
+  }
+
+  busy.value = true;
+  let queued = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  try {
+    for (const video of videos) {
+      try {
+        const record = downloadRecordForVideoUrl(video.url);
+        const result =
+          record && (record.state === 'failed' || record.state === 'missing')
+            ? await api.retryDownload(record.videoUrl)
+            : await api.enqueueDownload({
+                collectionKey: library.activeCollection.value,
+                video: downloadRequestVideo(video)
+              });
+
+        if (result.queued) queued += 1;
+        else skipped += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(error);
+      }
+    }
+
+    library.clearBatchDownloadSelection();
+    await library.refreshDownloads();
+    setStatus(
+      i18n.t('status.downloadBatchQueued', {
+        queued: queued,
+        skipped: skipped,
+        failed: failed
+      }),
+      failed > 0 ? 'warning' : queued > 0 ? 'success' : 'info'
+    );
+  } finally {
+    busy.value = false;
   }
 }
 
@@ -817,6 +874,7 @@ onMounted(async function () {
         :page-label="library.pageLabel.value"
         :downloads="library.downloads.value"
         :download-records="library.downloadRecords.value"
+        :batch-download-selection="library.batchDownloadSelection.value"
         :rows="pageRows"
         :current-page="library.currentPage.value"
         :total-pages="library.totalPages.value"
@@ -840,6 +898,9 @@ onMounted(async function () {
         @cancel-download="cancelDownload"
         @delete-download="deleteDownload"
         @download-video="downloadVideo"
+        @download-selected="downloadSelectedVideos"
+        @clear-download-selection="library.clearBatchDownloadSelection"
+        @toggle-download-selection="library.toggleBatchDownloadSelection($event.video.url, $event.selected)"
         @add-pending-group="addPendingRemoteOperationGroup"
         @remove-pending-group="removePendingRemoteOperationGroup"
         @resolve-pending-group="resolvePendingRemoteOperationGroup"

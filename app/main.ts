@@ -129,6 +129,11 @@ type DownloadRuntimeProgress = {
   lastSampledAt: number | null;
   lastNotifiedAt: number | null;
 };
+type ActiveDownloadRuntime = {
+  abortController: AbortController;
+  process: NodeChildProcess.ChildProcess | null;
+  nativeId: string | null;
+};
 type DeferredSyncOperation = {
   id: number;
   action: 'add' | 'remove';
@@ -364,10 +369,7 @@ let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = nul
 const downloadQueue: string[] = [];
 const canceledDownloadUrls = new Set<string>();
 const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
-let activeDownloadUrl: string | null = null;
-let activeDownloadProcess: NodeChildProcess.ChildProcess | null = null;
-let activeDownloadAbortController: AbortController | null = null;
-let activeDownloadNativeId: string | null = null;
+const activeDownloads = new Map<string, ActiveDownloadRuntime>();
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -585,10 +587,15 @@ function getAppSettings(): AppSettings {
   return getSettingsStore().get();
 }
 
+function maxConcurrentDownloads() {
+  return getAppSettings().maxConcurrentDownloads;
+}
+
 function updateAppSettings(patch: unknown): AppSettings {
   const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
   notifyBrowserTabsChanged();
   forwardBrowserMessage('settings-changed', settings);
+  processDownloadQueue();
   return settings;
 }
 
@@ -868,7 +875,7 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
   const fileRecord = downloadRecordWithFileState(record);
   if (fileRecord.state !== 'queued' && fileRecord.state !== 'downloading') return fileRecord;
 
-  const isActive = activeDownloadUrl === fileRecord.videoUrl;
+  const isActive = activeDownloads.has(fileRecord.videoUrl);
   const isQueued = downloadQueue.indexOf(fileRecord.videoUrl) !== -1;
   if (isActive || isQueued) return fileRecord;
 
@@ -1231,7 +1238,8 @@ async function downloadHlsSegmentsWithNative(
   videoUrl: string,
   cookieHeader: string,
   outputPath: string,
-  signal: AbortSignal
+  signal: AbortSignal,
+  runtime: ActiveDownloadRuntime
 ): Promise<string> {
   const tempDir = downloadSegmentTempDirectory(outputPath);
   const headers = downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader);
@@ -1241,7 +1249,7 @@ async function downloadHlsSegmentsWithNative(
 
   try {
     throwIfDownloadCanceled(videoUrl);
-    activeDownloadNativeId = downloadId;
+    runtime.nativeId = downloadId;
     progressTimer = startNativeDownloadProgress(videoUrl, tempDir);
     const result = parseNativeDownloadSegmentsResult(
       await getDownloadEngine().downloadHlsSegments(
@@ -1266,7 +1274,7 @@ async function downloadHlsSegmentsWithNative(
     throw nativeDownloadError(error);
   } finally {
     if (progressTimer) clearInterval(progressTimer);
-    if (activeDownloadNativeId === downloadId) activeDownloadNativeId = null;
+    if (runtime.nativeId === downloadId) runtime.nativeId = null;
   }
 }
 
@@ -1274,7 +1282,8 @@ function runFfmpegRemux(
   command: string,
   inputPlaylistPath: string,
   videoUrl: string,
-  outputPath: string
+  outputPath: string,
+  runtime: ActiveDownloadRuntime
 ): Promise<void> {
   return new Promise(function (resolve, reject) {
     const tempPath = outputPath + '.part';
@@ -1322,7 +1331,7 @@ function runFfmpegRemux(
     );
     let stderr = '';
 
-    activeDownloadProcess = child;
+    runtime.process = child;
     child.stdout?.on('data', function (chunk: Buffer) {
       handleFfmpegProgressChunk(
         videoUrl,
@@ -1339,11 +1348,11 @@ function runFfmpegRemux(
       stderr = (stderr + String(chunk)).slice(-4000);
     });
     child.on('error', function (error) {
-      if (activeDownloadProcess === child) activeDownloadProcess = null;
+      if (runtime.process === child) runtime.process = null;
       reject(new FfmpegDownloadError(mainErrorMessage(error)));
     });
     child.on('close', function (code) {
-      if (activeDownloadProcess === child) activeDownloadProcess = null;
+      if (runtime.process === child) runtime.process = null;
 
       if (canceledDownloadUrls.has(videoUrl)) {
         removePartialDownloadFile(outputPath);
@@ -1371,7 +1380,12 @@ function runFfmpegRemux(
 async function runQueuedDownload(record: DownloadRecord) {
   const outputPath = resolveManagedDownloadPath(record.localPath);
   const abortController = new AbortController();
-  activeDownloadAbortController = abortController;
+  const runtime: ActiveDownloadRuntime = {
+    abortController: abortController,
+    process: null,
+    nativeId: null
+  };
+  activeDownloads.set(record.videoUrl, runtime);
 
   upsertPersistedDownload({
     videoUrl: record.videoUrl,
@@ -1405,11 +1419,12 @@ async function runQueuedDownload(record: DownloadRecord) {
       record.videoUrl,
       cookieHeader,
       outputPath,
-      abortController.signal
+      abortController.signal,
+      runtime
     );
     throwIfDownloadCanceled(record.videoUrl);
 
-    await runFfmpegRemux(command, localPlaylistPath, record.videoUrl, outputPath);
+    await runFfmpegRemux(command, localPlaylistPath, record.videoUrl, outputPath, runtime);
     throwIfDownloadCanceled(record.videoUrl);
     let stats: NodeFs.Stats;
     try {
@@ -1440,35 +1455,30 @@ async function runQueuedDownload(record: DownloadRecord) {
     if (outputPath) removeDownloadSegmentTempDirectory(outputPath);
     downloadRuntimeProgress.delete(record.videoUrl);
     canceledDownloadUrls.delete(record.videoUrl);
-    if (activeDownloadAbortController === abortController) activeDownloadAbortController = null;
+    activeDownloads.delete(record.videoUrl);
   }
 }
 
 function processDownloadQueue() {
-  if (activeDownloadUrl) return;
+  while (activeDownloads.size < maxConcurrentDownloads()) {
+    const nextUrl = downloadQueue.shift();
+    if (!nextUrl) return;
 
-  const nextUrl = downloadQueue.shift();
-  if (!nextUrl) return;
+    const record = getPersistedDownload(nextUrl);
+    if (!record || record.state !== 'queued') continue;
 
-  const record = getPersistedDownload(nextUrl);
-  if (!record || record.state !== 'queued') {
-    processDownloadQueue();
-    return;
+    runQueuedDownload(record)
+      .catch(function (error) {
+        console.error(error);
+      })
+      .finally(function () {
+        processDownloadQueue();
+      });
   }
-
-  activeDownloadUrl = nextUrl;
-  runQueuedDownload(record)
-    .catch(function (error) {
-      console.error(error);
-    })
-    .finally(function () {
-      activeDownloadUrl = null;
-      processDownloadQueue();
-    });
 }
 
 function queueDownloadRecord(record: DownloadRecord) {
-  if (downloadQueue.indexOf(record.videoUrl) === -1 && activeDownloadUrl !== record.videoUrl) {
+  if (downloadQueue.indexOf(record.videoUrl) === -1 && !activeDownloads.has(record.videoUrl)) {
     downloadQueue.push(record.videoUrl);
   }
   notifyDownloadsChanged();
@@ -1558,7 +1568,8 @@ function cancelDownload(value: unknown): CancelDownloadResult {
   const currentRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   if (!currentRecord) throw new Error(t('status.downloadCancelUnavailable'));
 
-  const isActive = activeDownloadUrl === videoUrl;
+  const runtime = activeDownloads.get(videoUrl) || null;
+  const isActive = Boolean(runtime);
   if (!isActive && currentRecord.state !== 'queued') throw new Error(t('status.downloadCancelUnavailable'));
 
   removeQueuedDownload(videoUrl);
@@ -1572,9 +1583,11 @@ function cancelDownload(value: unknown): CancelDownloadResult {
     completedAt: null
   });
 
-  if (isActive && activeDownloadAbortController) activeDownloadAbortController.abort();
-  if (isActive && activeDownloadNativeId) getDownloadEngine().cancelDownload(activeDownloadNativeId);
-  if (isActive && activeDownloadProcess) activeDownloadProcess.kill('SIGTERM');
+  if (runtime) {
+    runtime.abortController.abort();
+    if (runtime.nativeId) getDownloadEngine().cancelDownload(runtime.nativeId);
+    if (runtime.process) runtime.process.kill('SIGTERM');
+  }
   notifyDownloadsChanged();
 
   return {
@@ -1639,7 +1652,7 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
   const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:delete');
   if (!videoUrl) throw new Error(t('status.downloadFileUnavailable'));
 
-  if (activeDownloadUrl === videoUrl) throw new Error(t('status.downloadDeleteActiveBlocked'));
+  if (activeDownloads.has(videoUrl)) throw new Error(t('status.downloadDeleteActiveBlocked'));
 
   const record = getPersistedDownload(videoUrl);
   const visibleRecord = record ? downloadRecordWithRuntimeState(record) : null;
@@ -4029,8 +4042,10 @@ app.on('window-all-closed', function () {
 
 app.on('before-quit', function () {
   closeAllSyncWorkers();
-  if (activeDownloadAbortController) activeDownloadAbortController.abort();
-  if (activeDownloadNativeId && downloadEngine) downloadEngine.cancelDownload(activeDownloadNativeId);
-  if (activeDownloadProcess) activeDownloadProcess.kill('SIGTERM');
+  for (const runtime of activeDownloads.values()) {
+    runtime.abortController.abort();
+    if (runtime.nativeId && downloadEngine) downloadEngine.cancelDownload(runtime.nativeId);
+    if (runtime.process) runtime.process.kill('SIGTERM');
+  }
   if (database) database.close();
 });

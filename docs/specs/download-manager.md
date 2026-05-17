@@ -7,7 +7,7 @@ This document specifies the current Download List and local video file managemen
 ## Scope
 
 - The feature is a download and file-management workflow, not an in-app video player.
-- Downloads are started explicitly by the user from Local Data video cards.
+- Downloads are started explicitly by the user from Local Data video cards, either one card at a time or by selecting specific visible collection cards and downloading the selected set.
 - Downloaded files are opened with the operating system default player.
 - Download state is independent from Favourites and Watch Later membership.
 - Removing a video from a local collection does not delete a downloaded file.
@@ -91,6 +91,10 @@ This document specifies the current Download List and local video file managemen
 ## Local Data Cards
 
 - Favourites and Watch Later video cards show a compact download action.
+- Favourites and Watch Later video cards also expose a checkbox for selected batch download.
+- Batch download is based on explicit user selection, not the whole current page or the Download List contents.
+- Selected batch download can enqueue normal downloads and retry selected failed or missing downloads.
+- Selection is cleared when the user changes collection, tab, page, search, sort, or search mode.
 - Pending Sync cards do not expose download actions.
 - Source cards show a single button state instead of full progress, error text, delete controls, or detailed retry controls.
 - Button labels reflect current state:
@@ -151,7 +155,10 @@ This document specifies the current Download List and local video file managemen
 - The Rust native download engine under `native/download-engine` owns HLS key and segment HTTP fetching.
 - The FFmpeg runner remains main-owned and separate from the persisted asset model.
 - Future work may move more process supervision behind a Rust/native boundary if queue control or crash isolation needs justify it, but FFmpeg remains the external remux pipeline.
-- Queue concurrency is one active video download at a time.
+- Video download queue concurrency is controlled by Settings > Downloads.
+- The default maximum active video downloads is 1.
+- The user-facing maximum active video downloads value is clamped from 1 to 3.
+- Each active video download still uses Rust segment-level adaptive concurrency internally, so increasing active video downloads multiplies network and CPU usage.
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.
 - The worker fetches the Jable video page using the isolated Jable session cookies.
@@ -159,7 +166,6 @@ This document specifies the current Download List and local video file managemen
 - The extractor supports escaped absolute `.m3u8` URLs and quoted relative `.m3u8` URLs resolved against the video page URL.
 - The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.
 - The active worker delegates HLS key and segment download to the Rust native download engine before FFmpeg remuxing:
-  - one active video download at a time
   - Rust samples up to 3 segment downloads before the parallel phase
   - segment request concurrency is selected from 8 to 32 workers based on sampled single-worker throughput
   - if a parallel batch receives concurrency-sensitive CDN errors such as HTTP 403, 428, 429, 503, or 504, Rust backs off and retries unfinished segments with lower concurrency

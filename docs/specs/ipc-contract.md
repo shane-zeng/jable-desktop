@@ -66,6 +66,7 @@ Current behavior:
 - Download records are listed from the Rust data engine download asset store.
 - Download records include `collectionKey` for the original download source and `collectionKeys` for current visible local collection membership.
 - Enqueue and retry verify FFmpeg readiness before queueing work.
+- The main-process download queue can run multiple active video downloads up to the persisted Settings > Downloads maximum.
 - HLS key and segment fetching is delegated to the Rust native download engine; the main process passes request headers, segment metadata, adaptive concurrency bounds, retry limit, and a temporary directory path.
 - Open, reveal, retry, cancel, and delete calls use a video URL, not renderer-provided local paths.
 - Delete verifies managed-root containment before unlinking a local file.
