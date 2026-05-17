@@ -59,6 +59,7 @@ Renderer API group:
 - `openDownloadFile(videoUrl)`
 - `revealDownloadFile(videoUrl)`
 - `deleteDownload(videoUrl)`
+- `localPlaybackSource(videoUrl)`
 
 Current behavior:
 
@@ -75,7 +76,9 @@ Current behavior:
 - HLS key and segment fetching is delegated to the Rust native download engine; the main process passes request headers, segment metadata, adaptive concurrency bounds, retry limit, and a temporary directory path.
 - Open, reveal, retry, pause, resume, cancel, and delete calls use a video URL, not renderer-provided local paths.
 - Delete verifies managed-root containment before unlinking a local file.
-- Main forwards `downloads-changed` browser messages with the current download list after download state changes.
+- `localPlaybackSource()` returns a short-lived `jable-local-video://` source only for canonical trusted video URLs whose managed download record is `ready` and whose file still exists inside the current download root.
+- The local playback protocol supports `GET`, `HEAD`, and single byte ranges for MP4 playback. It revalidates the download record and managed file path for every request.
+- Main forwards `downloads-changed` browser messages with the current download list after download state changes, and also sends the same direct message to browser-tab preloads so open video pages can re-check local playback.
 - Active `downloads-changed` records may include runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields while work is running. Download speed is sampled from completed reusable segment bytes at most once per second and is not persisted.
 - The renderer uses `downloads-changed` to refresh Download List/source-card state and to show completion/failure toasts.
 
@@ -204,6 +207,7 @@ Webview preload also receives state broadcasts:
 
 - `browser:sync-lock-state`
 - `browser:pending-collection-operations`
+- `downloads-changed`
 
 Webview preload emits:
 

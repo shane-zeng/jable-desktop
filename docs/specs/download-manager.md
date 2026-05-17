@@ -6,13 +6,23 @@ This document specifies the current Download List and local video file managemen
 
 ## Scope
 
-- The feature is a download and file-management workflow, not an in-app video player.
+- The feature is a download, file-management, and managed-file playback workflow. It does not download media implicitly from playback.
 - Downloads are started explicitly by the user from Local Data video cards, either one card at a time or by selecting specific visible collection cards and downloading the selected set.
-- Playback-triggered download is not part of the current Download Manager behavior and is reserved for future work.
+- Playback-triggered download is not part of the current Download Manager behavior.
+- When a Jable browser tab opens a video URL with an existing ready managed download, the app may replace the page's video element source with the local managed MP4.
 - Downloaded files are opened with the operating system default player.
 - Download state is independent from Favourites and Watch Later membership.
 - Removing a video from a local collection does not delete a downloaded file.
 - Collection JSON import/export does not include download records or downloaded media files.
+
+## Local Playback In Browser Tabs
+
+- Local playback applies only to managed MP4 files represented by `ready` download records.
+- Browser pages request playback through a video URL only. Main process canonicalizes the video URL, verifies the download record is still `ready`, verifies the file still exists, and verifies the resolved path remains inside the current download root.
+- Ready records whose files are missing are reconciled to `missing` and are not exposed for local playback.
+- The browser page receives a short-lived `jable-local-video://` source URL, never a local filesystem path.
+- The custom local playback protocol streams the managed MP4 with `Accept-Ranges: bytes` support so the page video element can seek.
+- The webview preload automatically replaces the current Jable video page's primary `<video>` source when local playback is available. If replacement fails or no local playback source is available, the original Jable page playback remains available.
 
 ## FFmpeg Dependency
 

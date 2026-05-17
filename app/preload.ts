@@ -93,6 +93,9 @@ const jableApp: JableAppApi = {
   deleteDownloads: function (videoUrls) {
     return ipcRenderer.invoke('download:delete-many', videoUrls);
   },
+  localPlaybackSource: function (videoUrl) {
+    return ipcRenderer.invoke('download:local-playback-source', videoUrl);
+  },
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
   },

@@ -153,6 +153,13 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       path: seededDownload.filePath
     });
 
+    const localPlayback = await window.evaluate(function (videoUrl) {
+      return globalThis.jableApp.localPlaybackSource(videoUrl);
+    }, seededDownload.videoUrl);
+    expect(localPlayback.available).toBe(true);
+    expect(localPlayback.videoUrl).toBe(seededDownload.videoUrl);
+    expect(localPlayback.sourceUrl).toMatch(/^jable-local-video:\/\/play\/[A-Za-z0-9_-]+\.mp4$/);
+
     const revealedDownload = await window.evaluate(function (videoUrl) {
       return globalThis.jableApp.revealDownloadFile(videoUrl);
     }, seededDownload.videoUrl);
@@ -177,6 +184,15 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       return globalThis.jableApp.listDownloads();
     });
     expect(missingDownloads[0].state).toBe('missing');
+
+    const missingLocalPlayback = await window.evaluate(function (videoUrl) {
+      return globalThis.jableApp.localPlaybackSource(videoUrl);
+    }, seededDownload.videoUrl);
+    expect(missingLocalPlayback).toEqual({
+      available: false,
+      videoUrl: seededDownload.videoUrl,
+      reason: 'missing'
+    });
 
     const updatedSettings = await window.evaluate(function () {
       return globalThis.jableApp.updateSettings({

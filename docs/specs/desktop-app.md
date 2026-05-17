@@ -31,6 +31,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Compact mode reveals a floating tab rail when the pointer enters the compact trigger area.
 - Locked sync tabs cannot be closed from the tab UI.
 - Browser tabs expose media state indicators for muted, audible, media playing, picture-in-picture, and discarded state.
+- When a browser tab opens a Jable video page and that video has a ready managed download, the page video source is automatically replaced with the local MP4. Missing or unavailable downloads leave the original Jable player behavior unchanged.
 
 ## Local Data View
 

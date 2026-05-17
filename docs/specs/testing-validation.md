@@ -82,6 +82,7 @@ Verify these behaviors when touching related desktop areas:
 - Middle-click in embedded browser opens links in background tabs.
 - HTML fullscreen covers the app chrome and restores normal bounds after exit.
 - Browser context menus show correct link, media, selection, navigation, and page URL actions.
+- Jable video pages with ready managed downloads automatically switch the page video element to local playback; missing, failed, queued, or unavailable downloads keep normal Jable playback.
 - Local video cards open in current tab, open in new tab through middle/platform click, and show context menu actions.
 - Local video cards show compact download states and do not expose detailed progress or error text.
 - Local video cards can be explicitly selected and the selected set can be queued for download without downloading the whole current page.
@@ -94,6 +95,7 @@ Verify these behaviors when touching related desktop areas:
 - Download List renders queued, downloading, paused, failed, ready, and missing rows.
 - Download List multi-select filters can show or combine All, Ready, Downloading, Queued, Paused, Failed, and Missing states, and the selection survives app restart.
 - Ready downloads open through the OS default player and can be revealed in the OS file manager.
+- Ready downloads can also be streamed through the app's local playback protocol with byte-range seeking.
 - Failed and missing downloads can be retried.
 - Retry Failed queues failed and missing records without duplicating ready, queued, or active records.
 - Queued and active downloads can be paused individually, and Queue Actions > Pause All moves queued and active records to paused without deleting preserved segments.

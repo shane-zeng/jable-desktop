@@ -235,6 +235,10 @@ function registerDownloadHandlers(context: IpcHandlersContext) {
   context.ipcMain.handle('download:delete-many', function (_event, videoUrls) {
     return context.getDownloadManager().deleteDownloads(videoUrls);
   });
+
+  context.ipcMain.handle('download:local-playback-source', function (_event, videoUrl) {
+    return context.getDownloadManager().localPlaybackSource(videoUrl);
+  });
 }
 
 function registerDatabaseHandlers(context: IpcHandlersContext) {

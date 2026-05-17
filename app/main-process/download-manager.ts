@@ -2,8 +2,10 @@
 
 import type * as Electron from 'electron';
 import type * as NodeChildProcess from 'node:child_process';
+import type * as NodeCrypto from 'node:crypto';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
+import type * as NodeStream from 'node:stream';
 import type { NativeDownloadEngineModule } from '../download/native-download-engine';
 import type {
   AppSettings,
@@ -21,6 +23,8 @@ import type {
   EnqueueDownloadResult,
   FfmpegPathSelectionResult,
   FfmpegStatus,
+  LocalPlaybackSourceResult,
+  LocalPlaybackUnavailableReason,
   OpenDownloadFileResult,
   PauseDownloadResult,
   RevealDownloadFileResult
@@ -73,6 +77,22 @@ type DownloadDataStore = {
   upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord;
   removeDownloadAsset(videoUrl: string): boolean;
 };
+type LocalPlaybackFile = {
+  record: DownloadRecord;
+  filePath: string;
+  stats: NodeFs.Stats;
+};
+type LocalPlaybackRange =
+  | {
+      satisfiable: true;
+      start: number;
+      end: number;
+      status: 200 | 206;
+    }
+  | {
+      satisfiable: false;
+      status: 416;
+    };
 
 export type DownloadManagerContext = {
   app: Electron.App;
@@ -81,6 +101,7 @@ export type DownloadManagerContext = {
   getDatabase(): DownloadDataStore;
   getMainWindow(): Electron.BrowserWindow | null;
   forwardBrowserMessage(channel: string, payload: unknown): void;
+  sendToAllBrowserTabs(channel: string, payload: unknown): void;
   session: typeof Electron.session;
   shell: typeof Electron.shell;
   showAppDialog(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue>;
@@ -100,7 +121,9 @@ export type DownloadManager = {
   deleteDownloads(value: unknown): Promise<DeleteDownloadsResult>;
   getDownloadRoot(): DownloadRootInfo;
   getFfmpegStatus(): Promise<FfmpegStatus>;
+  handleLocalPlaybackRequest(request: Request): Promise<Response>;
   hasQueuedOrActiveDownloads(): boolean;
+  localPlaybackSource(value: unknown): LocalPlaybackSourceResult;
   listDownloads(): DownloadRecord[];
   openDownloadFile(value: unknown): Promise<OpenDownloadFileResult>;
   openDownloadRoot(): Promise<{ opened: boolean; path: string }>;
@@ -119,8 +142,10 @@ export type DownloadManager = {
 };
 
 const childProcess: typeof NodeChildProcess = require('node:child_process');
+const crypto: typeof NodeCrypto = require('node:crypto');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
+const stream: typeof NodeStream = require('node:stream');
 const downloadHelpers = require('../download/download-helpers') as DownloadHelpersModule;
 const nativeDownloadEngineModule = require('../download/native-download-engine') as {
   loadNativeDownloadEngine(): NativeDownloadEngineModule;
@@ -130,11 +155,13 @@ const urlPolicy = require('../browser/url-policy') as {
 };
 
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
+export const LOCAL_PLAYBACK_SCHEME = 'jable-local-video';
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
 const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
 const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
+const LOCAL_PLAYBACK_TOKEN_TTL_MS = 30 * 60 * 1000;
 const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY: Record<DownloadSpeedMode, { min: number; max: number }> = {
   stable: { min: 4, max: 8 },
   balanced: { min: 8, max: 32 },
@@ -149,6 +176,7 @@ let getAppSettings: () => AppSettings;
 let getDatabase: () => DownloadDataStore;
 let getMainWindow: () => Electron.BrowserWindow | null;
 let forwardBrowserMessage: (channel: string, payload: unknown) => void;
+let sendToAllBrowserTabs: (channel: string, payload: unknown) => void;
 let showAppDialog: (options: Electron.MessageBoxOptions) => Promise<Electron.MessageBoxReturnValue>;
 let translate: (key: string, params?: TranslationParams | null) => string;
 let updateAppSettings: (patch: AppSettingsPatch) => AppSettings;
@@ -161,6 +189,7 @@ const resumedDownloadUrls = new Set<string>();
 const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
 const activeDownloadTasks = new Map<string, Promise<void>>();
+const localPlaybackTokens = new Map<string, { videoUrl: string; expiresAt: number }>();
 
 function t(key: string, params?: TranslationParams | null): string {
   return translate(key, params);
@@ -698,7 +727,9 @@ function listDownloads(): DownloadRecord[] {
 }
 
 function notifyDownloadsChanged() {
-  forwardBrowserMessage('downloads-changed', listDownloads());
+  const records = listDownloads();
+  forwardBrowserMessage('downloads-changed', records);
+  sendToAllBrowserTabs('downloads-changed', records);
 }
 
 function downloadTimestamp() {
@@ -801,6 +832,214 @@ function resolveManagedDownloadPath(fileRelativePath: string | null): string | n
   if (!isPathInsideDirectory(filePath, downloadRootPath)) return null;
 
   return filePath;
+}
+
+function localPlaybackUnavailable(
+  videoUrl: string | null,
+  reason: LocalPlaybackUnavailableReason
+): LocalPlaybackSourceResult {
+  return {
+    available: false,
+    videoUrl: videoUrl,
+    reason: reason
+  };
+}
+
+function localPlaybackTokenUrl(token: string): string {
+  return LOCAL_PLAYBACK_SCHEME + '://play/' + token + '.mp4';
+}
+
+function purgeExpiredLocalPlaybackTokens(now = Date.now()) {
+  for (const entry of localPlaybackTokens) {
+    if (entry[1].expiresAt <= now) localPlaybackTokens.delete(entry[0]);
+  }
+}
+
+function createLocalPlaybackToken(videoUrl: string): string {
+  purgeExpiredLocalPlaybackTokens();
+  const token = crypto.randomBytes(18).toString('base64url');
+  localPlaybackTokens.set(token, {
+    videoUrl: videoUrl,
+    expiresAt: Date.now() + LOCAL_PLAYBACK_TOKEN_TTL_MS
+  });
+  return token;
+}
+
+function localPlaybackTokenFromRequestUrl(value: unknown): string | null {
+  try {
+    const parsed = new URL(String(value || ''));
+    if (parsed.protocol !== LOCAL_PLAYBACK_SCHEME + ':' || parsed.hostname !== 'play') return null;
+    const match = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\.mp4$/);
+    return match ? match[1] : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function videoUrlForLocalPlaybackToken(token: string): string | null {
+  const entry = localPlaybackTokens.get(token);
+  const now = Date.now();
+  if (!entry || entry.expiresAt <= now) {
+    localPlaybackTokens.delete(token);
+    return null;
+  }
+
+  entry.expiresAt = now + LOCAL_PLAYBACK_TOKEN_TTL_MS;
+  return entry.videoUrl;
+}
+
+function localPlaybackReadyFile(videoUrl: string): LocalPlaybackFile | null {
+  const record = getPersistedDownload(videoUrl);
+  const readyRecord = record ? reconcileDownloadRecordFileState(record) : null;
+  if (!readyRecord || readyRecord.state !== 'ready' || !readyRecord.localPath) return null;
+
+  const filePath = resolveManagedDownloadPath(readyRecord.localPath);
+  if (!filePath) return null;
+
+  try {
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile()) return null;
+    return {
+      record: readyRecord,
+      filePath: filePath,
+      stats: stats
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(value);
+  if (!videoUrl) return localPlaybackUnavailable(null, 'not_video');
+
+  const record = getPersistedDownload(videoUrl);
+  if (!record) return localPlaybackUnavailable(videoUrl, 'not_ready');
+
+  const readyRecord = reconcileDownloadRecordFileState(record);
+  if (readyRecord.state === 'missing') return localPlaybackUnavailable(videoUrl, 'missing');
+  if (readyRecord.state !== 'ready') return localPlaybackUnavailable(videoUrl, 'not_ready');
+
+  const readyFile = localPlaybackReadyFile(videoUrl);
+  if (!readyFile) return localPlaybackUnavailable(videoUrl, 'unavailable');
+
+  return {
+    available: true,
+    videoUrl: readyFile.record.videoUrl,
+    sourceUrl: localPlaybackTokenUrl(createLocalPlaybackToken(readyFile.record.videoUrl)),
+    title: readyFile.record.title,
+    fileSizeBytes: readyFile.stats.size
+  };
+}
+
+export function parseLocalPlaybackRangeHeader(value: string | null, size: number): LocalPlaybackRange {
+  const fileSize = Number.isFinite(size) ? Math.max(0, Math.floor(size)) : 0;
+  const range = String(value || '').trim();
+  if (!range) {
+    return {
+      satisfiable: true,
+      start: 0,
+      end: Math.max(0, fileSize - 1),
+      status: 200
+    };
+  }
+
+  const match = range.match(/^bytes=([^,]+)$/);
+  if (!match || fileSize <= 0) return { satisfiable: false, status: 416 };
+
+  const parts = match[1].split('-');
+  if (parts.length !== 2) return { satisfiable: false, status: 416 };
+
+  const startText = parts[0].trim();
+  const endText = parts[1].trim();
+  if (!startText && !endText) return { satisfiable: false, status: 416 };
+
+  let start: number;
+  let end: number;
+
+  if (!startText) {
+    const suffixLength = Number(endText);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return { satisfiable: false, status: 416 };
+    start = Math.max(0, fileSize - suffixLength);
+    end = fileSize - 1;
+  } else {
+    start = Number(startText);
+    end = endText ? Number(endText) : fileSize - 1;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) {
+      return { satisfiable: false, status: 416 };
+    }
+    if (start >= fileSize) return { satisfiable: false, status: 416 };
+    end = Math.min(end, fileSize - 1);
+  }
+
+  return {
+    satisfiable: true,
+    start: start,
+    end: end,
+    status: 206
+  };
+}
+
+function localPlaybackResponse(status: number, body: BodyInit | null, headers?: HeadersInit): Response {
+  return new Response(body, {
+    status: status,
+    headers: headers
+  });
+}
+
+function localPlaybackErrorResponse(status: number, message: string): Response {
+  return localPlaybackResponse(status, message, {
+    'cache-control': 'no-store',
+    'content-type': 'text/plain; charset=utf-8'
+  });
+}
+
+function localPlaybackFileResponse(file: LocalPlaybackFile, request: Request): Response {
+  const method = request.method.toUpperCase();
+  const size = file.stats.size;
+  const range = parseLocalPlaybackRangeHeader(request.headers.get('range'), size);
+  const headers: Record<string, string> = {
+    'accept-ranges': 'bytes',
+    'cache-control': 'no-store',
+    'content-type': 'video/mp4'
+  };
+
+  if (!range.satisfiable) {
+    return localPlaybackResponse(416, null, Object.assign(headers, { 'content-range': 'bytes */' + size }));
+  }
+
+  const contentLength = size === 0 ? 0 : range.end - range.start + 1;
+  headers['content-length'] = String(contentLength);
+  if (range.status === 206) headers['content-range'] = 'bytes ' + range.start + '-' + range.end + '/' + size;
+
+  if (method === 'HEAD' || contentLength === 0) {
+    return localPlaybackResponse(range.status, null, headers);
+  }
+
+  const fileStream = fs.createReadStream(file.filePath, {
+    start: range.start,
+    end: range.end
+  });
+  const body = stream.Readable.toWeb(fileStream) as unknown as BodyInit;
+  return localPlaybackResponse(range.status, body, headers);
+}
+
+async function handleLocalPlaybackRequest(request: Request): Promise<Response> {
+  const method = request.method.toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    return localPlaybackErrorResponse(405, 'Method Not Allowed');
+  }
+
+  const token = localPlaybackTokenFromRequestUrl(request.url);
+  if (!token) return localPlaybackErrorResponse(404, 'Not Found');
+
+  const videoUrl = videoUrlForLocalPlaybackToken(token);
+  if (!videoUrl) return localPlaybackErrorResponse(404, 'Not Found');
+
+  const readyFile = localPlaybackReadyFile(videoUrl);
+  if (!readyFile) return localPlaybackErrorResponse(404, 'Not Found');
+
+  return localPlaybackFileResponse(readyFile, request);
 }
 
 async function cookieHeaderForUrl(targetUrl: string): Promise<string> {
@@ -2069,6 +2308,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
   getDatabase = context.getDatabase;
   getMainWindow = context.getMainWindow;
   forwardBrowserMessage = context.forwardBrowserMessage;
+  sendToAllBrowserTabs = context.sendToAllBrowserTabs;
   showAppDialog = context.showAppDialog;
   translate = context.t;
   updateAppSettings = context.updateAppSettings;
@@ -2085,7 +2325,9 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     deleteDownloads: deleteDownloads,
     getDownloadRoot: getDownloadRoot,
     getFfmpegStatus: getFfmpegStatus,
+    handleLocalPlaybackRequest: handleLocalPlaybackRequest,
     hasQueuedOrActiveDownloads: hasQueuedOrActiveDownloads,
+    localPlaybackSource: localPlaybackSource,
     listDownloads: listDownloads,
     openDownloadFile: openDownloadFile,
     openDownloadRoot: openDownloadRoot,

@@ -1,6 +1,6 @@
 # Browser Runtime Specification
 
-Last verified against implementation: 2026-05-16
+Last verified against implementation: 2026-05-17
 
 This document specifies the embedded browser runtime owned by the Electron main process and webview preload.
 
@@ -28,6 +28,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - If a primary-origin page load fails, the app can reload the same URL on the fallback origin for the current session.
 - Stored video URLs are canonicalized to the primary origin to avoid duplicate local rows across Jable origins.
 - Browser navigation accepts only safe `http:` and `https:` URLs.
+- Ready managed downloads are streamed back into Jable video pages through the privileged `jable-local-video://` protocol. The protocol is token-based and never exposes local filesystem paths to the page.
 - Release URLs opened externally must be GitHub release URLs under `shane-zeng/jable-desktop`.
 
 ## Tab Policy

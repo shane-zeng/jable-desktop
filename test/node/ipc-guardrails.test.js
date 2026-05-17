@@ -229,6 +229,33 @@ test('main process accepts only canonical trusted Jable video URLs for downloads
   assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:open-file'\)/);
 });
 
+test('local playback uses managed download records and browser-tab preload updates', function () {
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
+  const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+  const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+
+  assert.match(mainSource, /registerSchemesAsPrivileged/);
+  assert.match(mainSource, /installLocalPlaybackProtocol/);
+  assert.match(mainSource, /localPlaybackProtocol\.handle\(LOCAL_PLAYBACK_SCHEME/);
+  assert.match(source, /export const LOCAL_PLAYBACK_SCHEME = 'jable-local-video'/);
+  assert.match(source, /function localPlaybackSource/);
+  assert.match(source, /function handleLocalPlaybackRequest/);
+  assert.match(source, /function localPlaybackReadyFile/);
+  assert.match(source, /parseLocalPlaybackRangeHeader/);
+  assert.match(source, /resolveManagedDownloadPath\(readyRecord\.localPath\)/);
+  assert.match(source, /sendToAllBrowserTabs\('downloads-changed', records\)/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:local-playback-source'/);
+  assert.match(preload, /ipcRenderer\.invoke\('download:local-playback-source', videoUrl\)/);
+  assert.match(types, /localPlaybackSource\(videoUrl: string\): Promise<LocalPlaybackSourceResult>/);
+  assert.match(webviewPreload, /function installLocalPlaybackReplacement/);
+  assert.match(webviewPreload, /ipcRenderer\.on\('downloads-changed'/);
+  assert.match(webviewPreload, /data-jable-local-playback="true"/);
+  assert.match(webviewPreload, /video\.setAttribute\('src', sourceUrl\)/);
+});
+
 test('main process forces MP4 muxing for partial download files', function () {
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 

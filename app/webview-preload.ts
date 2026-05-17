@@ -4,6 +4,7 @@ import type * as Electron from 'electron';
 import type {
   BrowserDiagnosis,
   CollectionKey,
+  LocalPlaybackSourceResult,
   ScrapedVideoRow,
   SyncBrowserCollectionOptions,
   SyncMode,
@@ -55,6 +56,18 @@ type PendingCollectionOperation = {
   videoUrl: string;
   remoteVideoId: string | null;
   remoteFavType: string | null;
+};
+type LocalPlaybackSourceSnapshot = {
+  element: HTMLSourceElement;
+  hadSrc: boolean;
+  src: string;
+  hadType: boolean;
+  type: string;
+};
+type LocalPlaybackRestoreState = {
+  hadSrc: boolean;
+  src: string;
+  sources: LocalPlaybackSourceSnapshot[];
 };
 type PagerLink = {
   ajaxUrl: string | null;
@@ -134,14 +147,23 @@ const TRACKPAD_HISTORY_RESET_MS = 180;
 const COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS = 4000;
 const COLLECTION_TOGGLE_CONFIRM_POLL_MS = 120;
 const WEBVIEW_CONTENT_POLICY_SCAN_DELAY_MS = 0;
+const LOCAL_PLAYBACK_SCAN_DELAY_MS = 120;
 let trackpadHistoryDeltaX = 0;
 let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
 let webViewContentPolicyScanTimer: ReturnType<typeof setTimeout> | null = null;
+let localPlaybackScanTimer: ReturnType<typeof setTimeout> | null = null;
 let webViewEnhancementMode = false;
 let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
 let pendingCollectionOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
 let pendingCollectionOverlayTimer: ReturnType<typeof setTimeout> | null = null;
+let localPlaybackRequestSequence = 0;
+let activeLocalPlaybackVideoUrl: string | null = null;
+let activeLocalPlaybackSourceUrl: string | null = null;
+const failedLocalPlaybackSources: Record<string, boolean> = {};
+const failedLocalPlaybackVideoUrls: Record<string, boolean> = {};
+const localPlaybackRestoreStates = new WeakMap<HTMLVideoElement, LocalPlaybackRestoreState>();
+const localPlaybackErrorHandlers = new WeakMap<HTMLVideoElement, EventListener>();
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -1214,6 +1236,225 @@ function readCurrentVideoDetails(): ScrapedVideoRow | null {
   };
 }
 
+function localPlaybackSourceIsAvailable(
+  value: LocalPlaybackSourceResult
+): value is Extract<LocalPlaybackSourceResult, { available: true }> {
+  return Boolean(value && value.available);
+}
+
+function rankedVideoElement(video: HTMLVideoElement) {
+  const rect = video.getBoundingClientRect();
+  const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+  return area + (video.controls ? 1000 : 0) + (video.closest('.player, .video-player, #player') ? 500 : 0);
+}
+
+function mainVideoElement(): HTMLVideoElement | null {
+  const videos = document.querySelectorAll<HTMLVideoElement>('video');
+  let best: HTMLVideoElement | null = null;
+  let bestRank = -1;
+
+  for (let i = 0; i < videos.length; i++) {
+    const rank = rankedVideoElement(videos[i]);
+    if (!best || rank > bestRank) {
+      best = videos[i];
+      bestRank = rank;
+    }
+  }
+
+  return best;
+}
+
+function snapshotLocalPlaybackSource(source: HTMLSourceElement): LocalPlaybackSourceSnapshot {
+  return {
+    element: source,
+    hadSrc: source.hasAttribute('src'),
+    src: source.getAttribute('src') || '',
+    hadType: source.hasAttribute('type'),
+    type: source.getAttribute('type') || ''
+  };
+}
+
+function ensureLocalPlaybackRestoreState(video: HTMLVideoElement) {
+  if (localPlaybackRestoreStates.has(video)) return;
+
+  const sources = Array.from(video.querySelectorAll<HTMLSourceElement>('source')).map(snapshotLocalPlaybackSource);
+  localPlaybackRestoreStates.set(video, {
+    hadSrc: video.hasAttribute('src'),
+    src: video.getAttribute('src') || '',
+    sources: sources
+  });
+}
+
+function restoreLocalPlaybackVideo(video: HTMLVideoElement) {
+  const handler = localPlaybackErrorHandlers.get(video);
+  if (handler) {
+    video.removeEventListener('error', handler);
+    localPlaybackErrorHandlers.delete(video);
+  }
+
+  const state = localPlaybackRestoreStates.get(video);
+  if (!state) return;
+
+  if (state.hadSrc) video.setAttribute('src', state.src);
+  else video.removeAttribute('src');
+
+  for (let i = 0; i < state.sources.length; i++) {
+    const source = state.sources[i];
+    if (!document.documentElement.contains(source.element)) continue;
+    if (source.hadSrc) source.element.setAttribute('src', source.src);
+    else source.element.removeAttribute('src');
+    if (source.hadType) source.element.setAttribute('type', source.type);
+    else source.element.removeAttribute('type');
+  }
+
+  delete video.dataset.jableLocalPlayback;
+  delete video.dataset.jableLocalPlaybackSource;
+  localPlaybackRestoreStates.delete(video);
+  activeLocalPlaybackVideoUrl = null;
+  activeLocalPlaybackSourceUrl = null;
+
+  try {
+    video.load();
+  } catch (error) {}
+}
+
+function restoreLocalPlaybackVideos() {
+  const videos = document.querySelectorAll<HTMLVideoElement>('video[data-jable-local-playback="true"]');
+  for (let i = 0; i < videos.length; i++) {
+    restoreLocalPlaybackVideo(videos[i]);
+  }
+}
+
+function markLocalPlaybackFailed(video: HTMLVideoElement) {
+  const sourceUrl = video.dataset.jableLocalPlaybackSource || '';
+  const videoUrl = activeLocalPlaybackVideoUrl || currentVideoUrl();
+  if (sourceUrl) failedLocalPlaybackSources[sourceUrl] = true;
+  if (videoUrl) failedLocalPlaybackVideoUrls[videoUrl] = true;
+  restoreLocalPlaybackVideo(video);
+}
+
+function setLocalPlaybackSource(video: HTMLVideoElement, videoUrl: string, sourceUrl: string) {
+  if (video.dataset.jableLocalPlaybackSource === sourceUrl) return;
+
+  const oldHandler = localPlaybackErrorHandlers.get(video);
+  if (oldHandler) video.removeEventListener('error', oldHandler);
+
+  ensureLocalPlaybackRestoreState(video);
+
+  const wasPlaying = !video.paused && !video.ended;
+  const sources = video.querySelectorAll<HTMLSourceElement>('source');
+  for (let i = 0; i < sources.length; i++) {
+    sources[i].setAttribute('src', sourceUrl);
+    sources[i].setAttribute('type', 'video/mp4');
+  }
+  video.setAttribute('src', sourceUrl);
+  video.dataset.jableLocalPlayback = 'true';
+  video.dataset.jableLocalPlaybackSource = sourceUrl;
+  activeLocalPlaybackVideoUrl = videoUrl;
+  activeLocalPlaybackSourceUrl = sourceUrl;
+
+  const handler = function () {
+    markLocalPlaybackFailed(video);
+  };
+  localPlaybackErrorHandlers.set(video, handler);
+  video.addEventListener('error', handler, { once: true });
+
+  try {
+    video.load();
+  } catch (error) {}
+
+  if (wasPlaying) {
+    video.play().catch(function () {});
+  }
+}
+
+async function applyLocalPlaybackSource() {
+  localPlaybackScanTimer = null;
+  const videoUrl = currentVideoUrl();
+  const sequence = ++localPlaybackRequestSequence;
+
+  if (!videoUrl) {
+    restoreLocalPlaybackVideos();
+    return;
+  }
+  if (failedLocalPlaybackVideoUrls[videoUrl]) return;
+
+  if (
+    activeLocalPlaybackVideoUrl === videoUrl &&
+    activeLocalPlaybackSourceUrl &&
+    !failedLocalPlaybackSources[activeLocalPlaybackSourceUrl]
+  ) {
+    const activeVideo = mainVideoElement();
+    if (activeVideo) setLocalPlaybackSource(activeVideo, videoUrl, activeLocalPlaybackSourceUrl);
+    return;
+  }
+
+  let result: LocalPlaybackSourceResult;
+  try {
+    result = (await ipcRenderer.invoke('download:local-playback-source', videoUrl)) as LocalPlaybackSourceResult;
+  } catch (error) {
+    return;
+  }
+
+  if (sequence !== localPlaybackRequestSequence || currentVideoUrl() !== videoUrl) return;
+
+  if (!localPlaybackSourceIsAvailable(result)) {
+    restoreLocalPlaybackVideos();
+    return;
+  }
+
+  if (failedLocalPlaybackSources[result.sourceUrl]) return;
+
+  const video = mainVideoElement();
+  if (!video) return;
+
+  setLocalPlaybackSource(video, result.videoUrl, result.sourceUrl);
+}
+
+function scheduleLocalPlaybackSourceCheck() {
+  if (localPlaybackScanTimer) return;
+  localPlaybackScanTimer = setTimeout(applyLocalPlaybackSource, LOCAL_PLAYBACK_SCAN_DELAY_MS);
+}
+
+function installLocalPlaybackReplacement() {
+  scheduleLocalPlaybackSourceCheck();
+  document.addEventListener('DOMContentLoaded', scheduleLocalPlaybackSourceCheck, { once: true });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) scheduleLocalPlaybackSourceCheck();
+  });
+  window.addEventListener('focus', scheduleLocalPlaybackSourceCheck);
+  window.addEventListener('pageshow', scheduleLocalPlaybackSourceCheck);
+  window.addEventListener('load', scheduleLocalPlaybackSourceCheck, { once: true });
+  ipcRenderer.on('downloads-changed', function () {
+    activeLocalPlaybackVideoUrl = null;
+    activeLocalPlaybackSourceUrl = null;
+    for (const videoUrl in failedLocalPlaybackVideoUrls) delete failedLocalPlaybackVideoUrls[videoUrl];
+    scheduleLocalPlaybackSourceCheck();
+  });
+
+  if (typeof MutationObserver === 'undefined') return;
+
+  const target = document.documentElement || document;
+  const observer = new MutationObserver(function (records) {
+    for (let i = 0; i < records.length; i++) {
+      if (records[i].type === 'childList' && (records[i].addedNodes.length || records[i].removedNodes.length)) {
+        scheduleLocalPlaybackSourceCheck();
+        return;
+      }
+      if (records[i].type === 'attributes') {
+        scheduleLocalPlaybackSourceCheck();
+        return;
+      }
+    }
+  });
+  observer.observe(target, {
+    attributes: true,
+    attributeFilter: ['src'],
+    childList: true,
+    subtree: true
+  });
+}
+
 function readVideoDetailsForActionElement(
   el: Element | null,
   collectionKey?: CollectionKey | null
@@ -1998,3 +2239,4 @@ ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
 
 installPendingCollectionOperationOverlay();
 installWebViewContentRules();
+installLocalPlaybackReplacement();

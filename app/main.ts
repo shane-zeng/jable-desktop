@@ -130,6 +130,7 @@ const contextMenuManagerModule = require('./main-process/context-menu-manager') 
 };
 const dataEngineModule = require('./data/data-engine') as DataEngineModule;
 const downloadManagerModule = require('./main-process/download-manager') as {
+  LOCAL_PLAYBACK_SCHEME: string;
   createDownloadManager(context: DownloadManagerContext): DownloadManager;
 };
 const i18n = require('./i18n') as I18nModule;
@@ -150,9 +151,11 @@ const WebContentsView = electron.WebContentsView;
 const ipcMain = electron.ipcMain;
 const Menu = electron.Menu;
 const dialog = electron.dialog;
+const protocol = electron.protocol;
 const session = electron.session;
 const shell = electron.shell;
 const browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
+const LOCAL_PLAYBACK_SCHEME = downloadManagerModule.LOCAL_PLAYBACK_SCHEME;
 
 const DEFAULT_JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
 const JABLE_HOME_URL = configuredHomeUrl();
@@ -162,6 +165,19 @@ const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: LOCAL_PLAYBACK_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      bypassCSP: true,
+      supportFetchAPI: true,
+      stream: true
+    }
+  }
+]);
 
 let mainWindow: Electron.BrowserWindow | null = null;
 const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
@@ -219,6 +235,15 @@ function installWebViewEnhancement() {
   if (result.installed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
     console.info('[webview-enhancement] installed with ' + result.patterns.length + ' URL patterns');
   }
+}
+
+function installLocalPlaybackProtocol() {
+  const localPlaybackProtocol = session.fromPartition(JABLE_SESSION_PARTITION).protocol;
+  if (localPlaybackProtocol.isProtocolHandled(LOCAL_PLAYBACK_SCHEME)) return;
+
+  localPlaybackProtocol.handle(LOCAL_PLAYBACK_SCHEME, function (request: Request) {
+    return getDownloadManager().handleLocalPlaybackRequest(request);
+  });
 }
 
 function mainErrorMessage(error: unknown): string {
@@ -292,6 +317,9 @@ function getDownloadManager(): DownloadManager {
         return mainWindow;
       },
       forwardBrowserMessage: forwardBrowserMessage,
+      sendToAllBrowserTabs: function (channel, payload) {
+        if (browserTabManager) browserTabManager.sendToAllTabs(channel, payload);
+      },
       session: session,
       shell: shell,
       showAppDialog: showAppDialog,
@@ -991,6 +1019,7 @@ app.whenReady().then(function () {
   installApplicationMenu();
 
   getDatabase();
+  installLocalPlaybackProtocol();
   installWebViewEnhancement();
   createWindow();
   scheduleBackgroundUpdateCheck();

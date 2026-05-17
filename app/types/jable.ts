@@ -190,6 +190,22 @@ export interface DownloadRecord {
 
 export type DownloadRecordPatch = Partial<DownloadRecord> & { videoUrl: string };
 
+export type LocalPlaybackUnavailableReason = 'not_video' | 'not_ready' | 'missing' | 'unavailable';
+
+export type LocalPlaybackSourceResult =
+  | {
+      available: true;
+      videoUrl: string;
+      sourceUrl: string;
+      title: string | null;
+      fileSizeBytes: number | null;
+    }
+  | {
+      available: false;
+      videoUrl: string | null;
+      reason: LocalPlaybackUnavailableReason;
+    };
+
 export interface OpenDownloadFileResult {
   opened: boolean;
   path: string;
@@ -519,6 +535,7 @@ export interface JableAppApi {
   revealDownloadFile(videoUrl: string): Promise<RevealDownloadFileResult>;
   deleteDownload(videoUrl: string): Promise<DeleteDownloadResult>;
   deleteDownloads(videoUrls: string[]): Promise<DeleteDownloadsResult>;
+  localPlaybackSource(videoUrl: string): Promise<LocalPlaybackSourceResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;
