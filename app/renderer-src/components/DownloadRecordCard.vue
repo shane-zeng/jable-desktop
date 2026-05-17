@@ -67,17 +67,16 @@ function bytesLabel(size: number) {
   return formatted + ' ' + units[unitIndex];
 }
 
-function formatTimestamp(value: string | null) {
+function formatCompactTimestamp(value: string | null) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
 
-  const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes;
+  return month + '-' + day + ' ' + hours + ':' + minutes;
 }
 
 function collectionLabel(collectionKey: CollectionKey) {
@@ -109,15 +108,10 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
 function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
   if (record.state === 'ready') {
-    const parts = [];
-    const size = fileSizeValueLabel(record);
-    const completedAt = formatTimestamp(record.completedAt);
-    if (size) parts.push(size);
-    if (completedAt) parts.push(t('downloadList.completedAtShort', { time: completedAt }));
-    return parts.join(' · ');
+    return fileSizeValueLabel(record);
   }
   if (record.state === 'failed' || record.state === 'missing' || record.state === 'queued') {
-    const updatedAt = formatTimestamp(record.updatedAt);
+    const updatedAt = formatCompactTimestamp(record.updatedAt);
     return updatedAt ? t('downloadList.updatedAtShort', { time: updatedAt }) : '';
   }
   return '';
@@ -255,15 +249,20 @@ function stopPreview() {
           ></div>
         </div>
 
-        <div class="mt-2 flex min-w-0 items-center justify-between gap-2 text-xs leading-[1.4] text-[var(--muted)]">
+        <div
+          class="mt-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs leading-[1.4] text-[var(--muted)]"
+        >
           <div class="flex min-w-0 items-center gap-1.5">
-            <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
+            <span
+              class="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold"
+              :class="stateClass(record.state)"
+            >
               {{ t('downloadList.state.' + record.state) }}
             </span>
             <button
               v-if="hasErrorDetails(record)"
               type="button"
-              class="grid h-7 min-h-0 w-7 place-items-center rounded-full border-0 bg-[#4f2a1c] p-0 text-[#f2b35d] outline-none hover:bg-[#623522] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b35d]"
+              class="grid h-6 min-h-0 w-6 shrink-0 place-items-center rounded-full border-0 bg-transparent p-0 text-[#f2b35d] outline-none hover:bg-[#4f2a1c] focus:outline-none"
               data-test="download-record-error-details"
               :aria-label="t('downloadList.errorDetails')"
               @click="showErrorDetails = true"
@@ -284,15 +283,18 @@ function stopPreview() {
               </svg>
             </button>
           </div>
-          <span class="min-w-0 truncate text-right">
+          <span class="min-w-0 truncate text-right text-[var(--muted)]">
             {{ secondaryInfoLabel(record) }}
           </span>
         </div>
 
-        <div class="mt-2 flex flex-wrap justify-end gap-2">
+        <div
+          class="mt-2 grid gap-2"
+          :class="record.state === 'queued' || record.state === 'downloading' ? 'grid-cols-2' : 'grid-cols-3'"
+        >
           <button
             type="button"
-            class="min-h-7 px-2 py-1 text-xs"
+            class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-open-page"
             :title="t('downloadList.openPage')"
             @click="emit('open-page', record.videoUrl)"
@@ -302,7 +304,7 @@ function stopPreview() {
           <button
             v-if="record.state === 'ready'"
             type="button"
-            class="min-h-7 px-2 py-1 text-xs"
+            class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-reveal"
             :title="t('downloadList.reveal')"
             @click="emit('reveal', record.videoUrl)"
@@ -312,7 +314,7 @@ function stopPreview() {
           <button
             v-if="record.state === 'failed' || record.state === 'missing'"
             type="button"
-            class="min-h-7 px-2 py-1 text-xs"
+            class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-retry"
             @click="emit('retry', record.videoUrl)"
           >
@@ -321,7 +323,7 @@ function stopPreview() {
           <button
             v-if="record.state === 'queued' || record.state === 'downloading'"
             type="button"
-            class="danger min-h-7 px-2 py-1 text-xs"
+            class="danger min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-cancel"
             @click="emit('cancel', record.videoUrl)"
           >
@@ -330,7 +332,7 @@ function stopPreview() {
           <button
             v-if="record.state === 'ready' || record.state === 'failed' || record.state === 'missing'"
             type="button"
-            class="danger min-h-7 px-2 py-1 text-xs"
+            class="danger min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-delete"
             @click="emit('delete', record.videoUrl)"
           >

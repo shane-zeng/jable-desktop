@@ -456,7 +456,6 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).toContain('稍後觀看');
     expect(cards[0].text()).toContain('已下載');
     expect(cards[0].text()).toContain('1 KB');
-    expect(cards[0].text()).toContain('完成 ');
     expect(cards[0].text()).not.toContain('/tmp/ready.mp4');
     expect(cards[0].find('[data-test="download-record-progress"]').exists()).toBe(true);
     expect(cards[1].text()).toContain('Missing Video');
