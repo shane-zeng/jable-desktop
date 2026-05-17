@@ -456,12 +456,15 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).toContain('稍後觀看');
     expect(cards[0].text()).toContain('已下載');
     expect(cards[0].text()).toContain('1 KB');
+    expect(cards[0].text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+    expect(cards[0].text()).not.toContain('完成 ');
     expect(cards[0].text()).not.toContain('/tmp/ready.mp4');
     expect(cards[0].find('[data-test="download-record-progress"]').exists()).toBe(true);
     expect(cards[1].text()).toContain('Missing Video');
     expect(cards[1].text()).toContain('檔案遺失');
     expect(cards[1].text()).not.toContain('錯誤：File removed');
-    expect(cards[1].text()).toContain('更新 ');
+    expect(cards[1].text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
+    expect(cards[1].text()).not.toContain('更新 ');
     expect(cards[1].text()).not.toContain('/tmp/missing.mp4');
     expect(cards[1].find('[data-test="download-record-error-details"]').exists()).toBe(true);
 
@@ -504,7 +507,7 @@ describe('LibraryPanel', function () {
         searchMode: 'any',
         sort: 'site_order',
         direction: 'asc',
-        countLabel: '2 筆下載',
+        countLabel: '3 筆下載',
         pageLabel: '第 1 / 1 頁',
         downloads: [
           {
@@ -536,6 +539,21 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
+          },
+          {
+            videoUrl: 'https://jable.tv/videos/downloading-unknown/',
+            collectionKeys: ['watch_later'],
+            title: 'Downloading Unknown Progress Video',
+            img: null,
+            preview: null,
+            localPath: '/tmp/downloading-unknown.mp4',
+            state: 'downloading',
+            progress: null,
+            fileSizeBytes: null,
+            error: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: null
           }
         ],
         rows: [],
@@ -548,13 +566,17 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).toContain('等待中');
     expect(cards[1].text()).toContain('下載中');
     expect(cards[1].text()).toContain('42%');
+    expect(cards[2].text()).toContain('下載中');
+    expect(cards[2].find('.download-progress-indeterminate').exists()).toBe(true);
 
     await cards[0].get('[data-test="download-record-cancel"]').trigger('click');
     await cards[1].get('[data-test="download-record-cancel"]').trigger('click');
+    await cards[2].get('[data-test="download-record-cancel"]').trigger('click');
 
     expect(wrapper.emitted('cancel-download')).toEqual([
       ['https://jable.tv/videos/queued/'],
-      ['https://jable.tv/videos/downloading/']
+      ['https://jable.tv/videos/downloading/'],
+      ['https://jable.tv/videos/downloading-unknown/']
     ]);
   });
 });

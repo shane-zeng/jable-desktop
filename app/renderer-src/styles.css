@@ -499,6 +499,21 @@ button:focus {
   opacity: 1;
 }
 
+.download-progress-indeterminate {
+  width: 38%;
+  animation: download-progress-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes download-progress-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(280%);
+  }
+}
+
 .video-title-wrap {
   position: relative;
   min-width: 0;

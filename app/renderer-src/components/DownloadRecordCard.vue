@@ -37,13 +37,17 @@ function progressPercent(record: DownloadRecord) {
   if (record.state === 'ready') return 100;
   if (record.state === 'failed' || record.state === 'missing') return 100;
   if (record.state === 'downloading' && typeof record.progress === 'number') {
-    return Math.round(Math.min(1, Math.max(0, record.progress)) * 100);
+    return Math.max(2, Math.round(Math.min(1, Math.max(0, record.progress)) * 100));
   }
   return 0;
 }
 
 function progressStyle(record: DownloadRecord) {
   return { width: progressPercent(record) + '%' };
+}
+
+function isIndeterminateProgress(record: DownloadRecord) {
+  return record.state === 'downloading' && typeof record.progress !== 'number';
 }
 
 function progressLabel(record: DownloadRecord) {
@@ -67,16 +71,18 @@ function bytesLabel(size: number) {
   return formatted + ' ' + units[unitIndex];
 }
 
-function formatCompactTimestamp(value: string | null) {
+function formatTimeLabel(value: string | null) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
 
+  const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  return month + '-' + day + ' ' + hours + ':' + minutes;
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
 }
 
 function collectionLabel(collectionKey: CollectionKey) {
@@ -107,19 +113,13 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
 
 function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
-  if (record.state === 'ready') {
-    const parts = [];
-    const size = fileSizeValueLabel(record);
-    const completedAt = formatCompactTimestamp(record.completedAt);
-    if (size) parts.push(size);
-    if (completedAt) parts.push(t('downloadList.completedAtShort', { time: completedAt }));
-    return parts.join(' · ');
-  }
-  if (record.state === 'failed' || record.state === 'missing' || record.state === 'queued') {
-    const updatedAt = formatCompactTimestamp(record.updatedAt);
-    return updatedAt ? t('downloadList.updatedAtShort', { time: updatedAt }) : '';
-  }
+  if (record.state === 'ready') return fileSizeValueLabel(record);
   return '';
+}
+
+function recordTimeLabel(record: DownloadRecord) {
+  if (record.state === 'ready') return formatTimeLabel(record.completedAt || record.updatedAt);
+  return formatTimeLabel(record.updatedAt);
 }
 
 function hasErrorDetails(record: DownloadRecord) {
@@ -239,6 +239,12 @@ function stopPreview() {
       <div class="mt-auto grid gap-2 pt-2">
         <div class="h-1.5 overflow-hidden rounded-full bg-[var(--control)]" data-test="download-record-progress">
           <div
+            v-if="isIndeterminateProgress(record)"
+            class="download-progress-indeterminate h-full rounded-full"
+            :class="progressFillClass(record.state)"
+          ></div>
+          <div
+            v-else
             class="h-full rounded-full transition-[width] duration-300"
             :class="progressFillClass(record.state)"
             :style="progressStyle(record)"
@@ -289,9 +295,14 @@ function stopPreview() {
           </div>
         </div>
 
-        <p class="m-0 min-h-5 truncate text-xs leading-5 text-[var(--muted)]">
-          {{ secondaryInfoLabel(record) }}
-        </p>
+        <div class="grid min-h-5 grid-cols-[minmax(0,1fr)_auto] gap-2 text-xs leading-5 text-[var(--muted)]">
+          <span class="min-w-0 truncate">
+            {{ secondaryInfoLabel(record) }}
+          </span>
+          <span class="shrink-0 tabular-nums">
+            {{ recordTimeLabel(record) }}
+          </span>
+        </div>
 
         <div
           class="grid gap-2"
