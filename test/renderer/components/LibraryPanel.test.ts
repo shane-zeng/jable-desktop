@@ -472,6 +472,7 @@ describe('LibraryPanel', function () {
     await wrapper.get('[data-test="download-record-error-close"]').trigger('click');
 
     await cards[0].get('a').trigger('click');
+    await cards[1].get('a').trigger('click');
     await cards[0].get('[data-test="download-record-reveal"]').trigger('click');
     await cards[0].get('[data-test="download-record-delete"]').trigger('click');
     await cards[1].get('[data-test="download-record-open-page"]').trigger('click');

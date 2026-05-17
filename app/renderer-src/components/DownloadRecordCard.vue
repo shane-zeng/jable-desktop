@@ -108,7 +108,12 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
 function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
   if (record.state === 'ready') {
-    return fileSizeValueLabel(record);
+    const parts = [];
+    const size = fileSizeValueLabel(record);
+    const completedAt = formatCompactTimestamp(record.completedAt);
+    if (size) parts.push(size);
+    if (completedAt) parts.push(t('downloadList.completedAtShort', { time: completedAt }));
+    return parts.join(' · ');
   }
   if (record.state === 'failed' || record.state === 'missing' || record.state === 'queued') {
     const updatedAt = formatCompactTimestamp(record.updatedAt);
@@ -155,11 +160,8 @@ function technicalErrorDetails(error: string | null) {
 
 function openCardTarget(event: MouseEvent, record: DownloadRecord) {
   event.preventDefault();
-  if (record.state === 'ready') {
-    emit('open', record.videoUrl);
-    return;
-  }
-  emit('open-page', record.videoUrl);
+  if (record.state !== 'ready') return;
+  emit('open', record.videoUrl);
 }
 
 function startPreview(record: DownloadRecord) {
@@ -196,7 +198,9 @@ function stopPreview() {
   >
     <a
       class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+      :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
       :href="record.videoUrl"
+      :aria-disabled="record.state !== 'ready'"
       @click="openCardTarget($event, record)"
       @pointerenter="startPreview(record)"
       @pointerleave="stopPreview"
@@ -224,23 +228,15 @@ function stopPreview() {
     <div class="flex min-h-[140px] min-w-0 flex-col gap-2">
       <a
         class="min-h-[3.9em] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
+        :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
         :href="record.videoUrl"
+        :aria-disabled="record.state !== 'ready'"
         @click="openCardTarget($event, record)"
       >
         {{ record.title || record.videoUrl }}
       </a>
 
-      <div v-if="collectionList(record).length" class="flex flex-wrap gap-1.5">
-        <span
-          v-for="collectionKey in collectionList(record)"
-          :key="collectionKey"
-          class="rounded-md bg-[var(--control)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]"
-        >
-          {{ collectionLabel(collectionKey) }}
-        </span>
-      </div>
-
-      <div class="mt-auto pt-2">
+      <div class="mt-auto grid gap-2 pt-2">
         <div class="h-1.5 overflow-hidden rounded-full bg-[var(--control)]" data-test="download-record-progress">
           <div
             class="h-full rounded-full transition-[width] duration-300"
@@ -249,10 +245,18 @@ function stopPreview() {
           ></div>
         </div>
 
-        <div
-          class="mt-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs leading-[1.4] text-[var(--muted)]"
-        >
-          <div class="flex min-w-0 items-center gap-1.5">
+        <div class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div class="flex min-w-0 flex-wrap gap-1.5">
+            <span
+              v-for="collectionKey in collectionList(record)"
+              :key="collectionKey"
+              class="rounded-md bg-[var(--control)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]"
+            >
+              {{ collectionLabel(collectionKey) }}
+            </span>
+          </div>
+
+          <div class="flex min-w-0 items-center justify-end gap-1.5">
             <span
               class="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold"
               :class="stateClass(record.state)"
@@ -283,13 +287,14 @@ function stopPreview() {
               </svg>
             </button>
           </div>
-          <span class="min-w-0 truncate text-right text-[var(--muted)]">
-            {{ secondaryInfoLabel(record) }}
-          </span>
         </div>
 
+        <p class="m-0 min-h-5 truncate text-xs leading-5 text-[var(--muted)]">
+          {{ secondaryInfoLabel(record) }}
+        </p>
+
         <div
-          class="mt-2 grid gap-2"
+          class="grid gap-2"
           :class="record.state === 'queued' || record.state === 'downloading' ? 'grid-cols-2' : 'grid-cols-3'"
         >
           <button
