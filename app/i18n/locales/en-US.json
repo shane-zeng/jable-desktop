@@ -399,6 +399,7 @@
     "chooseDownloadRoot": "Choose Download Folder",
     "deleteDownloadTitle": "Delete Download Item",
     "deleteDownloadMessage": "This will delete the local file and remove the download list item.",
+    "deleteDownloadRecordMessage": "This will remove the item from the Download List without changing Favourites, Watch Later, or Jable.",
     "deleteDownloadConfirm": "Delete",
     "cancel": "Cancel"
   },

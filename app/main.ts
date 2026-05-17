@@ -1609,14 +1609,26 @@ function deleteManagedDownloadFile(record: DownloadRecord): boolean {
   return true;
 }
 
-function confirmDeleteDownload(): Promise<boolean> {
+function downloadRecordHasManagedFile(record: DownloadRecord): boolean {
+  if (!record.localPath) return false;
+  const filePath = resolveManagedDownloadPath(record.localPath);
+  if (!filePath) return false;
+
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch (error) {
+    return false;
+  }
+}
+
+function confirmDeleteDownload(hasManagedFile: boolean): Promise<boolean> {
   return showAppDialog({
     type: 'warning',
     buttons: [t('dialog.deleteDownloadConfirm'), t('dialog.cancel')],
     defaultId: 1,
     cancelId: 1,
     title: t('dialog.deleteDownloadTitle'),
-    message: t('dialog.deleteDownloadMessage')
+    message: hasManagedFile ? t('dialog.deleteDownloadMessage') : t('dialog.deleteDownloadRecordMessage')
   }).then(function (dialogResult: Electron.MessageBoxReturnValue) {
     return dialogResult.response === 0;
   });
@@ -1633,7 +1645,7 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
   if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
   if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
 
-  const confirmed = await confirmDeleteDownload();
+  const confirmed = await confirmDeleteDownload(downloadRecordHasManagedFile(visibleRecord));
   if (!confirmed) {
     return {
       deleted: false,

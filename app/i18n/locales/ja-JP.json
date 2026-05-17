@@ -399,6 +399,7 @@
     "chooseDownloadRoot": "ダウンロードフォルダーを選択",
     "deleteDownloadTitle": "ダウンロード項目を削除",
     "deleteDownloadMessage": "ローカルファイルを削除し、ダウンロード一覧からこの項目を削除します。",
+    "deleteDownloadRecordMessage": "ダウンロード一覧からこの項目を削除します。お気に入り、あとで見る、Jable には影響しません。",
     "deleteDownloadConfirm": "削除",
     "cancel": "キャンセル"
   },
