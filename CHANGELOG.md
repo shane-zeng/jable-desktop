@@ -6,6 +6,25 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.11.0] - 2026-05-17
+
+### Changed
+
+- Add selected batch downloads
+- Store downloads in shared root
+- Finalize download manager v2 proposal
+- Add download pause and resume
+- Clarify resumable download byte counting
+- Add browser tab manager and download manager
+- Wait for active download workers on shutdown
+- Refactor Electron app module structure
+- MAX_CONCURRENT_DOWNLOADS_LIMITS max to 8
+- Add select all for local downloads
+- Add downloadable filter to local lists
+- Update download-manager-v3.zh-TW.md
+- Add download manager v3 and WebView enhancement
+- Bump version to 0.11.0
+
 ## [v0.10.1] - 2026-05-17
 
 ### Changed
@@ -304,7 +323,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.0...HEAD
+[v0.11.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.1...v0.11.0
 [v0.10.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.0...v0.10.1
 [v0.10.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.4...v0.10.0
 [v0.9.4]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.3...v0.9.4
