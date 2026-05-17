@@ -6,6 +6,79 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.10.1] - 2026-05-17
+
+### Changed
+
+- Add open-data-folder and manual update check
+- Split Rust data engine modules
+- Move Rust sync engine methods
+- Update Rust data engine docs
+- Fix quick sync completion count
+- Document sync completion counts
+- Add FFmpeg readiness settings
+- Add configurable download location
+- Add download list tab skeleton
+- Add download records list foundation
+- Add single video download workflow
+- Add download retry handling
+- Add download delete action
+- Add download reveal action
+- Add download source page action
+- Confirm download deletion
+- Ignore docs/proposals in .gitignore
+- Add download cancellation
+- Show download file sizes
+- Add download list filters
+- Handle interrupted downloads
+- Classify download failures
+- Persist inferred download states
+- Document FFmpeg download setup
+- Show download timestamps
+- Simplify FFmpeg setup docs
+- Show source download states
+- Test download playlist helpers
+- Retry downloads from source cards
+- Notify download completion
+- Document download manager spec
+- Make data engine Rust-only
+- Store downloads in data engine
+- Store relative download paths
+- Remove deleted engine config entries
+- Validate managed download paths
+- Check download root before queueing
+- Persist missing download state on open
+- Document FFmpeg download setup
+- Cover download file IPC in smoke test
+- Restrict downloads to Jable video URLs
+- Send cloneable download payloads
+- Force MP4 muxer for partial downloads
+- Show active download throughput
+- Download HLS segments in parallel
+- Smooth active download speed
+- Document smoothed download speed
+- Move segment downloads to Rust
+- Show all download collection memberships
+- Adapt segment download concurrency
+- Use clean download filenames
+- Back off segment concurrency on CDN rejection
+- Refactor native download engine modules
+- Remove persisted download source collection
+- Clarify download delete confirmation
+- Redesign download list cards
+- Polish download card error UI
+- Remove download card title chrome
+- Use icon warning for download errors
+- Align download card actions
+- Stabilize download card footer
+- Match download card layout
+- Refine download card progress
+- Align download card progress bars
+- Simplify download card details
+- Show concise download error summaries
+- Persist download list state filter
+- Bump version to 0.10.1
+
 ## [v0.10.0] - 2026-05-16
 
 ### Changed
@@ -231,7 +304,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.1...HEAD
+[v0.10.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.0...v0.10.1
 [v0.10.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.4...v0.10.0
 [v0.9.4]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.3...v0.9.4
 [v0.9.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.9.2...v0.9.3
