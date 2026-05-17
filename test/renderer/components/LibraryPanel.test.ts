@@ -462,6 +462,7 @@ describe('LibraryPanel', function () {
     expect(cards[0].find('[data-test="download-record-progress"]').exists()).toBe(true);
     expect(cards[1].text()).toContain('Missing Video');
     expect(cards[1].text()).toContain('檔案遺失');
+    expect(cards[1].text()).toContain('找不到本機檔案');
     expect(cards[1].text()).not.toContain('錯誤：File removed');
     expect(cards[1].text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     expect(cards[1].text()).not.toContain('更新 ');

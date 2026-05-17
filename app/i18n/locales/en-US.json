@@ -125,13 +125,13 @@
     "closeErrorDetails": "Close",
     "technicalDetails": "Technical details",
     "errorReason": {
-      "cancelled": "The download was cancelled.",
-      "accessRejected": "The site rejected this download request. Check that you are still signed in, or reopen the video page and retry.",
-      "missingFile": "The local file could not be found. It may have been removed from the download folder, or the download did not finish.",
-      "ffmpeg": "FFmpeg failed while processing the video. Check that FFmpeg can run, then retry.",
-      "playlist": "The downloadable video segment list could not be found. Confirm that the video page plays normally, then retry.",
-      "network": "The download connection was unstable or timed out. Try again later.",
-      "generic": "The download failed. Try again later."
+      "cancelled": "Download cancelled",
+      "accessRejected": "Site rejected download; sign in and retry",
+      "missingFile": "Local file not found",
+      "ffmpeg": "FFmpeg processing failed",
+      "playlist": "Video segment list not found",
+      "network": "Connection timed out; retry later",
+      "generic": "Download failed; retry later"
     },
     "state": {
       "queued": "Queued",

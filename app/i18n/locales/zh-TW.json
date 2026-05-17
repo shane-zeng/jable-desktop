@@ -125,13 +125,13 @@
     "closeErrorDetails": "關閉",
     "technicalDetails": "技術細節",
     "errorReason": {
-      "cancelled": "下載已取消。",
-      "accessRejected": "網站拒絕了這次下載請求。請確認目前仍已登入，或重新開啟影片頁後再重試。",
-      "missingFile": "找不到本機檔案。可能已從下載資料夾移除，或下載尚未完整完成。",
-      "ffmpeg": "FFmpeg 處理影片失敗。請確認 FFmpeg 可正常執行後再重試。",
-      "playlist": "找不到可下載的影片片段清單。請確認影片頁能正常播放後再重試。",
-      "network": "下載連線不穩或逾時。請稍後再重試。",
-      "generic": "下載失敗。請稍後再重試。"
+      "cancelled": "下載已取消",
+      "accessRejected": "網站拒絕下載，請重新登入後再試",
+      "missingFile": "找不到本機檔案",
+      "ffmpeg": "FFmpeg 處理失敗",
+      "playlist": "找不到影片片段清單",
+      "network": "連線逾時，請稍後重試",
+      "generic": "下載失敗，請稍後重試"
     },
     "state": {
       "queued": "等待中",

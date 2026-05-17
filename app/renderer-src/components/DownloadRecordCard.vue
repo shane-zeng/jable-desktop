@@ -116,9 +116,36 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
   return parts.join(' · ');
 }
 
+function errorSummaryLabel(record: DownloadRecord) {
+  if (record.state === 'missing') return t('downloadList.errorReason.missingFile');
+
+  const text = (record.error || '').trim();
+  if (!text) return t('downloadList.errorReason.generic');
+
+  if (/取消|cancel/i.test(text)) return t('downloadList.errorReason.cancelled');
+  if (/http\s*(401|403|428|429)|precondition|required|forbidden|unauthorized|too many requests/i.test(text)) {
+    return t('downloadList.errorReason.accessRejected');
+  }
+  if (/enoent|no such file|file removed|not found|找不到|遺失/i.test(text)) {
+    return t('downloadList.errorReason.missingFile');
+  }
+  if (/ffmpeg|muxer|output format|invalid argument|remux/i.test(text)) {
+    return t('downloadList.errorReason.ffmpeg');
+  }
+  if (/m3u8|playlist|hls|segment/i.test(text)) {
+    return t('downloadList.errorReason.playlist');
+  }
+  if (/network|timeout|timed out|econn|dns|socket|connection/i.test(text)) {
+    return t('downloadList.errorReason.network');
+  }
+
+  return t('downloadList.errorReason.generic');
+}
+
 function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
   if (record.state === 'ready') return fileSizeValueLabel(record);
+  if (record.state === 'failed' || record.state === 'missing') return errorSummaryLabel(record);
   return '';
 }
 
@@ -243,7 +270,10 @@ function stopPreview() {
         </div>
 
         <div class="grid min-h-10 gap-0.5 text-xs leading-5 text-[var(--muted)]">
-          <span class="min-h-5 min-w-0 truncate text-right">
+          <span
+            class="min-h-5 min-w-0 truncate text-right"
+            :class="record.state === 'failed' || record.state === 'missing' ? 'text-[#f2b35d]' : ''"
+          >
             {{ secondaryInfoLabel(record) }}
           </span>
           <span class="min-h-5 min-w-0 truncate text-right tabular-nums">
