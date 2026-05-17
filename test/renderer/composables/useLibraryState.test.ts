@@ -229,6 +229,21 @@ describe('useLibraryState', function () {
         createdAt: '2026-05-16T00:00:00.000Z',
         updatedAt: '2026-05-16T00:00:01.000Z',
         completedAt: null
+      },
+      {
+        videoUrl: 'https://jable.tv/videos/gamma/',
+        collectionKeys: ['watch_later'],
+        title: 'Gamma Video',
+        img: null,
+        preview: null,
+        localPath: '/tmp/gamma.mp4',
+        state: 'downloading',
+        progress: 0.5,
+        fileSizeBytes: null,
+        error: null,
+        createdAt: '2026-05-16T00:00:00.000Z',
+        updatedAt: '2026-05-16T00:00:03.000Z',
+        completedAt: null
       }
     ];
     const api = createPagedApi([]);
@@ -238,9 +253,17 @@ describe('useLibraryState', function () {
     try {
       await setup.state.selectTab('downloads');
 
-      expect(setup.state.downloadRecords.value.map((record) => record.title)).toEqual(['Beta Video', 'Alpha Video']);
-      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Beta Video', 'Alpha Video']);
-      expect(setup.state.countLabel.value).toBe('2 筆下載');
+      expect(setup.state.downloadRecords.value.map((record) => record.title)).toEqual([
+        'Beta Video',
+        'Alpha Video',
+        'Gamma Video'
+      ]);
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual([
+        'Gamma Video',
+        'Beta Video',
+        'Alpha Video'
+      ]);
+      expect(setup.state.countLabel.value).toBe('3 筆下載');
 
       setup.state.downloadSearch.value = 'alpha';
       await nextTick();
@@ -248,11 +271,22 @@ describe('useLibraryState', function () {
       expect(setup.state.countLabel.value).toBe('1 筆下載');
 
       setup.state.downloadSearch.value = '';
+      setup.state.downloadStateFilter.value = 'ready_downloading';
+      await nextTick();
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Gamma Video', 'Beta Video']);
+      expect(setup.state.countLabel.value).toBe('2 筆下載');
+
+      setup.state.downloadStateFilter.value = 'needs_attention';
+      await nextTick();
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Alpha Video']);
+      expect(setup.state.countLabel.value).toBe('1 筆下載');
+
+      setup.state.downloadStateFilter.value = 'ready_downloading';
       setup.state.downloadSort.value = 'file_size';
       setup.state.downloadDirection.value = 'asc';
       await nextTick();
 
-      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Alpha Video', 'Beta Video']);
+      expect(setup.state.downloads.value.map((record) => record.title)).toEqual(['Gamma Video', 'Beta Video']);
       expect(api.listDownloads).toHaveBeenCalledTimes(1);
     } finally {
       setup.stop();

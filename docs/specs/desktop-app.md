@@ -71,7 +71,8 @@ This document specifies the current user-facing Electron desktop application beh
 - Download List is available for videos downloaded from either Favourites or Watch Later.
 - Download records are independent from collection membership.
 - The view renders queued, downloading, failed, ready, and missing records.
-- Search and sort controls filter records locally in the renderer.
+- Search, state filter, and sort controls filter records locally in the renderer.
+- The Download List state filter is persisted in app settings and survives app restart.
 - Ready records can be opened with the OS default player, revealed in the OS file manager, opened back on Jable, or deleted.
 - Failed and missing records can be retried or deleted.
 - Queued and downloading records can be canceled.

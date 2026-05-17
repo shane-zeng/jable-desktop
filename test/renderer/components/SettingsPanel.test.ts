@@ -10,7 +10,8 @@ const settings: AppSettings = {
   fullSyncAjaxWindowSize: 5,
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
-  downloadRoot: null
+  downloadRoot: null,
+  downloadStateFilter: 'all'
 };
 
 function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | null = '/tmp/jable-favourites.sqlite') {

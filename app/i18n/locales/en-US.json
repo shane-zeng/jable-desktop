@@ -25,6 +25,11 @@
       "state": "State",
       "file_size": "File Size"
     },
+    "downloadStateFilter": {
+      "all": "All Statuses",
+      "ready_downloading": "Downloaded and Downloading",
+      "needs_attention": "Needs Attention"
+    },
     "searchMode": {
       "any": "Any Word",
       "all": "All Words",
@@ -105,6 +110,7 @@
     "searchPlaceholder": "Search download title or URL",
     "sort": "Download Sort",
     "sortDirection": "Download Sort Direction",
+    "stateFilter": "Download State Filter",
     "open": "Open",
     "openPage": "Open Page",
     "openPageShort": "Page",

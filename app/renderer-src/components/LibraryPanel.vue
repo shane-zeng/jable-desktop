@@ -5,12 +5,19 @@ import DownloadRecordCard from './DownloadRecordCard.vue';
 import PaginationControls from './PaginationControls.vue';
 import PendingRemoteOperationCard from './PendingRemoteOperationCard.vue';
 import VideoCard from './VideoCard.vue';
-import { DIRECTION_OPTIONS, DOWNLOAD_SORT_OPTIONS, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import {
+  DIRECTION_OPTIONS,
+  DOWNLOAD_SORT_OPTIONS,
+  DOWNLOAD_STATE_FILTER_OPTIONS,
+  SEARCH_MODE_OPTIONS,
+  SORT_OPTIONS
+} from '../constants';
 import { t } from '../i18n';
 import type {
   CollectionKey,
   DownloadRecord,
   DownloadSortKey,
+  DownloadStateFilter,
   LibraryTabKey,
   LibraryVideoMenuPayload,
   PendingRemoteOperationGroup,
@@ -37,6 +44,7 @@ const props = withDefaults(
     downloadSearch?: string;
     downloadSort?: DownloadSortKey;
     downloadDirection?: SortDirection;
+    downloadStateFilter?: DownloadStateFilter;
     countLabel: string;
     pageLabel: string;
     downloads: DownloadRecord[];
@@ -49,6 +57,7 @@ const props = withDefaults(
     downloadSearch: '',
     downloadSort: 'updated_at',
     downloadDirection: 'desc',
+    downloadStateFilter: 'all',
     downloadRecords: function () {
       return [];
     }
@@ -66,6 +75,7 @@ const emit = defineEmits<{
   'update:download-search': [value: string];
   'update:download-sort': [value: DownloadSortKey];
   'update:download-direction': [value: SortDirection];
+  'update:download-state-filter': [value: DownloadStateFilter];
   'prev-page': [];
   'next-page': [];
   'go-page': [page: number];
@@ -105,6 +115,10 @@ function updateDownloadSort(event: Event) {
 
 function updateDownloadDirection(event: Event) {
   emit('update:download-direction', inputValue(event) as SortDirection);
+}
+
+function updateDownloadStateFilter(event: Event) {
+  emit('update:download-state-filter', inputValue(event) as DownloadStateFilter);
 }
 
 const downloadRecordByVideoUrl = computed(function () {
@@ -183,7 +197,7 @@ function downloadRecordForVideo(video: VideoRow) {
 
     <div
       v-if="activeTab === 'downloads' && ffmpegReady"
-      class="grid grid-cols-[minmax(220px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[minmax(220px,1fr)_minmax(170px,max-content)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
       data-test="download-filters"
     >
       <input
@@ -192,6 +206,16 @@ function downloadRecordForVideo(video: VideoRow) {
         :value="downloadSearch"
         @input="emit('update:download-search', inputValue($event))"
       />
+      <select
+        class="w-auto min-w-[170px] max-w-[260px]"
+        :aria-label="t('downloadList.stateFilter')"
+        :value="downloadStateFilter"
+        @change="updateDownloadStateFilter"
+      >
+        <option v-for="option in DOWNLOAD_STATE_FILTER_OPTIONS" :key="option.value" :value="option.value">
+          {{ t('options.downloadStateFilter.' + option.value) }}
+        </option>
+      </select>
       <select :aria-label="t('downloadList.sort')" :value="downloadSort" @change="updateDownloadSort">
         <option v-for="option in DOWNLOAD_SORT_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.downloadSort.' + option.value) }}

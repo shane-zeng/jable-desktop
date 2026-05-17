@@ -114,7 +114,12 @@ This document specifies the current Download List and local video file managemen
   - `failed`
   - `ready`
   - `missing`
-- Download List supports local search and sorting in the renderer.
+- Download List supports local search, state filtering, and sorting in the renderer.
+- The state filter is persisted in app settings and survives app restart.
+- Supported state filters are:
+  - all states
+  - ready/downloading records
+  - records needing attention (`failed` and `missing`)
 - Sort keys are:
   - updated time
   - title
@@ -130,10 +135,10 @@ This document specifies the current Download List and local video file managemen
   - compact progress/status bar
   - active downloaded size and speed when available
   - file size when known
+  - concise user-readable error reason for failed or missing records
   - completed timestamp for ready records
   - updated timestamp for other states
-  - a compact error-details button for failed or missing records when an error is present
-- Error details are opened on demand and should show a user-readable reason first. Raw technical details may be shown as secondary expandable context.
+- Raw technical error details are not shown on the card.
 - Download List cards do not display the managed local filename or relative path directly.
 - Ready rows expose Open, Reveal, Open Page, and Delete actions.
 - Failed and missing rows expose Retry, Open Page, and Delete actions.

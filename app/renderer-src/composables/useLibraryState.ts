@@ -1,10 +1,18 @@
 import { computed, ref, watch } from 'vue';
-import { COLLECTIONS, DOWNLOAD_SORT_OPTIONS, PAGE_SIZE, SEARCH_MODE_OPTIONS, SORT_OPTIONS } from '../constants';
+import {
+  COLLECTIONS,
+  DOWNLOAD_SORT_OPTIONS,
+  DOWNLOAD_STATE_FILTER_OPTIONS,
+  PAGE_SIZE,
+  SEARCH_MODE_OPTIONS,
+  SORT_OPTIONS
+} from '../constants';
 import { t } from '../i18n';
 import type {
   CollectionKey,
   DownloadSortKey,
   DownloadRecord,
+  DownloadStateFilter,
   FullSyncContinuation,
   JableAppApi,
   LibraryTabKey,
@@ -28,6 +36,10 @@ const DEFAULT_DOWNLOAD_SORT: DownloadSortKey = 'updated_at';
 const DOWNLOAD_SORT_VALUES = DOWNLOAD_SORT_OPTIONS.map(function (option) {
   return option.value;
 });
+const DEFAULT_DOWNLOAD_STATE_FILTER: DownloadStateFilter = 'all';
+const DOWNLOAD_STATE_FILTER_VALUES = DOWNLOAD_STATE_FILTER_OPTIONS.map(function (option) {
+  return option.value;
+});
 
 function normalizeSort(value: string): SortKey {
   return SORT_VALUES.indexOf(value as SortKey) === -1 ? DEFAULT_SORT : (value as SortKey);
@@ -43,6 +55,12 @@ function normalizeDownloadSort(value: string): DownloadSortKey {
     : (value as DownloadSortKey);
 }
 
+function normalizeDownloadStateFilter(value: string): DownloadStateFilter {
+  return DOWNLOAD_STATE_FILTER_VALUES.indexOf(value as DownloadStateFilter) === -1
+    ? DEFAULT_DOWNLOAD_STATE_FILTER
+    : (value as DownloadStateFilter);
+}
+
 function isCollectionKey(value: string): value is CollectionKey {
   return Object.prototype.hasOwnProperty.call(COLLECTIONS, value);
 }
@@ -55,6 +73,12 @@ function searchableDownloadText(record: DownloadRecord): string {
     })
     .join(' ')
     .toLowerCase();
+}
+
+function matchesDownloadStateFilter(record: DownloadRecord, filter: DownloadStateFilter) {
+  if (filter === 'ready_downloading') return record.state === 'ready' || record.state === 'downloading';
+  if (filter === 'needs_attention') return record.state === 'failed' || record.state === 'missing';
+  return true;
 }
 
 function downloadSortValue(record: DownloadRecord, sortKey: DownloadSortKey): string | number {
@@ -93,6 +117,7 @@ export function useLibraryState(api: JableAppApi) {
   const downloadSearch = ref('');
   const downloadSort = ref<DownloadSortKey>('updated_at');
   const downloadDirection = ref<SortDirection>('desc');
+  const downloadStateFilter = ref<DownloadStateFilter>('all');
   const fullSyncContinuation = ref<FullSyncContinuation | null>(null);
   let refreshToken = 0;
   let downloadRefreshToken = 0;
@@ -121,9 +146,11 @@ export function useLibraryState(api: JableAppApi) {
   const downloads = computed(function () {
     const query = downloadSearch.value.trim().toLowerCase();
     const safeSort = normalizeDownloadSort(downloadSort.value);
+    const safeStateFilter = normalizeDownloadStateFilter(downloadStateFilter.value);
 
     return downloadRecords.value
       .filter(function (record) {
+        if (!matchesDownloadStateFilter(record, safeStateFilter)) return false;
         return !query || searchableDownloadText(record).indexOf(query) !== -1;
       })
       .slice()
@@ -265,10 +292,12 @@ export function useLibraryState(api: JableAppApi) {
     refreshVideos();
   });
 
-  watch([downloadSearch, downloadSort, downloadDirection], function () {
+  watch([downloadSearch, downloadSort, downloadDirection, downloadStateFilter], function () {
     if (!isDownloadsTab.value) return;
     const safeSort = normalizeDownloadSort(downloadSort.value);
+    const safeStateFilter = normalizeDownloadStateFilter(downloadStateFilter.value);
     if (safeSort !== downloadSort.value) downloadSort.value = safeSort;
+    if (safeStateFilter !== downloadStateFilter.value) downloadStateFilter.value = safeStateFilter;
     currentPage.value = 1;
   });
 
@@ -285,6 +314,7 @@ export function useLibraryState(api: JableAppApi) {
     downloadSearch: downloadSearch,
     downloadSort: downloadSort,
     downloadDirection: downloadDirection,
+    downloadStateFilter: downloadStateFilter,
     pendingGroups: pendingGroups,
     totalRows: totalRows,
     pendingCount: computed(function () {

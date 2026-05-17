@@ -25,6 +25,11 @@
       "state": "状態",
       "file_size": "ファイルサイズ"
     },
+    "downloadStateFilter": {
+      "all": "すべての状態",
+      "ready_downloading": "完了とダウンロード中",
+      "needs_attention": "要対応"
+    },
     "searchMode": {
       "any": "いずれかの語",
       "all": "すべての語",
@@ -105,6 +110,7 @@
     "searchPlaceholder": "ダウンロードのタイトルまたは URL を検索",
     "sort": "ダウンロードの並び替え",
     "sortDirection": "ダウンロードの並び順",
+    "stateFilter": "ダウンロード状態の絞り込み",
     "open": "開く",
     "openPage": "ページを開く",
     "openPageShort": "ページ",

@@ -2,6 +2,7 @@ import type {
   CollectionDefinition,
   CollectionKey,
   DownloadSortKey,
+  DownloadStateFilter,
   SearchMode,
   SortDirection,
   SortKey
@@ -48,4 +49,10 @@ export const DOWNLOAD_SORT_OPTIONS: ValueOption<DownloadSortKey>[] = [
   { value: 'title' },
   { value: 'state' },
   { value: 'file_size' }
+];
+
+export const DOWNLOAD_STATE_FILTER_OPTIONS: ValueOption<DownloadStateFilter>[] = [
+  { value: 'all' },
+  { value: 'ready_downloading' },
+  { value: 'needs_attention' }
 ];

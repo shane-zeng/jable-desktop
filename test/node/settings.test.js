@@ -22,7 +22,8 @@ test('app settings store returns defaults and persists updates', function () {
     fullSyncAjaxWindowSize: 3,
     autoReplayDeferredSyncOperations: false,
     ffmpegPath: null,
-    downloadRoot: null
+    downloadRoot: null,
+    downloadStateFilter: 'all'
   });
 
   assert.deepEqual(
@@ -32,7 +33,8 @@ test('app settings store returns defaults and persists updates', function () {
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
-      downloadRoot: '/Users/example/Jable Downloads'
+      downloadRoot: '/Users/example/Jable Downloads',
+      downloadStateFilter: 'ready_downloading'
     }),
     {
       maxBrowserTabs: 22,
@@ -40,7 +42,8 @@ test('app settings store returns defaults and persists updates', function () {
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
-      downloadRoot: '/Users/example/Jable Downloads'
+      downloadRoot: '/Users/example/Jable Downloads',
+      downloadStateFilter: 'ready_downloading'
     }
   );
 
@@ -51,6 +54,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
+  assert.equal(secondStore.get().downloadStateFilter, 'ready_downloading');
 });
 
 test('app settings patch clamps user-facing limits', function () {
@@ -94,5 +98,19 @@ test('app settings normalize optional download root', function () {
 
   assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadRoot: '' }), {
     downloadRoot: null
+  });
+});
+
+test('app settings normalize download state filter', function () {
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'ready_downloading' }), {
+    downloadStateFilter: 'ready_downloading'
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'needs_attention' }), {
+    downloadStateFilter: 'needs_attention'
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'failed' }), {
+    downloadStateFilter: 'all'
   });
 });

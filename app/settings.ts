@@ -3,7 +3,7 @@
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import { DEFAULT_APP_SETTINGS, FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS, MAX_BROWSER_TABS_LIMITS } from './app-contract';
-import type { AppSettings, AppSettingsPatch } from './types/jable';
+import type { AppSettings, AppSettingsPatch, DownloadStateFilter } from './types/jable';
 
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
@@ -28,6 +28,11 @@ function normalizeNullableString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
+function normalizeDownloadStateFilter(value: unknown): DownloadStateFilter {
+  if (value === 'needs_attention') return 'needs_attention';
+  return value === 'ready_downloading' ? 'ready_downloading' : DEFAULT_APP_SETTINGS.downloadStateFilter;
+}
+
 export function normalizeAppSettings(value: unknown): AppSettings {
   const record = isRecord(value) ? value : {};
 
@@ -47,7 +52,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     ),
     autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations),
     ffmpegPath: normalizeNullableString(record.ffmpegPath),
-    downloadRoot: normalizeNullableString(record.downloadRoot)
+    downloadRoot: normalizeNullableString(record.downloadRoot),
+    downloadStateFilter: normalizeDownloadStateFilter(record.downloadStateFilter)
   };
 }
 
@@ -83,6 +89,9 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   }
   if (Object.prototype.hasOwnProperty.call(value, 'downloadRoot')) {
     patch.downloadRoot = normalizeNullableString(value.downloadRoot);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'downloadStateFilter')) {
+    patch.downloadStateFilter = normalizeDownloadStateFilter(value.downloadStateFilter);
   }
 
   return patch;

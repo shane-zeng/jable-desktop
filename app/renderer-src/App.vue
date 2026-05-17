@@ -35,6 +35,7 @@ import type {
   DownloadRequestPayload,
   DownloadRootInfo,
   DownloadState,
+  DownloadStateFilter,
   ExportResource,
   FfmpegStatus,
   LibraryVideoMenuAction,
@@ -438,12 +439,23 @@ async function showLibraryVideoMenu(payload: LibraryVideoMenuPayload) {
 function applyAppSettings(settings: AppSettings) {
   appSettings.value = settings;
   browserTabsCompact.value = Boolean(settings.compactBrowserTabs);
+  library.downloadStateFilter.value = settings.downloadStateFilter;
   browser.scheduleResize();
 }
 
 async function updateAppSettings(patch: AppSettingsPatch) {
   try {
     applyAppSettings(await api.updateSettings(patch));
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function updateDownloadStateFilter(value: DownloadStateFilter) {
+  library.downloadStateFilter.value = value;
+  try {
+    applyAppSettings(await api.updateSettings({ downloadStateFilter: value }));
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
@@ -800,6 +812,7 @@ onMounted(async function () {
         :download-search="library.downloadSearch.value"
         :download-sort="library.downloadSort.value"
         :download-direction="library.downloadDirection.value"
+        :download-state-filter="library.downloadStateFilter.value"
         :count-label="library.countLabel.value"
         :page-label="library.pageLabel.value"
         :downloads="library.downloads.value"
@@ -817,6 +830,7 @@ onMounted(async function () {
         @update:download-search="library.downloadSearch.value = $event"
         @update:download-sort="library.downloadSort.value = $event"
         @update:download-direction="library.downloadDirection.value = $event"
+        @update:download-state-filter="updateDownloadStateFilter"
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @go-page="library.goToPage($event)"

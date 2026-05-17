@@ -25,6 +25,11 @@
       "state": "狀態",
       "file_size": "檔案大小"
     },
+    "downloadStateFilter": {
+      "all": "全部狀態",
+      "ready_downloading": "已下載與下載中",
+      "needs_attention": "需要處理"
+    },
     "searchMode": {
       "any": "任一詞",
       "all": "全部詞",
@@ -105,6 +110,7 @@
     "searchPlaceholder": "搜尋下載標題或 URL",
     "sort": "下載排序",
     "sortDirection": "下載排序方向",
+    "stateFilter": "下載狀態篩選",
     "open": "開啟",
     "openPage": "開啟頁面",
     "openPageShort": "頁面",

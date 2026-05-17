@@ -334,7 +334,7 @@ describe('LibraryPanel', function () {
     expect(wrapper.emitted('resolve-pending-group')).toEqual([['favourites\thttps://jable.tv/videos/pending/']]);
   });
 
-  it('renders download list setup and empty states without collection controls', function () {
+  it('renders download list setup and empty states without collection controls', async function () {
     const setupRequired = mount(LibraryPanel, {
       props: {
         active: true,
@@ -389,9 +389,14 @@ describe('LibraryPanel', function () {
 
     expect(empty.get('[data-test="download-list-empty"]').text()).toBe('目前沒有下載項目');
     expect(empty.get('[data-test="download-filters"]').text()).toContain('更新時間');
+    expect(empty.get('[data-test="download-filters"]').text()).toContain('全部狀態');
+    expect(empty.get('[data-test="download-filters"]').text()).toContain('需要處理');
     expect(empty.find('[data-test="download-filters"] input[type="search"]').attributes('placeholder')).toBe(
       '搜尋下載標題或 URL'
     );
+
+    await empty.get('select[aria-label="下載狀態篩選"]').setValue('ready_downloading');
+    expect(empty.emitted('update:download-state-filter')).toEqual([['ready_downloading']]);
   });
 
   it('renders download records and emits ready file open actions', async function () {
