@@ -260,7 +260,10 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT/);
   assert.match(source, /retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT/);
   assert.match(source, /const activeDownloads = new Map<string, ActiveDownloadRuntime>\(\)/);
+  assert.match(source, /const activeDownloadTasks = new Map<string, Promise<void>>\(\)/);
   assert.match(source, /while \(activeDownloads\.size < maxConcurrentDownloads\(\)\)/);
+  assert.match(source, /function waitForActiveDownloadTasks\(\): Promise<void>/);
+  assert.match(source, /pauseDownloadsForShutdown\(\): Promise<void>/);
   assert.match(source, /if \(runtime\.nativeId\) getDownloadEngine\(\)\.cancelDownload\(runtime\.nativeId\)/);
   assert.match(source, /const pausedDownloadUrls = new Set<string>\(\)/);
   assert.match(source, /const resumedDownloadUrls = new Set<string>\(\)/);
@@ -273,6 +276,10 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /extension: segmentResumeExtension\(segment\.url\)/);
   assert.match(source, /updateDownloadRuntimeProgress\(videoUrl, downloadSegmentDirectorySize\(tempDir\)\)/);
   assert.doesNotMatch(source, /stableMediaUrlIdentity/);
+  assert.match(mainSource, /let downloadShutdownInProgress: Promise<void> \| null = null/);
+  assert.match(mainSource, /function quitAfterDownloadsPaused\(\)/);
+  assert.match(mainSource, /allowDownloadWindowClose = true/);
+  assert.match(mainSource, /app\.on\('will-quit'/);
   assert.match(mainSource, /ipcMain\.handle\('download:pause'/);
   assert.match(mainSource, /ipcMain\.handle\('download:resume'/);
   assert.match(preload, /ipcRenderer\.invoke\('download:pause', videoUrl\)/);

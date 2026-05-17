@@ -70,6 +70,7 @@ Current behavior:
 - Enqueue, retry, and resume verify FFmpeg readiness before queueing work.
 - The main-process download queue can run multiple active video downloads up to the persisted Settings > Downloads maximum.
 - Pause marks queued or active records `paused`, aborts active Rust/FFmpeg work, removes unreliable `.mp4.part` output, and preserves resumable segment temp files.
+- During App quit, pause-and-close waits for active download workers to settle before the native data engine is closed, so paused-state cleanup can still write safely.
 - Resume moves a paused record back to `queued`; the active worker refreshes source metadata and reuses compatible completed segment files. Compatibility ignores signed CDN URL changes and uses reusable segment structure instead.
 - HLS key and segment fetching is delegated to the Rust native download engine; the main process passes request headers, segment metadata, adaptive concurrency bounds, retry limit, and a temporary directory path.
 - Open, reveal, retry, pause, resume, cancel, and delete calls use a video URL, not renderer-provided local paths.

@@ -198,6 +198,7 @@ This document specifies the current Download List and local video file managemen
 - On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, and state becomes `ready`.
 - On failure the partial file and temporary segment files are removed where possible and state becomes `failed`.
 - On pause the unreliable `.mp4.part` output is removed, the `.segments` working directory is preserved, and state becomes `paused`.
+- When the user confirms pause-and-close during App quit, the App waits for active download workers to finish their paused-state cleanup before closing the native data engine.
 - Resume is segment-level. It refreshes the video page and playlist, validates the refreshed playlist by reusable media structure rather than signed CDN URL path, reuses completed segment files, downloads missing segments, and remuxes a fresh `.mp4.part`.
 - Resume compatibility is based on segment order/count, segment extension, duration, and key method/IV. Signed playlist, segment, and key URLs may change between pause and resume and are not used as stable identity.
 - If preserved segments are incompatible with the refreshed playlist, the app discards the `.segments` working directory and restarts the segment phase instead of producing a corrupt MP4.

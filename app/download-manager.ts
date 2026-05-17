@@ -99,7 +99,7 @@ export type DownloadManager = {
   openDownloadFile(value: unknown): Promise<OpenDownloadFileResult>;
   openDownloadRoot(): Promise<{ opened: boolean; path: string }>;
   pauseDownload(value: unknown): PauseDownloadResult;
-  pauseDownloadsForShutdown(): void;
+  pauseDownloadsForShutdown(): Promise<void>;
   processQueue(): void;
   resumeDownload(value: unknown): Promise<EnqueueDownloadResult>;
   retryDownload(value: unknown): Promise<EnqueueDownloadResult>;
@@ -148,6 +148,7 @@ const pausedDownloadUrls = new Set<string>();
 const resumedDownloadUrls = new Set<string>();
 const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
+const activeDownloadTasks = new Map<string, Promise<void>>();
 
 function t(key: string, params?: TranslationParams | null): string {
   return translate(key, params);
@@ -1287,13 +1288,15 @@ function processDownloadQueue() {
     const record = getPersistedDownload(nextUrl);
     if (!record || record.state !== 'queued') continue;
 
-    runQueuedDownload(record)
+    const task = runQueuedDownload(record)
       .catch(function (error) {
         console.error(error);
       })
       .finally(function () {
+        activeDownloadTasks.delete(record.videoUrl);
         processDownloadQueue();
       });
+    activeDownloadTasks.set(record.videoUrl, task);
   }
 }
 
@@ -1639,7 +1642,18 @@ function hasQueuedOrActiveDownloads(): boolean {
   return downloadQueue.length > 0 || activeDownloads.size > 0;
 }
 
-function pauseDownloadsForShutdown() {
+function waitForActiveDownloadTasks(): Promise<void> {
+  const tasks = Array.from(activeDownloadTasks.values());
+  if (!tasks.length) return Promise.resolve();
+
+  return Promise.all(
+    tasks.map(function (task) {
+      return task.catch(function () {});
+    })
+  ).then(function () {});
+}
+
+function pauseDownloadsForShutdown(): Promise<void> {
   const queuedUrls = downloadQueue.splice(0);
 
   for (const videoUrl of queuedUrls) {
@@ -1670,6 +1684,7 @@ function pauseDownloadsForShutdown() {
   }
 
   if (queuedUrls.length || activeDownloads.size) notifyDownloadsChanged();
+  return waitForActiveDownloadTasks();
 }
 
 function confirmPauseDownloadsBeforeClose(): Promise<boolean> {

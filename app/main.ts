@@ -278,6 +278,8 @@ let downloadManager: DownloadManager | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 let allowDownloadAppQuit = false;
 let allowDownloadWindowClose = false;
+let downloadShutdownInProgress: Promise<void> | null = null;
+let quitAfterDownloadShutdownInFlight = false;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -440,8 +442,18 @@ function hasQueuedOrActiveDownloads(): boolean {
   return getDownloadManager().hasQueuedOrActiveDownloads();
 }
 
-function pauseDownloadsForShutdown() {
-  getDownloadManager().pauseDownloadsForShutdown();
+function pauseDownloadsForShutdown(): Promise<void> {
+  if (!downloadShutdownInProgress) {
+    downloadShutdownInProgress = Promise.resolve()
+      .then(function () {
+        return getDownloadManager().pauseDownloadsForShutdown();
+      })
+      .finally(function () {
+        downloadShutdownInProgress = null;
+      });
+  }
+
+  return downloadShutdownInProgress;
 }
 
 function confirmPauseDownloadsBeforeClose(): Promise<boolean> {
@@ -452,13 +464,32 @@ function promptPauseDownloadsAndClose(browserWindow: Electron.BrowserWindow) {
   confirmPauseDownloadsBeforeClose()
     .then(function (confirmed) {
       if (!confirmed) return;
-      pauseDownloadsForShutdown();
       if (process.platform !== 'darwin') allowDownloadAppQuit = true;
       allowDownloadWindowClose = true;
-      if (!browserWindow.isDestroyed()) browserWindow.close();
+      return pauseDownloadsForShutdown().then(function () {
+        if (!browserWindow.isDestroyed()) browserWindow.close();
+      });
     })
     .catch(function (error) {
       console.error(error);
+    });
+}
+
+function quitAfterDownloadsPaused() {
+  if (quitAfterDownloadShutdownInFlight) return;
+  quitAfterDownloadShutdownInFlight = true;
+  allowDownloadAppQuit = true;
+  allowDownloadWindowClose = true;
+
+  pauseDownloadsForShutdown()
+    .then(function () {
+      app.quit();
+    })
+    .catch(function (error) {
+      console.error(error);
+    })
+    .finally(function () {
+      quitAfterDownloadShutdownInFlight = false;
     });
 }
 
@@ -466,9 +497,7 @@ function promptPauseDownloadsAndQuit() {
   confirmPauseDownloadsBeforeClose()
     .then(function (confirmed) {
       if (!confirmed) return;
-      pauseDownloadsForShutdown();
-      allowDownloadAppQuit = true;
-      app.quit();
+      quitAfterDownloadsPaused();
     })
     .catch(function (error) {
       console.error(error);
@@ -2237,13 +2266,24 @@ app.on('window-all-closed', function () {
 });
 
 app.on('before-quit', function (event: Electron.Event) {
-  if (!allowDownloadAppQuit && hasQueuedOrActiveDownloads()) {
+  if (hasQueuedOrActiveDownloads()) {
     event.preventDefault();
-    promptPauseDownloadsAndQuit();
+    if (allowDownloadAppQuit) {
+      quitAfterDownloadsPaused();
+    } else {
+      promptPauseDownloadsAndQuit();
+    }
     return;
   }
 
   closeAllSyncWorkers();
-  pauseDownloadsForShutdown();
-  if (database) database.close();
+});
+
+app.on('will-quit', function () {
+  closeAllSyncWorkers();
+  if (database) {
+    database.close();
+    database = null;
+    databasePath = null;
+  }
 });
