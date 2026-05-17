@@ -466,13 +466,7 @@ describe('LibraryPanel', function () {
     expect(cards[1].text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
     expect(cards[1].text()).not.toContain('更新 ');
     expect(cards[1].text()).not.toContain('/tmp/missing.mp4');
-    expect(cards[1].find('[data-test="download-record-error-details"]').exists()).toBe(true);
-
-    await cards[1].get('[data-test="download-record-error-details"]').trigger('click');
-
-    expect(wrapper.get('[data-test="download-record-error-modal"]').text()).toContain('找不到本機檔案');
-
-    await wrapper.get('[data-test="download-record-error-close"]').trigger('click');
+    expect(cards[1].find('[data-test="download-record-error-details"]').exists()).toBe(false);
 
     await cards[0].get('a').trigger('click');
     await cards[1].get('a').trigger('click');

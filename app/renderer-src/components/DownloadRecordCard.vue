@@ -17,7 +17,6 @@ const emit = defineEmits<{
 }>();
 
 const previewVideo = ref<HTMLVideoElement | null>(null);
-const showErrorDetails = ref(false);
 
 function stateClass(state: DownloadState) {
   if (state === 'ready') return 'bg-[#1c4f2a] text-[#9df0a3]';
@@ -93,6 +92,12 @@ function collectionList(record: DownloadRecord) {
   return Array.isArray(record.collectionKeys) ? record.collectionKeys : [];
 }
 
+function collectionClass(collectionKey: CollectionKey) {
+  if (collectionKey === 'favourites') return 'bg-[#303644] text-[#c6cfdd]';
+  if (collectionKey === 'watch_later') return 'bg-[#2b3946] text-[#c5d8ea]';
+  return 'bg-[var(--control)] text-[var(--muted)]';
+}
+
 function fileSizeValueLabel(record: DownloadRecord) {
   return bytesLabel(record.fileSizeBytes ?? -1);
 }
@@ -120,42 +125,6 @@ function secondaryInfoLabel(record: DownloadRecord) {
 function recordTimeLabel(record: DownloadRecord) {
   if (record.state === 'ready') return formatTimeLabel(record.completedAt || record.updatedAt);
   return formatTimeLabel(record.updatedAt);
-}
-
-function hasErrorDetails(record: DownloadRecord) {
-  return (record.state === 'failed' || record.state === 'missing') && Boolean(record.error);
-}
-
-function readableErrorMessage(error: string | null) {
-  const text = (error || '').trim();
-  if (!text) return t('downloadList.errorReason.generic');
-
-  if (/取消|cancel/i.test(text)) return t('downloadList.errorReason.cancelled');
-  if (/http\s*(401|403|428|429)|precondition|required|forbidden|unauthorized|too many requests/i.test(text)) {
-    return t('downloadList.errorReason.accessRejected');
-  }
-  if (/enoent|no such file|file removed|not found|找不到|遺失/i.test(text)) {
-    return t('downloadList.errorReason.missingFile');
-  }
-  if (/ffmpeg|muxer|output format|invalid argument|remux/i.test(text)) {
-    return t('downloadList.errorReason.ffmpeg');
-  }
-  if (/m3u8|playlist|hls|segment/i.test(text)) {
-    return t('downloadList.errorReason.playlist');
-  }
-  if (/network|timeout|timed out|econn|dns|socket|connection/i.test(text)) {
-    return t('downloadList.errorReason.network');
-  }
-
-  return text;
-}
-
-function technicalErrorDetails(error: string | null) {
-  const text = (error || '').trim();
-  if (!text || readableErrorMessage(text) === text) return '';
-  if (/取消|cancel/i.test(text)) return '';
-  if (text.length < 80 && !/ffmpeg|avformat|muxer|remux|invalid argument/i.test(text)) return '';
-  return text;
 }
 
 function openCardTarget(event: MouseEvent, record: DownloadRecord) {
@@ -256,7 +225,8 @@ function stopPreview() {
             <span
               v-for="collectionKey in collectionList(record)"
               :key="collectionKey"
-              class="rounded-md bg-[var(--control)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]"
+              class="rounded-md px-2 py-0.5 text-xs font-semibold"
+              :class="collectionClass(collectionKey)"
             >
               {{ collectionLabel(collectionKey) }}
             </span>
@@ -269,37 +239,14 @@ function stopPreview() {
             >
               {{ t('downloadList.state.' + record.state) }}
             </span>
-            <button
-              v-if="hasErrorDetails(record)"
-              type="button"
-              class="grid h-6 min-h-0 w-6 shrink-0 place-items-center rounded-full border-0 bg-transparent p-0 text-[#f2b35d] outline-none hover:bg-[#4f2a1c] focus:outline-none"
-              data-test="download-record-error-details"
-              :aria-label="t('downloadList.errorDetails')"
-              @click="showErrorDetails = true"
-            >
-              <svg
-                class="h-3.5 w-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 9v3.75m-9.3 3.38c-.87 1.5.22 3.37 1.95 3.37h14.7c1.73 0 2.82-1.87 1.95-3.37L13.95 3.38c-.87-1.5-3.03-1.5-3.9 0L2.7 16.13ZM12 15.75h.01v.01H12v-.01Z"
-                />
-              </svg>
-            </button>
           </div>
         </div>
 
-        <div class="grid min-h-5 grid-cols-[minmax(0,1fr)_auto] gap-2 text-xs leading-5 text-[var(--muted)]">
-          <span class="min-w-0 truncate">
+        <div class="grid min-h-10 gap-0.5 text-xs leading-5 text-[var(--muted)]">
+          <span class="min-h-5 min-w-0 truncate text-right">
             {{ secondaryInfoLabel(record) }}
           </span>
-          <span class="shrink-0 tabular-nums">
+          <span class="min-h-5 min-w-0 truncate text-right tabular-nums">
             {{ recordTimeLabel(record) }}
           </span>
         </div>
@@ -356,71 +303,6 @@ function stopPreview() {
           </button>
         </div>
       </div>
-    </div>
-
-    <div
-      v-if="showErrorDetails && hasErrorDetails(record)"
-      class="app-modal-backdrop"
-      data-test="download-record-error-modal"
-      @click.self="showErrorDetails = false"
-    >
-      <section class="app-modal max-w-[520px] gap-3 p-4" role="dialog" aria-modal="true">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <h2 class="m-0 flex items-center gap-2 text-base font-bold text-[var(--text)]">
-              <svg
-                class="h-5 w-5 shrink-0 text-[#f2b35d]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 9v3.75m-9.3 3.38c-.87 1.5.22 3.37 1.95 3.37h14.7c1.73 0 2.82-1.87 1.95-3.37L13.95 3.38c-.87-1.5-3.03-1.5-3.9 0L2.7 16.13ZM12 15.75h.01v.01H12v-.01Z"
-                />
-              </svg>
-              {{ t('downloadList.errorDetails') }}
-            </h2>
-            <p class="m-0 mt-1 truncate text-xs text-[var(--muted)]">
-              {{ record.title || record.videoUrl }}
-            </p>
-          </div>
-          <button
-            type="button"
-            class="grid h-8 min-h-0 w-8 place-items-center border-0 bg-transparent p-0 text-xl leading-none text-[var(--muted)] hover:bg-[var(--control-hover)] hover:text-[var(--text)]"
-            data-test="download-record-error-close"
-            :aria-label="t('downloadList.closeErrorDetails')"
-            @click="showErrorDetails = false"
-          >
-            <svg
-              class="h-5 w-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <p class="m-0 rounded-md border border-[#9b6230] bg-[#4f2a1c] px-3 py-2 text-sm leading-6 text-[#f7d49d]">
-          {{ readableErrorMessage(record.error) }}
-        </p>
-
-        <div v-if="technicalErrorDetails(record.error)" class="text-xs text-[var(--muted)]">
-          <p class="m-0 font-semibold text-[var(--text)]">
-            {{ t('downloadList.technicalDetails') }}
-          </p>
-          <p class="m-0 mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[var(--control)] p-2">
-            {{ technicalErrorDetails(record.error) }}
-          </p>
-        </div>
-      </section>
     </div>
   </article>
 </template>
