@@ -259,14 +259,27 @@ function stopPreview() {
             <button
               v-if="hasErrorDetails(record)"
               type="button"
-              class="inline-flex h-7 min-h-0 items-center gap-1 rounded-full border border-transparent px-2 py-0 text-xs font-semibold"
+              class="inline-flex h-7 min-h-0 items-center gap-1.5 rounded-full border-0 px-2 py-0 text-xs font-semibold outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b35d]"
               :class="stateClass(record.state)"
               data-test="download-record-error-details"
               :aria-label="t('downloadList.errorDetails')"
               @click="showErrorDetails = true"
             >
+              <svg
+                class="h-3.5 w-3.5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v3.75m-9.3 3.38c-.87 1.5.22 3.37 1.95 3.37h14.7c1.73 0 2.82-1.87 1.95-3.37L13.95 3.38c-.87-1.5-3.03-1.5-3.9 0L2.7 16.13ZM12 15.75h.01v.01H12v-.01Z"
+                />
+              </svg>
               {{ t('downloadList.state.' + record.state) }}
-              <span class="text-[11px]" aria-hidden="true">!</span>
             </button>
             <span v-else class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
               {{ t('downloadList.state.' + record.state) }}
@@ -350,7 +363,21 @@ function stopPreview() {
       <section class="app-modal max-w-[520px] gap-3 p-4" role="dialog" aria-modal="true">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <h2 class="m-0 text-base font-bold text-[var(--text)]">
+            <h2 class="m-0 flex items-center gap-2 text-base font-bold text-[var(--text)]">
+              <svg
+                class="h-5 w-5 shrink-0 text-[#f2b35d]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v3.75m-9.3 3.38c-.87 1.5.22 3.37 1.95 3.37h14.7c1.73 0 2.82-1.87 1.95-3.37L13.95 3.38c-.87-1.5-3.03-1.5-3.9 0L2.7 16.13ZM12 15.75h.01v.01H12v-.01Z"
+                />
+              </svg>
               {{ t('downloadList.errorDetails') }}
             </h2>
             <p class="m-0 mt-1 truncate text-xs text-[var(--muted)]">
@@ -364,7 +391,16 @@ function stopPreview() {
             :aria-label="t('downloadList.closeErrorDetails')"
             @click="showErrorDetails = false"
           >
-            ×
+            <svg
+              class="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
