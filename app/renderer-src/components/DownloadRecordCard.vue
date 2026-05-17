@@ -17,6 +17,7 @@ const emit = defineEmits<{
 }>();
 
 const previewVideo = ref<HTMLVideoElement | null>(null);
+const showErrorDetails = ref(false);
 
 function stateClass(state: DownloadState) {
   if (state === 'ready') return 'bg-[#1c4f2a] text-[#9df0a3]';
@@ -79,16 +80,6 @@ function formatTimestamp(value: string | null) {
   return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes;
 }
 
-function timestampLabel(record: DownloadRecord) {
-  const completedAt = formatTimestamp(record.completedAt);
-  if (record.state === 'ready' && completedAt) {
-    return t('downloadList.completedAt', { time: completedAt });
-  }
-
-  const updatedAt = formatTimestamp(record.updatedAt);
-  return updatedAt ? t('downloadList.updatedAt', { time: updatedAt }) : '';
-}
-
 function collectionLabel(collectionKey: CollectionKey) {
   return t('collections.' + collectionKey);
 }
@@ -97,9 +88,8 @@ function collectionList(record: DownloadRecord) {
   return Array.isArray(record.collectionKeys) ? record.collectionKeys : [];
 }
 
-function fileSizeLabel(record: DownloadRecord) {
-  const size = bytesLabel(record.fileSizeBytes ?? -1);
-  return size ? t('downloadList.fileSize', { size: size }) : '';
+function fileSizeValueLabel(record: DownloadRecord) {
+  return bytesLabel(record.fileSizeBytes ?? -1);
 }
 
 function downloadProgressDetailLabel(record: DownloadRecord) {
@@ -109,8 +99,8 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
   const speed = bytesLabel(record.downloadSpeedBytesPerSecond ?? -1);
   const parts = [];
 
-  if (downloaded) parts.push(t('downloadList.downloadedBytes', { size: downloaded }));
-  if (speed) parts.push(t('downloadList.downloadSpeed', { speed: speed + '/s' }));
+  if (downloaded) parts.push(downloaded);
+  if (speed) parts.push(speed + '/s');
   if (!parts.length && progressLabel(record)) parts.push(progressLabel(record));
 
   return parts.join(' · ');
@@ -118,22 +108,63 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
 
 function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
-  if (record.state === 'ready') return fileSizeLabel(record) || timestampLabel(record);
-  if (record.state === 'failed' || record.state === 'missing') {
-    return record.error ? t('downloadList.error', { error: record.error }) : timestampLabel(record);
+  if (record.state === 'ready') return fileSizeValueLabel(record);
+  if (record.state === 'failed' || record.state === 'missing' || record.state === 'queued') {
+    const updatedAt = formatTimestamp(record.updatedAt);
+    return updatedAt ? t('downloadList.updatedAtShort', { time: updatedAt }) : '';
   }
-  return timestampLabel(record);
-}
-
-function extraTimestampLabel(record: DownloadRecord) {
-  if (record.state === 'ready' && fileSizeLabel(record)) return timestampLabel(record);
-  if ((record.state === 'failed' || record.state === 'missing') && record.error) return timestampLabel(record);
   return '';
 }
 
-function openReadyRecord(record: DownloadRecord) {
-  if (record.state !== 'ready') return;
-  emit('open', record.videoUrl);
+function extraTimestampLabel(record: DownloadRecord) {
+  const completedAt = formatTimestamp(record.completedAt);
+  if (record.state === 'ready' && completedAt) return t('downloadList.completedAtShort', { time: completedAt });
+  return '';
+}
+
+function hasErrorDetails(record: DownloadRecord) {
+  return (record.state === 'failed' || record.state === 'missing') && Boolean(record.error);
+}
+
+function readableErrorMessage(error: string | null) {
+  const text = (error || '').trim();
+  if (!text) return t('downloadList.errorReason.generic');
+
+  if (/取消|cancel/i.test(text)) return t('downloadList.errorReason.cancelled');
+  if (/http\s*(401|403|428|429)|precondition|required|forbidden|unauthorized|too many requests/i.test(text)) {
+    return t('downloadList.errorReason.accessRejected');
+  }
+  if (/enoent|no such file|file removed|not found|找不到|遺失/i.test(text)) {
+    return t('downloadList.errorReason.missingFile');
+  }
+  if (/ffmpeg|muxer|output format|invalid argument|remux/i.test(text)) {
+    return t('downloadList.errorReason.ffmpeg');
+  }
+  if (/m3u8|playlist|hls|segment/i.test(text)) {
+    return t('downloadList.errorReason.playlist');
+  }
+  if (/network|timeout|timed out|econn|dns|socket|connection/i.test(text)) {
+    return t('downloadList.errorReason.network');
+  }
+
+  return text;
+}
+
+function technicalErrorDetails(error: string | null) {
+  const text = (error || '').trim();
+  if (!text || readableErrorMessage(text) === text) return '';
+  if (/取消|cancel/i.test(text)) return '';
+  if (text.length < 80 && !/ffmpeg|avformat|muxer|remux|invalid argument/i.test(text)) return '';
+  return text;
+}
+
+function openCardTarget(event: MouseEvent, record: DownloadRecord) {
+  event.preventDefault();
+  if (record.state === 'ready') {
+    emit('open', record.videoUrl);
+    return;
+  }
+  emit('open-page', record.videoUrl);
 }
 
 function startPreview(record: DownloadRecord) {
@@ -168,12 +199,10 @@ function stopPreview() {
     class="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
     data-test="download-record-card"
   >
-    <button
-      type="button"
-      class="relative aspect-[16/10] w-full overflow-hidden rounded-md border-0 bg-[var(--thumb-bg)] p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-default"
-      :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
-      :aria-disabled="record.state !== 'ready'"
-      @click="openReadyRecord(record)"
+    <a
+      class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+      :href="record.videoUrl"
+      @click="openCardTarget($event, record)"
       @pointerenter="startPreview(record)"
       @pointerleave="stopPreview"
     >
@@ -195,17 +224,16 @@ function stopPreview() {
         preload="none"
         aria-hidden="true"
       ></video>
-    </button>
+    </a>
 
-    <div class="flex min-h-[156px] min-w-0 flex-col gap-2">
-      <button
-        type="button"
-        class="min-h-[3.9em] overflow-hidden border-0 bg-transparent p-0 text-left text-lg font-bold leading-[1.3] text-[var(--text)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] disabled:cursor-default disabled:hover:text-[var(--text)]"
-        :disabled="record.state !== 'ready'"
-        @click="emit('open', record.videoUrl)"
+    <div class="flex min-h-[140px] min-w-0 flex-col gap-2">
+      <a
+        class="min-h-[3.9em] overflow-hidden text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)]"
+        :href="record.videoUrl"
+        @click="openCardTarget($event, record)"
       >
         {{ record.title || record.videoUrl }}
-      </button>
+      </a>
 
       <div v-if="collectionList(record).length" class="flex flex-wrap gap-1.5">
         <span
@@ -227,9 +255,23 @@ function stopPreview() {
         </div>
 
         <div class="mt-2 flex min-w-0 items-center justify-between gap-2 text-xs leading-[1.4] text-[var(--muted)]">
-          <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
-            {{ t('downloadList.state.' + record.state) }}
-          </span>
+          <div class="flex min-w-0 items-center gap-1.5">
+            <button
+              v-if="hasErrorDetails(record)"
+              type="button"
+              class="inline-flex h-7 min-h-0 items-center gap-1 rounded-full border border-transparent px-2 py-0 text-xs font-semibold"
+              :class="stateClass(record.state)"
+              data-test="download-record-error-details"
+              :aria-label="t('downloadList.errorDetails')"
+              @click="showErrorDetails = true"
+            >
+              {{ t('downloadList.state.' + record.state) }}
+              <span class="text-[11px]" aria-hidden="true">!</span>
+            </button>
+            <span v-else class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
+              {{ t('downloadList.state.' + record.state) }}
+            </span>
+          </div>
           <span class="min-w-0 truncate text-right">
             {{ secondaryInfoLabel(record) }}
           </span>
@@ -253,18 +295,20 @@ function stopPreview() {
             type="button"
             class="min-h-7 px-2 py-1 text-xs"
             data-test="download-record-open-page"
+            :title="t('downloadList.openPage')"
             @click="emit('open-page', record.videoUrl)"
           >
-            {{ t('downloadList.openPage') }}
+            {{ t('downloadList.openPageShort') }}
           </button>
           <button
             v-if="record.state === 'ready'"
             type="button"
             class="min-h-7 px-2 py-1 text-xs"
             data-test="download-record-reveal"
+            :title="t('downloadList.reveal')"
             @click="emit('reveal', record.videoUrl)"
           >
-            {{ t('downloadList.reveal') }}
+            {{ t('downloadList.revealShort') }}
           </button>
           <button
             v-if="record.state === 'failed' || record.state === 'missing'"
@@ -295,6 +339,48 @@ function stopPreview() {
           </button>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="showErrorDetails && hasErrorDetails(record)"
+      class="app-modal-backdrop"
+      data-test="download-record-error-modal"
+      @click.self="showErrorDetails = false"
+    >
+      <section class="app-modal max-w-[520px] gap-3 p-4" role="dialog" aria-modal="true">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 class="m-0 text-base font-bold text-[var(--text)]">
+              {{ t('downloadList.errorDetails') }}
+            </h2>
+            <p class="m-0 mt-1 truncate text-xs text-[var(--muted)]">
+              {{ record.title || record.videoUrl }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="grid h-8 min-h-0 w-8 place-items-center border-0 bg-transparent p-0 text-xl leading-none text-[var(--muted)] hover:bg-[var(--control-hover)] hover:text-[var(--text)]"
+            data-test="download-record-error-close"
+            :aria-label="t('downloadList.closeErrorDetails')"
+            @click="showErrorDetails = false"
+          >
+            ×
+          </button>
+        </div>
+
+        <p class="m-0 rounded-md border border-[#9b6230] bg-[#4f2a1c] px-3 py-2 text-sm leading-6 text-[#f7d49d]">
+          {{ readableErrorMessage(record.error) }}
+        </p>
+
+        <div v-if="technicalErrorDetails(record.error)" class="text-xs text-[var(--muted)]">
+          <p class="m-0 font-semibold text-[var(--text)]">
+            {{ t('downloadList.technicalDetails') }}
+          </p>
+          <p class="m-0 mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[var(--control)] p-2">
+            {{ technicalErrorDetails(record.error) }}
+          </p>
+        </div>
+      </section>
     </div>
   </article>
 </template>

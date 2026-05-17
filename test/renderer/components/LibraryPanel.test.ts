@@ -455,15 +455,22 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).toContain('影片收藏');
     expect(cards[0].text()).toContain('稍後觀看');
     expect(cards[0].text()).toContain('已下載');
-    expect(cards[0].text()).toContain('檔案大小：1 KB');
-    expect(cards[0].text()).toContain('完成時間：');
+    expect(cards[0].text()).toContain('1 KB');
+    expect(cards[0].text()).toContain('完成 ');
     expect(cards[0].text()).not.toContain('/tmp/ready.mp4');
     expect(cards[0].find('[data-test="download-record-progress"]').exists()).toBe(true);
     expect(cards[1].text()).toContain('Missing Video');
     expect(cards[1].text()).toContain('檔案遺失');
-    expect(cards[1].text()).toContain('錯誤：File removed');
-    expect(cards[1].text()).toContain('更新時間：');
+    expect(cards[1].text()).not.toContain('錯誤：File removed');
+    expect(cards[1].text()).toContain('更新 ');
     expect(cards[1].text()).not.toContain('/tmp/missing.mp4');
+    expect(cards[1].find('[data-test="download-record-error-details"]').exists()).toBe(true);
+
+    await cards[1].get('[data-test="download-record-error-details"]').trigger('click');
+
+    expect(wrapper.get('[data-test="download-record-error-modal"]').text()).toContain('找不到本機檔案');
+
+    await wrapper.get('[data-test="download-record-error-close"]').trigger('click');
 
     await cards[0].get('button').trigger('click');
     await cards[0].get('[data-test="download-record-reveal"]').trigger('click');

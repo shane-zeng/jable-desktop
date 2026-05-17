@@ -121,6 +121,7 @@ This document specifies the current Download List and local video file managemen
   - state
   - file size
 - Rows are shown as media cards aligned with the Favourites and Watch Later card layout.
+- Download records should fall back to the local video metadata table for title, thumbnail, and preview when persisted download metadata is missing.
 - Rows show:
   - thumbnail and hover preview when available
   - title
@@ -131,7 +132,8 @@ This document specifies the current Download List and local video file managemen
   - file size when known
   - completed timestamp for ready records
   - updated timestamp for other states
-  - localized error text when present
+  - a compact error-details button for failed or missing records when an error is present
+- Error details are opened on demand and should show a user-readable reason first. Raw technical details may be shown as secondary expandable context.
 - Download List cards do not display the managed local filename or relative path directly.
 - Ready rows expose Open, Reveal, Open Page, and Delete actions.
 - Failed and missing rows expose Retry, Open Page, and Delete actions.

@@ -197,6 +197,44 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             "collectionKey": "favourites",
             "action": "add",
             "video": {
+                "title": "Fallback Metadata",
+                "url": "https://jable.tv/videos/fallback-download/",
+                "img": "https://example.test/fallback.jpg",
+                "preview": "https://example.test/fallback-preview.mp4"
+            }
+        }))
+        .expect("fallback collection item should add");
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "remove",
+            "video": {
+                "title": "Fallback Metadata",
+                "url": "https://jable.tv/videos/fallback-download/"
+            }
+        }))
+        .expect("fallback collection item should remove");
+    let fallback = engine
+        .upsert_download_asset(json!({
+            "videoUrl": "https://jable.tv/videos/fallback-download/",
+            "localPath": "Jable Downloads/fallback-download.mp4",
+            "state": "ready"
+        }))
+        .expect("download asset should fall back to video metadata");
+    assert_eq!(fallback.get("title"), Some(&json!("Fallback Metadata")));
+    assert_eq!(
+        fallback.get("preview"),
+        Some(&json!("https://example.test/fallback-preview.mp4"))
+    );
+    engine
+        .remove_download_asset(json!("https://jable.tv/videos/fallback-download/"))
+        .expect("fallback download asset should remove");
+
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "add",
+            "video": {
                 "title": "Download Me",
                 "url": "https://jable.tv/videos/download-me/"
             }

@@ -205,9 +205,11 @@ impl Engine {
         let row = self
             .conn()?
             .query_row(
-                "SELECT video_url, title, img, preview, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
-         FROM download_assets
-         WHERE video_url = ?",
+                "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
+           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.created_at, da.updated_at, da.downloaded_at
+         FROM download_assets da
+         LEFT JOIN videos v ON v.url = da.video_url
+         WHERE da.video_url = ?",
                 params![video_url],
                 row_to_record,
             )
@@ -225,9 +227,11 @@ impl Engine {
         let mut statement = self
             .conn()?
             .prepare(
-                "SELECT video_url, title, img, preview, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
-         FROM download_assets
-         ORDER BY updated_at DESC, video_url ASC",
+                "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
+           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.created_at, da.updated_at, da.downloaded_at
+         FROM download_assets da
+         LEFT JOIN videos v ON v.url = da.video_url
+         ORDER BY da.updated_at DESC, da.video_url ASC",
             )
             .map_err(to_napi_error)?;
         let records = statement

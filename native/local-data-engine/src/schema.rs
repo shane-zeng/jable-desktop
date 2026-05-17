@@ -140,6 +140,7 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
         "TEXT",
     )?;
     ensure_column(conn, "videos", "search_text", "TEXT")?;
+    ensure_column(conn, "download_assets", "preview", "TEXT")?;
 
     backfill_remote_apply_state(conn)?;
     backfill_video_search_text(conn)?;

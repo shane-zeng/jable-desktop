@@ -464,6 +464,30 @@ for (const kind of ENGINE_KINDS) {
       engine.applyCollectionToggle({
         collectionKey: 'favourites',
         action: 'add',
+        video: {
+          title: 'Fallback Metadata',
+          url: 'https://jable.tv/videos/fallback-download/',
+          img: 'https://example.test/fallback.jpg',
+          preview: 'https://example.test/fallback-preview.mp4'
+        }
+      });
+      engine.applyCollectionToggle({
+        collectionKey: 'favourites',
+        action: 'remove',
+        video: { title: 'Fallback Metadata', url: 'https://jable.tv/videos/fallback-download/' }
+      });
+      const fallback = engine.upsertDownloadAsset({
+        videoUrl: 'https://jable.tv/videos/fallback-download/',
+        localPath: 'Jable Downloads/fallback-download.mp4',
+        state: 'ready'
+      });
+      assert.equal(fallback.title, 'Fallback Metadata');
+      assert.equal(fallback.preview, 'https://example.test/fallback-preview.mp4');
+      assert.equal(engine.removeDownloadAsset('https://jable.tv/videos/fallback-download/'), true);
+
+      engine.applyCollectionToggle({
+        collectionKey: 'favourites',
+        action: 'add',
         video: { title: 'Download Me', url: 'https://jable.tv/videos/download-me/' }
       });
       assert.equal(engine.listVideos('favourites').length, 1);
