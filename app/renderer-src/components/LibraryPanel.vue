@@ -107,7 +107,6 @@ const emit = defineEmits<{
   'resume-paused-downloads': [];
   'cancel-queued-downloads': [];
   'delete-selected-downloads': [];
-  'show-download-error-log': [];
   'toggle-download-record-selection': [payload: { videoUrl: string; selected: boolean }];
   'download-video': [video: VideoRow];
   'select-downloadable': [videos: VideoRow[]];
@@ -430,9 +429,6 @@ onBeforeUnmount(function () {
           @click="emit('delete-selected-downloads')"
         >
           {{ t('downloadList.deleteSelected') }}
-        </button>
-        <button type="button" :disabled="busy" data-test="download-error-log" @click="emit('show-download-error-log')">
-          {{ t('downloadList.errorLog') }}
         </button>
       </div>
     </div>

@@ -176,7 +176,7 @@ This document specifies the current Download List and local video file managemen
 - Queued and downloading rows expose Pause, Cancel, and Open Page actions.
 - Paused rows expose Resume, Open Page, and Delete actions.
 - Delete removes the managed local file when present and removes the persisted download record. It does not modify collection membership or Jable remote state.
-- The Download List toolbar exposes Retry Failed, Queue Actions, Delete Selected, and Error Log.
+- The Download List toolbar exposes Retry Failed, Queue Actions, and Delete Selected.
 - Queue Actions contains Pause All, Resume All, and Cancel Queued with per-action counts and disabled states.
 - Retry Failed is global to all download records and queues only `failed` and `missing` records. It does not duplicate `ready`, `queued`, or `downloading` records.
 - Pause All is global to `queued` and `downloading` records and moves them to `paused` through the segment-preserving pause path.
@@ -184,7 +184,9 @@ This document specifies the current Download List and local video file managemen
 - Cancel Queued is global to `queued` records and uses the same semantics as single queued cancel: the record becomes `failed` with the localized canceled message and ready MP4 files are not deleted.
 - Download List cards show selection checkboxes only for `ready`, `paused`, `failed`, and `missing` records.
 - Delete Selected applies only to the currently visible selected eligible records. It asks for confirmation once, deletes managed files when present, removes records, and cleans safe working files. It does not modify Favourites, Watch Later, or Jable remote state.
-- Error Log opens a modal for `failed` and `missing` records. It shows title, video URL, state, short reason, failure phase/code, attempt count, last started time, and last error time.
+- Error Log is a hidden diagnostics modal for `failed` and `missing` records. It is intentionally not shown as a toolbar button; it opens only from the Download List with `Ctrl/Cmd+Shift+E` or the `D`, `L`, `E` key sequence within 2 seconds.
+- Error Log defaults to the most recent 100 records sorted by `lastErrorAt`, then `updatedAt`, then `createdAt`, with an explicit Show All control when more records exist.
+- Error Log shows title, video URL, state, short reason, failure phase/code, attempt count, last started time, and last error time.
 - Error Log detail follows the same sanitization rules as download errors: signed remote URLs and the managed download root are masked; cookies, HLS keys, signed segment URLs, and full local paths are not stored or shown.
 
 ## Download Pipeline

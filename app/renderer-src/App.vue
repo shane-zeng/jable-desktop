@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
@@ -48,6 +48,9 @@ import type {
 
 const api = useJableApi();
 const i18n = useI18n();
+const DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT = 100;
+const DOWNLOAD_ERROR_LOG_SEQUENCE = ['d', 'l', 'e'];
+const DOWNLOAD_ERROR_LOG_SEQUENCE_TIMEOUT_MS = 2000;
 const activeView = ref<AppView>('browser');
 const toastStatus = useToastStatus();
 const toast = toastStatus.toast;
@@ -66,11 +69,14 @@ const ffmpegStatus = ref<FfmpegStatus | null>(null);
 const downloadRoot = ref<DownloadRootInfo | null>(null);
 const selectedDownloadUrls = ref<string[]>([]);
 const showDownloadErrorLog = ref(false);
+const showAllDownloadErrorLog = ref(false);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
 let downloadNotificationStates = new Map<string, DownloadState>();
 const suppressedDownloadFailureUrls = new Set<string>();
+let downloadErrorLogSequence: string[] = [];
+let downloadErrorLogSequenceTimer: ReturnType<typeof window.setTimeout> | null = null;
 const sync = useSyncWorkflow({
   api: api,
   busy: busy,
@@ -98,10 +104,32 @@ const pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
 });
 
+const allDownloadErrorLogRecords = computed<DownloadRecord[]>(function () {
+  return library.downloadRecords.value
+    .filter(function (record) {
+      return record.state === 'failed' || record.state === 'missing';
+    })
+    .slice()
+    .sort(function (left, right) {
+      return downloadErrorLogSortTime(right).localeCompare(downloadErrorLogSortTime(left));
+    });
+});
+
 const downloadErrorLogRecords = computed<DownloadRecord[]>(function () {
-  return library.downloadRecords.value.filter(function (record) {
-    return record.state === 'failed' || record.state === 'missing';
-  });
+  if (showAllDownloadErrorLog.value) return allDownloadErrorLogRecords.value;
+  return allDownloadErrorLogRecords.value.slice(0, DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT);
+});
+
+const downloadErrorLogTotal = computed(function () {
+  return allDownloadErrorLogRecords.value.length;
+});
+
+const downloadErrorLogShown = computed(function () {
+  return downloadErrorLogRecords.value.length;
+});
+
+const downloadErrorLogCanShowAll = computed(function () {
+  return downloadErrorLogTotal.value > DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT;
 });
 
 const libraryBusy = computed(function () {
@@ -152,6 +180,93 @@ function setActiveView(view: AppView) {
   if (view !== 'browser') browser.hide();
   browser.scheduleResize();
   if (view === 'library') library.refreshVideos();
+}
+
+function downloadErrorLogSortTime(record: DownloadRecord) {
+  return record.lastErrorAt || record.updatedAt || record.createdAt || '';
+}
+
+function isDownloadErrorLogAvailable() {
+  return activeView.value === 'library' && library.activeTab.value === 'downloads';
+}
+
+function openDownloadErrorLog() {
+  if (!isDownloadErrorLogAvailable()) return;
+  showAllDownloadErrorLog.value = false;
+  showDownloadErrorLog.value = true;
+}
+
+function closeDownloadErrorLog() {
+  showDownloadErrorLog.value = false;
+  showAllDownloadErrorLog.value = false;
+}
+
+function clearDownloadErrorLogSequenceTimer() {
+  if (!downloadErrorLogSequenceTimer) return;
+  window.clearTimeout(downloadErrorLogSequenceTimer);
+  downloadErrorLogSequenceTimer = null;
+}
+
+function resetDownloadErrorLogSequence() {
+  downloadErrorLogSequence = [];
+  clearDownloadErrorLogSequenceTimer();
+}
+
+function startDownloadErrorLogSequenceTimer() {
+  clearDownloadErrorLogSequenceTimer();
+  downloadErrorLogSequenceTimer = window.setTimeout(
+    resetDownloadErrorLogSequence,
+    DOWNLOAD_ERROR_LOG_SEQUENCE_TIMEOUT_MS
+  );
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable;
+}
+
+function handleDownloadErrorLogShortcut(event: KeyboardEvent) {
+  if (event.defaultPrevented) return;
+
+  if (showDownloadErrorLog.value && event.key === 'Escape') {
+    closeDownloadErrorLog();
+    return;
+  }
+
+  if (!isDownloadErrorLogAvailable() || isEditableKeyboardTarget(event.target)) {
+    resetDownloadErrorLogSequence();
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  const hasCommandModifier = event.ctrlKey || event.metaKey;
+  if (hasCommandModifier && event.shiftKey && key === 'e') {
+    event.preventDefault();
+    resetDownloadErrorLogSequence();
+    openDownloadErrorLog();
+    return;
+  }
+
+  if (hasCommandModifier || event.altKey || key.length !== 1) return;
+
+  const expectedKey = DOWNLOAD_ERROR_LOG_SEQUENCE[downloadErrorLogSequence.length];
+  if (key === expectedKey) {
+    downloadErrorLogSequence.push(key);
+    if (downloadErrorLogSequence.length === 1) startDownloadErrorLogSequenceTimer();
+    if (downloadErrorLogSequence.length === DOWNLOAD_ERROR_LOG_SEQUENCE.length) {
+      event.preventDefault();
+      resetDownloadErrorLogSequence();
+      openDownloadErrorLog();
+    }
+    return;
+  }
+
+  resetDownloadErrorLogSequence();
+  if (key === DOWNLOAD_ERROR_LOG_SEQUENCE[0]) {
+    downloadErrorLogSequence = [key];
+    startDownloadErrorLogSequenceTimer();
+  }
 }
 
 function collectionName(collectionKey: CollectionKey) {
@@ -1037,6 +1152,7 @@ watch(library.downloadRecords, function (records) {
 });
 
 onMounted(async function () {
+  window.addEventListener('keydown', handleDownloadErrorLogShortcut);
   browserTabsWidth.value = loadBrowserTabsWidth();
   appInfo.value = await api.getAppInfo();
   applyAppSettings(await api.getSettings());
@@ -1058,6 +1174,11 @@ onMounted(async function () {
   await library.refreshDownloads();
   await library.refreshPendingGroups();
   browser.scheduleResize();
+});
+
+onBeforeUnmount(function () {
+  window.removeEventListener('keydown', handleDownloadErrorLogShortcut);
+  resetDownloadErrorLogSequence();
 });
 </script>
 
@@ -1171,7 +1292,6 @@ onMounted(async function () {
         @cancel-queued-downloads="cancelQueuedDownloads"
         @delete-download="deleteDownload"
         @delete-selected-downloads="deleteSelectedDownloads"
-        @show-download-error-log="showDownloadErrorLog = true"
         @toggle-download-record-selection="toggleDownloadRecordSelection"
         @download-video="downloadVideo"
         @select-downloadable="selectBatchDownloadVideos"
@@ -1213,7 +1333,7 @@ onMounted(async function () {
           v-if="showDownloadErrorLog"
           class="app-modal-backdrop"
           role="presentation"
-          @click.self="showDownloadErrorLog = false"
+          @click.self="closeDownloadErrorLog"
         >
           <section
             class="app-modal"
@@ -1228,7 +1348,7 @@ onMounted(async function () {
                 type="button"
                 class="app-toast-close"
                 :aria-label="i18n.t('downloadList.errorLogClose')"
-                @click="showDownloadErrorLog = false"
+                @click="closeDownloadErrorLog"
               >
                 ×
               </button>
@@ -1236,35 +1356,63 @@ onMounted(async function () {
             <div v-if="!downloadErrorLogRecords.length" class="text-sm text-[var(--muted)]">
               {{ i18n.t('downloadList.errorLogEmpty') }}
             </div>
-            <div v-else class="grid max-h-[520px] gap-3 overflow-auto pr-1">
-              <article
-                v-for="record in downloadErrorLogRecords"
-                :key="record.videoUrl"
-                class="grid gap-1 rounded-md border border-[var(--panel-border)] bg-[var(--card)] p-3 text-xs leading-5"
-                data-test="download-error-log-row"
+            <div v-else class="grid gap-3">
+              <div
+                class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]"
+                data-test="download-error-log-summary"
               >
-                <h3 class="text-sm font-semibold text-[var(--text)]">{{ record.title || record.videoUrl }}</h3>
-                <p class="m-0 break-all text-[var(--muted)]">{{ record.videoUrl }}</p>
-                <p class="m-0 text-[var(--muted)]">
-                  {{ i18n.t('downloadList.errorLogState', { state: i18n.t('downloadList.state.' + record.state) }) }}
-                </p>
-                <p class="m-0 text-[#f2b35d]">{{ downloadErrorSummaryLabel(record) }}</p>
-                <p class="m-0 text-[var(--muted)]">
-                  {{ i18n.t('downloadList.failurePhase', { phase: downloadFailurePhaseLabel(record) }) }}
-                </p>
-                <p class="m-0 text-[var(--muted)]">
-                  {{ i18n.t('downloadList.failureCode', { code: optionalDownloadDetail(record.failureCode) }) }}
-                </p>
-                <p class="m-0 text-[var(--muted)]">
-                  {{ i18n.t('downloadList.attemptCount', { count: record.attemptCount || 0 }) }}
-                </p>
-                <p class="m-0 text-[var(--muted)]">
-                  {{ i18n.t('downloadList.lastStartedAt', { time: optionalDownloadDetail(record.lastStartedAt) }) }}
-                </p>
-                <p class="m-0 text-[var(--muted)]">
-                  {{ i18n.t('downloadList.lastErrorAt', { time: optionalDownloadDetail(record.lastErrorAt) }) }}
-                </p>
-              </article>
+                <span>
+                  {{
+                    i18n.t('downloadList.errorLogShowing', {
+                      shown: downloadErrorLogShown,
+                      total: downloadErrorLogTotal
+                    })
+                  }}
+                </span>
+                <button
+                  v-if="downloadErrorLogCanShowAll"
+                  type="button"
+                  class="min-h-0 px-2 py-1 text-xs"
+                  data-test="download-error-log-show-all"
+                  @click="showAllDownloadErrorLog = !showAllDownloadErrorLog"
+                >
+                  {{
+                    showAllDownloadErrorLog
+                      ? i18n.t('downloadList.errorLogShowRecent', { count: DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT })
+                      : i18n.t('downloadList.errorLogShowAll')
+                  }}
+                </button>
+              </div>
+              <div class="grid max-h-[520px] gap-3 overflow-auto pr-1">
+                <article
+                  v-for="record in downloadErrorLogRecords"
+                  :key="record.videoUrl"
+                  class="grid gap-1 rounded-md border border-[var(--panel-border)] bg-[var(--card)] p-3 text-xs leading-5"
+                  data-test="download-error-log-row"
+                >
+                  <h3 class="text-sm font-semibold text-[var(--text)]">{{ record.title || record.videoUrl }}</h3>
+                  <p class="m-0 break-all text-[var(--muted)]">{{ record.videoUrl }}</p>
+                  <p class="m-0 text-[var(--muted)]">
+                    {{ i18n.t('downloadList.errorLogState', { state: i18n.t('downloadList.state.' + record.state) }) }}
+                  </p>
+                  <p class="m-0 text-[#f2b35d]">{{ downloadErrorSummaryLabel(record) }}</p>
+                  <p class="m-0 text-[var(--muted)]">
+                    {{ i18n.t('downloadList.failurePhase', { phase: downloadFailurePhaseLabel(record) }) }}
+                  </p>
+                  <p class="m-0 text-[var(--muted)]">
+                    {{ i18n.t('downloadList.failureCode', { code: optionalDownloadDetail(record.failureCode) }) }}
+                  </p>
+                  <p class="m-0 text-[var(--muted)]">
+                    {{ i18n.t('downloadList.attemptCount', { count: record.attemptCount || 0 }) }}
+                  </p>
+                  <p class="m-0 text-[var(--muted)]">
+                    {{ i18n.t('downloadList.lastStartedAt', { time: optionalDownloadDetail(record.lastStartedAt) }) }}
+                  </p>
+                  <p class="m-0 text-[var(--muted)]">
+                    {{ i18n.t('downloadList.lastErrorAt', { time: optionalDownloadDetail(record.lastErrorAt) }) }}
+                  </p>
+                </article>
+              </div>
             </div>
           </section>
         </div>

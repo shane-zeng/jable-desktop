@@ -100,7 +100,7 @@ Verify these behaviors when touching related desktop areas:
 - Paused downloads can be resumed individually, and Queue Actions > Resume All queues paused records through the normal segment-level resume path.
 - Queued downloads can be canceled individually, and Cancel Queued marks queued records failed with the canceled message without deleting ready files.
 - Delete Selected only applies to visible selected eligible Download List records and does not modify collection membership or Jable remote state.
-- Download Error Log opens as a modal and shows sanitized failed/missing detail without signed URLs, cookies, HLS keys, or full download-root paths.
+- Download Error Log is hidden from the toolbar, opens from Download List diagnostics shortcuts, defaults to the most recent 100 failed/missing records, and shows sanitized detail without signed URLs, cookies, HLS keys, or full download-root paths.
 - Paused downloads can be resumed without restarting from zero when preserved segments are compatible.
 - Segment failures from refreshable HTTP/CDN rejection statuses refresh the video page and playlist once, then retry only when the existing work is compatible.
 - Closing or quitting the app with queued or active downloads prompts to pause downloads before closing.

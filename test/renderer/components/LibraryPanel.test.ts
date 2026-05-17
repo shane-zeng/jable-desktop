@@ -567,6 +567,7 @@ describe('LibraryPanel', function () {
     expect((wrapper.get('[data-test="download-resume-paused"]').element as HTMLButtonElement).disabled).toBe(true);
     expect((wrapper.get('[data-test="download-cancel-queued"]').element as HTMLButtonElement).disabled).toBe(true);
     expect((wrapper.get('[data-test="download-delete-selected"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect(wrapper.find('[data-test="download-error-log"]').exists()).toBe(false);
     expect(cards[0].find('[data-test="download-record-select"]').exists()).toBe(true);
     expect(cards[1].find('[data-test="download-record-select"]').exists()).toBe(true);
 
