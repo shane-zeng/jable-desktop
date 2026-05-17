@@ -52,6 +52,10 @@ pub(crate) fn sample_segments(
 
     for (index, segment) in segments.iter().take(sample_segment_count).enumerate() {
         let output_path = temp_dir.join(segment_file_name(index, &segment.url));
+        if let Some(size) = completed_file_size(&output_path) {
+            downloaded_bytes += size;
+            continue;
+        }
         downloaded_bytes += fetch_with_retry(
             client,
             &segment.url,
@@ -67,6 +71,14 @@ pub(crate) fn sample_segments(
         elapsed: started_at.elapsed(),
         count: sample_segment_count,
     })
+}
+
+fn completed_file_size(output_path: &Path) -> Option<u64> {
+    let metadata = fs::metadata(output_path).ok()?;
+    if metadata.is_file() && metadata.len() > 0 {
+        return Some(metadata.len());
+    }
+    None
 }
 
 pub(crate) fn download_keys(
@@ -210,12 +222,9 @@ impl SegmentWorker {
     fn download_or_skip(&self, index: usize) -> Result<()> {
         let segment = &self.segments[index];
         let output_path = self.temp_dir.join(segment_file_name(index, &segment.url));
-        if let Ok(metadata) = fs::metadata(&output_path) {
-            if metadata.is_file() {
-                self.downloaded_bytes
-                    .fetch_add(metadata.len(), Ordering::SeqCst);
-                return Ok(());
-            }
+        if let Some(size) = completed_file_size(&output_path) {
+            self.downloaded_bytes.fetch_add(size, Ordering::SeqCst);
+            return Ok(());
         }
 
         let downloaded = fetch_with_retry(

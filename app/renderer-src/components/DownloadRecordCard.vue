@@ -12,6 +12,8 @@ const emit = defineEmits<{
   'open-page': [videoUrl: string];
   reveal: [videoUrl: string];
   retry: [videoUrl: string];
+  pause: [videoUrl: string];
+  resume: [videoUrl: string];
   cancel: [videoUrl: string];
   delete: [videoUrl: string];
 }>();
@@ -22,6 +24,7 @@ function stateClass(state: DownloadState) {
   if (state === 'ready') return 'bg-[#1c4f2a] text-[#9df0a3]';
   if (state === 'failed' || state === 'missing') return 'bg-[#4f2a1c] text-[#f2b35d]';
   if (state === 'downloading') return 'bg-[#20395f] text-[#9fc7ff]';
+  if (state === 'paused') return 'bg-[#34333f] text-[#d1c4ff]';
   return 'bg-[var(--control)] text-[var(--muted)]';
 }
 
@@ -29,6 +32,7 @@ function progressFillClass(state: DownloadState) {
   if (state === 'ready') return 'bg-[#78d17f]';
   if (state === 'failed' || state === 'missing') return 'bg-[#f2b35d]';
   if (state === 'downloading') return 'bg-[var(--accent)]';
+  if (state === 'paused') return 'bg-[#8f7bd8]';
   return 'bg-[var(--muted)]';
 }
 
@@ -146,6 +150,7 @@ function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
   if (record.state === 'ready') return fileSizeValueLabel(record);
   if (record.state === 'failed' || record.state === 'missing') return errorSummaryLabel(record);
+  if (record.state === 'paused') return t('downloadList.pausedHint');
   return '';
 }
 
@@ -281,10 +286,7 @@ function stopPreview() {
           </span>
         </div>
 
-        <div
-          class="grid gap-2"
-          :class="record.state === 'queued' || record.state === 'downloading' ? 'grid-cols-2' : 'grid-cols-3'"
-        >
+        <div class="grid grid-cols-3 gap-2">
           <button
             type="button"
             class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
@@ -293,6 +295,15 @@ function stopPreview() {
             @click="emit('open-page', record.videoUrl)"
           >
             {{ t('downloadList.openPageShort') }}
+          </button>
+          <button
+            v-if="record.state === 'paused'"
+            type="button"
+            class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
+            data-test="download-record-resume"
+            @click="emit('resume', record.videoUrl)"
+          >
+            {{ t('downloadList.resume') }}
           </button>
           <button
             v-if="record.state === 'ready'"
@@ -316,6 +327,15 @@ function stopPreview() {
           <button
             v-if="record.state === 'queued' || record.state === 'downloading'"
             type="button"
+            class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
+            data-test="download-record-pause"
+            @click="emit('pause', record.videoUrl)"
+          >
+            {{ t('downloadList.pause') }}
+          </button>
+          <button
+            v-if="record.state === 'queued' || record.state === 'downloading'"
+            type="button"
             class="danger min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-cancel"
             @click="emit('cancel', record.videoUrl)"
@@ -323,7 +343,12 @@ function stopPreview() {
             {{ t('downloadList.cancel') }}
           </button>
           <button
-            v-if="record.state === 'ready' || record.state === 'failed' || record.state === 'missing'"
+            v-if="
+              record.state === 'ready' ||
+              record.state === 'paused' ||
+              record.state === 'failed' ||
+              record.state === 'missing'
+            "
             type="button"
             class="danger min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-delete"

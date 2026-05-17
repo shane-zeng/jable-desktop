@@ -78,16 +78,17 @@ This document specifies the current Download List and local video file managemen
 - Supported states are:
   - `queued`
   - `downloading`
+  - `paused`
   - `failed`
   - `ready`
   - `missing`
-- Persisted `progress` is coarse-grained. It is `null` for queued/downloading records and `1` for completed records.
+- Persisted `progress` is coarse-grained. It is `null` for queued/downloading/paused records and `1` for completed records.
 - While a download is active, the main process may add runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields to `downloads-changed` payloads. These values are not persisted and are cleared when the active worker finishes.
 - Runtime speed is sampled at most once per second from total downloaded segment bytes. It is a smoothed recent-throughput indicator, not a per-segment instantaneous peak.
 - Startup/listing reconciliation infers runtime-safe state:
   - ready records become `missing` when the file is no longer present.
   - missing records become `ready` again when the file exists.
-  - queued/downloading records not present in the active queue or active worker become `failed` with an interrupted-download message.
+  - queued/downloading records not present in the active queue or active worker become `paused` so crash/force-quit recovery can resume instead of failing the download.
 
 ## Local Data Cards
 
@@ -95,6 +96,7 @@ This document specifies the current Download List and local video file managemen
 - Favourites and Watch Later video cards also expose a checkbox for selected batch download.
 - Batch download is based on explicit user selection, not the whole current page or the Download List contents.
 - Selected batch download can enqueue normal downloads and retry selected failed or missing downloads.
+- Selected batch download resumes selected paused downloads.
 - Selection is cleared when the user changes collection, tab, page, search, sort, or search mode.
 - Pending Sync cards do not expose download actions.
 - Source cards show a single button state instead of full progress, error text, delete controls, or detailed retry controls.
@@ -102,9 +104,11 @@ This document specifies the current Download List and local video file managemen
   - no record: Download
   - `queued`: Queued
   - `downloading`: Downloading
+  - `paused`: Resume
   - `ready`: Downloaded
   - `failed` or `missing`: Retry
 - `queued`, `downloading`, and `ready` buttons are disabled on source cards.
+- `paused` source-card clicks call the resume IPC path.
 - `failed` and `missing` source-card clicks call the retry IPC path.
 - Download state is loaded from the global download record list, so the same video URL shows the same state across Favourites and Watch Later.
 - When the same video is visible in both Favourites and Watch Later, both source cards share the same download record.
@@ -116,6 +120,7 @@ This document specifies the current Download List and local video file managemen
 - Download List shows persisted records in all supported states:
   - `queued`
   - `downloading`
+  - `paused`
   - `failed`
   - `ready`
   - `missing`
@@ -140,14 +145,16 @@ This document specifies the current Download List and local video file managemen
   - compact progress/status bar
   - active downloaded size and speed when available
   - file size when known
+  - paused hint for paused records
   - concise user-readable error reason for failed or missing records
   - completed timestamp for ready records
   - updated timestamp for other states
 - Raw technical error details are not shown on the card.
 - Download List cards do not display the managed local filename or relative path directly.
-- Ready rows expose Open, Reveal, Open Page, and Delete actions.
+- Ready rows open through thumbnail/title and expose Reveal, Open Page, and Delete actions.
 - Failed and missing rows expose Retry, Open Page, and Delete actions.
-- Queued and downloading rows expose Cancel and Open Page actions.
+- Queued and downloading rows expose Pause, Cancel, and Open Page actions.
+- Paused rows expose Resume, Open Page, and Delete actions.
 - Delete removes the managed local file when present and removes the persisted download record. It does not modify collection membership or Jable remote state.
 
 ## Download Pipeline
@@ -189,6 +196,9 @@ This document specifies the current Download List and local video file managemen
 - FFmpeg is responsible for remuxing downloaded HLS media into MP4 and handling supported local HLS AES-128 decryption through the local playlist/key files.
 - On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, and state becomes `ready`.
 - On failure the partial file and temporary segment files are removed where possible and state becomes `failed`.
+- On pause the unreliable `.mp4.part` output is removed, the `.segments` working directory is preserved, and state becomes `paused`.
+- Resume is segment-level. It refreshes the video page and playlist, validates the refreshed playlist against the preserved resume manifest when possible, reuses completed segment files, downloads missing segments, and remuxes a fresh `.mp4.part`.
+- If preserved segments are incompatible with the refreshed playlist, the app discards the `.segments` working directory and restarts the segment phase instead of producing a corrupt MP4.
 - Download errors are classified into localized messages for:
   - video page HTTP failures
   - missing playlist
@@ -200,6 +210,9 @@ This document specifies the current Download List and local video file managemen
   - unknown failure
 - Active cancel asks the Rust download engine to cancel in-flight segment requests, kills the FFmpeg process when it is running, and marks the record failed with the localized canceled message.
 - Queued cancel removes the record from the queue and marks it failed with the localized canceled message.
+- Cancel is destructive for in-progress work and removes preserved segment temp files where possible.
+- Graceful app close or quit with active or queued downloads prompts the user to pause downloads before closing.
+- Force quit, crash, or ungraceful exit is recovered on the next listing by converting orphaned queued/downloading records to `paused`.
 
 ## Opening Local Files
 

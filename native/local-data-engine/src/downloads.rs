@@ -5,7 +5,14 @@ use serde_json::{json, Value};
 use crate::payload::{normalize_video_url, object_field, value_string};
 use crate::{now_iso, to_napi_error, Engine};
 
-const DOWNLOAD_STATES: [&str; 5] = ["queued", "downloading", "failed", "ready", "missing"];
+const DOWNLOAD_STATES: [&str; 6] = [
+    "queued",
+    "downloading",
+    "paused",
+    "failed",
+    "ready",
+    "missing",
+];
 
 struct DownloadAssetRow {
     video_url: String,

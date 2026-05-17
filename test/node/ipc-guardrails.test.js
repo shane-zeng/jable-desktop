@@ -243,6 +243,8 @@ test('main process streams FFmpeg download progress without persisting runtime f
 
 test('main process downloads HLS segments in bounded parallel batches', function () {
   const source = readSource(MAIN_SOURCE_PATH);
+  const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
+  const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
   const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'native-download-engine.ts'));
   const buildScript = readSource(path.join(ROOT_DIR, 'scripts', 'build-rust-engine.js'));
 
@@ -257,6 +259,16 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /const activeDownloads = new Map<string, ActiveDownloadRuntime>\(\)/);
   assert.match(source, /while \(activeDownloads\.size < maxConcurrentDownloads\(\)\)/);
   assert.match(source, /if \(runtime\.nativeId\) getDownloadEngine\(\)\.cancelDownload\(runtime\.nativeId\)/);
+  assert.match(source, /const pausedDownloadUrls = new Set<string>\(\)/);
+  assert.match(source, /const resumedDownloadUrls = new Set<string>\(\)/);
+  assert.match(source, /state: 'paused'/);
+  assert.match(source, /resumeManifestMatches\(outputPath, playlist\)/);
+  assert.match(source, /ipcMain\.handle\('download:pause'/);
+  assert.match(source, /ipcMain\.handle\('download:resume'/);
+  assert.match(preload, /ipcRenderer\.invoke\('download:pause', videoUrl\)/);
+  assert.match(preload, /ipcRenderer\.invoke\('download:resume', videoUrl\)/);
+  assert.match(types, /pauseDownload\(videoUrl: string\): Promise<PauseDownloadResult>/);
+  assert.match(types, /resumeDownload\(videoUrl: string\): Promise<EnqueueDownloadResult>/);
   assert.match(nativeLoader, /jable_download_engine\.' \+ process\.platform \+ '-' \+ process\.arch \+ '\.node'/);
   assert.match(buildScript, /libraryName: 'jable_download_engine'/);
 });

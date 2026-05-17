@@ -15,6 +15,7 @@ const emit = defineEmits<{
   'open-new': [url: string];
   download: [video: VideoRow];
   'retry-download': [videoUrl: string];
+  'resume-download': [videoUrl: string];
   'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
@@ -26,6 +27,7 @@ const downloadButtonLabel = computed(function () {
   if (state === 'queued') return i18n.t('video.downloadQueued');
   if (state === 'downloading') return i18n.t('video.downloadDownloading');
   if (state === 'ready') return i18n.t('video.downloadReady');
+  if (state === 'paused') return i18n.t('video.downloadResume');
   if (state === 'failed' || state === 'missing') return i18n.t('video.downloadRetry');
   return i18n.t('video.download');
 });
@@ -122,6 +124,10 @@ function downloadVideo(event: MouseEvent) {
   if (downloadButtonDisabled.value) return;
   if (props.downloadRecord && (props.downloadRecord.state === 'failed' || props.downloadRecord.state === 'missing')) {
     emit('retry-download', props.downloadRecord.videoUrl);
+    return;
+  }
+  if (props.downloadRecord && props.downloadRecord.state === 'paused') {
+    emit('resume-download', props.downloadRecord.videoUrl);
     return;
   }
   emit('download', props.video);

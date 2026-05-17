@@ -86,6 +86,8 @@ const emit = defineEmits<{
   'open-download': [videoUrl: string];
   'reveal-download': [videoUrl: string];
   'retry-download': [videoUrl: string];
+  'pause-download': [videoUrl: string];
+  'resume-download': [videoUrl: string];
   'cancel-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
   'download-video': [video: VideoRow];
@@ -325,6 +327,8 @@ function isVideoSelectedForDownload(video: VideoRow) {
             @open-page="emit('open-video', $event)"
             @reveal="emit('reveal-download', $event)"
             @retry="emit('retry-download', $event)"
+            @pause="emit('pause-download', $event)"
+            @resume="emit('resume-download', $event)"
             @cancel="emit('cancel-download', $event)"
             @delete="emit('delete-download', $event)"
           />
@@ -345,6 +349,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
           @open-new="emit('open-video-new-tab', $event)"
           @download="emit('download-video', $event)"
           @retry-download="emit('retry-download', $event)"
+          @resume-download="emit('resume-download', $event)"
           @toggle-download-selection="emit('toggle-download-selection', $event)"
           @context-menu="emit('video-context-menu', $event)"
         />

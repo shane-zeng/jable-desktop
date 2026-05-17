@@ -172,6 +172,20 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         .to_string()
         .contains("relative to the download root"));
 
+    let paused = engine
+        .upsert_download_asset(json!({
+                "videoUrl": "https://jable.tv/videos/paused-download/",
+                "localPath": "Jable Downloads/paused-download.mp4",
+                "state": "paused",
+                "progress": null,
+                "error": "Paused"
+        }))
+        .expect("paused download asset should upsert");
+    assert_eq!(paused.get("state"), Some(&json!("paused")));
+    engine
+        .remove_download_asset(json!("https://jable.tv/videos/paused-download/"))
+        .expect("paused download asset should remove");
+
     let failed = engine
         .upsert_download_asset(json!({
             "videoUrl": "https://jable.tv/videos/download-me/",

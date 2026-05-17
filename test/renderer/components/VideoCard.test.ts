@@ -273,6 +273,29 @@ describe('VideoCard', function () {
     expect(wrapper.emitted('download')).toBeUndefined();
   });
 
+  it('emits resume for paused downloads from the source card', async function () {
+    const video = makeVideo();
+    const wrapper = mount(VideoCard, {
+      props: {
+        video: video,
+        downloadRecord: makeDownloadRecord(video, {
+          state: 'paused',
+          completedAt: null,
+          error: 'Paused'
+        })
+      }
+    });
+    const button = wrapper.get('[data-test="video-download"]');
+
+    expect(button.text()).toBe('繼續');
+    expect((button.element as HTMLButtonElement).disabled).toBe(false);
+
+    await button.trigger('click');
+
+    expect(wrapper.emitted('resume-download')).toEqual([[video.url]]);
+    expect(wrapper.emitted('download')).toBeUndefined();
+  });
+
   it('renders English aria labels and sync metadata', function () {
     setLocale('en-US', false);
     const video = makeVideo();

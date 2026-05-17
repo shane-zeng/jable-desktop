@@ -511,7 +511,7 @@ describe('LibraryPanel', function () {
     ]);
   });
 
-  it('emits cancel actions for queued and active download records', async function () {
+  it('emits pause and cancel actions for queued and active download records', async function () {
     const wrapper = mount(LibraryPanel, {
       props: {
         active: true,
@@ -588,14 +588,73 @@ describe('LibraryPanel', function () {
     expect(cards[2].text()).toContain('下載中');
     expect(cards[2].find('.download-progress-indeterminate').exists()).toBe(true);
 
+    await cards[0].get('[data-test="download-record-pause"]').trigger('click');
+    await cards[1].get('[data-test="download-record-pause"]').trigger('click');
+    await cards[2].get('[data-test="download-record-pause"]').trigger('click');
     await cards[0].get('[data-test="download-record-cancel"]').trigger('click');
     await cards[1].get('[data-test="download-record-cancel"]').trigger('click');
     await cards[2].get('[data-test="download-record-cancel"]').trigger('click');
 
+    expect(wrapper.emitted('pause-download')).toEqual([
+      ['https://jable.tv/videos/queued/'],
+      ['https://jable.tv/videos/downloading/'],
+      ['https://jable.tv/videos/downloading-unknown/']
+    ]);
     expect(wrapper.emitted('cancel-download')).toEqual([
       ['https://jable.tv/videos/queued/'],
       ['https://jable.tv/videos/downloading/'],
       ['https://jable.tv/videos/downloading-unknown/']
     ]);
+  });
+
+  it('emits resume and delete actions for paused download records', async function () {
+    const wrapper = mount(LibraryPanel, {
+      props: {
+        active: true,
+        activeCollection: 'favourites',
+        activeTab: 'downloads',
+        busy: false,
+        ffmpegReady: true,
+        fullSyncLabel: '完整同步',
+        pendingCount: 0,
+        pendingGroups: [],
+        search: '',
+        searchMode: 'any',
+        sort: 'site_order',
+        direction: 'asc',
+        countLabel: '1 筆下載',
+        pageLabel: '第 1 / 1 頁',
+        downloads: [
+          {
+            videoUrl: 'https://jable.tv/videos/paused/',
+            collectionKeys: ['favourites'],
+            title: 'Paused Video',
+            img: null,
+            preview: null,
+            localPath: '/tmp/paused.mp4',
+            state: 'paused',
+            progress: null,
+            fileSizeBytes: null,
+            error: 'Paused',
+            createdAt: '2026-05-16T00:00:00.000Z',
+            updatedAt: '2026-05-16T00:00:00.000Z',
+            completedAt: null
+          }
+        ],
+        rows: [],
+        currentPage: 1,
+        totalPages: 1
+      }
+    });
+
+    const card = wrapper.get('[data-test="download-record-card"]');
+    expect(card.text()).toContain('已暫停');
+    expect(card.text()).toContain('已暫停，可繼續下載');
+
+    await card.get('[data-test="download-record-resume"]').trigger('click');
+    await card.get('[data-test="download-record-delete"]').trigger('click');
+
+    expect(wrapper.emitted('resume-download')).toEqual([['https://jable.tv/videos/paused/']]);
+    expect(wrapper.emitted('delete-download')).toEqual([['https://jable.tv/videos/paused/']]);
   });
 });

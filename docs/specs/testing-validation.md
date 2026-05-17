@@ -62,7 +62,7 @@ fnm exec --using 24 npm run test:electron
 - Webview preload helper changes: run webview helper tests, IPC guardrail tests, and Node tests covering URL/sync helper behavior.
 - URL policy or release URL changes: run URL policy and update checker tests.
 - Settings changes: run settings tests plus renderer SettingsPanel tests.
-- Download List, FFmpeg, native download engine, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring or shell/file boundary behavior changes.
+- Download List, FFmpeg, native download engine, pause/resume, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring, app-close behavior, or shell/file boundary behavior changes.
 - Search, migrations, sync visibility, outbox, pending remote, or import/export changes: run Node database tests, data-engine contract tests, and Rust tests.
 - Rust-native data-engine invariant changes: update and run `native/local-data-engine/src/tests.rs` through `fnm exec --using 24 npm run rust:ci`.
 - Documentation-only changes: run `fnm exec --using 24 npm run format:check`.
@@ -87,10 +87,13 @@ Verify these behaviors when touching related desktop areas:
 - Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
 - Settings can change the maximum active video downloads value and the queue starts additional active downloads up to that limit.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
-- Download List renders queued, downloading, failed, ready, and missing rows.
+- Download List renders queued, downloading, paused, failed, ready, and missing rows.
 - Ready downloads open through the OS default player and can be revealed in the OS file manager.
 - Failed and missing downloads can be retried.
-- Queued and active downloads can be canceled.
+- Queued and active downloads can be paused or canceled.
+- Paused downloads can be resumed without restarting from zero when preserved segments are compatible.
+- Closing or quitting the app with queued or active downloads prompts to pause downloads before closing.
+- Force quit or crash recovery reconciles orphaned queued/downloading records to paused on next launch/listing.
 - Deleting a Download List item removes the local managed file and download record without changing collection membership.
 - Re-syncing Favourites or Watch Later does not remove local download records.
 - Quick sync updates existing data without hiding unscanned rows.

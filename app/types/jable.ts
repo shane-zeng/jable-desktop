@@ -14,7 +14,7 @@ export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
 export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsupported';
 export type FfmpegStatusSource = 'path' | 'manual' | null;
 export type DownloadRootSource = 'default' | 'manual';
-export type DownloadState = 'queued' | 'downloading' | 'failed' | 'ready' | 'missing';
+export type DownloadState = 'queued' | 'downloading' | 'paused' | 'failed' | 'ready' | 'missing';
 
 export interface CollectionDefinition {
   url: string;
@@ -195,6 +195,11 @@ export interface DeleteDownloadResult {
 
 export interface CancelDownloadResult {
   canceled: boolean;
+  record: DownloadRecord;
+}
+
+export interface PauseDownloadResult {
+  paused: boolean;
   record: DownloadRecord;
 }
 
@@ -474,6 +479,8 @@ export interface JableAppApi {
   listDownloads(): Promise<DownloadRecord[]>;
   enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
   retryDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
+  pauseDownload(videoUrl: string): Promise<PauseDownloadResult>;
+  resumeDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
   cancelDownload(videoUrl: string): Promise<CancelDownloadResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
   revealDownloadFile(videoUrl: string): Promise<RevealDownloadFileResult>;

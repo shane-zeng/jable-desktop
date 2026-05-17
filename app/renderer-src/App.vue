@@ -651,12 +651,14 @@ async function downloadSelectedVideos() {
       try {
         const record = downloadRecordForVideoUrl(video.url);
         const result =
-          record && (record.state === 'failed' || record.state === 'missing')
-            ? await api.retryDownload(record.videoUrl)
-            : await api.enqueueDownload({
-                collectionKey: library.activeCollection.value,
-                video: downloadRequestVideo(video)
-              });
+          record && record.state === 'paused'
+            ? await api.resumeDownload(record.videoUrl)
+            : record && (record.state === 'failed' || record.state === 'missing')
+              ? await api.retryDownload(record.videoUrl)
+              : await api.enqueueDownload({
+                  collectionKey: library.activeCollection.value,
+                  video: downloadRequestVideo(video)
+                });
 
         if (result.queued) queued += 1;
         else skipped += 1;
@@ -694,6 +696,35 @@ async function retryDownload(videoUrl: string) {
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadRetryFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function resumeDownload(videoUrl: string) {
+  if (!videoUrl || busy.value || syncing.value) return;
+
+  try {
+    const result = await api.resumeDownload(videoUrl);
+    setStatus(
+      result.queued ? i18n.t('status.downloadResumed') : i18n.t('status.downloadAlreadyQueued'),
+      result.queued ? 'success' : 'info'
+    );
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadResumeFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function pauseDownload(videoUrl: string) {
+  if (!videoUrl || busy.value || syncing.value) return;
+
+  try {
+    await api.pauseDownload(videoUrl);
+    setStatus(i18n.t('status.downloadPaused'), 'success');
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadPauseFailed', { error: errorMessage(error) }), 'error');
   }
 }
 
@@ -895,6 +926,8 @@ onMounted(async function () {
         @open-download="openDownloadFile"
         @reveal-download="revealDownloadFile"
         @retry-download="retryDownload"
+        @pause-download="pauseDownload"
+        @resume-download="resumeDownload"
         @cancel-download="cancelDownload"
         @delete-download="deleteDownload"
         @download-video="downloadVideo"

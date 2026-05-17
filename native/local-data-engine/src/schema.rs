@@ -83,7 +83,7 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
          );
          CREATE TABLE IF NOT EXISTS download_assets (
            video_url TEXT PRIMARY KEY,
-           status TEXT NOT NULL CHECK(status IN ('queued', 'downloading', 'failed', 'ready', 'missing')),
+           status TEXT NOT NULL CHECK(status IN ('queued', 'downloading', 'paused', 'failed', 'ready', 'missing')),
            file_relative_path TEXT,
            format TEXT,
            title TEXT,
@@ -141,10 +141,63 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
     )?;
     ensure_column(conn, "videos", "search_text", "TEXT")?;
     ensure_column(conn, "download_assets", "preview", "TEXT")?;
+    ensure_download_assets_paused_state(conn)?;
 
     backfill_remote_apply_state(conn)?;
     backfill_video_search_text(conn)?;
     ensure_video_search_index(conn)?;
+    Ok(())
+}
+
+fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
+    let table_sql = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'download_assets'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(to_napi_error)?;
+    let Some(sql) = table_sql else {
+        return Ok(());
+    };
+    if sql.contains("'paused'") {
+        return Ok(());
+    }
+
+    conn.execute_batch(
+        "BEGIN;
+         CREATE TABLE download_assets_new (
+           video_url TEXT PRIMARY KEY,
+           status TEXT NOT NULL CHECK(status IN ('queued', 'downloading', 'paused', 'failed', 'ready', 'missing')),
+           file_relative_path TEXT,
+           format TEXT,
+           title TEXT,
+           img TEXT,
+           preview TEXT,
+           size_bytes INTEGER,
+           duration_seconds REAL,
+           progress REAL,
+           error TEXT,
+           downloaded_at TEXT,
+           last_checked_at TEXT,
+           created_at TEXT NOT NULL,
+           updated_at TEXT NOT NULL
+         );
+         INSERT INTO download_assets_new (
+           video_url, status, file_relative_path, format, title, img, preview,
+           size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
+         )
+         SELECT
+           video_url, status, file_relative_path, format, title, img, preview,
+           size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
+         FROM download_assets;
+         DROP TABLE download_assets;
+         ALTER TABLE download_assets_new RENAME TO download_assets;
+         COMMIT;",
+    )
+    .map_err(to_napi_error)?;
+
     Ok(())
 }
 

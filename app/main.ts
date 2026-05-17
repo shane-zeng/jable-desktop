@@ -36,6 +36,7 @@ import type {
   LibraryVideoMenuPayload,
   ListVideosOptions,
   OpenDownloadFileResult,
+  PauseDownloadResult,
   PendingRemoteOperationActionResult,
   PendingRemoteOperationGroup,
   RevealDownloadFileResult,
@@ -368,8 +369,13 @@ let downloadEngine: NativeDownloadEngineInstance | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
 const downloadQueue: string[] = [];
 const canceledDownloadUrls = new Set<string>();
+const pausedDownloadUrls = new Set<string>();
+const resumedDownloadUrls = new Set<string>();
 const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
+let allowDownloadAppQuit = false;
+let allowDownloadWindowClose = false;
+let downloadClosePromptInFlight = false;
 let lastShortcutAction = { name: '', at: 0 };
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 let updateCheckInFlight: Promise<UpdateCheckResult> | null = null;
@@ -479,15 +485,31 @@ class DownloadCanceledError extends Error {
   }
 }
 
+class DownloadPausedError extends Error {
+  constructor() {
+    super(t('status.downloadPaused'));
+    this.name = 'DownloadPausedError';
+  }
+}
+
 function downloadCanceledError() {
   return new DownloadCanceledError();
+}
+
+function downloadPausedError() {
+  return new DownloadPausedError();
 }
 
 function isDownloadCanceledError(error: unknown): boolean {
   return error instanceof DownloadCanceledError;
 }
 
+function isDownloadPausedError(error: unknown): boolean {
+  return error instanceof DownloadPausedError;
+}
+
 function throwIfDownloadCanceled(videoUrl: string) {
+  if (pausedDownloadUrls.has(videoUrl)) throw downloadPausedError();
   if (canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
 }
 
@@ -501,6 +523,7 @@ function isLikelyNetworkError(error: unknown): boolean {
 }
 
 function downloadErrorMessage(error: unknown): string {
+  if (isDownloadPausedError(error)) return t('status.downloadPaused');
   if (isDownloadCanceledError(error)) return t('status.downloadCanceled');
   if (error instanceof Error && error.name === 'AbortError') return t('status.downloadCanceled');
   if (error instanceof DownloadHttpError) return t('status.downloadErrorVideoPageHttp', { status: error.status });
@@ -880,9 +903,9 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
   if (isActive || isQueued) return fileRecord;
 
   return Object.assign({}, fileRecord, {
-    state: 'failed' as const,
+    state: 'paused' as const,
     progress: null,
-    error: t('status.downloadInterrupted')
+    error: t('status.downloadPausedAfterRestart')
   });
 }
 
@@ -1137,10 +1160,86 @@ function downloadSegmentTempDirectory(outputPath: string): string {
   return outputPath + '.segments';
 }
 
+function downloadResumeManifestPath(outputPath: string): string {
+  return path.join(downloadSegmentTempDirectory(outputPath), 'resume.json');
+}
+
 function removeDownloadSegmentTempDirectory(outputPath: string) {
   try {
     fs.rmSync(downloadSegmentTempDirectory(outputPath), { recursive: true, force: true });
   } catch (error) {}
+}
+
+function stableMediaUrlIdentity(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.origin + url.pathname;
+  } catch (error) {
+    return value.split('?')[0] || value;
+  }
+}
+
+function roundedDuration(value: number | null): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 1000) / 1000 : null;
+}
+
+function playlistResumeIdentity(playlist: HlsPlaylist) {
+  return {
+    version: 1,
+    targetDuration: roundedDuration(playlist.targetDuration),
+    segments: playlist.segments.map(function (segment) {
+      return {
+        url: stableMediaUrlIdentity(segment.url),
+        duration: roundedDuration(segment.duration),
+        key: segment.key
+          ? {
+              method: segment.key.method,
+              uri: stableMediaUrlIdentity(segment.key.uri),
+              iv: segment.key.iv || null
+            }
+          : null
+      };
+    })
+  };
+}
+
+function resumeManifestMatches(outputPath: string, playlist: HlsPlaylist): boolean {
+  let current: unknown;
+  try {
+    current = JSON.parse(fs.readFileSync(downloadResumeManifestPath(outputPath), 'utf8'));
+  } catch (error) {
+    return false;
+  }
+
+  return JSON.stringify(current) === JSON.stringify(playlistResumeIdentity(playlist));
+}
+
+function prepareDownloadSegmentTempDirectory(
+  outputPath: string,
+  playlist: HlsPlaylist,
+  reuseExistingSegments: boolean
+) {
+  if (!reuseExistingSegments || !resumeManifestMatches(outputPath, playlist)) {
+    removeDownloadSegmentTempDirectory(outputPath);
+  }
+
+  const tempDir = downloadSegmentTempDirectory(outputPath);
+  fs.mkdirSync(tempDir, { recursive: true });
+  fs.writeFileSync(downloadResumeManifestPath(outputPath), JSON.stringify(playlistResumeIdentity(playlist), null, 2));
+}
+
+function removeDownloadWorkingFiles(record: DownloadRecord) {
+  const outputPath = resolveManagedDownloadPath(record.localPath);
+  if (!outputPath) return;
+  removePartialDownloadFile(outputPath);
+  removeDownloadSegmentTempDirectory(outputPath);
+}
+
+function removePartialDownloadFileForRecord(record: DownloadRecord) {
+  const outputPath = resolveManagedDownloadPath(record.localPath);
+  if (!outputPath) return;
+  removePartialDownloadFile(outputPath);
 }
 
 async function fetchHlsText(
@@ -1239,16 +1338,21 @@ async function downloadHlsSegmentsWithNative(
   cookieHeader: string,
   outputPath: string,
   signal: AbortSignal,
-  runtime: ActiveDownloadRuntime
+  runtime: ActiveDownloadRuntime,
+  reuseExistingSegments: boolean
 ): Promise<string> {
   const tempDir = downloadSegmentTempDirectory(outputPath);
   const headers = downloadHelpers.hlsRequestHeaders(videoUrl, cookieHeader);
   const downloadId = videoUrl;
   let progressTimer: ReturnType<typeof setInterval> | null = null;
-  removeDownloadSegmentTempDirectory(outputPath);
 
   try {
     throwIfDownloadCanceled(videoUrl);
+    try {
+      prepareDownloadSegmentTempDirectory(outputPath, playlist, reuseExistingSegments);
+    } catch (error) {
+      throw downloadFileSystemError(error);
+    }
     runtime.nativeId = downloadId;
     progressTimer = startNativeDownloadProgress(videoUrl, tempDir);
     const result = parseNativeDownloadSegmentsResult(
@@ -1270,6 +1374,7 @@ async function downloadHlsSegmentsWithNative(
     updateDownloadRuntimeProgress(videoUrl, result.downloadedBytes);
     return result.playlistPath;
   } catch (error) {
+    if (pausedDownloadUrls.has(videoUrl)) throw downloadPausedError();
     if (signal.aborted || canceledDownloadUrls.has(videoUrl)) throw downloadCanceledError();
     throw nativeDownloadError(error);
   } finally {
@@ -1354,6 +1459,12 @@ function runFfmpegRemux(
     child.on('close', function (code) {
       if (runtime.process === child) runtime.process = null;
 
+      if (pausedDownloadUrls.has(videoUrl)) {
+        removePartialDownloadFile(outputPath);
+        reject(downloadPausedError());
+        return;
+      }
+
       if (canceledDownloadUrls.has(videoUrl)) {
         removePartialDownloadFile(outputPath);
         reject(downloadCanceledError());
@@ -1379,6 +1490,7 @@ function runFfmpegRemux(
 
 async function runQueuedDownload(record: DownloadRecord) {
   const outputPath = resolveManagedDownloadPath(record.localPath);
+  const reuseExistingSegments = resumedDownloadUrls.has(record.videoUrl);
   const abortController = new AbortController();
   const runtime: ActiveDownloadRuntime = {
     abortController: abortController,
@@ -1420,7 +1532,8 @@ async function runQueuedDownload(record: DownloadRecord) {
       cookieHeader,
       outputPath,
       abortController.signal,
-      runtime
+      runtime,
+      reuseExistingSegments
     );
     throwIfDownloadCanceled(record.videoUrl);
 
@@ -1444,17 +1557,24 @@ async function runQueuedDownload(record: DownloadRecord) {
     });
     notifyDownloadsChanged();
   } catch (error) {
+    const paused = pausedDownloadUrls.has(record.videoUrl) || isDownloadPausedError(error);
     upsertPersistedDownload({
       videoUrl: record.videoUrl,
-      state: 'failed',
+      state: paused ? 'paused' : 'failed',
       progress: null,
-      error: downloadErrorMessage(error)
+      error: paused ? t('status.downloadPaused') : downloadErrorMessage(error)
     });
     notifyDownloadsChanged();
   } finally {
-    if (outputPath) removeDownloadSegmentTempDirectory(outputPath);
+    const paused = pausedDownloadUrls.has(record.videoUrl);
+    if (outputPath) {
+      removePartialDownloadFile(outputPath);
+      if (!paused) removeDownloadSegmentTempDirectory(outputPath);
+    }
     downloadRuntimeProgress.delete(record.videoUrl);
     canceledDownloadUrls.delete(record.videoUrl);
+    pausedDownloadUrls.delete(record.videoUrl);
+    resumedDownloadUrls.delete(record.videoUrl);
     activeDownloads.delete(record.videoUrl);
   }
 }
@@ -1534,6 +1654,7 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
       queued: false
     };
   }
+  if (existingState === 'paused') return resumeDownload(videoUrl);
 
   await ffmpegCommandForDownload();
   ensureDownloadRootReady();
@@ -1560,6 +1681,83 @@ function removeQueuedDownload(videoUrl: string): boolean {
   return true;
 }
 
+async function resumeDownload(value: unknown): Promise<EnqueueDownloadResult> {
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:resume');
+  const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
+  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
+  const existingState = existingRecord ? existingRecord.state : null;
+
+  if (!existingRecord) throw new Error(t('status.downloadFileUnavailable'));
+  if (existingState === 'queued' || existingState === 'downloading' || existingState === 'ready') {
+    return {
+      record: existingRecord,
+      queued: false
+    };
+  }
+  if (existingState !== 'paused') throw new Error(t('status.downloadResumeUnavailable'));
+
+  await ffmpegCommandForDownload();
+  ensureDownloadRootReady();
+
+  canceledDownloadUrls.delete(videoUrl);
+  pausedDownloadUrls.delete(videoUrl);
+  resumedDownloadUrls.add(videoUrl);
+
+  const record = upsertPersistedDownload({
+    videoUrl: existingRecord.videoUrl,
+    state: 'queued',
+    progress: null,
+    error: null,
+    completedAt: null
+  });
+  queueDownloadRecord(record);
+
+  return {
+    record: record,
+    queued: true
+  };
+}
+
+function pauseDownload(value: unknown): PauseDownloadResult {
+  const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:pause');
+  const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
+  const currentRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
+  if (!currentRecord) throw new Error(t('status.downloadPauseUnavailable'));
+
+  const runtime = activeDownloads.get(videoUrl) || null;
+  const isActive = Boolean(runtime);
+  const isQueued = removeQueuedDownload(videoUrl);
+  if (!isActive && !isQueued && currentRecord.state !== 'paused') {
+    throw new Error(t('status.downloadPauseUnavailable'));
+  }
+
+  canceledDownloadUrls.delete(videoUrl);
+  pausedDownloadUrls.add(videoUrl);
+
+  const record = upsertPersistedDownload({
+    videoUrl: videoUrl,
+    state: 'paused',
+    progress: null,
+    error: t('status.downloadPaused'),
+    completedAt: null
+  });
+
+  if (runtime) {
+    runtime.abortController.abort();
+    if (runtime.nativeId) getDownloadEngine().cancelDownload(runtime.nativeId);
+    if (runtime.process) runtime.process.kill('SIGTERM');
+  } else {
+    removePartialDownloadFileForRecord(record);
+  }
+
+  notifyDownloadsChanged();
+
+  return {
+    paused: currentRecord.state !== 'paused',
+    record: record
+  };
+}
+
 function cancelDownload(value: unknown): CancelDownloadResult {
   const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:cancel');
   if (!videoUrl) throw new Error(t('status.downloadCancelUnavailable'));
@@ -1574,6 +1772,8 @@ function cancelDownload(value: unknown): CancelDownloadResult {
 
   removeQueuedDownload(videoUrl);
   if (isActive) canceledDownloadUrls.add(videoUrl);
+  pausedDownloadUrls.delete(videoUrl);
+  resumedDownloadUrls.delete(videoUrl);
 
   const record = upsertPersistedDownload({
     videoUrl: videoUrl,
@@ -1587,6 +1787,8 @@ function cancelDownload(value: unknown): CancelDownloadResult {
     runtime.abortController.abort();
     if (runtime.nativeId) getDownloadEngine().cancelDownload(runtime.nativeId);
     if (runtime.process) runtime.process.kill('SIGTERM');
+  } else {
+    removeDownloadWorkingFiles(currentRecord);
   }
   notifyDownloadsChanged();
 
@@ -1670,8 +1872,12 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
 
   const queueIndex = downloadQueue.indexOf(videoUrl);
   if (queueIndex !== -1) downloadQueue.splice(queueIndex, 1);
+  canceledDownloadUrls.delete(videoUrl);
+  pausedDownloadUrls.delete(videoUrl);
+  resumedDownloadUrls.delete(videoUrl);
 
   const deleted = deleteManagedDownloadFile(visibleRecord);
+  removeDownloadWorkingFiles(visibleRecord);
   const removed = removePersistedDownload(videoUrl);
   notifyDownloadsChanged();
 
@@ -1757,6 +1963,90 @@ function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
   });
 }
 
+function hasQueuedOrActiveDownloads(): boolean {
+  return downloadQueue.length > 0 || activeDownloads.size > 0;
+}
+
+function pauseDownloadsForShutdown() {
+  const queuedUrls = downloadQueue.splice(0);
+
+  for (const videoUrl of queuedUrls) {
+    const record = getPersistedDownload(videoUrl);
+    if (!record) continue;
+    pausedDownloadUrls.add(videoUrl);
+    upsertPersistedDownload({
+      videoUrl: videoUrl,
+      state: 'paused',
+      progress: null,
+      error: t('status.downloadPaused'),
+      completedAt: null
+    });
+  }
+
+  for (const [videoUrl, runtime] of activeDownloads) {
+    pausedDownloadUrls.add(videoUrl);
+    upsertPersistedDownload({
+      videoUrl: videoUrl,
+      state: 'paused',
+      progress: null,
+      error: t('status.downloadPaused'),
+      completedAt: null
+    });
+    runtime.abortController.abort();
+    if (runtime.nativeId && downloadEngine) downloadEngine.cancelDownload(runtime.nativeId);
+    if (runtime.process) runtime.process.kill('SIGTERM');
+  }
+
+  if (queuedUrls.length || activeDownloads.size) notifyDownloadsChanged();
+}
+
+function confirmPauseDownloadsBeforeClose(): Promise<boolean> {
+  if (downloadClosePromptInFlight) return Promise.resolve(false);
+  downloadClosePromptInFlight = true;
+
+  return showAppDialog({
+    type: 'warning',
+    buttons: [t('dialog.pauseDownloadsAndClose'), t('dialog.returnToApp')],
+    defaultId: 0,
+    cancelId: 1,
+    title: t('dialog.pauseDownloadsBeforeQuitTitle'),
+    message: t('dialog.pauseDownloadsBeforeQuitMessage')
+  })
+    .then(function (dialogResult: Electron.MessageBoxReturnValue) {
+      return dialogResult.response === 0;
+    })
+    .finally(function () {
+      downloadClosePromptInFlight = false;
+    });
+}
+
+function promptPauseDownloadsAndClose(browserWindow: Electron.BrowserWindow) {
+  confirmPauseDownloadsBeforeClose()
+    .then(function (confirmed) {
+      if (!confirmed) return;
+      pauseDownloadsForShutdown();
+      if (process.platform !== 'darwin') allowDownloadAppQuit = true;
+      allowDownloadWindowClose = true;
+      if (!browserWindow.isDestroyed()) browserWindow.close();
+    })
+    .catch(function (error) {
+      console.error(error);
+    });
+}
+
+function promptPauseDownloadsAndQuit() {
+  confirmPauseDownloadsBeforeClose()
+    .then(function (confirmed) {
+      if (!confirmed) return;
+      pauseDownloadsForShutdown();
+      allowDownloadAppQuit = true;
+      app.quit();
+    })
+    .catch(function (error) {
+      console.error(error);
+    });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1360,
@@ -1800,6 +2090,16 @@ function createWindow() {
   mainWindow.on('resize', scheduleBrowserHtmlFullScreenResize);
   mainWindow.on('enter-full-screen', scheduleBrowserHtmlFullScreenResize);
   mainWindow.on('leave-full-screen', scheduleBrowserHtmlFullScreenResize);
+  mainWindow.on('close', function (event: Electron.Event) {
+    if (allowDownloadWindowClose) {
+      allowDownloadWindowClose = false;
+      return;
+    }
+    if (!hasQueuedOrActiveDownloads()) return;
+
+    event.preventDefault();
+    promptPauseDownloadsAndClose(mainWindow as Electron.BrowserWindow);
+  });
   mainWindow.on('closed', function () {
     mainWindow = null;
     closeAllSyncWorkers();
@@ -3792,6 +4092,14 @@ function registerIpcHandlers() {
     return retryDownload(videoUrl);
   });
 
+  ipcMain.handle('download:pause', function (_event, videoUrl) {
+    return pauseDownload(videoUrl);
+  });
+
+  ipcMain.handle('download:resume', function (_event, videoUrl) {
+    return resumeDownload(videoUrl);
+  });
+
   ipcMain.handle('download:cancel', function (_event, videoUrl) {
     return cancelDownload(videoUrl);
   });
@@ -4040,12 +4348,14 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', function () {
-  closeAllSyncWorkers();
-  for (const runtime of activeDownloads.values()) {
-    runtime.abortController.abort();
-    if (runtime.nativeId && downloadEngine) downloadEngine.cancelDownload(runtime.nativeId);
-    if (runtime.process) runtime.process.kill('SIGTERM');
+app.on('before-quit', function (event: Electron.Event) {
+  if (!allowDownloadAppQuit && hasQueuedOrActiveDownloads()) {
+    event.preventDefault();
+    promptPauseDownloadsAndQuit();
+    return;
   }
+
+  closeAllSyncWorkers();
+  pauseDownloadsForShutdown();
   if (database) database.close();
 });
