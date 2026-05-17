@@ -14,6 +14,8 @@ function makeDownloadRecord(index: number): DownloadRecord {
     title: 'Failed Video ' + (index + 1),
     img: null,
     preview: null,
+    sourcePageChineseSubtitleNotice: false,
+    sourcePageSubtitleNoticeText: null,
     localPath: null,
     state: 'failed',
     progress: null,

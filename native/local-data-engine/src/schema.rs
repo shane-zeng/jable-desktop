@@ -89,6 +89,8 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
            title TEXT,
            img TEXT,
            preview TEXT,
+           source_page_chinese_subtitle_notice INTEGER NOT NULL DEFAULT 0,
+           source_page_subtitle_notice_text TEXT,
            size_bytes INTEGER,
            duration_seconds REAL,
            progress REAL,
@@ -146,6 +148,18 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
     )?;
     ensure_column(conn, "videos", "search_text", "TEXT")?;
     ensure_column(conn, "download_assets", "preview", "TEXT")?;
+    ensure_column(
+        conn,
+        "download_assets",
+        "source_page_chinese_subtitle_notice",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column(
+        conn,
+        "download_assets",
+        "source_page_subtitle_notice_text",
+        "TEXT",
+    )?;
     ensure_column(conn, "download_assets", "failure_phase", "TEXT")?;
     ensure_column(conn, "download_assets", "failure_code", "TEXT")?;
     ensure_column(
@@ -190,6 +204,8 @@ fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
            title TEXT,
            img TEXT,
            preview TEXT,
+           source_page_chinese_subtitle_notice INTEGER NOT NULL DEFAULT 0,
+           source_page_subtitle_notice_text TEXT,
            size_bytes INTEGER,
            duration_seconds REAL,
            progress REAL,
@@ -206,11 +222,13 @@ fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
          );
          INSERT INTO download_assets_new (
            video_url, status, file_relative_path, format, title, img, preview,
+           source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
            size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
          SELECT
            video_url, status, file_relative_path, format, title, img, preview,
+           source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
            size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          FROM download_assets;

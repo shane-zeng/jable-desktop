@@ -29,6 +29,8 @@ function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>
       title: video.title,
       img: video.img,
       preview: video.preview,
+      sourcePageChineseSubtitleNotice: false,
+      sourcePageSubtitleNoticeText: null,
       localPath: '/tmp/sample.mp4',
       state: 'ready',
       progress: null,

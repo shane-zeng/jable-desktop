@@ -116,6 +116,56 @@ test('saveSyncPage canonicalizes fallback-origin video URLs', function (t) {
   assert.equal(db.allCollectionUrlsKnown('favourites', ['https://fs1.app/videos/fallback-origin/?from=quick']), true);
 });
 
+test('refreshVideoMetadata updates known videos without creating collection rows', function (t) {
+  const db = createTestEngine(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'Old metadata',
+        url: 'https://jable.tv/videos/metadata-refresh/',
+        views: 1,
+        likes: 1,
+        siteOrder: 4
+      }
+    ]
+  });
+
+  const refreshed = db.refreshVideoMetadata({
+    title: 'Fresh metadata',
+    url: 'https://fs1.app/videos/metadata-refresh/?from=browser#fragment',
+    views: 12,
+    likes: 3,
+    img: 'https://example.test/fresh.jpg',
+    preview: 'https://example.test/fresh.mp4'
+  });
+
+  assert.deepEqual(refreshed, {
+    known: true,
+    updated: true,
+    url: 'https://jable.tv/videos/metadata-refresh/'
+  });
+
+  const rows = db.listVideos('favourites');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].title, 'Fresh metadata');
+  assert.equal(rows[0].views, 12);
+  assert.equal(rows[0].likes, 3);
+  assert.equal(rows[0].img, 'https://example.test/fresh.jpg');
+  assert.equal(rows[0].preview, 'https://example.test/fresh.mp4');
+  assert.equal(rows[0].site_order, 4);
+
+  const ignored = db.refreshVideoMetadata({
+    title: 'Unknown metadata',
+    url: 'https://jable.tv/videos/unknown-metadata-refresh/'
+  });
+  assert.equal(ignored.known, false);
+  assert.equal(ignored.updated, false);
+  assert.equal(db.countVideos('favourites'), 1);
+});
+
 test('saveSyncPage stores and lists videos by site order', function (t) {
   const db = createTestEngine(t);
 

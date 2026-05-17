@@ -123,6 +123,8 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             "progress": 1,
             "fileSizeBytes": 2048,
             "error": null,
+            "sourcePageChineseSubtitleNotice": true,
+            "sourcePageSubtitleNoticeText": "此作品曾在本站上傳，現已更新至中文字幕版。",
             "completedAt": "2026-05-17T00:00:00.000Z"
         }))
         .expect("download asset should upsert");
@@ -145,6 +147,14 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     assert_eq!(ready.get("state"), Some(&json!("ready")));
     assert_eq!(ready.get("progress"), Some(&json!(1.0)));
     assert_eq!(ready.get("fileSizeBytes"), Some(&json!(2048)));
+    assert_eq!(
+        ready.get("sourcePageChineseSubtitleNotice"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        ready.get("sourcePageSubtitleNoticeText"),
+        Some(&json!("此作品曾在本站上傳，現已更新至中文字幕版。"))
+    );
     assert_eq!(ready.get("failurePhase"), Some(&Value::Null));
     assert_eq!(ready.get("failureCode"), Some(&Value::Null));
     assert_eq!(ready.get("attemptCount"), Some(&json!(0)));
@@ -198,9 +208,11 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             "progress": null,
             "error": "HTTP 403",
             "failurePhase": "segments",
-            "failureCode": "segment_http_403",
-            "attemptCount": 2,
-            "lastStartedAt": "2026-05-17T01:00:00.000Z",
+        "failureCode": "segment_http_403",
+        "attemptCount": 2,
+        "sourcePageChineseSubtitleNotice": false,
+        "sourcePageSubtitleNoticeText": null,
+        "lastStartedAt": "2026-05-17T01:00:00.000Z",
             "lastErrorAt": "2026-05-17T01:01:00.000Z",
             "completedAt": null
         }))
@@ -217,6 +229,14 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     assert_eq!(failed.get("failurePhase"), Some(&json!("segments")));
     assert_eq!(failed.get("failureCode"), Some(&json!("segment_http_403")));
     assert_eq!(failed.get("attemptCount"), Some(&json!(2)));
+    assert_eq!(
+        failed.get("sourcePageChineseSubtitleNotice"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        failed.get("sourcePageSubtitleNoticeText"),
+        Some(&Value::Null)
+    );
     assert_eq!(
         failed.get("lastStartedAt"),
         Some(&json!("2026-05-17T01:00:00.000Z"))
@@ -419,6 +439,8 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         "attempt_count",
         "last_started_at",
         "last_error_at",
+        "source_page_chinese_subtitle_notice",
+        "source_page_subtitle_notice_text",
     ] {
         let exists: i64 = connection
             .query_row(
@@ -439,10 +461,27 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         .expect("legacy attempt count should query");
     assert_eq!(attempt_count, 0);
 
+    let source_page_chinese_subtitle_notice: i64 = connection
+        .query_row(
+            "SELECT source_page_chinese_subtitle_notice FROM download_assets WHERE video_url = ?",
+            params!["https://jable.tv/videos/legacy-download/"],
+            |row| row.get(0),
+        )
+        .expect("legacy source page notice should query");
+    assert_eq!(source_page_chinese_subtitle_notice, 0);
+
     let legacy = engine
         .get_download_asset(json!("https://jable.tv/videos/legacy-download/"))
         .expect("legacy download asset should load");
     assert_eq!(legacy.get("attemptCount"), Some(&json!(0)));
+    assert_eq!(
+        legacy.get("sourcePageChineseSubtitleNotice"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        legacy.get("sourcePageSubtitleNoticeText"),
+        Some(&Value::Null)
+    );
     assert_eq!(legacy.get("failurePhase"), Some(&Value::Null));
     assert_eq!(legacy.get("failureCode"), Some(&Value::Null));
     assert_eq!(legacy.get("lastStartedAt"), Some(&Value::Null));
@@ -517,6 +556,76 @@ fn list_videos_can_filter_to_downloadable_collection_rows() {
             "https://jable.tv/videos/missing-record/"
         ]
     );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
+fn refresh_video_metadata_updates_known_collection_rows_only() {
+    let mut engine = test_engine("refresh-known-video");
+
+    engine
+        .save_sync_page(json!({
+            "collectionKey": "favourites",
+            "page": 1,
+            "rows": [
+                {
+                    "title": "Old Title",
+                    "url": "https://jable.tv/videos/known-refresh/",
+                    "views": 1,
+                    "likes": 1,
+                    "siteOrder": 7
+                }
+            ]
+        }))
+        .expect("known row should save");
+
+    let refreshed = engine
+        .refresh_video_metadata(json!({
+            "title": "Fresh Title",
+            "url": "https://fs1.app/videos/known-refresh/?from=browser#ignored",
+            "views": 20,
+            "likes": 3,
+            "img": "https://example.test/fresh.jpg",
+            "preview": "https://example.test/fresh.mp4"
+        }))
+        .expect("known row metadata should refresh");
+    assert_eq!(refreshed.get("known"), Some(&json!(true)));
+    assert_eq!(refreshed.get("updated"), Some(&json!(true)));
+    assert_eq!(
+        refreshed.get("url"),
+        Some(&json!("https://jable.tv/videos/known-refresh/"))
+    );
+
+    let rows = engine
+        .list_videos(json!({ "collectionKey": "favourites" }))
+        .expect("rows should list");
+    let row = rows
+        .as_array()
+        .and_then(|rows| rows.first())
+        .expect("refreshed row should exist");
+    assert_eq!(row.get("title"), Some(&json!("Fresh Title")));
+    assert_eq!(row.get("views"), Some(&json!(20)));
+    assert_eq!(row.get("likes"), Some(&json!(3)));
+    assert_eq!(
+        row.get("img"),
+        Some(&json!("https://example.test/fresh.jpg"))
+    );
+    assert_eq!(
+        row.get("preview"),
+        Some(&json!("https://example.test/fresh.mp4"))
+    );
+    assert_eq!(row.get("site_order"), Some(&json!(7)));
+
+    let unknown = engine
+        .refresh_video_metadata(json!({
+            "title": "Unknown Title",
+            "url": "https://jable.tv/videos/unknown-refresh/"
+        }))
+        .expect("unknown row should be ignored");
+    assert_eq!(unknown.get("known"), Some(&json!(false)));
+    assert_eq!(unknown.get("updated"), Some(&json!(false)));
+    assert_eq!(visible_urls(&engine, "favourites").len(), 1);
 
     remove_temp_database(&mut engine);
 }

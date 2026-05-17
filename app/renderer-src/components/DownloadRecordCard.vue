@@ -174,19 +174,27 @@ function toggleSelected(event: Event) {
           ></div>
         </div>
 
-        <div class="grid min-h-7 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <div class="flex min-w-0 gap-1.5 overflow-hidden">
+        <div class="grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <div class="grid min-w-0 content-start gap-1">
+            <div class="flex min-w-0 flex-wrap gap-1.5 overflow-hidden">
+              <span
+                v-for="collectionKey in collectionList(record)"
+                :key="collectionKey"
+                class="rounded-md px-2 py-0.5 text-xs font-semibold"
+                :class="collectionClass(collectionKey)"
+              >
+                {{ collectionLabel(collectionKey) }}
+              </span>
+            </div>
             <span
-              v-for="collectionKey in collectionList(record)"
-              :key="collectionKey"
-              class="rounded-md px-2 py-0.5 text-xs font-semibold"
-              :class="collectionClass(collectionKey)"
+              v-if="record.sourcePageChineseSubtitleNotice"
+              class="w-fit rounded-md border border-[#276f63] bg-[#133832] px-2 py-0.5 text-xs font-semibold text-[#8fe6ce]"
             >
-              {{ collectionLabel(collectionKey) }}
+              {{ t('downloadList.chineseSubtitle') }}
             </span>
           </div>
 
-          <div class="flex min-w-0 items-center justify-end gap-1.5">
+          <div class="flex min-w-0 items-start justify-end gap-1.5">
             <span
               class="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold"
               :class="stateClass(record.state)"

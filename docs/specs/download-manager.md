@@ -19,10 +19,15 @@ This document specifies the current Download List and local video file managemen
 
 - Local playback applies only to managed MP4 files represented by `ready` download records.
 - Browser pages request playback through a video URL only. Main process canonicalizes the video URL, verifies the download record is still `ready`, verifies the file still exists, and verifies the resolved path remains inside the current download root.
+- Browser pages also send the current page's Chinese-subtitle-update notice state. Local playback is exposed only when that state matches the notice state stored on the ready download record; a mismatch silently leaves the official page media in place.
 - Ready records whose files are missing are reconciled to `missing` and are not exposed for local playback.
 - The browser page receives a short-lived `jable-local-video://` source URL, never a local filesystem path.
 - The custom local playback protocol streams the managed MP4 with `Accept-Ranges: bytes` support so the page video element can seek.
 - The webview preload automatically replaces the current Jable video page's primary `<video>` source when local playback is available. If replacement fails or no local playback source is available, the original Jable page playback remains available.
+- When a ready managed MP4 has a generated local timeline preview cache, the same local playback protocol also serves a short-lived thumbnail VTT and JPEG thumbnails to the browser page.
+- Local timeline preview thumbnails are sampled from the managed MP4 at 60-second intervals, using 213x120 JPEG frames to match Jable's observed preview density.
+- Timeline preview generation runs as a background follow-up after the MP4 becomes ready, and local playback remains available when preview generation is pending, missing, or failed.
+- Deleting a download removes its generated local timeline preview cache together with the managed media file and working files.
 
 ## FFmpeg Dependency
 
@@ -78,6 +83,8 @@ This document specifies the current Download List and local video file managemen
   - `title`
   - `img`
   - `preview`
+  - `sourcePageChineseSubtitleNotice`
+  - `sourcePageSubtitleNoticeText`
   - `localPath` as a managed-root-relative file path
   - `state`
   - `progress`
@@ -171,6 +178,7 @@ This document specifies the current Download List and local video file managemen
   - thumbnail and hover preview when available
   - title
   - current local collection labels when the video is visible in one or more collections; no collection label is shown when the video is not currently visible in Favourites or Watch Later
+  - a `中文字幕` badge below the collection labels when `sourcePageChineseSubtitleNotice` is true
   - state
   - compact progress/status bar
   - active downloaded size and speed when available
@@ -219,6 +227,7 @@ This document specifies the current Download List and local video file managemen
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.
 - The worker fetches the Jable video page using the isolated Jable session cookies.
+- The worker records whether the source page contains `<h5 class="desc h6-md">` text with `中文字幕版`; this is stored as `sourcePageChineseSubtitleNotice` plus the exact normalized notice text.
 - HLS playlist extraction is implemented in `app/download/download-helpers.ts`.
 - The extractor supports escaped absolute `.m3u8` URLs and quoted relative `.m3u8` URLs resolved against the video page URL.
 - The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.

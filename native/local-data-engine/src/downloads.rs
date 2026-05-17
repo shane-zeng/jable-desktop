@@ -21,6 +21,8 @@ struct DownloadAssetRow {
     title: Option<String>,
     img: Option<String>,
     preview: Option<String>,
+    source_page_chinese_subtitle_notice: bool,
+    source_page_subtitle_notice_text: Option<String>,
     local_path: Option<String>,
     state: String,
     progress: Option<f64>,
@@ -81,6 +83,22 @@ fn value_i64(value: Option<&Value>) -> Option<i64> {
     }
 }
 
+fn value_bool(value: Option<&Value>) -> Option<bool> {
+    match value {
+        Some(Value::Bool(value)) => Some(*value),
+        Some(Value::Number(number)) => number
+            .as_i64()
+            .or_else(|| number.as_f64().map(|number| number as i64))
+            .map(|number| number != 0),
+        Some(Value::String(text)) => match text.trim().to_ascii_lowercase().as_str() {
+            "true" | "1" | "yes" => Some(true),
+            "false" | "0" | "no" | "" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn patch_string(value: &Value, keys: &[&str], existing: Option<String>) -> Option<String> {
     if has_field(value, keys) {
         value_string(field(value, keys))
@@ -130,6 +148,14 @@ fn patch_i64(value: &Value, keys: &[&str], existing: Option<i64>) -> Option<i64>
     }
 }
 
+fn patch_bool(value: &Value, keys: &[&str], existing: Option<bool>) -> bool {
+    if has_field(value, keys) {
+        value_bool(field(value, keys)).unwrap_or(false)
+    } else {
+        existing.unwrap_or(false)
+    }
+}
+
 fn patch_state(value: &Value, existing: Option<String>) -> String {
     if has_field(value, &["state", "status"]) {
         if let Some(state) = value_string(field(value, &["state", "status"])) {
@@ -160,19 +186,21 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> 
         title: row.get(1)?,
         img: row.get(2)?,
         preview: row.get(3)?,
-        local_path: row.get(4)?,
-        state: row.get(5)?,
-        progress: row.get(6)?,
-        file_size_bytes: row.get(7)?,
-        error: row.get(8)?,
-        failure_phase: row.get(9)?,
-        failure_code: row.get(10)?,
-        attempt_count: row.get(11)?,
-        last_started_at: row.get(12)?,
-        last_error_at: row.get(13)?,
-        created_at: row.get(14)?,
-        updated_at: row.get(15)?,
-        completed_at: row.get(16)?,
+        source_page_chinese_subtitle_notice: row.get(4)?,
+        source_page_subtitle_notice_text: row.get(5)?,
+        local_path: row.get(6)?,
+        state: row.get(7)?,
+        progress: row.get(8)?,
+        file_size_bytes: row.get(9)?,
+        error: row.get(10)?,
+        failure_phase: row.get(11)?,
+        failure_code: row.get(12)?,
+        attempt_count: row.get(13)?,
+        last_started_at: row.get(14)?,
+        last_error_at: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+        completed_at: row.get(18)?,
     })
 }
 
@@ -183,6 +211,8 @@ fn record_json(record: DownloadAssetRow) -> Value {
       "title": record.title,
       "img": record.img,
       "preview": record.preview,
+      "sourcePageChineseSubtitleNotice": record.source_page_chinese_subtitle_notice,
+      "sourcePageSubtitleNoticeText": record.source_page_subtitle_notice_text,
       "localPath": record.local_path,
       "state": record.state,
       "progress": record.progress,
@@ -259,6 +289,7 @@ impl Engine {
             .conn()?
             .query_row(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
+           da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text,
            da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.failure_phase, da.failure_code,
            da.attempt_count, da.last_started_at, da.last_error_at, da.created_at, da.updated_at, da.downloaded_at
          FROM download_assets da
@@ -282,6 +313,7 @@ impl Engine {
             .conn()?
             .prepare(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
+           da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text,
            da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.failure_phase, da.failure_code,
            da.attempt_count, da.last_started_at, da.last_error_at, da.created_at, da.updated_at, da.downloaded_at
          FROM download_assets da
@@ -336,6 +368,26 @@ impl Engine {
             &payload,
             &["preview"],
             existing.as_ref().and_then(|record| record.preview.clone()),
+        );
+        let source_page_chinese_subtitle_notice = patch_bool(
+            &payload,
+            &[
+                "sourcePageChineseSubtitleNotice",
+                "source_page_chinese_subtitle_notice",
+            ],
+            existing
+                .as_ref()
+                .map(|record| record.source_page_chinese_subtitle_notice),
+        );
+        let source_page_subtitle_notice_text = patch_string(
+            &payload,
+            &[
+                "sourcePageSubtitleNoticeText",
+                "source_page_subtitle_notice_text",
+            ],
+            existing
+                .as_ref()
+                .and_then(|record| record.source_page_subtitle_notice_text.clone()),
         );
         let local_path = normalize_file_relative_path(patch_string(
             &payload,
@@ -425,16 +477,19 @@ impl Engine {
             .execute(
                 "INSERT INTO download_assets (
            video_url, status, file_relative_path, format, title, img, preview,
+           source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
            size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
-         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(video_url) DO UPDATE SET
            status = excluded.status,
            file_relative_path = excluded.file_relative_path,
            title = excluded.title,
            img = excluded.img,
            preview = excluded.preview,
+           source_page_chinese_subtitle_notice = excluded.source_page_chinese_subtitle_notice,
+           source_page_subtitle_notice_text = excluded.source_page_subtitle_notice_text,
            size_bytes = excluded.size_bytes,
            progress = excluded.progress,
            error = excluded.error,
@@ -453,6 +508,8 @@ impl Engine {
                     title,
                     img,
                     preview,
+                    source_page_chinese_subtitle_notice,
+                    source_page_subtitle_notice_text,
                     file_size_bytes,
                     progress,
                     error,

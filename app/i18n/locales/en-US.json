@@ -125,6 +125,7 @@
     "setupRequired": "FFmpeg is required",
     "empty": "No downloads yet",
     "unknownCollection": "Unknown list",
+    "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "Search download title or URL",
     "sort": "Download Sort",
     "sortDirection": "Download Sort Direction",

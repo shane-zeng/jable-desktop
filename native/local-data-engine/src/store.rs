@@ -1,16 +1,17 @@
 use napi::bindgen_prelude::*;
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params, params_from_iter};
+use rusqlite::{params, params_from_iter, OptionalExtension};
 use serde_json::{json, Value};
 use std::collections::HashSet;
 
-use crate::collections::ensure_collection;
+use crate::collections::{ensure_collection, PRIMARY_ORIGIN};
 use crate::payload::{
-    normalize_video_url, object_field, value_bool, value_i64, value_string, NormalizedVideo,
+    normalize_video, normalize_video_url, object_field, value_bool, value_i64, value_string,
+    NormalizedVideo,
 };
 use crate::rows::{list_row_json, ListRow};
 use crate::search::matches_search;
-use crate::{to_napi_error, Engine};
+use crate::{now_iso, to_napi_error, Engine};
 
 const COLLECTION_URLS_KNOWN_QUERY_CHUNK_SIZE: usize = 500;
 
@@ -139,6 +140,58 @@ impl Engine {
       .map_err(to_napi_error)?;
 
         Ok(())
+    }
+
+    pub(crate) fn refresh_video_metadata(&self, payload: Value) -> Result<Value> {
+        let video = normalize_video(&payload).ok_or_else(|| {
+            Error::from_reason("Video metadata refresh requires a video URL".to_string())
+        })?;
+        let trusted_prefix = format!("{PRIMARY_ORIGIN}/videos/");
+        if !video.url.starts_with(&trusted_prefix) {
+            return Err(Error::from_reason(
+                "Video metadata refresh requires a trusted Jable video URL".to_string(),
+            ));
+        }
+
+        let known = self
+            .conn()?
+            .query_row(
+                "SELECT 1 FROM collection_items WHERE video_url = ? LIMIT 1",
+                params![&video.url],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(to_napi_error)?
+            .is_some();
+
+        if !known {
+            return Ok(json!({
+              "known": false,
+              "updated": false,
+              "url": video.url
+            }));
+        }
+
+        if video.title.is_none()
+            && video.views.is_none()
+            && video.likes.is_none()
+            && video.img.is_none()
+            && video.preview.is_none()
+        {
+            return Ok(json!({
+              "known": true,
+              "updated": false,
+              "url": video.url
+            }));
+        }
+
+        self.upsert_video(&video, &now_iso())?;
+
+        Ok(json!({
+          "known": true,
+          "updated": true,
+          "url": video.url
+        }))
     }
 
     fn list_rows(

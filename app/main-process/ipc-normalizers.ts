@@ -20,8 +20,10 @@ import type {
   SortKey,
   SyncBrowserCollectionOptions,
   SyncMode,
-  SyncPagePayload
+  SyncPagePayload,
+  VideoMetadataRefreshPayload
 } from '../types/jable';
+import * as urlPolicy from '../browser/url-policy';
 
 export type CollectionTogglePayload = {
   collectionKey?: CollectionKey;
@@ -218,6 +220,23 @@ export function normalizeCollectionTogglePayload(payload: unknown): CollectionTo
   return Object.assign({}, record, {
     collectionKey: normalizeCollectionKey(record.collectionKey, channel)
   });
+}
+
+export function normalizeVideoMetadataRefreshPayload(payload: unknown): VideoMetadataRefreshPayload {
+  const channel = 'db:refresh-video-metadata';
+  const record = requiredRecord(payload, channel);
+  const url = urlPolicy.canonicalJableVideoUrl(record.url);
+
+  if (!url) throw ipcPayloadError(channel, 'url');
+
+  return {
+    title: optionalStringField(record, 'title', channel) || null,
+    url: url,
+    views: optionalNumberField(record, 'views', channel) ?? null,
+    likes: optionalNumberField(record, 'likes', channel) ?? null,
+    img: optionalStringField(record, 'img', channel) || null,
+    preview: optionalStringField(record, 'preview', channel) || null
+  };
 }
 
 function normalizeSyncResultPayload(value: unknown, channel: string): FinishSyncPayload['result'] {

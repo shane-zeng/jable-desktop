@@ -43,6 +43,7 @@ import {
   normalizeListVideosOptions,
   normalizeSyncPagePayload,
   normalizeTabIdValue,
+  normalizeVideoMetadataRefreshPayload,
   requiredStringValue
 } from './ipc-normalizers';
 
@@ -259,6 +260,10 @@ function registerDatabaseHandlers(context: IpcHandlersContext) {
   context.ipcMain.handle('db:collection-urls-known', function (_event, payload) {
     const normalizedPayload = normalizeCollectionUrlsKnownPayload(payload);
     return context.getDatabase().allCollectionUrlsKnown(normalizedPayload.collectionKey, normalizedPayload.urls);
+  });
+
+  context.ipcMain.handle('db:refresh-video-metadata', function (_event, payload) {
+    return context.getDatabase().refreshVideoMetadata(normalizeVideoMetadataRefreshPayload(payload));
   });
 
   context.ipcMain.handle('db:save-sync-page', function (_event, payload) {

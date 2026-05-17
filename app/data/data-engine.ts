@@ -12,6 +12,8 @@ import type {
   PendingRemoteOperationGroup,
   SyncPagePayload,
   SyncState,
+  VideoMetadataRefreshPayload,
+  VideoMetadataRefreshResult,
   VideoRow
 } from '../types/jable';
 import { COLLECTIONS } from './collections';
@@ -63,6 +65,7 @@ export type DataEngine = {
   countVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): number;
   getCollectionUrls(collectionKey: CollectionKey): string[];
   allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean;
+  refreshVideoMetadata(payload?: VideoMetadataRefreshPayload | null): VideoMetadataRefreshResult;
   saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null };
   applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult;
   listDeferredSyncOperations(collectionKey: CollectionKey, syncRunId: string | null): DeferredSyncOperation[];
@@ -129,6 +132,10 @@ class RustDataEngine implements DataEngine {
 
   allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean {
     return this.callNative('allCollectionUrlsKnown', { collectionKey: collectionKey, urls: urls || [] });
+  }
+
+  refreshVideoMetadata(payload?: VideoMetadataRefreshPayload | null): VideoMetadataRefreshResult {
+    return this.callNative('refreshVideoMetadata', payload || {});
   }
 
   saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null } {

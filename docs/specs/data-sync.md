@@ -105,6 +105,15 @@ Important outbox fields:
 - During an active sync with recorded operations, existing `site_order` can be preserved so local operations do not get overwritten by stale page scans.
 - Duplicate add operations discovered later in a full sync can use scraped `site_order`.
 
+## Video Metadata Refresh
+
+- Embedded browser video pages may refresh local video metadata through `refreshVideoMetadata`.
+- Refresh payloads are normalized as Jable video URLs before storage.
+- Refresh only updates `videos` rows that already belong to at least one `collection_items` row.
+- Refresh updates title, views, likes, image, preview, search text, and `videos.updated_at` through the normal video upsert path.
+- Refresh does not create `collection_items`, does not change collection visibility, does not change `site_order`, does not update sync state, and does not create sync operations.
+- Unknown video URLs are ignored without creating local rows.
+
 ## Quick Sync
 
 - Quick sync starts at page 1.

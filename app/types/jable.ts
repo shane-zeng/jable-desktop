@@ -53,6 +53,14 @@ export interface ScrapedVideoRow {
   sort_order?: number | null;
 }
 
+export type VideoMetadataRefreshPayload = ScrapedVideoRow;
+
+export interface VideoMetadataRefreshResult {
+  known: boolean;
+  updated: boolean;
+  url: string | null;
+}
+
 export interface ListVideosOptions {
   collectionKey: CollectionKey;
   search?: string;
@@ -171,6 +179,8 @@ export interface DownloadRecord {
   title: string | null;
   img: string | null;
   preview: string | null;
+  sourcePageChineseSubtitleNotice: boolean;
+  sourcePageSubtitleNoticeText: string | null;
   localPath: string | null;
   state: DownloadState;
   progress: number | null;
@@ -190,13 +200,19 @@ export interface DownloadRecord {
 
 export type DownloadRecordPatch = Partial<DownloadRecord> & { videoUrl: string };
 
-export type LocalPlaybackUnavailableReason = 'not_video' | 'not_ready' | 'missing' | 'unavailable';
+export type LocalPlaybackUnavailableReason =
+  | 'not_video'
+  | 'not_ready'
+  | 'missing'
+  | 'unavailable'
+  | 'source_page_changed';
 
 export type LocalPlaybackSourceResult =
   | {
       available: true;
       videoUrl: string;
       sourceUrl: string;
+      thumbnailVttUrl: string | null;
       title: string | null;
       fileSizeBytes: number | null;
     }

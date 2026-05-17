@@ -107,6 +107,42 @@ type LocalPlaybackFile = {
   filePath: string;
   stats: NodeFs.Stats;
 };
+type LocalPlaybackSourceRequest = {
+  videoUrl: string | null;
+  sourcePageChineseSubtitleNotice: boolean | null;
+};
+type SourcePageChineseSubtitleNotice = {
+  sourcePageChineseSubtitleNotice: boolean;
+  sourcePageSubtitleNoticeText: string | null;
+};
+type LocalPlaybackPreviewCue = {
+  start: number;
+  end: number;
+  fileName: string;
+};
+type LocalPlaybackPreviewMetadata = {
+  version: 1;
+  intervalSeconds: number;
+  width: number;
+  height: number;
+  fileSizeBytes: number;
+  mtimeMs: number;
+  cues: LocalPlaybackPreviewCue[];
+};
+type LocalPlaybackRequestTarget =
+  | {
+      type: 'video';
+      token: string;
+    }
+  | {
+      type: 'preview-vtt';
+      token: string;
+    }
+  | {
+      type: 'preview-image';
+      token: string;
+      fileName: string;
+    };
 type LocalPlaybackResponseBody = ConstructorParameters<typeof Response>[0];
 type LocalPlaybackResponseHeaders = NonNullable<ConstructorParameters<typeof Response>[1]>['headers'];
 
@@ -178,6 +214,10 @@ const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
 const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
 const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
 const LOCAL_PLAYBACK_TOKEN_TTL_MS = 30 * 60 * 1000;
+const LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS = 60;
+const LOCAL_PLAYBACK_PREVIEW_WIDTH = 213;
+const LOCAL_PLAYBACK_PREVIEW_HEIGHT = 120;
+const CHINESE_SUBTITLE_NOTICE_TOKEN = '中文字幕版';
 const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY: Record<DownloadSpeedMode, { min: number; max: number }> = {
   stable: { min: 4, max: 8 },
   balanced: { min: 8, max: 32 },
@@ -206,6 +246,10 @@ const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
 const activeDownloadTasks = new Map<string, Promise<void>>();
 const localPlaybackTokens = new Map<string, { videoUrl: string; expiresAt: number }>();
+const localPlaybackPreviewQueue: string[] = [];
+const localPlaybackPreviewQueuedUrls = new Set<string>();
+const localPlaybackPreviewFailedKeys = new Set<string>();
+let activeLocalPlaybackPreviewTask: Promise<void> | null = null;
 
 function t(key: string, params?: TranslationParams | null): string {
   return translate(key, params);
@@ -615,6 +659,57 @@ function downloadTimestamp() {
   return new Date().toISOString();
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value.replace(/&(#x[0-9a-f]+|#[0-9]+|amp|lt|gt|quot|apos|nbsp);/gi, function (_match, entity) {
+    const normalized = String(entity).toLowerCase();
+    if (normalized === 'amp') return '&';
+    if (normalized === 'lt') return '<';
+    if (normalized === 'gt') return '>';
+    if (normalized === 'quot') return '"';
+    if (normalized === 'apos') return "'";
+    if (normalized === 'nbsp') return ' ';
+
+    const radix = normalized.startsWith('#x') ? 16 : 10;
+    const text = normalized.startsWith('#x') ? normalized.slice(2) : normalized.slice(1);
+    const codePoint = parseInt(text, radix);
+    if (!Number.isFinite(codePoint)) return _match;
+
+    try {
+      return String.fromCodePoint(codePoint);
+    } catch (error) {
+      return _match;
+    }
+  });
+}
+
+function normalizeSourcePageText(value: string): string {
+  return decodeHtmlEntities(value.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function classAttributeHasNoticeClasses(attrs: string): boolean {
+  const match = attrs.match(/\bclass\s*=\s*(["'])([\s\S]*?)\1/i);
+  if (!match) return false;
+
+  const classes = match[2].split(/\s+/);
+  return classes.indexOf('desc') !== -1 && classes.indexOf('h6-md') !== -1;
+}
+
+export function sourcePageChineseSubtitleNoticeTextFromHtml(html: string): string | null {
+  const h5Pattern = /<h5\b([^>]*)>([\s\S]*?)<\/h5>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = h5Pattern.exec(html))) {
+    if (!classAttributeHasNoticeClasses(match[1])) continue;
+
+    const text = normalizeSourcePageText(match[2]);
+    if (text.indexOf(CHINESE_SUBTITLE_NOTICE_TOKEN) !== -1) return text;
+  }
+
+  return null;
+}
+
 function normalizeDownloadVideoUrl(value: unknown, field: string, channel: string): string {
   const videoUrl = urlPolicy.canonicalJableVideoUrl(requiredStringValue(value, field, channel));
   if (!videoUrl) throw new Error(t('errors.untrustedDownloadUrl'));
@@ -713,6 +808,339 @@ function resolveManagedDownloadPath(fileRelativePath: string | null): string | n
   return filePath;
 }
 
+function localPlaybackPreviewDirectory(outputPath: string): string {
+  return outputPath + '.preview';
+}
+
+function localPlaybackPreviewTempDirectory(outputPath: string): string {
+  return outputPath + '.preview.tmp';
+}
+
+function localPlaybackPreviewMetadataPath(previewDir: string): string {
+  return path.join(previewDir, 'metadata.json');
+}
+
+function isLocalPlaybackPreviewImageFileName(value: string): boolean {
+  return /^thumb-\d{6}\.jpg$/.test(value);
+}
+
+function removeDirectoryIfPresent(dirPath: string) {
+  try {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+  } catch (error) {}
+}
+
+function removeLocalPlaybackPreviewFiles(record: DownloadRecord) {
+  const outputPath = resolveManagedDownloadPath(record.localPath);
+  if (!outputPath) return;
+  removeDirectoryIfPresent(localPlaybackPreviewDirectory(outputPath));
+  removeDirectoryIfPresent(localPlaybackPreviewTempDirectory(outputPath));
+}
+
+function localPlaybackPreviewIdentity(file: LocalPlaybackFile) {
+  return {
+    fileSizeBytes: file.stats.size,
+    mtimeMs: Math.trunc(file.stats.mtimeMs)
+  };
+}
+
+function localPlaybackPreviewGenerationKey(file: LocalPlaybackFile): string {
+  const identity = localPlaybackPreviewIdentity(file);
+  return [file.record.videoUrl, file.filePath, identity.fileSizeBytes, identity.mtimeMs].join('\n');
+}
+
+function localPlaybackPreviewMetadataMatchesFile(
+  metadata: LocalPlaybackPreviewMetadata,
+  file: LocalPlaybackFile
+): boolean {
+  const identity = localPlaybackPreviewIdentity(file);
+  return metadata.fileSizeBytes === identity.fileSizeBytes && metadata.mtimeMs === identity.mtimeMs;
+}
+
+function localPlaybackFileMatchesPreviewSource(file: LocalPlaybackFile): boolean {
+  const current = localPlaybackReadyFile(file.record.videoUrl);
+  if (!current || current.filePath !== file.filePath) return false;
+
+  const original = localPlaybackPreviewIdentity(file);
+  const latest = localPlaybackPreviewIdentity(current);
+  return original.fileSizeBytes === latest.fileSizeBytes && original.mtimeMs === latest.mtimeMs;
+}
+
+function normalizeLocalPlaybackPreviewMetadata(value: unknown): LocalPlaybackPreviewMetadata | null {
+  if (!value || typeof value !== 'object') return null;
+  const metadata = value as Partial<LocalPlaybackPreviewMetadata>;
+  if (metadata.version !== 1) return null;
+  if (metadata.intervalSeconds !== LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS) return null;
+  if (metadata.width !== LOCAL_PLAYBACK_PREVIEW_WIDTH || metadata.height !== LOCAL_PLAYBACK_PREVIEW_HEIGHT) return null;
+  if (typeof metadata.fileSizeBytes !== 'number' || typeof metadata.mtimeMs !== 'number') return null;
+  if (!Array.isArray(metadata.cues) || !metadata.cues.length) return null;
+
+  const cues: LocalPlaybackPreviewCue[] = [];
+  for (const cue of metadata.cues) {
+    if (!cue || typeof cue !== 'object') return null;
+    const candidate = cue as Partial<LocalPlaybackPreviewCue>;
+    if (typeof candidate.start !== 'number' || typeof candidate.end !== 'number') return null;
+    if (typeof candidate.fileName !== 'string' || !isLocalPlaybackPreviewImageFileName(candidate.fileName)) {
+      return null;
+    }
+    if (candidate.start < 0 || candidate.end <= candidate.start) return null;
+    cues.push({
+      start: candidate.start,
+      end: candidate.end,
+      fileName: candidate.fileName
+    });
+  }
+
+  return {
+    version: 1,
+    intervalSeconds: metadata.intervalSeconds,
+    width: metadata.width,
+    height: metadata.height,
+    fileSizeBytes: metadata.fileSizeBytes,
+    mtimeMs: Math.trunc(metadata.mtimeMs),
+    cues: cues
+  };
+}
+
+function readLocalPlaybackPreviewMetadata(file: LocalPlaybackFile): LocalPlaybackPreviewMetadata | null {
+  let metadata: LocalPlaybackPreviewMetadata | null;
+  const previewDir = localPlaybackPreviewDirectory(file.filePath);
+
+  try {
+    metadata = normalizeLocalPlaybackPreviewMetadata(
+      JSON.parse(fs.readFileSync(localPlaybackPreviewMetadataPath(previewDir), 'utf8'))
+    );
+  } catch (error) {
+    return null;
+  }
+
+  if (!metadata || !localPlaybackPreviewMetadataMatchesFile(metadata, file)) return null;
+
+  try {
+    for (const cue of metadata.cues) {
+      if (!fs.statSync(path.join(previewDir, cue.fileName)).isFile()) return null;
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return metadata;
+}
+
+function formatVttTimestamp(seconds: number): string {
+  const safeSeconds = Math.max(0, seconds);
+  const wholeSeconds = Math.floor(safeSeconds);
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const remainingSeconds = wholeSeconds % 60;
+
+  return (
+    String(hours).padStart(2, '0') +
+    ':' +
+    String(minutes).padStart(2, '0') +
+    ':' +
+    String(remainingSeconds).padStart(2, '0') +
+    '.000'
+  );
+}
+
+function localPlaybackPreviewVttText(metadata: LocalPlaybackPreviewMetadata): string {
+  const lines = ['WEBVTT', ''];
+  for (const cue of metadata.cues) {
+    lines.push(formatVttTimestamp(cue.start) + ' --> ' + formatVttTimestamp(cue.end));
+    lines.push(cue.fileName);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function localPlaybackPreviewVttUrl(token: string): string {
+  return LOCAL_PLAYBACK_SCHEME + '://thumb/' + token + '/thumb.vtt';
+}
+
+function localPlaybackPreviewMetadataForFiles(
+  file: LocalPlaybackFile,
+  fileNames: string[]
+): LocalPlaybackPreviewMetadata {
+  const identity = localPlaybackPreviewIdentity(file);
+  return {
+    version: 1,
+    intervalSeconds: LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS,
+    width: LOCAL_PLAYBACK_PREVIEW_WIDTH,
+    height: LOCAL_PLAYBACK_PREVIEW_HEIGHT,
+    fileSizeBytes: identity.fileSizeBytes,
+    mtimeMs: identity.mtimeMs,
+    cues: fileNames.map(function (fileName, index) {
+      const start = index * LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS;
+      return {
+        start: start,
+        end: start + LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS,
+        fileName: fileName
+      };
+    })
+  };
+}
+
+function generatedLocalPlaybackPreviewFiles(tempDir: string): string[] {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(tempDir);
+  } catch (error) {
+    return [];
+  }
+
+  return entries.filter(isLocalPlaybackPreviewImageFileName).sort();
+}
+
+function writeLocalPlaybackPreviewMetadata(file: LocalPlaybackFile, tempDir: string, fileNames: string[]) {
+  const metadata = localPlaybackPreviewMetadataForFiles(file, fileNames);
+  fs.writeFileSync(localPlaybackPreviewMetadataPath(tempDir), JSON.stringify(metadata, null, 2));
+}
+
+function generateLocalPlaybackPreviewFiles(command: string, file: LocalPlaybackFile): Promise<void> {
+  return new Promise(function (resolve, reject) {
+    const tempDir = localPlaybackPreviewTempDirectory(file.filePath);
+    const previewDir = localPlaybackPreviewDirectory(file.filePath);
+    removeDirectoryIfPresent(tempDir);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    const child = childProcess.spawn(
+      command,
+      [
+        '-y',
+        '-nostdin',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-threads',
+        '1',
+        '-i',
+        file.filePath,
+        '-vf',
+        'fps=1/' +
+          LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS +
+          ',scale=' +
+          LOCAL_PLAYBACK_PREVIEW_WIDTH +
+          ':' +
+          LOCAL_PLAYBACK_PREVIEW_HEIGHT +
+          ':force_original_aspect_ratio=decrease:force_divisible_by=2,pad=' +
+          LOCAL_PLAYBACK_PREVIEW_WIDTH +
+          ':' +
+          LOCAL_PLAYBACK_PREVIEW_HEIGHT +
+          ':(ow-iw)/2:(oh-ih)/2',
+        '-q:v',
+        '5',
+        path.join(tempDir, 'thumb-%06d.jpg')
+      ],
+      {
+        windowsHide: true
+      }
+    );
+    let stderr = '';
+
+    child.stderr.on('data', function (chunk) {
+      stderr = (stderr + String(chunk)).slice(-4000);
+    });
+    child.on('error', function (error) {
+      removeDirectoryIfPresent(tempDir);
+      reject(new FfmpegDownloadError(mainErrorMessage(error)));
+    });
+    child.on('close', function (code) {
+      if (code !== 0) {
+        removeDirectoryIfPresent(tempDir);
+        reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
+        return;
+      }
+
+      try {
+        const fileNames = generatedLocalPlaybackPreviewFiles(tempDir);
+        if (!fileNames.length) throw new FfmpegDownloadError('FFmpeg did not generate playback preview thumbnails');
+        if (!localPlaybackFileMatchesPreviewSource(file)) {
+          removeDirectoryIfPresent(tempDir);
+          resolve();
+          return;
+        }
+
+        writeLocalPlaybackPreviewMetadata(file, tempDir, fileNames);
+        removeDirectoryIfPresent(previewDir);
+        fs.renameSync(tempDir, previewDir);
+        resolve();
+      } catch (error) {
+        removeDirectoryIfPresent(tempDir);
+        reject(error);
+      }
+    });
+  });
+}
+
+function localPlaybackFileLooksLikeMp4(filePath: string): boolean {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.alloc(32);
+      const bytesRead = fs.readSync(fd, header, 0, header.length, 0);
+      return header.subarray(0, bytesRead).includes(Buffer.from('ftyp'));
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (error) {
+    return false;
+  }
+}
+
+async function runLocalPlaybackPreviewGeneration(videoUrl: string): Promise<void> {
+  const readyFile = localPlaybackReadyFile(videoUrl);
+  if (!readyFile || readLocalPlaybackPreviewMetadata(readyFile)) return;
+  if (!localPlaybackFileLooksLikeMp4(readyFile.filePath)) return;
+
+  const generationKey = localPlaybackPreviewGenerationKey(readyFile);
+  if (localPlaybackPreviewFailedKeys.has(generationKey)) return;
+
+  try {
+    const command = await ffmpegCommandForDownload();
+    await generateLocalPlaybackPreviewFiles(command, readyFile);
+    localPlaybackPreviewFailedKeys.delete(generationKey);
+    notifyDownloadsChanged();
+  } catch (error) {
+    localPlaybackPreviewFailedKeys.add(generationKey);
+    console.warn('[local-playback-preview] ' + mainErrorMessage(error));
+  }
+}
+
+function processLocalPlaybackPreviewQueue() {
+  if (activeLocalPlaybackPreviewTask) return;
+
+  const videoUrl = localPlaybackPreviewQueue.shift();
+  if (!videoUrl) return;
+
+  activeLocalPlaybackPreviewTask = runLocalPlaybackPreviewGeneration(videoUrl).finally(function () {
+    localPlaybackPreviewQueuedUrls.delete(videoUrl);
+    activeLocalPlaybackPreviewTask = null;
+    processLocalPlaybackPreviewQueue();
+  });
+}
+
+function scheduleLocalPlaybackPreviewGeneration(file: LocalPlaybackFile) {
+  const videoUrl = file.record.videoUrl;
+  if (localPlaybackPreviewQueuedUrls.has(videoUrl)) return;
+  if (!localPlaybackFileLooksLikeMp4(file.filePath)) return;
+  if (localPlaybackPreviewFailedKeys.has(localPlaybackPreviewGenerationKey(file))) return;
+
+  localPlaybackPreviewQueuedUrls.add(videoUrl);
+  localPlaybackPreviewQueue.push(videoUrl);
+  processLocalPlaybackPreviewQueue();
+}
+
+function removeQueuedLocalPlaybackPreviewGeneration(videoUrl: string) {
+  const queueIndex = localPlaybackPreviewQueue.indexOf(videoUrl);
+  if (queueIndex !== -1) localPlaybackPreviewQueue.splice(queueIndex, 1);
+  if (queueIndex !== -1 || !activeLocalPlaybackPreviewTask) localPlaybackPreviewQueuedUrls.delete(videoUrl);
+
+  for (const key of localPlaybackPreviewFailedKeys) {
+    if (key.startsWith(videoUrl + '\n')) localPlaybackPreviewFailedKeys.delete(key);
+  }
+}
+
 function localPlaybackUnavailable(
   videoUrl: string | null,
   reason: LocalPlaybackUnavailableReason
@@ -744,12 +1172,41 @@ function createLocalPlaybackToken(videoUrl: string): string {
   return token;
 }
 
-function localPlaybackTokenFromRequestUrl(value: unknown): string | null {
+function localPlaybackRequestTargetFromUrl(value: unknown): LocalPlaybackRequestTarget | null {
   try {
     const parsed = new URL(String(value || ''));
-    if (parsed.protocol !== LOCAL_PLAYBACK_SCHEME + ':' || parsed.hostname !== 'play') return null;
-    const match = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\.mp4$/);
-    return match ? match[1] : null;
+    if (parsed.protocol !== LOCAL_PLAYBACK_SCHEME + ':') return null;
+
+    if (parsed.hostname === 'play') {
+      const match = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\.mp4$/);
+      return match
+        ? {
+            type: 'video',
+            token: match[1]
+          }
+        : null;
+    }
+
+    if (parsed.hostname === 'thumb') {
+      const vttMatch = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/thumb\.vtt$/);
+      if (vttMatch) {
+        return {
+          type: 'preview-vtt',
+          token: vttMatch[1]
+        };
+      }
+
+      const imageMatch = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/(thumb-\d{6}\.jpg)$/);
+      return imageMatch
+        ? {
+            type: 'preview-image',
+            token: imageMatch[1],
+            fileName: imageMatch[2]
+          }
+        : null;
+    }
+
+    return null;
   } catch (error) {
     return null;
   }
@@ -788,8 +1245,29 @@ function localPlaybackReadyFile(videoUrl: string): LocalPlaybackFile | null {
   }
 }
 
+function normalizeLocalPlaybackSourceRequest(value: unknown): LocalPlaybackSourceRequest {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const record = value as {
+      videoUrl?: unknown;
+      sourcePageChineseSubtitleNotice?: unknown;
+    };
+    const notice =
+      typeof record.sourcePageChineseSubtitleNotice === 'boolean' ? record.sourcePageChineseSubtitleNotice : null;
+    return {
+      videoUrl: urlPolicy.canonicalJableVideoUrl(record.videoUrl),
+      sourcePageChineseSubtitleNotice: notice
+    };
+  }
+
+  return {
+    videoUrl: urlPolicy.canonicalJableVideoUrl(value),
+    sourcePageChineseSubtitleNotice: null
+  };
+}
+
 function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
-  const videoUrl = urlPolicy.canonicalJableVideoUrl(value);
+  const request = normalizeLocalPlaybackSourceRequest(value);
+  const videoUrl = request.videoUrl;
   if (!videoUrl) return localPlaybackUnavailable(null, 'not_video');
 
   const record = getPersistedDownload(videoUrl);
@@ -798,14 +1276,25 @@ function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
   const readyRecord = reconcileDownloadRecordFileState(record);
   if (readyRecord.state === 'missing') return localPlaybackUnavailable(videoUrl, 'missing');
   if (readyRecord.state !== 'ready') return localPlaybackUnavailable(videoUrl, 'not_ready');
+  if (
+    request.sourcePageChineseSubtitleNotice !== null &&
+    readyRecord.sourcePageChineseSubtitleNotice !== request.sourcePageChineseSubtitleNotice
+  ) {
+    return localPlaybackUnavailable(videoUrl, 'source_page_changed');
+  }
 
   const readyFile = localPlaybackReadyFile(videoUrl);
   if (!readyFile) return localPlaybackUnavailable(videoUrl, 'unavailable');
 
+  const token = createLocalPlaybackToken(readyFile.record.videoUrl);
+  const previewMetadata = readLocalPlaybackPreviewMetadata(readyFile);
+  if (!previewMetadata) scheduleLocalPlaybackPreviewGeneration(readyFile);
+
   return {
     available: true,
     videoUrl: readyFile.record.videoUrl,
-    sourceUrl: localPlaybackTokenUrl(createLocalPlaybackToken(readyFile.record.videoUrl)),
+    sourceUrl: localPlaybackTokenUrl(token),
+    thumbnailVttUrl: previewMetadata ? localPlaybackPreviewVttUrl(token) : null,
     title: readyFile.record.title,
     fileSizeBytes: readyFile.stats.size
   };
@@ -859,21 +1348,70 @@ function localPlaybackFileResponse(file: LocalPlaybackFile, request: Request): R
   return localPlaybackResponse(range.status, body, headers);
 }
 
+function localPlaybackPreviewVttResponse(file: LocalPlaybackFile, request: Request): Response {
+  const metadata = readLocalPlaybackPreviewMetadata(file);
+  if (!metadata) return localPlaybackErrorResponse(404, 'Not Found');
+
+  const body = request.method.toUpperCase() === 'HEAD' ? null : localPlaybackPreviewVttText(metadata);
+  return localPlaybackResponse(200, body, {
+    'cache-control': 'private, max-age=1800',
+    'content-type': 'text/vtt; charset=utf-8'
+  });
+}
+
+function localPlaybackPreviewImageResponse(
+  file: LocalPlaybackFile,
+  target: Extract<LocalPlaybackRequestTarget, { type: 'preview-image' }>,
+  request: Request
+): Response {
+  const metadata = readLocalPlaybackPreviewMetadata(file);
+  if (
+    !metadata ||
+    !metadata.cues.some(function (cue) {
+      return cue.fileName === target.fileName;
+    })
+  ) {
+    return localPlaybackErrorResponse(404, 'Not Found');
+  }
+
+  const filePath = path.join(localPlaybackPreviewDirectory(file.filePath), target.fileName);
+  let stats: NodeFs.Stats;
+  try {
+    stats = fs.statSync(filePath);
+    if (!stats.isFile()) return localPlaybackErrorResponse(404, 'Not Found');
+  } catch (error) {
+    return localPlaybackErrorResponse(404, 'Not Found');
+  }
+
+  const headers = {
+    'cache-control': 'private, max-age=1800',
+    'content-length': String(stats.size),
+    'content-type': 'image/jpeg'
+  };
+  if (request.method.toUpperCase() === 'HEAD') return localPlaybackResponse(200, null, headers);
+
+  const fileStream = fs.createReadStream(filePath);
+  const body = stream.Readable.toWeb(fileStream) as unknown as LocalPlaybackResponseBody;
+  return localPlaybackResponse(200, body, headers);
+}
+
 async function handleLocalPlaybackRequest(request: Request): Promise<Response> {
   const method = request.method.toUpperCase();
   if (method !== 'GET' && method !== 'HEAD') {
     return localPlaybackErrorResponse(405, 'Method Not Allowed');
   }
 
-  const token = localPlaybackTokenFromRequestUrl(request.url);
-  if (!token) return localPlaybackErrorResponse(404, 'Not Found');
+  const target = localPlaybackRequestTargetFromUrl(request.url);
+  if (!target) return localPlaybackErrorResponse(404, 'Not Found');
 
-  const videoUrl = videoUrlForLocalPlaybackToken(token);
+  const videoUrl = videoUrlForLocalPlaybackToken(target.token);
   if (!videoUrl) return localPlaybackErrorResponse(404, 'Not Found');
 
   const readyFile = localPlaybackReadyFile(videoUrl);
   if (!readyFile) return localPlaybackErrorResponse(404, 'Not Found');
 
+  if (target.type === 'preview-vtt') return localPlaybackPreviewVttResponse(readyFile, request);
+  if (target.type === 'preview-image') return localPlaybackPreviewImageResponse(readyFile, target, request);
   return localPlaybackFileResponse(readyFile, request);
 }
 
@@ -1146,11 +1684,23 @@ async function resolveHlsMediaPlaylist(
 async function resolveDownloadHlsSource(
   videoUrl: string,
   signal: AbortSignal,
-  setFailurePhase?: (phase: DownloadFailurePhase) => void
-): Promise<{ cookieHeader: string; playlist: HlsPlaylist }> {
+  setFailurePhase?: (phase: DownloadFailurePhase) => void,
+  updateSourcePageNotice?: (notice: SourcePageChineseSubtitleNotice) => void
+): Promise<
+  {
+    cookieHeader: string;
+    playlist: HlsPlaylist;
+  } & SourcePageChineseSubtitleNotice
+> {
   if (setFailurePhase) setFailurePhase('video_page');
   const cookieHeader = await cookieHeaderForUrl(videoUrl);
   const html = await fetchVideoPageHtml(videoUrl, signal);
+  const sourcePageSubtitleNoticeText = sourcePageChineseSubtitleNoticeTextFromHtml(html);
+  const sourcePageNotice = {
+    sourcePageChineseSubtitleNotice: sourcePageSubtitleNoticeText !== null,
+    sourcePageSubtitleNoticeText: sourcePageSubtitleNoticeText
+  };
+  if (updateSourcePageNotice) updateSourcePageNotice(sourcePageNotice);
   throwIfDownloadCanceled(videoUrl);
   if (setFailurePhase) setFailurePhase('playlist');
   const playlistUrl = downloadHelpers.extractHlsPlaylistUrl(html, videoUrl);
@@ -1159,7 +1709,9 @@ async function resolveDownloadHlsSource(
   const playlist = await resolveHlsMediaPlaylist(playlistUrl, videoUrl, cookieHeader, signal);
   return {
     cookieHeader: cookieHeader,
-    playlist: playlist
+    playlist: playlist,
+    sourcePageChineseSubtitleNotice: sourcePageNotice.sourcePageChineseSubtitleNotice,
+    sourcePageSubtitleNoticeText: sourcePageNotice.sourcePageSubtitleNoticeText
   };
 }
 
@@ -1457,9 +2009,21 @@ async function runQueuedDownload(record: DownloadRecord) {
     failurePhase = 'ffmpeg_check';
     const command = await ffmpegCommandForDownload();
     throwIfDownloadCanceled(record.videoUrl);
-    const source = await resolveDownloadHlsSource(record.videoUrl, abortController.signal, function (phase) {
-      failurePhase = phase;
-    });
+    const source = await resolveDownloadHlsSource(
+      record.videoUrl,
+      abortController.signal,
+      function (phase) {
+        failurePhase = phase;
+      },
+      function (notice) {
+        upsertPersistedDownload({
+          videoUrl: record.videoUrl,
+          sourcePageChineseSubtitleNotice: notice.sourcePageChineseSubtitleNotice,
+          sourcePageSubtitleNoticeText: notice.sourcePageSubtitleNoticeText
+        });
+        notifyDownloadsChanged();
+      }
+    );
     throwIfDownloadCanceled(record.videoUrl);
     failurePhase = 'segments';
     const localPlaylistPath = await downloadHlsSegmentsWithPlaylistRefresh(
@@ -1491,12 +2055,17 @@ async function runQueuedDownload(record: DownloadRecord) {
       error: null,
       localPath: record.localPath,
       fileSizeBytes: stats.isFile() ? stats.size : null,
+      sourcePageChineseSubtitleNotice: source.sourcePageChineseSubtitleNotice,
+      sourcePageSubtitleNoticeText: source.sourcePageSubtitleNoticeText,
       failurePhase: null,
       failureCode: null,
       lastErrorAt: null,
       completedAt: downloadTimestamp()
     });
     notifyDownloadsChanged();
+
+    const readyFile = localPlaybackReadyFile(record.videoUrl);
+    if (readyFile) scheduleLocalPlaybackPreviewGeneration(readyFile);
   } catch (error) {
     const paused = pausedDownloadUrls.has(record.videoUrl) || isDownloadPausedError(error);
     upsertPersistedDownload({
@@ -1920,9 +2489,11 @@ function deleteDownloadRecord(visibleRecord: DownloadRecord): { deleted: boolean
   canceledDownloadUrls.delete(visibleRecord.videoUrl);
   pausedDownloadUrls.delete(visibleRecord.videoUrl);
   resumedDownloadUrls.delete(visibleRecord.videoUrl);
+  removeQueuedLocalPlaybackPreviewGeneration(visibleRecord.videoUrl);
 
   const deleted = deleteManagedDownloadFile(visibleRecord);
   removeDownloadWorkingFiles(visibleRecord);
+  removeLocalPlaybackPreviewFiles(visibleRecord);
   const removed = removePersistedDownload(visibleRecord.videoUrl);
 
   return {

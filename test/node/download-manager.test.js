@@ -16,6 +16,8 @@ function downloadRecord(patch) {
       title: null,
       img: null,
       preview: null,
+      sourcePageChineseSubtitleNotice: false,
+      sourcePageSubtitleNoticeText: null,
       localPath: null,
       state: 'ready',
       progress: null,
@@ -124,6 +126,22 @@ test('download manager classifies and sanitizes failure metadata details', funct
   assert.equal(detail.includes(rootPath), false);
 });
 
+test('download manager reads the source page Chinese subtitle notice', function () {
+  assert.equal(
+    downloadManager.sourcePageChineseSubtitleNoticeTextFromHtml(
+      '<div><h5 class="desc h6-md">此作品曾在本站上傳，現已更新至中文字幕版。</h5></div>'
+    ),
+    '此作品曾在本站上傳，現已更新至中文字幕版。'
+  );
+  assert.equal(
+    downloadManager.sourcePageChineseSubtitleNoticeTextFromHtml(
+      '<h5 class="desc h6-md">此作品曾在本站上傳，現已更新至<strong>中文字幕版</strong>。</h5>'
+    ),
+    '此作品曾在本站上傳，現已更新至 中文字幕版 。'
+  );
+  assert.equal(downloadManager.sourcePageChineseSubtitleNoticeTextFromHtml('<h5 class="desc">中文字幕版</h5>'), null);
+});
+
 test('download manager exposes ready local playback sources and streams ranges', async function () {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-local-playback-'));
   try {
@@ -141,18 +159,24 @@ test('download manager exposes ready local playback sources and streams ranges',
           localPath: 'local-playback.mp4',
           state: 'ready',
           fileSizeBytes: 1,
+          sourcePageChineseSubtitleNotice: true,
+          sourcePageSubtitleNoticeText: '此作品曾在本站上傳，現已更新至中文字幕版。',
           completedAt: '2026-05-17T00:00:00.000Z'
         }
       ],
       userDataDir
     );
 
-    const source = harness.manager.localPlaybackSource('https://fs1.app/videos/local-playback/?from=test');
+    const source = harness.manager.localPlaybackSource({
+      videoUrl: 'https://fs1.app/videos/local-playback/?from=test',
+      sourcePageChineseSubtitleNotice: true
+    });
     assert.equal(source.available, true);
     assert.equal(source.videoUrl, videoUrl);
     assert.equal(source.title, 'Local Playback');
     assert.equal(source.fileSizeBytes, fs.statSync(filePath).size);
     assert.match(source.sourceUrl, /^jable-local-video:\/\/play\/[A-Za-z0-9_-]+\.mp4$/);
+    assert.equal(source.thumbnailVttUrl, null);
 
     const partial = await harness.manager.handleLocalPlaybackRequest(
       new Request(source.sourceUrl, { headers: { range: 'bytes=0-4' } })
@@ -166,6 +190,80 @@ test('download manager exposes ready local playback sources and streams ranges',
     assert.equal(full.status, 200);
     assert.equal(full.headers.get('content-length'), '17');
     assert.equal(await full.text(), 'hello-local-video');
+
+    assert.deepEqual(
+      harness.manager.localPlaybackSource({
+        videoUrl: 'https://fs1.app/videos/local-playback/?from=test',
+        sourcePageChineseSubtitleNotice: false
+      }),
+      {
+        available: false,
+        videoUrl: videoUrl,
+        reason: 'source_page_changed'
+      }
+    );
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager exposes local playback thumbnail VTT and images when preview cache exists', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-local-playback-preview-'));
+  try {
+    const downloadRoot = path.join(userDataDir, 'downloads');
+    const filePath = path.join(downloadRoot, 'local-playback.mp4');
+    const previewDir = filePath + '.preview';
+    const videoUrl = 'https://jable.tv/videos/local-playback/';
+    fs.mkdirSync(previewDir, { recursive: true });
+    fs.writeFileSync(filePath, 'hello-local-video');
+    fs.writeFileSync(path.join(previewDir, 'thumb-000001.jpg'), 'jpeg-one');
+    fs.writeFileSync(path.join(previewDir, 'thumb-000002.jpg'), 'jpeg-two');
+
+    const stats = fs.statSync(filePath);
+    fs.writeFileSync(
+      path.join(previewDir, 'metadata.json'),
+      JSON.stringify({
+        version: 1,
+        intervalSeconds: 60,
+        width: 213,
+        height: 120,
+        fileSizeBytes: stats.size,
+        mtimeMs: Math.trunc(stats.mtimeMs),
+        cues: [
+          { start: 0, end: 60, fileName: 'thumb-000001.jpg' },
+          { start: 60, end: 120, fileName: 'thumb-000002.jpg' }
+        ]
+      })
+    );
+
+    const harness = createHarness(
+      [
+        {
+          videoUrl: videoUrl,
+          title: 'Local Playback',
+          localPath: 'local-playback.mp4',
+          state: 'ready',
+          fileSizeBytes: stats.size,
+          completedAt: '2026-05-17T00:00:00.000Z'
+        }
+      ],
+      userDataDir
+    );
+
+    const source = harness.manager.localPlaybackSource(videoUrl);
+    assert.equal(source.available, true);
+    assert.match(source.thumbnailVttUrl, /^jable-local-video:\/\/thumb\/[A-Za-z0-9_-]+\/thumb\.vtt$/);
+
+    const vtt = await harness.manager.handleLocalPlaybackRequest(new Request(source.thumbnailVttUrl));
+    assert.equal(vtt.status, 200);
+    assert.equal(vtt.headers.get('content-type'), 'text/vtt; charset=utf-8');
+    assert.match(await vtt.text(), /00:00:00\.000 --> 00:01:00\.000\nthumb-000001\.jpg/);
+
+    const imageUrl = source.thumbnailVttUrl.replace('/thumb.vtt', '/thumb-000002.jpg');
+    const image = await harness.manager.handleLocalPlaybackRequest(new Request(imageUrl));
+    assert.equal(image.status, 200);
+    assert.equal(image.headers.get('content-type'), 'image/jpeg');
+    assert.equal(await image.text(), 'jpeg-two');
   } finally {
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }

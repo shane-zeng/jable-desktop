@@ -12,6 +12,8 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord 
       title: 'Default Video',
       img: null,
       preview: null,
+      sourcePageChineseSubtitleNotice: false,
+      sourcePageSubtitleNoticeText: null,
       localPath: '/tmp/default.mp4',
       state: 'ready',
       progress: null,
@@ -265,6 +267,8 @@ describe('LibraryPanel', function () {
             progress: null,
             fileSizeBytes: 1024,
             error: null,
+            sourcePageChineseSubtitleNotice: true,
+            sourcePageSubtitleNoticeText: '此作品曾在本站上傳，現已更新至中文字幕版。',
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: '2026-05-16T00:00:00.000Z'
@@ -517,6 +521,8 @@ describe('LibraryPanel', function () {
             progress: null,
             fileSizeBytes: 1024,
             error: null,
+            sourcePageChineseSubtitleNotice: true,
+            sourcePageSubtitleNoticeText: '此作品曾在本站上傳，現已更新至中文字幕版。',
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: '2026-05-16T00:00:00.000Z'
@@ -548,6 +554,7 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).toContain('Ready Video');
     expect(cards[0].text()).toContain('影片收藏');
     expect(cards[0].text()).toContain('稍後觀看');
+    expect(cards[0].text()).toContain('中文字幕');
     expect(cards[0].text()).toContain('已下載');
     expect(cards[0].text()).toContain('1 KB');
     expect(cards[0].text()).toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/);
@@ -555,6 +562,7 @@ describe('LibraryPanel', function () {
     expect(cards[0].text()).not.toContain('/tmp/ready.mp4');
     expect(cards[0].find('[data-test="download-record-progress"]').exists()).toBe(true);
     expect(cards[1].text()).toContain('Missing Video');
+    expect(cards[1].text()).not.toContain('中文字幕');
     expect(cards[1].text()).toContain('檔案遺失');
     expect(cards[1].text()).toContain('找不到本機檔案');
     expect(cards[1].text()).not.toContain('錯誤：File removed');
