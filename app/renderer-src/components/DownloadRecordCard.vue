@@ -228,7 +228,7 @@ function stopPreview() {
 
     <div class="flex min-h-[140px] min-w-0 flex-col gap-2">
       <a
-        class="min-h-[3.9em] overflow-hidden text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)]"
+        class="min-h-[3.9em] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
         :href="record.videoUrl"
         @click="openCardTarget($event, record)"
       >
@@ -245,7 +245,7 @@ function stopPreview() {
         </span>
       </div>
 
-      <div class="mt-auto border-t border-[var(--panel-border)] pt-2">
+      <div class="mt-auto pt-2">
         <div class="h-1.5 overflow-hidden rounded-full bg-[var(--control)]" data-test="download-record-progress">
           <div
             class="h-full rounded-full transition-[width] duration-300"
