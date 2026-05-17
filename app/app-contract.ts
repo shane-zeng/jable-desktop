@@ -29,7 +29,7 @@ export const FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS = {
 
 export const MAX_CONCURRENT_DOWNLOADS_LIMITS = {
   min: 1,
-  max: 8
+  max: 3
 } as const;
 
 export const MAX_BROWSER_TABS_WARNING_THRESHOLD = 20;

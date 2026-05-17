@@ -40,7 +40,7 @@ test('app settings store returns defaults and persists updates', function () {
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilters: ['downloading', 'failed'],
       downloadSpeedMode: 'fast',
-      maxConcurrentDownloads: 8
+      maxConcurrentDownloads: 3
     }),
     {
       maxBrowserTabs: 22,
@@ -52,7 +52,7 @@ test('app settings store returns defaults and persists updates', function () {
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilters: ['downloading', 'failed'],
       downloadSpeedMode: 'fast',
-      maxConcurrentDownloads: 8
+      maxConcurrentDownloads: 3
     }
   );
 
@@ -66,7 +66,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
   assert.deepEqual(secondStore.get().downloadStateFilters, ['downloading', 'failed']);
   assert.equal(secondStore.get().downloadSpeedMode, 'fast');
-  assert.equal(secondStore.get().maxConcurrentDownloads, 8);
+  assert.equal(secondStore.get().maxConcurrentDownloads, 3);
 });
 
 test('app settings patch clamps user-facing limits', function () {
@@ -79,7 +79,7 @@ test('app settings patch clamps user-facing limits', function () {
     {
       maxBrowserTabs: 30,
       fullSyncAjaxWindowSize: 5,
-      maxConcurrentDownloads: 8
+      maxConcurrentDownloads: 3
     }
   );
 

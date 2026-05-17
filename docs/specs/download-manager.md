@@ -197,7 +197,7 @@ This document specifies the current Download List and local video file managemen
 - Future work may move more process supervision behind a Rust/native boundary if queue control or crash isolation needs justify it, but FFmpeg remains the external remux pipeline.
 - Video download queue concurrency is controlled by Settings > Downloads.
 - The default maximum active video downloads is 1.
-- The user-facing maximum active video downloads value is clamped from 1 to 8.
+- The user-facing maximum active video downloads value is clamped from 1 to 3.
 - Download speed mode is also controlled by Settings > Downloads and is persisted as `downloadSpeedMode`.
 - Speed mode controls segment-level concurrency per active video download:
   - Stable: 4 minimum workers, 8 maximum workers

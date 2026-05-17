@@ -99,11 +99,11 @@ describe('SettingsPanel', function () {
     await wrapper.get('[data-test="settings-download-root-open"]').trigger('click');
     expect(wrapper.emitted('open-download-root')).toEqual([[]]);
 
-    expect(wrapper.get('[data-test="settings-max-concurrent-downloads"]').attributes('max')).toBe('8');
+    expect(wrapper.get('[data-test="settings-max-concurrent-downloads"]').attributes('max')).toBe('3');
 
-    await wrapper.get('[data-test="settings-max-concurrent-downloads"]').setValue('8');
+    await wrapper.get('[data-test="settings-max-concurrent-downloads"]').setValue('3');
     await wrapper.get('[data-test="settings-max-concurrent-downloads"]').trigger('change');
-    expect(wrapper.emitted('update-settings')).toContainEqual([{ maxConcurrentDownloads: 8 }]);
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ maxConcurrentDownloads: 3 }]);
 
     await wrapper.get('[data-test="settings-download-speed-fast"]').trigger('click');
     expect(wrapper.emitted('update-settings')).toContainEqual([{ downloadSpeedMode: 'fast' }]);
