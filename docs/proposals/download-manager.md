@@ -90,6 +90,7 @@ This feature is a download and file-management feature, not an in-app offline pl
   - downloaded-at timestamp
   - local file state
 - Queued and downloading rows show compact progress state.
+- Downloading rows may show runtime-only downloaded size and speed.
 - Failed rows expose retry and delete actions.
 - Ready rows expose open, reveal, and delete actions.
 - Missing rows expose retry and delete actions.
@@ -239,7 +240,7 @@ Recommended pipeline:
 5. The worker extracts the HLS `.m3u8` URL from page HTML or observed media requests.
 6. The worker invokes the validated external FFmpeg binary with the playlist URL, output path, and required request headers.
 7. FFmpeg reads the playlist, fetches HLS segments, handles supported HLS decryption, and remuxes the stream into a single `.mp4`.
-8. The worker writes to a `.part` file under the managed download root.
+8. The worker writes to a `.part` file under the managed download root, passes `-f mp4` so FFmpeg does not infer the muxer from the `.part` suffix, and reads FFmpeg `-progress pipe:1` output for runtime downloaded-size/speed display.
 9. The worker atomically moves the completed file into the final managed location.
 10. The asset row becomes `ready`.
 11. Temporary files are cleaned up where possible.

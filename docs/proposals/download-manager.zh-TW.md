@@ -90,6 +90,7 @@ App 應支援使用者針對已存在於「本機資料」中的影片手動建�
   - 下載完成時間
   - 本機檔案狀態
 - Queued 與 downloading rows 顯示精簡 progress state。
+- Downloading rows 可顯示 runtime-only 的已下載大小與速度。
 - Failed rows 顯示 retry 與 delete actions。
 - Ready rows 顯示 open、reveal 與 delete actions。
 - Missing rows 顯示 retry 與 delete actions。
@@ -239,7 +240,7 @@ Main-to-renderer events：
 5. Worker 從 page HTML 或觀察到的 media requests 擷取 HLS `.m3u8` URL。
 6. Worker 使用 playlist URL、輸出路徑與必要 request headers 呼叫已驗證的外部 FFmpeg binary。
 7. FFmpeg 負責讀取 playlist、抓取 HLS segments、處理支援的 HLS 解密，並 remux 成單一 `.mp4`。
-8. Worker 先寫入受管理下載根目錄下的 `.part` 檔。
+8. Worker 先寫入受管理下載根目錄下的 `.part` 檔，傳入 `-f mp4` 避免 FFmpeg 用 `.part` suffix 推斷 muxer，並讀取 FFmpeg `-progress pipe:1` 輸出來顯示 runtime 已下載大小與速度。
 9. Worker 以 atomic move 將完成檔案移到最終受管理位置。
 10. Asset row 變成 `ready`。
 11. 盡可能清理 temporary files。
