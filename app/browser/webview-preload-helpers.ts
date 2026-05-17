@@ -1,7 +1,7 @@
 'use strict';
 
-import { DEFAULT_APP_SETTINGS, FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS, PAGE_SIZE } from './app-contract';
-import type { ScrapedVideoRow } from './types/jable';
+import { DEFAULT_APP_SETTINGS, FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS, PAGE_SIZE } from '../app-contract';
+import type { ScrapedVideoRow } from '../types/jable';
 
 export const SITE_PAGE_SIZE = PAGE_SIZE;
 export const DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE = DEFAULT_APP_SETTINGS.fullSyncAjaxWindowSize;

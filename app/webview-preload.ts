@@ -29,7 +29,7 @@ import {
   rowUrlSignature,
   samePageUrl,
   videoPathKey
-} from './webview-preload-helpers';
+} from './browser/webview-preload-helpers';
 
 type CollectionAction = 'add' | 'remove';
 type TrackpadHistoryDirection = 'back' | 'forward';
@@ -114,15 +114,15 @@ type AdCosmeticPolicyModule = {
 
 const electron: typeof Electron = require('electron');
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
-const adBlocker = require('./ad-blocker') as AdBlockerModule;
-const adCosmeticPolicy = require('./ad-cosmetic-policy') as AdCosmeticPolicyModule;
-const syncUtils = require('./sync-utils') as {
+const adBlocker = require('./browser/ad-blocker') as AdBlockerModule;
+const adCosmeticPolicy = require('./browser/ad-cosmetic-policy') as AdCosmeticPolicyModule;
+const syncUtils = require('./sync/sync-utils') as {
   chooseFirstPagerLink: ChooseFirstPagerLink;
   chooseNextPagerLink: ChooseNextPagerLink;
 };
 const chooseFirstPagerLink = syncUtils.chooseFirstPagerLink;
 const chooseNextPagerLink = syncUtils.chooseNextPagerLink;
-const urlPolicy = require('./url-policy') as UrlPolicyModule;
+const urlPolicy = require('./browser/url-policy') as UrlPolicyModule;
 
 const IS_MACOS = process.platform === 'darwin';
 const SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';

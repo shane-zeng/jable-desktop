@@ -7,12 +7,14 @@ const test = require('node:test');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
-const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'download-manager.ts');
+const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
+const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
+const SYNC_WORKER_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'sync-worker-manager.ts');
 const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
-const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'ipc-normalizers.ts');
+const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-normalizers.ts');
 const SYNC_WORKFLOW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'composables', 'useSyncWorkflow.ts');
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload.ts');
-const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload-helpers.ts');
+const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload-helpers.ts');
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -20,18 +22,22 @@ function readSource(filePath) {
 
 test('main process uses preload IPC for browser page requests', function () {
   const source = readSource(MAIN_SOURCE_PATH);
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+  const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
   const preloadSource = readSource(path.join(__dirname, '..', '..', 'app', 'preload.ts'));
   const forbiddenMethod = 'execute' + 'JavaScript';
   const removedGlobal = 'jableDesktop' + 'Scraper';
 
   assert.equal(source.includes('.' + forbiddenMethod + '('), false);
+  assert.equal(syncWorkerSource.includes('.' + forbiddenMethod + '('), false);
   assert.equal(source.includes(removedGlobal), false);
-  assert.match(source, /browser:sync-collection-request/);
-  assert.match(source, /browser:diagnose-request/);
-  assert.match(source, /app:get-settings/);
-  assert.match(source, /app:update-settings/);
-  assert.match(source, /app:open-local-data-folder/);
-  assert.match(source, /app:check-for-updates/);
+  assert.equal(syncWorkerSource.includes(removedGlobal), false);
+  assert.match(syncWorkerSource, /browser:sync-collection-request/);
+  assert.match(ipcHandlersSource, /browser:diagnose-request/);
+  assert.match(ipcHandlersSource, /app:get-settings/);
+  assert.match(ipcHandlersSource, /app:update-settings/);
+  assert.match(ipcHandlersSource, /app:open-local-data-folder/);
+  assert.match(ipcHandlersSource, /app:check-for-updates/);
   assert.match(preloadSource, /getSettings/);
   assert.match(preloadSource, /updateSettings/);
   assert.match(preloadSource, /openLocalDataFolder/);
@@ -95,13 +101,14 @@ test('full sync can use a bounded ajax sliding window with sequential fallback',
 });
 
 test('main process replays queued collection operations after recoverable incomplete sync', function () {
-  const source = readSource(MAIN_SOURCE_PATH);
+  const source = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
 
   assert.match(source, /function shouldApplyDeferredSyncOperations/);
   assert.match(source, /result\.incompleteReason === 'login-required'/);
   assert.match(source, /result\.incompleteReason === 'batch-limit'/);
-  assert.match(source, /getAppSettings\(\)\.autoReplayDeferredSyncOperations/);
-  assert.match(source, /normalizedPayload\.deferLocal = true/);
+  assert.match(source, /getAutoReplayDeferredSyncOperations\(\)/);
+  assert.match(ipcHandlersSource, /normalizedPayload\.deferLocal = true/);
   assert.match(source, /resultWithWorker\.queuedOperationsSkipped = skipped/);
   assert.equal(source.includes('!keepWorker && resultWithWorker.completed'), false);
 });
@@ -119,9 +126,9 @@ test('webview deferred operation replay retries once and preserves outbox order 
 test('renderer reports queued operation failures through the pending remote tab and counts final visible rows', function () {
   const source = readSource(APP_SOURCE_PATH);
   const syncWorkflowSource = readSource(SYNC_WORKFLOW_SOURCE_PATH);
-  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
 
-  assert.match(mainSource, /queuedOperationFailures = applied\.failures/);
+  assert.match(syncWorkerSource, /queuedOperationFailures = applied\.failures/);
   assert.match(
     syncWorkflowSource,
     /const finalVisibleRows = await options\.api\.countVideos\(\{ collectionKey: collectionKey \}\)/
@@ -137,12 +144,12 @@ test('renderer reports queued operation failures through the pending remote tab 
 test('sync queue and finalization phases surface renderer status updates', function () {
   const source = readSource(APP_SOURCE_PATH);
   const syncWorkflowSource = readSource(SYNC_WORKFLOW_SOURCE_PATH);
-  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
 
-  assert.match(mainSource, /function notifySyncQueueProgress/);
-  assert.match(mainSource, /'sync-queue-progress'/);
-  assert.match(mainSource, /phase: 'start'/);
-  assert.match(mainSource, /phase: i \+ 1 === operations\.length \? 'complete' : 'progress'/);
+  assert.match(syncWorkerSource, /function notifySyncQueueProgress/);
+  assert.match(syncWorkerSource, /'sync-queue-progress'/);
+  assert.match(syncWorkerSource, /phase: 'start'/);
+  assert.match(syncWorkerSource, /phase: i \+ 1 === operations\.length \? 'complete' : 'progress'/);
   assert.match(source, /message\.channel === 'sync-queue-progress'/);
   assert.match(syncWorkflowSource, /status\.syncQueueProgress/);
   assert.match(source, /class="app-toast-progress"/);
@@ -248,7 +255,8 @@ test('main process downloads HLS segments in bounded parallel batches', function
   const mainSource = readSource(MAIN_SOURCE_PATH);
   const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
   const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
-  const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'native-download-engine.ts'));
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+  const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'download', 'native-download-engine.ts'));
   const buildScript = readSource(path.join(ROOT_DIR, 'scripts', 'build-rust-engine.js'));
 
   assert.match(source, /const DOWNLOAD_SEGMENT_MIN_CONCURRENCY = 8/);
@@ -280,8 +288,8 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(mainSource, /function quitAfterDownloadsPaused\(\)/);
   assert.match(mainSource, /allowDownloadWindowClose = true/);
   assert.match(mainSource, /app\.on\('will-quit'/);
-  assert.match(mainSource, /ipcMain\.handle\('download:pause'/);
-  assert.match(mainSource, /ipcMain\.handle\('download:resume'/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:pause'/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:resume'/);
   assert.match(preload, /ipcRenderer\.invoke\('download:pause', videoUrl\)/);
   assert.match(preload, /ipcRenderer\.invoke\('download:resume', videoUrl\)/);
   assert.match(types, /pauseDownload\(videoUrl: string\): Promise<PauseDownloadResult>/);

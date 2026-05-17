@@ -13,7 +13,7 @@ import type {
   SyncPagePayload,
   SyncState,
   VideoRow
-} from './types/jable';
+} from '../types/jable';
 import { COLLECTIONS } from './collections';
 
 type DatabaseListOptions = Partial<ListVideosOptions> & {

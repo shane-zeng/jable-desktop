@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const syncUtils = require('../../app/runtime-dist/sync-utils');
+const syncUtils = require('../../app/runtime-dist/sync/sync-utils');
 const chooseFirstPagerLink = syncUtils.chooseFirstPagerLink;
 const chooseNextPagerLink = syncUtils.chooseNextPagerLink;
 

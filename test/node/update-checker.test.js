@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const updateChecker = require('../../app/runtime-dist/update-checker');
+const updateChecker = require('../../app/runtime-dist/main-process/update-checker');
 
 test('detects newer release versions with or without v prefix', function () {
   assert.deepEqual(updateChecker.evaluateReleaseUpdate('0.7.3', release('v0.7.4')), {

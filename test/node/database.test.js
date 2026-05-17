@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const DatabaseSync = require('node:sqlite').DatabaseSync;
-const dataEngine = require('../../app/runtime-dist/data-engine');
+const dataEngine = require('../../app/runtime-dist/data/data-engine');
 const { withoutExportedAt } = require('./helpers/export-resource');
 
 function createTestEngine(t) {

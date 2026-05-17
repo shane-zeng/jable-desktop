@@ -57,6 +57,6 @@ These items are provided through Electron menu `role` entries. Labels and accele
 - Browser tab keyboard shortcuts are registered through Electron `before-input-event` on each relevant `webContents`, including the renderer and every BrowserView.
 - The shortcut handler ignores auto-repeat and uses a short debounce to avoid handling the same keypress from multiple `webContents`.
 - After a successful tab switch, focus is moved to the new active BrowserView so repeated tab-switching shortcuts continue to work.
-- Tab-switching helpers live in `app/browser-tab-policy.ts`; main-process behavior lives in `app/main.ts`.
+- Tab-switching helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser-shortcut-manager.ts`.
 - Embedded browser middle-click new-tab behavior lives in `app/webview-preload.ts`; Local Data video-card new-tab behavior lives in `app/renderer-src/components/VideoCard.vue`.
 - Electron menu role defaults follow the Electron documentation: <https://www.electronjs.org/docs/latest/tutorial/menus>.

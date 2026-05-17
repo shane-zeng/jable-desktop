@@ -50,25 +50,16 @@ export default [
   },
   {
     files: [
-      'app/ad-blocker.ts',
-      'app/ad-cosmetic-policy.ts',
       'app/app-contract.ts',
-      'app/browser-tab-manager.ts',
-      'app/browser-tab-policy.ts',
-      'app/collections.ts',
-      'app/data-engine.ts',
-      'app/download-manager.ts',
+      'app/browser/**/*.ts',
+      'app/data/**/*.ts',
+      'app/download/**/*.ts',
       'app/i18n/**/*.ts',
-      'app/ipc-normalizers.ts',
       'app/main.ts',
-      'app/native-data-engine.ts',
-      'app/native-download-engine.ts',
+      'app/main-process/**/*.ts',
       'app/preload.ts',
-      'app/settings.ts',
-      'app/sync-utils.ts',
-      'app/update-checker.ts',
-      'app/url-policy.ts',
-      'app/webview-preload-helpers.ts',
+      'app/sync/**/*.ts',
+      'app/webview-preload.ts',
       'scripts/**/*.js',
       'test/electron/**/*.js',
       'test/node/**/*.js'
@@ -82,9 +73,9 @@ export default [
     files: [
       '**/*.mjs',
       'app/app-contract.ts',
+      'app/browser/url-policy.ts',
       'app/renderer-src/**/*.{js,ts,vue}',
       'app/types/**/*.ts',
-      'app/url-policy.ts',
       'test/renderer/**/*.{js,ts}'
     ],
     languageOptions: {
@@ -136,7 +127,7 @@ export default [
     }
   },
   {
-    files: ['app/ad-cosmetic-policy.ts', 'app/webview-preload-helpers.ts', 'app/webview-preload.ts'],
+    files: ['app/browser/ad-cosmetic-policy.ts', 'app/browser/webview-preload-helpers.ts', 'app/webview-preload.ts'],
     languageOptions: {
       globals: {
         ...nodeGlobals,

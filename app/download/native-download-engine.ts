@@ -21,7 +21,11 @@ function nativeFilename() {
 function nativeCandidates() {
   const filename = nativeFilename();
 
-  return [path.join(__dirname, '..', 'native-dist', filename), path.join(__dirname, 'native-dist', filename)];
+  return [
+    path.join(__dirname, '..', '..', 'native-dist', filename),
+    path.join(__dirname, '..', 'native-dist', filename),
+    path.join(__dirname, 'native-dist', filename)
+  ];
 }
 
 export function loadNativeDownloadEngine(): NativeDownloadEngineModule {

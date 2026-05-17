@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const helpers = require('../../app/runtime-dist/download-helpers.js');
+const helpers = require('../../app/runtime-dist/download/download-helpers.js');
 
 test('extracts absolute HLS playlist URLs from escaped Jable page HTML', function () {
   const html = String.raw`<script>window.player = { source: "https:\/\/cdn.example.test\/hls\/master.m3u8?token=a&amp;expires=1" };</script>`;

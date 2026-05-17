@@ -1,6 +1,6 @@
 'use strict';
 
-import type { CollectionKey } from './types/jable';
+import type { CollectionKey } from '../types/jable';
 
 export type JableOrigin = 'https://jable.tv' | 'https://fs1.app';
 

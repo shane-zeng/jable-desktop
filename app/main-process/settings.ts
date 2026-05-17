@@ -7,8 +7,8 @@ import {
   FULL_SYNC_AJAX_WINDOW_SIZE_LIMITS,
   MAX_BROWSER_TABS_LIMITS,
   MAX_CONCURRENT_DOWNLOADS_LIMITS
-} from './app-contract';
-import type { AppSettings, AppSettingsPatch, DownloadStateFilter } from './types/jable';
+} from '../app-contract';
+import type { AppSettings, AppSettingsPatch, DownloadStateFilter } from '../types/jable';
 
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');

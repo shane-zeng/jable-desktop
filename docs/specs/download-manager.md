@@ -58,7 +58,7 @@ This document specifies the current Download List and local video file managemen
 ## Persisted Store
 
 - Download records are persisted in the Rust data engine `download_assets` table.
-- Main process accesses the store through `app/data-engine.ts`.
+- Main process accesses the store through `app/data/data-engine.ts`.
 - Records are keyed by video URL.
 - Local Data rows are already canonicalized by the data engine before normal card downloads are started.
 - The store keeps enough metadata for Download List rendering even if the row later disappears from a collection:
@@ -171,7 +171,7 @@ This document specifies the current Download List and local video file managemen
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.
 - The worker fetches the Jable video page using the isolated Jable session cookies.
-- HLS playlist extraction is implemented in `app/download-helpers.ts`.
+- HLS playlist extraction is implemented in `app/download/download-helpers.ts`.
 - The extractor supports escaped absolute `.m3u8` URLs and quoted relative `.m3u8` URLs resolved against the video page URL.
 - The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.
 - The active worker delegates HLS key and segment download to the Rust native download engine before FFmpeg remuxing:
@@ -240,11 +240,11 @@ This document specifies the current Download List and local video file managemen
 
 ## Related Files
 
-- `app/download-helpers.ts`
+- `app/download/download-helpers.ts`
 - `app/main.ts`
 - `app/preload.ts`
 - `app/types/jable.ts`
-- `app/settings.ts`
+- `app/main-process/settings.ts`
 - `app/renderer-src/App.vue`
 - `app/renderer-src/components/CollectionTabs.vue`
 - `app/renderer-src/components/DownloadRecordCard.vue`

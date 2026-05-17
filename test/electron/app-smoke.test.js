@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { _electron: electron, expect, test } = require('@playwright/test');
 const electronPath = require('electron');
-const dataEngine = require('../../app/runtime-dist/data-engine.js');
+const dataEngine = require('../../app/runtime-dist/data/data-engine.js');
 
 function createTempUserDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'jable-electron-smoke-'));

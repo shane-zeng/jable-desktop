@@ -10,7 +10,7 @@ import type {
   BrowserTabMutedPayload,
   BrowserTabsState,
   CreateBrowserTabPayload
-} from './types/jable';
+} from '../types/jable';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 export type BrowserBoundsState = { visible: boolean; x: number; y: number; width: number; height: number };
@@ -96,7 +96,7 @@ export type BrowserTabManager = {
   tabCount(): number;
 };
 
-const browserTabPolicy = require('./browser-tab-policy') as BrowserTabPolicyModule;
+const browserTabPolicy = require('../browser/browser-tab-policy') as BrowserTabPolicyModule;
 
 const browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
 const nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;

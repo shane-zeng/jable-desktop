@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const dataEngine = require('../../app/runtime-dist/data-engine');
+const dataEngine = require('../../app/runtime-dist/data/data-engine');
 const { withoutExportedAt } = require('./helpers/export-resource');
 
 const nativeAddonPath = path.join(

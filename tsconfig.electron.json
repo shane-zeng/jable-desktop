@@ -13,29 +13,6 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": [
-    "app/ad-blocker.ts",
-    "app/ad-cosmetic-policy.ts",
-    "app/browser-tab-manager.ts",
-    "app/app-contract.ts",
-    "app/browser-tab-policy.ts",
-    "app/collections.ts",
-    "app/data-engine.ts",
-    "app/download-manager.ts",
-    "app/download-helpers.ts",
-    "app/i18n/index.ts",
-    "app/ipc-normalizers.ts",
-    "app/main.ts",
-    "app/native-data-engine.ts",
-    "app/native-download-engine.ts",
-    "app/preload.ts",
-    "app/settings.ts",
-    "app/sync-utils.ts",
-    "app/types/**/*.ts",
-    "app/update-checker.ts",
-    "app/url-policy.ts",
-    "app/webview-preload-helpers.ts",
-    "app/webview-preload.ts"
-  ],
+  "include": ["app/**/*.ts"],
   "exclude": ["app/renderer-dist", "app/renderer-src", "app/runtime-dist", "node_modules", "release"]
 }

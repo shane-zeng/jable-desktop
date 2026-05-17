@@ -5,15 +5,14 @@
 This repository contains a self-contained Tampermonkey userscript and an Electron desktop app for syncing, browsing, importing, and exporting Jable favourites and watch-later entries.
 
 - `jable-favourites-exporter.user.js`: main userscript with metadata, configuration, scraping helpers, pagination, cache, download logic, and its own small i18n dictionary.
-- `app/main.ts`: Electron main process, window creation, persistent Jable session management, `WebContentsView` tab orchestration, native menus, dialogs, and IPC handlers.
+- `app/main.ts`: Electron main-process entrypoint and composition root. Keep window lifecycle, app startup/shutdown wiring, shared Electron services, and manager registration here; move domain behavior into the folders below.
+- `app/main-process/`: Electron main-process domain modules. Browser tab/window orchestration lives in `browser-tab-manager.ts`, keyboard shortcut registration in `browser-shortcut-manager.ts`, native app menu and update dialogs in `app-menu-manager.ts`, context menus in `context-menu-manager.ts`, download orchestration in `download-manager.ts`, sync worker orchestration in `sync-worker-manager.ts`, IPC registration in `ipc-handlers.ts`, IPC payload normalizers in `ipc-normalizers.ts`, settings persistence in `settings.ts`, and release update fetching in `update-checker.ts`.
 - `app/preload.ts`: context-isolated bridge that exposes the only renderer-to-main API as `window.jableApp`.
 - `app/webview-preload.ts`: scraper and collection action observer injected into embedded Jable `WebContentsView` instances.
-- `app/browser-tab-policy.ts`: pure tab policy helpers for web preferences, media state serialization, close target selection, shortcut detection, and visual-order tab cycling.
-- `app/sync-utils.ts`: shared pagination helper logic for sync flows.
-- `app/url-policy.ts`: trusted URL origins, safe browser URL protocol checks, GitHub release URL allowlist, fallback-origin rewriting, and collection URL checks.
-- `app/collections.ts`: app-level collection metadata shared by Electron runtime code. Keep it aligned with the Rust data engine `collections()` metadata in `native/local-data-engine/src/collections.rs`.
-- `app/data-engine.ts`: local data engine boundary backed by the Rust native addon.
-- `app/settings.ts`: shared app settings persistence under Electron `userData`, including browser tab limits, browser tab compact mode, full-sync acceleration, and automatic outbox replay preference.
+- `app/browser/`: browser/runtime policy modules used by main, renderer, and webview preload. `browser-tab-policy.ts` owns pure tab policy helpers, `url-policy.ts` owns trusted URL rules, `ad-blocker.ts` owns session-level request blocking, `ad-cosmetic-policy.ts` owns DOM-level ad cleanup rules, and `webview-preload-helpers.ts` owns pure scraper/pager/AJAX helpers.
+- `app/sync/`: shared pagination helper logic for sync flows.
+- `app/data/`: local data boundary. `collections.ts` owns app-level collection metadata shared by Electron runtime code and must stay aligned with Rust `collections()` metadata in `native/local-data-engine/src/collections.rs`; `data-engine.ts` is the Rust-backed local data engine boundary; `native-data-engine.ts` loads the built native addon.
+- `app/download/`: download helper and native addon boundary for HLS playlist parsing and Rust HLS segment/key downloads.
 - `native/local-data-engine/`: Rust SQLite data engine. `src/lib.rs` owns the N-API bridge and method dispatch, `src/collections.rs` owns collection metadata, `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts, `src/sync.rs` owns sync/outbox state transitions, `src/resource.rs` owns JSON import/export, and `src/rows.rs` owns row mapping structs/helpers.
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
@@ -78,13 +77,13 @@ ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the
 
 Avoid dependencies, bundlers, or broad abstractions unless the script or desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
 
-For desktop main/preload code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep app-level collection metadata centralized in `app/collections.ts` and aligned with Rust `collections()` metadata in `native/local-data-engine/src/collections.rs`. Keep local data API shape centralized in `app/data-engine.ts`, and keep database behavior in the Rust module that owns that concern under `native/local-data-engine/src/`.
+For desktop main/preload code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep `app/main.ts` as the composition root; place main-process behavior under `app/main-process/` by domain. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep app-level collection metadata centralized in `app/data/collections.ts` and aligned with Rust `collections()` metadata in `native/local-data-engine/src/collections.rs`. Keep local data API shape centralized in `app/data/data-engine.ts`, and keep database behavior in the Rust module that owns that concern under `native/local-data-engine/src/`.
 
 For renderer code, use Vue single-file components under `app/renderer-src/`, TypeScript where the renderer already uses it, Tailwind utilities for layout/state styling, and `window.jableApp` as the only renderer-to-main boundary. Treat `app/types/jable.ts` as the IPC contract.
 
-For user-facing app settings, keep the shared contract aligned across `app/types/jable.ts`, `app/settings.ts`, `app/main.ts`, `app/preload.ts`, renderer settings UI, and tests. Settings belong in the Electron `userData` JSON store unless they are data-engine state or backup data.
+For user-facing app settings, keep the shared contract aligned across `app/types/jable.ts`, `app/main-process/settings.ts`, `app/main.ts`, `app/preload.ts`, renderer settings UI, and tests. Settings belong in the Electron `userData` JSON store unless they are data-engine state or backup data.
 
-For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. When changing tab behavior, keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
+For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. When changing tab behavior, keep `app/browser/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 
 ## Data, Sync, and JSON Rules
 
@@ -156,6 +155,6 @@ Pull requests should include:
 
 Keep `@grant none` unless a Tampermonkey API is required. Do not add external network calls, credentials, analytics, or tracking. Treat Jable DOM selectors as fragile and update them narrowly when the site changes.
 
-Keep URL trust rules centralized in `app/url-policy.ts`. The supported Jable origins are `https://jable.tv` and `https://fs1.app`; fallback-origin video URLs should canonicalize to the primary origin before storage so local rows do not duplicate across domains.
+Keep URL trust rules centralized in `app/browser/url-policy.ts`. The supported Jable origins are `https://jable.tv` and `https://fs1.app`; fallback-origin video URLs should canonicalize to the primary origin before storage so local rows do not duplicate across domains.
 
 The app stores Jable cookies in an isolated Electron persistent session partition and synced data in local SQLite. Do not collect, persist, or log credentials. Keep import/export local-first and avoid hidden remote services.

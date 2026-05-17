@@ -23,13 +23,13 @@ Use source code and tests as the final source of truth when a user guide, change
 - `jable-favourites-exporter.user.js`
 - `app/app-contract.ts`
 - `app/types/jable.ts`
-- `app/ipc-normalizers.ts`
+- `app/main-process/ipc-normalizers.ts`
 - `app/main.ts`
 - `app/preload.ts`
 - `app/webview-preload.ts`
-- `app/webview-preload-helpers.ts`
-- `app/data-engine.ts`
-- `app/download-helpers.ts`
+- `app/browser/webview-preload-helpers.ts`
+- `app/data/data-engine.ts`
+- `app/download/download-helpers.ts`
 - `app/renderer-src/App.vue`
 - `app/renderer-src/composables/useBrowserBounds.ts`
 - `app/renderer-src/composables/useLibraryState.ts`

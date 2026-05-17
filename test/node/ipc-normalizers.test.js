@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const normalizers = require('../../app/runtime-dist/ipc-normalizers.js');
+const normalizers = require('../../app/runtime-dist/main-process/ipc-normalizers.js');
 
 test('IPC normalizers preserve valid list options and reject invalid enums', function () {
   assert.deepEqual(

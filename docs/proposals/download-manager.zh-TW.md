@@ -184,7 +184,7 @@ CREATE TABLE download_assets (
 - 刪除 local collection data 或 canonical video row 不得刪除本機下載檔案。刪除本機檔案必須透過明確的 Download List delete action。
 - Collection JSON import/export 維持不變。
 - MVP 的 Download List 可以不做獨立 search/sort controls。未來 Download List search 可以在有 matching `videos` row 時重用 `videos.search_text`，沒有時 fallback 到 asset 自己保存的 metadata。MVP 不需要獨立 FTS table。
-- Rust data engine 透過共用的 `app/data-engine.ts` boundary 提供 download asset API。
+- Rust data engine 透過共用的 `app/data/data-engine.ts` boundary 提供 download asset API。
 
 ## IPC Contract
 

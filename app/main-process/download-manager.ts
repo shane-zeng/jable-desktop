@@ -4,7 +4,7 @@ import type * as Electron from 'electron';
 import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
-import type { NativeDownloadEngineModule } from './native-download-engine';
+import type { NativeDownloadEngineModule } from '../download/native-download-engine';
 import type {
   AppSettings,
   AppSettingsPatch,
@@ -21,7 +21,7 @@ import type {
   OpenDownloadFileResult,
   PauseDownloadResult,
   RevealDownloadFileResult
-} from './types/jable';
+} from '../types/jable';
 import { normalizeCollectionKey, requiredRecord, requiredStringValue } from './ipc-normalizers';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
@@ -112,11 +112,11 @@ export type DownloadManager = {
 const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
-const downloadHelpers = require('./download-helpers') as DownloadHelpersModule;
-const nativeDownloadEngineModule = require('./native-download-engine') as {
+const downloadHelpers = require('../download/download-helpers') as DownloadHelpersModule;
+const nativeDownloadEngineModule = require('../download/native-download-engine') as {
   loadNativeDownloadEngine(): NativeDownloadEngineModule;
 };
-const urlPolicy = require('./url-policy') as {
+const urlPolicy = require('../browser/url-policy') as {
   canonicalJableVideoUrl(value: unknown): string | null;
 };
 

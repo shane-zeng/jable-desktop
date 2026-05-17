@@ -184,7 +184,7 @@ Notes:
 - Deleting local collection data or a canonical video row must not delete the local downloaded file. Local file deletion requires an explicit Download List delete action.
 - Import/export of collection JSON remains unchanged.
 - MVP Download List can omit independent search/sort controls. Future Download List search can reuse `videos.search_text` when a matching `videos` row exists and fall back to stored asset metadata when it does not. No separate FTS table is required for MVP.
-- The Rust data engine exposes download asset APIs through the shared `app/data-engine.ts` boundary.
+- The Rust data engine exposes download asset APIs through the shared `app/data/data-engine.ts` boundary.
 
 ## IPC Contract
 

@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const settings = require('../../app/runtime-dist/settings.js');
+const settings = require('../../app/runtime-dist/main-process/settings.js');
 
 function tempSettingsPath() {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'jable-settings-')), 'settings.json');

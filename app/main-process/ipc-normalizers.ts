@@ -20,7 +20,7 @@ import type {
   SyncBrowserCollectionOptions,
   SyncMode,
   SyncPagePayload
-} from './types/jable';
+} from '../types/jable';
 
 export type CollectionTogglePayload = {
   collectionKey?: CollectionKey;

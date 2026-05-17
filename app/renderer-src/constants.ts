@@ -13,7 +13,7 @@ import {
   MAX_CONCURRENT_DOWNLOADS_LIMITS,
   PAGE_SIZE
 } from '../app-contract';
-import { JABLE_PRIMARY_ORIGIN, jableCollectionUrl } from '../url-policy';
+import { JABLE_PRIMARY_ORIGIN, jableCollectionUrl } from '../browser/url-policy';
 
 interface ValueOption<T extends string> {
   value: T;

@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const policy = require('../../app/runtime-dist/browser-tab-policy');
+const policy = require('../../app/runtime-dist/browser/browser-tab-policy');
 
 test('normal browser tabs use background throttling', function () {
   const preferences = policy.browserTabWebPreferences('normal', '/tmp/preload.js', 'persist:test');

@@ -112,9 +112,9 @@ Desktop data and search behavior:
 
 - Local lists are loaded through paginated `listVideos` calls plus a matching `countVideos` query. Keep those query options in sync when adding filters: `collectionKey`, `search`, `searchMode`, `sort`, `direction`, `limit`, and `offset`.
 - Video URLs from the fallback origin are canonicalized to `https://jable.tv` before local storage, so syncing through `https://fs1.app` does not duplicate existing rows.
-- The local data engine is the Rust native addon under `native/local-data-engine`. It opens `jable-favourites.sqlite` and preserves the IPC return shapes exposed through `app/data-engine.ts`.
+- The local data engine is the Rust native addon under `native/local-data-engine`. It opens `jable-favourites.sqlite` and preserves the IPC return shapes exposed through `app/data/data-engine.ts`.
 - The download engine is the Rust native addon under `native/download-engine`. Electron main passes request headers, HLS segment metadata, adaptive concurrency bounds, retry limit, and a managed temporary directory; the addon downloads HLS keys/segments and writes a local playlist for main-owned FFmpeg remuxing.
-- App-level collection metadata lives in `app/collections.ts`; Rust data-engine collection metadata lives in `native/local-data-engine/src/collections.rs`. Keep both definitions aligned when changing supported collections, names, or source paths.
+- App-level collection metadata lives in `app/data/collections.ts`; Rust data-engine collection metadata lives in `native/local-data-engine/src/collections.rs`. Keep both definitions aligned when changing supported collections, names, or source paths.
 - Local search uses SQLite FTS5 through `video_search`. `videos.search_text` is generated from title and URL with normalized tokens/ngrams so CJK, punctuation-normalized phrases, and URL fragments can be searched locally.
 - The search modes are `any`, `all`, and `phrase`. `any` joins term queries with `OR`, `all` joins them with `AND`, and `phrase` compacts punctuation/spacing before matching phrase ngrams.
 - Database migration creates `videos`, `collections`, `collection_items`, and `sync_states`; adds `site_order`, `is_visible`, `missing_at`, `last_sync_run_id`, `videos.search_text`, and outbox state columns such as `remote_apply_state`, `remote_failed_at`, `remote_blocked_by`, `remote_resolved_at`, and `remote_superseded_at`; verifies the FTS table columns; recreates triggers when needed; and rebuilds the index if search text changed or FTS objects are missing.
@@ -124,23 +124,23 @@ Desktop data and search behavior:
 
 Browser and tab behavior:
 
-- User-facing app settings are stored in `settings.json` under Electron `userData` through `app/settings.ts`. Shared limits and defaults live in `app/app-contract.ts`. Keep `app/types/jable.ts`, `app/app-contract.ts`, `app/settings.ts`, `app/preload.ts`, main IPC handlers, `SettingsPanel.vue`, and `test/node/settings.test.js` aligned when adding or changing settings.
-- Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
-- `app/browser-tab-policy.ts` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
+- User-facing app settings are stored in `settings.json` under Electron `userData` through `app/main-process/settings.ts`. Shared limits and defaults live in `app/app-contract.ts`. Keep `app/types/jable.ts`, `app/app-contract.ts`, `app/main-process/settings.ts`, `app/preload.ts`, main IPC handlers, `SettingsPanel.vue`, and `test/node/settings.test.js` aligned when adding or changing settings.
+- Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
+- `app/browser/browser-tab-policy.ts` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.ts` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
-- `app/ad-blocker.ts` centralizes Jable-specific ad request patterns for the `persist:jable-session` Electron session. It blocks known third-party ad subresources and suppresses known ad popup navigations, but keeps Jable `mainFrame` navigations and `blob:` media URLs untouched. `app/ad-cosmetic-policy.ts` is used by the webview preload to remove leftover ad card, sponsor, and modal containers whose URLs match those same rules. Set `JABLE_DESKTOP_AD_BLOCK=0` to disable both request blocking and cosmetic filtering while testing, or `JABLE_DESKTOP_AD_BLOCK_DEBUG=1` to log blocked requests, navigations, and removed containers.
-- `app/url-policy.ts` centralizes trusted Jable origins (`https://jable.tv`, `https://fs1.app`), safe browser-tab protocols, GitHub release external URL checks, collection URL checks, and fallback-origin rewrites.
+- `app/browser/ad-blocker.ts` centralizes Jable-specific ad request patterns for the `persist:jable-session` Electron session. It blocks known third-party ad subresources and suppresses known ad popup navigations, but keeps Jable `mainFrame` navigations and `blob:` media URLs untouched. `app/browser/ad-cosmetic-policy.ts` is used by the webview preload to remove leftover ad card, sponsor, and modal containers whose URLs match those same rules. Set `JABLE_DESKTOP_AD_BLOCK=0` to disable both request blocking and cosmetic filtering while testing, or `JABLE_DESKTOP_AD_BLOCK_DEBUG=1` to log blocked requests, navigations, and removed containers.
+- `app/browser/url-policy.ts` centralizes trusted Jable origins (`https://jable.tv`, `https://fs1.app`), safe browser-tab protocols, GitHub release external URL checks, collection URL checks, and fallback-origin rewrites.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
-- Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Pure webview preload helper behavior for pager/AJAX URL parsing, retry/backoff, metric parsing, page numbers, and video path keys lives in `app/webview-preload-helpers.ts`. Do not call embedded page functions through injected JavaScript strings.
+- Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Pure webview preload helper behavior for pager/AJAX URL parsing, retry/backoff, metric parsing, page numbers, and video path keys lives in `app/browser/webview-preload-helpers.ts`. Do not call embedded page functions through injected JavaScript strings.
 - HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.ts` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
-- Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser-tab-policy.ts`, `app/main.ts`, `app/webview-preload.ts`, and renderer link handlers.
+- Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser/browser-tab-policy.ts`, `app/main-process/browser-shortcut-manager.ts`, `app/webview-preload.ts`, and renderer link handlers.
 
 Renderer behavior:
 
 - `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
-- `app/ipc-normalizers.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and IPC normalizers aligned when adding IPC calls.
+- `app/main-process/ipc-normalizers.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and IPC normalizers aligned when adding IPC calls.
 - `app/renderer-src/App.vue` owns top-level renderer wiring for Browser, Local Data, Settings, browser messages, import/export, and layout. Focused composables own BrowserView state, local library state, sync workflow, pending remote actions, and toast status.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
 - `useLibraryState` owns collection/pending-tab selection, pagination, search mode, sorting, pending remote operation groups, refresh token cancellation, and the pending full-sync continuation label.
@@ -169,19 +169,14 @@ Userscript cache behavior:
 Desktop app files:
 
 - `app/app-contract.ts`: shared user-facing contract constants such as page size, app settings defaults, and settings limit ranges.
-- `app/main.ts`: Electron main process, browser/tab orchestration, native menus/dialogs, sync workers, and IPC handlers.
+- `app/main.ts`: Electron main-process entrypoint and composition root for app lifecycle, window creation, shared services, and manager registration.
+- `app/main-process/`: main-process domain modules for BrowserView tabs, keyboard shortcuts, app/native menus and update dialogs, context menus, download orchestration, sync workers, IPC registration, IPC payload normalizers, settings persistence, and release update fetching.
 - `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
 - `app/webview-preload.ts`: scraper injected into each embedded Jable `WebContentsView`.
-- `app/webview-preload-helpers.ts`: pure preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys.
-- `app/ipc-normalizers.ts`: pure runtime validators/normalizers for renderer IPC payloads.
-- `app/ad-blocker.ts`: session-level Jable ad and popup request filtering.
-- `app/ad-cosmetic-policy.ts`: DOM-level removal rules for ad containers left behind after request blocking.
-- `app/browser-tab-policy.ts`: pure browser tab policies used by main-process behavior and Node tests.
-- `app/sync-utils.ts`: shared pager-selection helper for sync pagination.
-- `app/url-policy.ts`: trusted URL origins, browser-tab protocol policy, release URL allowlist, fallback-origin rewriting, and collection URL checks.
-- `app/collections.ts`: app-level collection metadata shared by Electron runtime code.
-- `app/data-engine.ts`: local data engine boundary backed by the Rust native addon.
-- `app/native-download-engine.ts`: loader for the Rust HLS key/segment download addon.
+- `app/browser/`: browser/runtime policy modules: pure BrowserView tab policy, trusted URL policy, Jable ad request blocking, DOM-level ad cleanup, and pure webview preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys.
+- `app/sync/`: shared pager-selection helper for sync pagination.
+- `app/data/`: app collection metadata, local data engine boundary backed by the Rust native addon, and native data addon loader.
+- `app/download/`: HLS playlist parsing helpers and native download addon loader.
 - `native/local-data-engine/`: Rust SQLite data engine. `src/lib.rs` owns the N-API bridge, engine lifecycle, transaction helper, and method dispatch. `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts/resequencing, `src/sync.rs` owns sync and outbox state transitions, `src/resource.rs` owns JSON import/export, `src/payload.rs` owns payload coercion and URL normalization, `src/collections.rs` owns collection metadata, and `src/rows.rs` owns row mapping structs/helpers.
 - `native/download-engine/`: Rust HLS download engine. It owns sampled adaptive concurrency, bounded parallel key/segment HTTP fetching, retry, cancellation flags, temporary segment writes, and local playlist generation.
 - `app/types/`: shared renderer-facing TypeScript wire types for IPC payloads and app state.

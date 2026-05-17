@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const helpers = require('../../app/runtime-dist/webview-preload-helpers.js');
+const helpers = require('../../app/runtime-dist/browser/webview-preload-helpers.js');
 
 test('webview helper constants stay aligned with app contract limits', function () {
   assert.equal(helpers.SITE_PAGE_SIZE, 24);

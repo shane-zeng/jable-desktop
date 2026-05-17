@@ -2,8 +2,8 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const adBlocker = require('../../app/runtime-dist/ad-blocker');
-const adCosmeticPolicy = require('../../app/runtime-dist/ad-cosmetic-policy');
+const adBlocker = require('../../app/runtime-dist/browser/ad-blocker');
+const adCosmeticPolicy = require('../../app/runtime-dist/browser/ad-cosmetic-policy');
 
 async function createDocument(html) {
   const happyDom = await import('happy-dom');

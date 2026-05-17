@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const adBlocker = require('../../app/runtime-dist/ad-blocker');
+const adBlocker = require('../../app/runtime-dist/browser/ad-blocker');
 
 test('blocks known Jable ad and popup request hosts', function () {
   assert.equal(

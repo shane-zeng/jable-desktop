@@ -1,6 +1,6 @@
 'use strict';
 
-import { GITHUB_RELEASE_REPO } from './url-policy';
+import { GITHUB_RELEASE_REPO } from '../browser/url-policy';
 
 const LATEST_RELEASE_API_URL = 'https://api.github.com/repos/' + GITHUB_RELEASE_REPO + '/releases/latest';
 const USER_AGENT = 'Jable-Desktop';

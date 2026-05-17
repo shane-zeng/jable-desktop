@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const urlPolicy = require('../../app/runtime-dist/url-policy');
+const urlPolicy = require('../../app/runtime-dist/browser/url-policy');
 
 test('allows only expected GitHub release URLs for external opening', function () {
   assert.equal(
