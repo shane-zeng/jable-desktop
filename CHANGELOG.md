@@ -6,6 +6,14 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.11.3] - 2026-05-17
+
+### Changed
+
+- Lower concurrent download limit to 3
+- Bump version to 0.11.2
+- Bump version to 0.11.3
+
 ## [v0.11.1] - 2026-05-17
 
 ### Changed
@@ -330,7 +338,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.3...HEAD
+[v0.11.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.1...v0.11.3
 [v0.11.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.1...v0.11.0
 [v0.10.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.10.0...v0.10.1
