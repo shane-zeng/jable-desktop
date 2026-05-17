@@ -6,9 +6,6 @@ Unlike `docs/specs/`, these documents are not implementation-backed feature spec
 
 ## Proposal Index
 
-- Download Manager:
-  - [English](download-manager.md): planned local video download list, per-video download actions, managed local files, and OS default-player handoff.
-  - [繁體中文](download-manager.zh-TW.md): 下載清單、本機影片檔管理、每筆影片下載動作，以及交由系統預設播放器開啟的規劃。
-- Download Manager V2:
-  - [English](download-manager-v2.md): accepted second-version improvements for Download List UX, queue actions, speed modes, pause/resume, retry behavior, and playback-triggered download research.
-  - [繁體中文](download-manager-v2.zh-TW.md): 已接受的下載清單第二版規劃，涵蓋互動 UI、queue 操作、速度模式、暫停/繼續、重試行為，以及播放時觸發下載研究。
+- Download Manager V3:
+  - [English](download-manager-v3.md): draft follow-up proposal for remaining Download List queue scanning, bulk actions, speed modes, failure metadata, playlist refresh retry, and playback-triggered download research.
+  - [繁體中文](download-manager-v3.zh-TW.md): 下載清單後續草案，整理尚未完成的 queue 掃描、批次操作、速度模式、失敗 metadata、playlist refresh retry，以及播放時觸發下載研究。

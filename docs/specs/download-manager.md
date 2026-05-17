@@ -166,7 +166,7 @@ This document specifies the current Download List and local video file managemen
 - Future work may move more process supervision behind a Rust/native boundary if queue control or crash isolation needs justify it, but FFmpeg remains the external remux pipeline.
 - Video download queue concurrency is controlled by Settings > Downloads.
 - The default maximum active video downloads is 1.
-- The user-facing maximum active video downloads value is clamped from 1 to 3.
+- The user-facing maximum active video downloads value is clamped from 1 to 8.
 - Each active video download still uses Rust segment-level adaptive concurrency internally, so increasing active video downloads multiplies network and CPU usage.
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.

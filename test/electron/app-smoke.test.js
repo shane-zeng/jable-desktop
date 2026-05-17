@@ -181,12 +181,12 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       return globalThis.jableApp.updateSettings({
         maxBrowserTabs: 6,
         fullSyncAjaxWindowSize: 5,
-        maxConcurrentDownloads: 3
+        maxConcurrentDownloads: 8
       });
     });
     expect(updatedSettings.maxBrowserTabs).toBe(6);
     expect(updatedSettings.fullSyncAjaxWindowSize).toBe(5);
-    expect(updatedSettings.maxConcurrentDownloads).toBe(3);
+    expect(updatedSettings.maxConcurrentDownloads).toBe(8);
 
     const initialTabs = await window.evaluate(function () {
       return globalThis.jableApp.listBrowserTabs();

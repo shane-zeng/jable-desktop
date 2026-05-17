@@ -36,7 +36,7 @@ test('app settings store returns defaults and persists updates', function () {
       ffmpegPath: '/usr/local/bin/ffmpeg',
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilter: 'ready_downloading',
-      maxConcurrentDownloads: 3
+      maxConcurrentDownloads: 8
     }),
     {
       maxBrowserTabs: 22,
@@ -46,7 +46,7 @@ test('app settings store returns defaults and persists updates', function () {
       ffmpegPath: '/usr/local/bin/ffmpeg',
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilter: 'ready_downloading',
-      maxConcurrentDownloads: 3
+      maxConcurrentDownloads: 8
     }
   );
 
@@ -58,7 +58,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
   assert.equal(secondStore.get().downloadStateFilter, 'ready_downloading');
-  assert.equal(secondStore.get().maxConcurrentDownloads, 3);
+  assert.equal(secondStore.get().maxConcurrentDownloads, 8);
 });
 
 test('app settings patch clamps user-facing limits', function () {
@@ -71,7 +71,7 @@ test('app settings patch clamps user-facing limits', function () {
     {
       maxBrowserTabs: 30,
       fullSyncAjaxWindowSize: 5,
-      maxConcurrentDownloads: 3
+      maxConcurrentDownloads: 8
     }
   );
 

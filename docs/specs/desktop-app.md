@@ -110,7 +110,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Full sync AJAX window size is clamped from 1 to 5.
 - A warning is shown for the fastest sync acceleration option.
 - Automatic replay of deferred sync operations defaults to off.
-- Maximum active video downloads is clamped from 1 to 3 and defaults to 1.
+- Maximum active video downloads is clamped from 1 to 8 and defaults to 1.
 
 ## Import And Export UX
 
