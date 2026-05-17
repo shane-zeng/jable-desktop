@@ -204,6 +204,7 @@ describe('LibraryPanel', function () {
             collectionKeys: ['favourites'],
             title: readyVideo.title,
             img: null,
+            preview: null,
             localPath: '/tmp/ready.mp4',
             state: 'ready',
             progress: null,
@@ -218,6 +219,7 @@ describe('LibraryPanel', function () {
             collectionKeys: ['favourites'],
             title: failedVideo.title,
             img: null,
+            preview: null,
             localPath: '/tmp/failed.mp4',
             state: 'failed',
             progress: null,
@@ -415,6 +417,7 @@ describe('LibraryPanel', function () {
             collectionKeys: ['favourites', 'watch_later'],
             title: 'Ready Video',
             img: null,
+            preview: null,
             localPath: '/tmp/ready.mp4',
             state: 'ready',
             progress: null,
@@ -426,8 +429,10 @@ describe('LibraryPanel', function () {
           },
           {
             videoUrl: 'https://jable.tv/videos/missing/',
+            collectionKeys: [],
             title: 'Missing Video',
             img: null,
+            preview: null,
             localPath: '/tmp/missing.mp4',
             state: 'missing',
             progress: null,
@@ -447,14 +452,18 @@ describe('LibraryPanel', function () {
     const cards = wrapper.findAll('[data-test="download-record-card"]');
     expect(cards).toHaveLength(2);
     expect(cards[0].text()).toContain('Ready Video');
-    expect(cards[0].text()).toContain('影片收藏 / 稍後觀看');
+    expect(cards[0].text()).toContain('影片收藏');
+    expect(cards[0].text()).toContain('稍後觀看');
     expect(cards[0].text()).toContain('已下載');
     expect(cards[0].text()).toContain('檔案大小：1 KB');
     expect(cards[0].text()).toContain('完成時間：');
+    expect(cards[0].text()).not.toContain('/tmp/ready.mp4');
+    expect(cards[0].find('[data-test="download-record-progress"]').exists()).toBe(true);
     expect(cards[1].text()).toContain('Missing Video');
     expect(cards[1].text()).toContain('檔案遺失');
     expect(cards[1].text()).toContain('錯誤：File removed');
     expect(cards[1].text()).toContain('更新時間：');
+    expect(cards[1].text()).not.toContain('/tmp/missing.mp4');
 
     await cards[0].get('button').trigger('click');
     await cards[0].get('[data-test="download-record-reveal"]').trigger('click');
@@ -496,6 +505,7 @@ describe('LibraryPanel', function () {
             collectionKeys: ['favourites'],
             title: 'Queued Video',
             img: null,
+            preview: null,
             localPath: '/tmp/queued.mp4',
             state: 'queued',
             progress: null,
@@ -510,6 +520,7 @@ describe('LibraryPanel', function () {
             collectionKeys: ['watch_later'],
             title: 'Downloading Video',
             img: null,
+            preview: null,
             localPath: '/tmp/downloading.mp4',
             state: 'downloading',
             progress: 0.42,

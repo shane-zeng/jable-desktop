@@ -1495,6 +1495,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
     videoUrl: payload.video.url,
     title: payload.video.title,
     img: payload.video.img,
+    preview: payload.video.preview,
     localPath: downloadOutputRelativePath(payload),
     state: 'queued',
     progress: null,

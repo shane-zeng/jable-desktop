@@ -159,6 +159,7 @@ export interface DownloadRecord {
   collectionKeys?: CollectionKey[];
   title: string | null;
   img: string | null;
+  preview: string | null;
   localPath: string | null;
   state: DownloadState;
   progress: number | null;

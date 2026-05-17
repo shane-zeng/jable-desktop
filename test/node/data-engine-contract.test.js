@@ -411,6 +411,7 @@ for (const kind of ENGINE_KINDS) {
         videoUrl: 'https://fs1.app/videos/download-me/?source=contract',
         title: 'Download Me',
         img: 'https://example.test/cover.jpg',
+        preview: 'https://example.test/preview.mp4',
         localPath: 'Jable Downloads/download-me.mp4',
         state: 'ready',
         progress: 1,
@@ -423,6 +424,7 @@ for (const kind of ENGINE_KINDS) {
       assert.equal(ready.collectionKey, undefined);
       assert.deepEqual(ready.collectionKeys, []);
       assert.equal(ready.title, 'Download Me');
+      assert.equal(ready.preview, 'https://example.test/preview.mp4');
       assert.equal(ready.localPath, 'Jable Downloads/download-me.mp4');
       assert.equal(ready.state, 'ready');
       assert.equal(ready.progress, 1);

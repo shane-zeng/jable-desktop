@@ -28,6 +28,7 @@ function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>
       collectionKeys: ['favourites'],
       title: video.title,
       img: video.img,
+      preview: video.preview,
       localPath: '/tmp/sample.mp4',
       state: 'ready',
       progress: null,

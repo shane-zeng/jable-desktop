@@ -221,7 +221,7 @@ function downloadRecordForVideo(video: VideoRow) {
         activeTab === 'pending_remote'
           ? '[grid-template-columns:minmax(0,1fr)]'
           : activeTab === 'downloads'
-            ? '[grid-template-columns:minmax(0,1fr)]'
+            ? '[grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]'
             : '[grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]'
       "
     >

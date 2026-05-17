@@ -12,6 +12,7 @@ struct DownloadAssetRow {
     collection_keys: Vec<String>,
     title: Option<String>,
     img: Option<String>,
+    preview: Option<String>,
     local_path: Option<String>,
     state: String,
     progress: Option<f64>,
@@ -145,14 +146,15 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> 
         collection_keys: Vec::new(),
         title: row.get(1)?,
         img: row.get(2)?,
-        local_path: row.get(3)?,
-        state: row.get(4)?,
-        progress: row.get(5)?,
-        file_size_bytes: row.get(6)?,
-        error: row.get(7)?,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
-        completed_at: row.get(10)?,
+        preview: row.get(3)?,
+        local_path: row.get(4)?,
+        state: row.get(5)?,
+        progress: row.get(6)?,
+        file_size_bytes: row.get(7)?,
+        error: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        completed_at: row.get(11)?,
     })
 }
 
@@ -162,6 +164,7 @@ fn record_json(record: DownloadAssetRow) -> Value {
       "collectionKeys": record.collection_keys,
       "title": record.title,
       "img": record.img,
+      "preview": record.preview,
       "localPath": record.local_path,
       "state": record.state,
       "progress": record.progress,
@@ -202,7 +205,7 @@ impl Engine {
         let row = self
             .conn()?
             .query_row(
-                "SELECT video_url, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
+                "SELECT video_url, title, img, preview, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
          FROM download_assets
          WHERE video_url = ?",
                 params![video_url],
@@ -222,7 +225,7 @@ impl Engine {
         let mut statement = self
             .conn()?
             .prepare(
-                "SELECT video_url, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
+                "SELECT video_url, title, img, preview, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
          FROM download_assets
          ORDER BY updated_at DESC, video_url ASC",
             )
@@ -271,6 +274,11 @@ impl Engine {
             &payload,
             &["img"],
             existing.as_ref().and_then(|record| record.img.clone()),
+        );
+        let preview = patch_string(
+            &payload,
+            &["preview"],
+            existing.as_ref().and_then(|record| record.preview.clone()),
         );
         let local_path = normalize_file_relative_path(patch_string(
             &payload,
@@ -327,12 +335,13 @@ impl Engine {
            video_url, status, file_relative_path, format, title, img, preview,
            size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
          )
-         VALUES (?, ?, ?, 'mp4', ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(video_url) DO UPDATE SET
            status = excluded.status,
            file_relative_path = excluded.file_relative_path,
            title = excluded.title,
            img = excluded.img,
+           preview = excluded.preview,
            size_bytes = excluded.size_bytes,
            progress = excluded.progress,
            error = excluded.error,
@@ -345,6 +354,7 @@ impl Engine {
                     local_path,
                     title,
                     img,
+                    preview,
                     file_size_bytes,
                     progress,
                     error,

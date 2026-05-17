@@ -117,6 +117,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             "videoUrl": "https://fs1.app/videos/download-me/?source=contract",
             "title": "Download Me",
             "img": "https://example.test/cover.jpg",
+            "preview": "https://example.test/preview.mp4",
             "localPath": "Jable Downloads/download-me.mp4",
             "state": "ready",
             "progress": 1,
@@ -133,6 +134,10 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     assert_eq!(ready.get("collectionKey"), None);
     assert_eq!(ready.get("collectionKeys"), Some(&json!([])));
     assert_eq!(ready.get("title"), Some(&json!("Download Me")));
+    assert_eq!(
+        ready.get("preview"),
+        Some(&json!("https://example.test/preview.mp4"))
+    );
     assert_eq!(
         ready.get("localPath"),
         Some(&json!("Jable Downloads/download-me.mp4"))

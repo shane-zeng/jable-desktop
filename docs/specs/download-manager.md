@@ -65,6 +65,7 @@ This document specifies the current Download List and local video file managemen
   - `collectionKeys` as the current visible local collections containing the video
   - `title`
   - `img`
+  - `preview`
   - `localPath` as a managed-root-relative file path
   - `state`
   - `progress`
@@ -119,18 +120,19 @@ This document specifies the current Download List and local video file managemen
   - title
   - state
   - file size
+- Rows are shown as media cards aligned with the Favourites and Watch Later card layout.
 - Rows show:
-  - thumbnail
+  - thumbnail and hover preview when available
   - title
-  - source URL
   - current local collection labels when the video is visible in one or more collections; no collection label is shown when the video is not currently visible in Favourites or Watch Later
   - state
-  - compact progress label
+  - compact progress/status bar
   - active downloaded size and speed when available
   - file size when known
   - completed timestamp for ready records
   - updated timestamp for other states
   - localized error text when present
+- Download List cards do not display the managed local filename or relative path directly.
 - Ready rows expose Open, Reveal, Open Page, and Delete actions.
 - Failed and missing rows expose Retry, Open Page, and Delete actions.
 - Queued and downloading rows expose Cancel and Open Page actions.
