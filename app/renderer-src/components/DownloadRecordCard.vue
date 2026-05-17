@@ -108,17 +108,18 @@ function downloadProgressDetailLabel(record: DownloadRecord) {
 
 function secondaryInfoLabel(record: DownloadRecord) {
   if (record.state === 'downloading') return downloadProgressDetailLabel(record);
-  if (record.state === 'ready') return fileSizeValueLabel(record);
+  if (record.state === 'ready') {
+    const parts = [];
+    const size = fileSizeValueLabel(record);
+    const completedAt = formatTimestamp(record.completedAt);
+    if (size) parts.push(size);
+    if (completedAt) parts.push(t('downloadList.completedAtShort', { time: completedAt }));
+    return parts.join(' · ');
+  }
   if (record.state === 'failed' || record.state === 'missing' || record.state === 'queued') {
     const updatedAt = formatTimestamp(record.updatedAt);
     return updatedAt ? t('downloadList.updatedAtShort', { time: updatedAt }) : '';
   }
-  return '';
-}
-
-function extraTimestampLabel(record: DownloadRecord) {
-  const completedAt = formatTimestamp(record.completedAt);
-  if (record.state === 'ready' && completedAt) return t('downloadList.completedAtShort', { time: completedAt });
   return '';
 }
 
@@ -256,17 +257,19 @@ function stopPreview() {
 
         <div class="mt-2 flex min-w-0 items-center justify-between gap-2 text-xs leading-[1.4] text-[var(--muted)]">
           <div class="flex min-w-0 items-center gap-1.5">
+            <span class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
+              {{ t('downloadList.state.' + record.state) }}
+            </span>
             <button
               v-if="hasErrorDetails(record)"
               type="button"
-              class="inline-flex h-7 min-h-0 items-center gap-1.5 rounded-full border-0 px-2 py-0 text-xs font-semibold outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b35d]"
-              :class="stateClass(record.state)"
+              class="grid h-7 min-h-0 w-7 place-items-center rounded-full border-0 bg-[#4f2a1c] p-0 text-[#f2b35d] outline-none hover:bg-[#623522] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b35d]"
               data-test="download-record-error-details"
               :aria-label="t('downloadList.errorDetails')"
               @click="showErrorDetails = true"
             >
               <svg
-                class="h-3.5 w-3.5 shrink-0"
+                class="h-3.5 w-3.5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -279,31 +282,14 @@ function stopPreview() {
                   d="M12 9v3.75m-9.3 3.38c-.87 1.5.22 3.37 1.95 3.37h14.7c1.73 0 2.82-1.87 1.95-3.37L13.95 3.38c-.87-1.5-3.03-1.5-3.9 0L2.7 16.13ZM12 15.75h.01v.01H12v-.01Z"
                 />
               </svg>
-              {{ t('downloadList.state.' + record.state) }}
             </button>
-            <span v-else class="rounded-full px-2 py-1 text-xs font-semibold" :class="stateClass(record.state)">
-              {{ t('downloadList.state.' + record.state) }}
-            </span>
           </div>
           <span class="min-w-0 truncate text-right">
             {{ secondaryInfoLabel(record) }}
           </span>
         </div>
 
-        <p v-if="extraTimestampLabel(record)" class="m-0 mt-1 truncate text-xs text-[var(--muted)]">
-          {{ extraTimestampLabel(record) }}
-        </p>
-
         <div class="mt-2 flex flex-wrap justify-end gap-2">
-          <button
-            v-if="record.state === 'ready'"
-            type="button"
-            class="min-h-7 px-2 py-1 text-xs"
-            data-test="download-record-open"
-            @click="emit('open', record.videoUrl)"
-          >
-            {{ t('downloadList.open') }}
-          </button>
           <button
             type="button"
             class="min-h-7 px-2 py-1 text-xs"
