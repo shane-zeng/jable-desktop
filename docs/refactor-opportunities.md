@@ -26,7 +26,7 @@ Before implementing a candidate:
 - Renderer download action/display extraction.
   Download action orchestration and shared display formatting are split out of `app/renderer-src/App.vue` and reused by download record components.
 - WebView preload AJAX sync helper extraction.
-  AJAX fetch timeout handling, retry/backoff, page validation, and bounded sliding window execution live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps DOM scraping, IPC progress reporting, and fallback orchestration.
+  AJAX fetch timeout handling, retry/backoff, page validation, and bounded concurrent prefetch execution live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps DOM scraping, IPC progress reporting, and fallback orchestration.
 
 ## Remaining Candidates
 

@@ -72,7 +72,7 @@ Jable Desktop は非公式 API に依存せず、embedded browser architecture �
 - 表示中の動画をすべて更新
 - サイト上に存在しなくなったローカル行を非表示にする
 
-大きなリストは background の bounded AJAX window で高速化されます。サイトの応答を検証できない場合は、通常の逐次ページングへ自動的に fallback します。
+大きなリストは background の bounded concurrent AJAX prefetch で高速化されます。サイトの応答を検証できない場合は、通常の逐次ページングへ自動的に fallback します。
 
 ## 同期待ち
 

@@ -112,7 +112,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Open the local data folder in the OS file manager
 - Maximum browser tabs are clamped from 4 to 30.
 - A warning is shown when the maximum browser tab count is above the warning threshold.
-- Full sync AJAX window size is clamped from 1 to 5.
+- Full sync AJAX prefetch concurrency is clamped from 1 to 5.
 - A warning is shown for the fastest sync acceleration option.
 - Automatic replay of deferred sync operations defaults to off.
 - Maximum active video downloads is clamped from 1 to 3 and defaults to 1.

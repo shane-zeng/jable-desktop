@@ -111,7 +111,7 @@ export function useSyncWorkflow(options: {
       );
       return;
     }
-    if (progress.message === 'ajax-window-fallback') {
+    if (progress.message === 'ajax-prefetch-fallback') {
       options.setStatus(
         options.t('status.syncAjaxFallback', {
           reason: progress.reason || options.t('status.unknownError')

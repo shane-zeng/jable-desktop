@@ -67,6 +67,7 @@ type LocalPlaybackRestoreState = {
   src: string;
   sources: LocalPlaybackSourceSnapshot[];
 };
+type LocalPlaybackErrorHandler = (event: Event) => void;
 type PagerLink = AjaxPagerTemplate & {
   el: HTMLAnchorElement;
   href: string;
@@ -129,7 +130,7 @@ let activeLocalPlaybackSourceUrl: string | null = null;
 const failedLocalPlaybackSources: Record<string, boolean> = {};
 const failedLocalPlaybackVideoUrls: Record<string, boolean> = {};
 const localPlaybackRestoreStates = new WeakMap<HTMLVideoElement, LocalPlaybackRestoreState>();
-const localPlaybackErrorHandlers = new WeakMap<HTMLVideoElement, EventListener>();
+const localPlaybackErrorHandlers = new WeakMap<HTMLVideoElement, LocalPlaybackErrorHandler>();
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -1686,7 +1687,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     return saveRowsForPage(scrapeCurrentPage(), pageNumber, location.href);
   }
 
-  async function syncRemainingPagesWithAjaxWindow(firstPageRows: ScrapedVideoRow[], firstPageSignature: string) {
+  async function syncRemainingPagesWithAjaxPrefetch(firstPageRows: ScrapedVideoRow[], firstPageSignature: string) {
     if (mode !== 'full' || startPage || batchLimit || syncOptions.stopOnKnownPage) return false;
     if ((logicalPage || 1) !== 1) return false;
 
@@ -1756,11 +1757,11 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
         mode: mode,
         syncRunId: syncRunId,
         page: logicalPage || 1,
-        message: 'ajax-window-fallback',
+        message: 'ajax-prefetch-fallback',
         reason: ajaxFallbackReason
       });
       console.warn(
-        '[JableDesktopScraper] ajax sliding window sync failed; falling back to sequential paging',
+        '[JableDesktopScraper] ajax prefetch failed; falling back to sequential paging',
         ajaxFallbackReason,
         error
       );
@@ -1856,7 +1857,7 @@ async function syncCollection(options?: Partial<SyncBrowserCollectionOptions> | 
     return result(true);
   }
 
-  if (await syncRemainingPagesWithAjaxWindow(firstPageRows, firstPageSignature)) {
+  if (await syncRemainingPagesWithAjaxPrefetch(firstPageRows, firstPageSignature)) {
     return result(true);
   }
 

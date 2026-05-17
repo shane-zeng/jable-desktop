@@ -179,7 +179,7 @@ Renderer API group:
 Current behavior:
 
 - `syncBrowserCollection()` runs sync inside a dedicated sync worker tab unless an existing compatible worker can continue.
-- Sync options include collection, mode, sync run ID, site-order offset, start page, stop-on-known-page flag, batch limit, and AJAX window size.
+- Sync options include collection, mode, sync run ID, site-order offset, start page, stop-on-known-page flag, batch limit, and AJAX prefetch concurrency (`ajaxWindowSize`).
 - The main process augments sync options with current settings.
 - `onBrowserMessage()` receives forwarded browser events from main and webview preload.
 

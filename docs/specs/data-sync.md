@@ -129,8 +129,8 @@ Important outbox fields:
 ## AJAX Full-Sync Acceleration
 
 - Full sync writes page 1 first.
-- Remaining pages can be fetched with a bounded AJAX sliding window.
-- The configured window size comes from Settings and is clamped from 1 to 5.
+- Remaining pages can be fetched with bounded concurrent AJAX prefetch.
+- The configured prefetch concurrency comes from Settings and is clamped from 1 to 5.
 - AJAX fetches use timeout, jitter, retry, and backoff.
 - Retryable symptoms include timeout, network error, 403, 429, 5xx, and empty responses.
 - AJAX pages are validated before writing:

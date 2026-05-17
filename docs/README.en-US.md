@@ -72,7 +72,7 @@ After syncing, videos can be searched and sorted locally without repeatedly load
 - Updates all visible videos
 - Hides local rows no longer present on the website
 
-Large lists are accelerated in the background with a bounded AJAX window. If the website response does not validate, the app automatically falls back to normal sequential paging.
+Large lists are accelerated in the background with bounded concurrent AJAX prefetch. If the website response does not validate, the app automatically falls back to normal sequential paging.
 
 ## Pending Sync
 

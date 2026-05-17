@@ -70,7 +70,7 @@ test('webview pager fallback uses Jable get_block requests and page-number from 
   assert.equal(source.includes('Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1'), false);
 });
 
-test('full sync can use a bounded ajax sliding window with sequential fallback', function () {
+test('full sync can use bounded concurrent ajax prefetch with sequential fallback', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
   const helperSource = readSource(WEBVIEW_HELPERS_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
@@ -94,14 +94,14 @@ test('full sync can use a bounded ajax sliding window with sequential fallback',
   assert.match(helperSource, /async function fetchAjaxPagesWithWindow/);
   assert.match(helperSource, /function validateAjaxFirstPage/);
   assert.match(helperSource, /function validateAjaxPages/);
-  assert.match(source, /async function syncRemainingPagesWithAjaxWindow/);
+  assert.match(source, /async function syncRemainingPagesWithAjaxPrefetch/);
   assert.match(source, /async function fetchAjaxSyncPageForTemplate/);
   assert.match(source, /message: 'ajax-page-retry'/);
-  assert.match(source, /message: 'ajax-window-fallback'/);
+  assert.match(source, /message: 'ajax-prefetch-fallback'/);
   assert.match(helperSource, /rowUrlSignature\(firstPageCheck\.rows\) !== rowUrlSignature\(firstPageRows\)/);
   assert.match(source, /ajaxFallbackReason = ajaxFailureDetail\(error\)/);
-  assert.match(source, /ajax sliding window sync failed; falling back to sequential paging/);
-  assert.match(source, /await syncRemainingPagesWithAjaxWindow\(firstPageRows, firstPageSignature\)/);
+  assert.match(source, /ajax prefetch failed; falling back to sequential paging/);
+  assert.match(source, /await syncRemainingPagesWithAjaxPrefetch\(firstPageRows, firstPageSignature\)/);
 });
 
 test('main process replays queued collection operations after recoverable incomplete sync', function () {
@@ -173,7 +173,7 @@ test('renderer surfaces ajax retry and fallback reasons', function () {
   assert.match(ipcNormalizersSource, /ajaxRetryCount: optionalNumberField\(record, 'ajaxRetryCount', channel\) \|\| 0/);
   assert.match(syncWorkflowSource, /progress\.message === 'ajax-page-retry'/);
   assert.match(syncWorkflowSource, /status\.syncAjaxRetry/);
-  assert.match(syncWorkflowSource, /progress\.message === 'ajax-window-fallback'/);
+  assert.match(syncWorkflowSource, /progress\.message === 'ajax-prefetch-fallback'/);
   assert.match(syncWorkflowSource, /status\.syncAjaxFallback/);
   assert.match(syncWorkflowSource, /status\.syncAjaxFallbackResult/);
   assert.match(syncWorkflowSource, /status\.syncIncompleteAfterAjaxFallback/);

@@ -200,7 +200,7 @@ test('webview helper retries ajax sync page parsing without real network fetches
   });
 });
 
-test('webview helper runs ajax page windows concurrently while preserving result order', async function () {
+test('webview helper runs bounded ajax page fetches concurrently while preserving result order', async function () {
   const started = [];
   const completed = [];
   const pages = await helpers.fetchAjaxPagesWithWindow({
