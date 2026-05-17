@@ -48,7 +48,8 @@ function isCollectionKey(value: string): value is CollectionKey {
 }
 
 function searchableDownloadText(record: DownloadRecord): string {
-  return [record.title, record.videoUrl, record.localPath, record.collectionKey, record.state]
+  const collectionKeys = Array.isArray(record.collectionKeys) ? record.collectionKeys.join(' ') : '';
+  return [record.title, record.videoUrl, record.localPath, collectionKeys, record.state]
     .filter(function (value) {
       return typeof value === 'string' && value;
     })

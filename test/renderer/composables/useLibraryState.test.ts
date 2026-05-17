@@ -202,7 +202,7 @@ describe('useLibraryState', function () {
     const downloads: DownloadRecord[] = [
       {
         videoUrl: 'https://jable.tv/videos/beta/',
-        collectionKey: 'favourites',
+        collectionKeys: ['favourites'],
         title: 'Beta Video',
         img: null,
         localPath: '/tmp/beta.mp4',
@@ -216,7 +216,7 @@ describe('useLibraryState', function () {
       },
       {
         videoUrl: 'https://jable.tv/videos/alpha/',
-        collectionKey: 'watch_later',
+        collectionKeys: ['watch_later'],
         title: 'Alpha Video',
         img: null,
         localPath: '/tmp/alpha.mp4',

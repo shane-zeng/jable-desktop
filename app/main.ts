@@ -1493,7 +1493,6 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
 
   const record = upsertPersistedDownload({
     videoUrl: payload.video.url,
-    collectionKey: payload.collectionKey,
     title: payload.video.title,
     img: payload.video.img,
     localPath: downloadOutputRelativePath(payload),

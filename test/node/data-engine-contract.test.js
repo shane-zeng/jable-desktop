@@ -409,7 +409,6 @@ for (const kind of ENGINE_KINDS) {
 
       const ready = engine.upsertDownloadAsset({
         videoUrl: 'https://fs1.app/videos/download-me/?source=contract',
-        collectionKey: 'favourites',
         title: 'Download Me',
         img: 'https://example.test/cover.jpg',
         localPath: 'Jable Downloads/download-me.mp4',
@@ -421,7 +420,7 @@ for (const kind of ENGINE_KINDS) {
       });
 
       assert.equal(ready.videoUrl, 'https://jable.tv/videos/download-me/');
-      assert.equal(ready.collectionKey, 'favourites');
+      assert.equal(ready.collectionKey, undefined);
       assert.deepEqual(ready.collectionKeys, []);
       assert.equal(ready.title, 'Download Me');
       assert.equal(ready.localPath, 'Jable Downloads/download-me.mp4');

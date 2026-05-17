@@ -201,7 +201,7 @@ describe('LibraryPanel', function () {
         downloadRecords: [
           {
             videoUrl: readyVideo.url,
-            collectionKey: 'favourites',
+            collectionKeys: ['favourites'],
             title: readyVideo.title,
             img: null,
             localPath: '/tmp/ready.mp4',
@@ -215,7 +215,7 @@ describe('LibraryPanel', function () {
           },
           {
             videoUrl: failedVideo.url,
-            collectionKey: 'favourites',
+            collectionKeys: ['favourites'],
             title: failedVideo.title,
             img: null,
             localPath: '/tmp/failed.mp4',
@@ -412,7 +412,6 @@ describe('LibraryPanel', function () {
         downloads: [
           {
             videoUrl: 'https://jable.tv/videos/ready/',
-            collectionKey: 'favourites',
             collectionKeys: ['favourites', 'watch_later'],
             title: 'Ready Video',
             img: null,
@@ -427,7 +426,6 @@ describe('LibraryPanel', function () {
           },
           {
             videoUrl: 'https://jable.tv/videos/missing/',
-            collectionKey: 'watch_later',
             title: 'Missing Video',
             img: null,
             localPath: '/tmp/missing.mp4',
@@ -495,7 +493,7 @@ describe('LibraryPanel', function () {
         downloads: [
           {
             videoUrl: 'https://jable.tv/videos/queued/',
-            collectionKey: 'favourites',
+            collectionKeys: ['favourites'],
             title: 'Queued Video',
             img: null,
             localPath: '/tmp/queued.mp4',
@@ -509,7 +507,7 @@ describe('LibraryPanel', function () {
           },
           {
             videoUrl: 'https://jable.tv/videos/downloading/',
-            collectionKey: 'watch_later',
+            collectionKeys: ['watch_later'],
             title: 'Downloading Video',
             img: null,
             localPath: '/tmp/downloading.mp4',

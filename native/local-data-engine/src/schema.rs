@@ -83,7 +83,6 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
          );
          CREATE TABLE IF NOT EXISTS download_assets (
            video_url TEXT PRIMARY KEY,
-           collection_key TEXT,
            status TEXT NOT NULL CHECK(status IN ('queued', 'downloading', 'failed', 'ready', 'missing')),
            file_relative_path TEXT,
            format TEXT,

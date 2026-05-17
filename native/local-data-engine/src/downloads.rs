@@ -9,7 +9,6 @@ const DOWNLOAD_STATES: [&str; 5] = ["queued", "downloading", "failed", "ready", 
 
 struct DownloadAssetRow {
     video_url: String,
-    collection_key: Option<String>,
     collection_keys: Vec<String>,
     title: Option<String>,
     img: Option<String>,
@@ -117,18 +116,6 @@ fn patch_i64(value: &Value, keys: &[&str], existing: Option<i64>) -> Option<i64>
     }
 }
 
-fn patch_collection_key(value: &Value, existing: Option<String>) -> Option<String> {
-    if !has_field(value, &["collectionKey", "collection_key"]) {
-        return existing;
-    }
-
-    match value_string(field(value, &["collectionKey", "collection_key"])).as_deref() {
-        Some("favourites") => Some("favourites".to_string()),
-        Some("watch_later") => Some("watch_later".to_string()),
-        _ => None,
-    }
-}
-
 fn patch_state(value: &Value, existing: Option<String>) -> String {
     if has_field(value, &["state", "status"]) {
         if let Some(state) = value_string(field(value, &["state", "status"])) {
@@ -155,25 +142,23 @@ fn asset_video_url(value: &Value, method: &str) -> Result<String> {
 fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> {
     Ok(DownloadAssetRow {
         video_url: row.get(0)?,
-        collection_key: row.get(1)?,
         collection_keys: Vec::new(),
-        title: row.get(2)?,
-        img: row.get(3)?,
-        local_path: row.get(4)?,
-        state: row.get(5)?,
-        progress: row.get(6)?,
-        file_size_bytes: row.get(7)?,
-        error: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
-        completed_at: row.get(11)?,
+        title: row.get(1)?,
+        img: row.get(2)?,
+        local_path: row.get(3)?,
+        state: row.get(4)?,
+        progress: row.get(5)?,
+        file_size_bytes: row.get(6)?,
+        error: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
+        completed_at: row.get(10)?,
     })
 }
 
 fn record_json(record: DownloadAssetRow) -> Value {
     json!({
       "videoUrl": record.video_url,
-      "collectionKey": record.collection_key,
       "collectionKeys": record.collection_keys,
       "title": record.title,
       "img": record.img,
@@ -217,7 +202,7 @@ impl Engine {
         let row = self
             .conn()?
             .query_row(
-                "SELECT video_url, collection_key, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
+                "SELECT video_url, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
          FROM download_assets
          WHERE video_url = ?",
                 params![video_url],
@@ -237,7 +222,7 @@ impl Engine {
         let mut statement = self
             .conn()?
             .prepare(
-                "SELECT video_url, collection_key, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
+                "SELECT video_url, title, img, file_relative_path, status, progress, size_bytes, error, created_at, updated_at, downloaded_at
          FROM download_assets
          ORDER BY updated_at DESC, video_url ASC",
             )
@@ -277,12 +262,6 @@ impl Engine {
             .map(|record| record.created_at.clone())
             .or_else(|| value_string(field(&payload, &["createdAt", "created_at"])))
             .unwrap_or_else(|| timestamp.clone());
-        let collection_key = patch_collection_key(
-            &payload,
-            existing
-                .as_ref()
-                .and_then(|record| record.collection_key.clone()),
-        );
         let title = patch_string(
             &payload,
             &["title"],
@@ -345,12 +324,11 @@ impl Engine {
         self.conn()?
             .execute(
                 "INSERT INTO download_assets (
-           video_url, collection_key, status, file_relative_path, format, title, img, preview,
+           video_url, status, file_relative_path, format, title, img, preview,
            size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
          )
-         VALUES (?, ?, ?, ?, 'mp4', ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, 'mp4', ?, ?, NULL, ?, NULL, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(video_url) DO UPDATE SET
-           collection_key = excluded.collection_key,
            status = excluded.status,
            file_relative_path = excluded.file_relative_path,
            title = excluded.title,
@@ -363,7 +341,6 @@ impl Engine {
            updated_at = excluded.updated_at",
                 params![
                     video_url,
-                    collection_key,
                     state,
                     local_path,
                     title,

@@ -90,7 +90,7 @@ function collectionLabel(collectionKey: CollectionKey) {
 function collectionListLabel(record: DownloadRecord) {
   const keys = Array.isArray(record.collectionKeys) && record.collectionKeys.length ? record.collectionKeys : null;
   if (keys) return keys.map(collectionLabel).join(' / ');
-  return record.collectionKey ? collectionLabel(record.collectionKey) : t('downloadList.unknownCollection');
+  return '';
 }
 </script>
 
@@ -108,7 +108,7 @@ function collectionListLabel(record: DownloadRecord) {
       >
         {{ record.title || record.videoUrl }}
       </button>
-      <p class="m-0 text-xs text-[var(--muted)]">
+      <p v-if="collectionListLabel(record)" class="m-0 text-xs text-[var(--muted)]">
         {{ collectionListLabel(record) }}
       </p>
       <code

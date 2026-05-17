@@ -62,7 +62,6 @@ This document specifies the current Download List and local video file managemen
 - Local Data rows are already canonicalized by the data engine before normal card downloads are started.
 - The store keeps enough metadata for Download List rendering even if the row later disappears from a collection:
   - `videoUrl`
-  - `collectionKey` as the original download source when known
   - `collectionKeys` as the current visible local collections containing the video
   - `title`
   - `img`
@@ -124,7 +123,7 @@ This document specifies the current Download List and local video file managemen
   - thumbnail
   - title
   - source URL
-  - current local collection labels when the video is visible in one or more collections
+  - current local collection labels when the video is visible in one or more collections; no collection label is shown when the video is not currently visible in Favourites or Watch Later
   - state
   - compact progress label
   - active downloaded size and speed when available

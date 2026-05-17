@@ -25,7 +25,7 @@ function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>
   return Object.assign(
     {
       videoUrl: video.url,
-      collectionKey: 'favourites',
+      collectionKeys: ['favourites'],
       title: video.title,
       img: video.img,
       localPath: '/tmp/sample.mp4',
