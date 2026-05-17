@@ -84,7 +84,8 @@ This document specifies the current Download List and local video file managemen
   - `missing`
 - Persisted `progress` is coarse-grained. It is `null` for queued/downloading/paused records and `1` for completed records.
 - While a download is active, the main process may add runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields to `downloads-changed` payloads. These values are not persisted and are cleared when the active worker finishes.
-- Runtime speed is sampled at most once per second from total downloaded segment bytes. It is a smoothed recent-throughput indicator, not a per-segment instantaneous peak.
+- Runtime speed is sampled at most once per second from completed downloaded segment bytes. It is a smoothed recent-throughput indicator, not a per-segment instantaneous peak.
+- Runtime downloaded bytes count only complete segment files that can be reused by resume. Partial `.part` files, local playlists, resume manifests, and key/control files are excluded from the user-facing downloaded-size number.
 - Startup/listing reconciliation infers runtime-safe state:
   - ready records become `missing` when the file is no longer present.
   - missing records become `ready` again when the file exists.
@@ -180,7 +181,7 @@ This document specifies the current Download List and local video file managemen
   - the same `reqwest` client and connection pool are reused across sampled and parallel segment requests
   - 3 retries per key or segment request
   - User-Agent is always sent; Referer is the video page URL; Cookie is sent when the Electron Jable session has cookies for the origin
-  - main process polls the temporary segment directory to update runtime `downloadedBytes`
+  - main process polls the temporary segment directory to update runtime `downloadedBytes` from completed segment files only
   - runtime `downloadSpeedBytesPerSecond` is sampled at most once per second from total downloaded bytes to avoid inflated spikes when multiple parallel segment requests finish together
 - Downloaded segments and keys are written by Rust under a temporary `.segments` sibling directory inside the managed download root.
 - Rust writes a local `playlist.m3u8` pointing at the downloaded segment and key files.

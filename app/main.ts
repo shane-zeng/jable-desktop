@@ -1299,6 +1299,7 @@ function downloadSegmentDirectorySize(tempDir: string): number {
 
   for (const entry of entries) {
     if (!entry.isFile()) continue;
+    if (!/^segment-\d{6}\.(aac|m4s|mp4|ts)$/.test(entry.name)) continue;
     try {
       total += fs.statSync(path.join(tempDir, entry.name)).size;
     } catch (error) {}

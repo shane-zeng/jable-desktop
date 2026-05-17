@@ -237,6 +237,7 @@ test('main process streams FFmpeg download progress without persisting runtime f
   assert.match(source, /child\.stdout\?\.on\('data'/);
   assert.match(source, /downloadedBytes: runtimeProgress\.downloadedBytes/);
   assert.match(source, /downloadSpeedBytesPerSecond: runtimeProgress\.downloadSpeedBytesPerSecond/);
+  assert.equal(source.includes('/^segment-\\d{6}\\.(aac|m4s|mp4|ts)$/'), true);
   assert.match(types, /downloadedBytes\?: number \| null/);
   assert.match(types, /downloadSpeedBytesPerSecond\?: number \| null/);
 });
