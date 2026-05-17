@@ -36,19 +36,20 @@ This document specifies the current Download List and local video file managemen
 - Settings can open the current download root in the OS file manager.
 - Download start and retry actions create the selected root if needed, then verify it is a writable directory before queueing work.
 - Download output paths are created by main process only; the renderer never submits local file paths for download, open, reveal, or delete operations.
-- Current generated MP4 paths use:
+- Current generated MP4 paths use a single shared download folder and do not create collection-specific subfolders:
 
 ```text
-<downloadRoot>/<collectionKey>/<sanitized-title>.mp4
+<downloadRoot>/<sanitized-title>.mp4
 ```
 
 - When the generated path is already used by another download record or existing local file, main process appends a numeric suffix such as ` (2)` before `.mp4`.
 - Persisted `localPath` values store only the managed-root-relative path:
 
 ```text
-<collectionKey>/<sanitized-title>.mp4
+<sanitized-title>.mp4
 ```
 
+- Legacy records with nested relative paths remain resolvable as long as they stay inside the current download root.
 - The data engine rejects absolute, drive-root, traversal, empty-component, and colon-containing persisted file paths.
 - Main process resolves persisted relative paths against the current download root before filesystem or shell operations.
 - A `.part` sibling file is used while FFmpeg is writing the output. On success it is renamed to the final `.mp4` path.

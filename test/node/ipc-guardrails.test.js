@@ -173,7 +173,8 @@ test('main process persists managed-root-relative download paths', function () {
   assert.match(source, /function downloadOutputRelativePath/);
   assert.match(source, /function usedDownloadRelativePaths/);
   assert.match(source, /const candidateName = index === 1 \? name : name \+ ' \(' \+ index \+ '\)'/);
-  assert.match(source, /path\.join\(payload\.collectionKey, candidateName \+ '\.mp4'\)/);
+  assert.match(source, /const relativePath = candidateName \+ '\.mp4'/);
+  assert.equal(source.includes("path.join(payload.collectionKey, candidateName + '.mp4')"), false);
   assert.match(source, /fs\.existsSync\(filePath\) \|\| fs\.existsSync\(filePath \+ '\.part'\)/);
   assert.equal(source.includes("createHash('sha1')"), false);
   assert.match(source, /function resolveManagedDownloadPath/);

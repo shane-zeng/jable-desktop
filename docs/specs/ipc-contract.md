@@ -64,7 +64,7 @@ Current behavior:
 - Manual FFmpeg paths are persisted in settings and used for later downloads when valid.
 - Download root selection is persisted in settings and resolved in main process.
 - Download records are listed from the Rust data engine download asset store.
-- Download records include `collectionKey` for the original download source and `collectionKeys` for current visible local collection membership.
+- Download records include `collectionKeys` for current visible local collection membership. The original enqueue source collection does not control the stored file path.
 - Enqueue and retry verify FFmpeg readiness before queueing work.
 - The main-process download queue can run multiple active video downloads up to the persisted Settings > Downloads maximum.
 - HLS key and segment fetching is delegated to the Rust native download engine; the main process passes request headers, segment metadata, adaptive concurrency bounds, retry limit, and a temporary directory path.

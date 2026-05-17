@@ -14,8 +14,8 @@ function createTempUserDataDir() {
 
 function seedDownloadAsset(userDataDir) {
   const downloadRoot = path.join(userDataDir, 'downloads');
-  const relativePath = 'favourites/electron-smoke-download.mp4';
-  const filePath = path.join(downloadRoot, 'favourites', 'electron-smoke-download.mp4');
+  const relativePath = 'electron-smoke-download.mp4';
+  const filePath = path.join(downloadRoot, 'electron-smoke-download.mp4');
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, 'smoke download file');
 

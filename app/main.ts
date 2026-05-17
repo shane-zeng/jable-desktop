@@ -1010,7 +1010,7 @@ function downloadOutputRelativePath(payload: DownloadRequestPayload): string {
 
   for (let index = 1; index <= 9999; index++) {
     const candidateName = index === 1 ? name : name + ' (' + index + ')';
-    const relativePath = path.join(payload.collectionKey, candidateName + '.mp4');
+    const relativePath = candidateName + '.mp4';
     const filePath = resolveManagedDownloadPath(relativePath);
     if (!filePath) continue;
     if (usedPaths.has(path.normalize(relativePath))) continue;
