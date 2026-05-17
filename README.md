@@ -53,13 +53,13 @@ npm install
 fnm exec --using 24 npm run check
 ```
 
-## 免責聲明
+## Disclaimer
 
-> **本工具僅供學習與技術研究用途。** 使用者應遵守當地法律法規，尊重內容版權。開發者不對任何因使用本工具而產生的法律責任負責。請勿將本工具用於任何非法或侵權用途。
+> **This tool is provided only for learning and technical research.** Users are responsible for complying with local laws and respecting content copyright. The developer is not responsible for legal liability arising from use of this tool. Do not use this tool for illegal or infringing purposes.
 
-## 致謝
+## Acknowledgements
 
-下載功能與下載流程設計參考 [hcjohn463/JableDownload](https://github.com/hcjohn463/JableDownload)。本專案並非該專案的 fork；相關實作已依 Jable Desktop 的 Electron / Rust 架構重新整合。
+The download feature and download workflow design reference [hcjohn463/JableDownload](https://github.com/hcjohn463/JableDownload). This project is not a fork of that project; the related implementation is integrated into Jable Desktop's Electron / Rust architecture.
 
 ## License
 
