@@ -98,6 +98,7 @@ impl Engine {
             "countVideos" => self.count_videos(payload),
             "getCollectionUrls" => self.get_collection_urls(payload),
             "allCollectionUrlsKnown" => self.all_collection_urls_known(payload),
+            "upsertVideoMetadata" => self.upsert_video_metadata(payload),
             "refreshVideoMetadata" => self.refresh_video_metadata(payload),
             "saveSyncPage" => self.save_sync_page(payload),
             "applyCollectionToggle" => self.apply_collection_toggle(payload),

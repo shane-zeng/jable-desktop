@@ -289,6 +289,10 @@
         "balancedHint": "Default behavior balancing speed and stability.",
         "fastHint": "Higher concurrency; some CDN sessions may be less stable."
       },
+      "playback": {
+        "label": "Auto-download while playing",
+        "description": "When enabled, videos are added to the Download List and downloaded automatically while you play them."
+      },
       "root": {
         "label": "Download Location",
         "description": "Downloaded files are saved in this folder.",

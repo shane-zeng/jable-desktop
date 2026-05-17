@@ -289,6 +289,10 @@
         "balancedHint": "預設行為，兼顧速度與穩定性。",
         "fastHint": "較高併發，部分 CDN session 可能比較不穩。"
       },
+      "playback": {
+        "label": "播放時自動下載",
+        "description": "開啟後，播放影片時會自動加入下載清單並完成下載。"
+      },
       "root": {
         "label": "下載位置",
         "description": "下載檔案會儲存在這個資料夾。",

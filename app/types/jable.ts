@@ -141,6 +141,7 @@ export interface AppSettings {
   fullSyncAjaxWindowSize: number;
   autoReplayDeferredSyncOperations: boolean;
   ffmpegPath: string | null;
+  autoDownloadOnPlayback: boolean;
   downloadRoot: string | null;
   downloadStateFilters: DownloadStateFilters;
   downloadSpeedMode: DownloadSpeedMode;

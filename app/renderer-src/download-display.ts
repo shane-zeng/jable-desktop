@@ -132,6 +132,9 @@ export function secondaryInfoLabel(record: DownloadRecord, t: Translate) {
 
 export function recordTimeLabel(record: DownloadRecord) {
   if (record.state === 'ready') return formatTimeLabel(record.completedAt || record.updatedAt);
+  if (record.state === 'downloading') {
+    return formatTimeLabel(record.lastStartedAt || record.createdAt || record.updatedAt);
+  }
   return formatTimeLabel(record.updatedAt);
 }
 

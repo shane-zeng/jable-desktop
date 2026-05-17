@@ -135,6 +135,7 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       return globalThis.jableApp.getSettings();
     });
     expect(defaultSettings.autoReplayDeferredSyncOperations).toBe(false);
+    expect(defaultSettings.autoDownloadOnPlayback).toBe(false);
     expect(defaultSettings.webViewEnhancementMode).toBe(false);
     expect(defaultSettings.maxBrowserTabs).toBe(14);
     expect(defaultSettings.maxConcurrentDownloads).toBe(1);

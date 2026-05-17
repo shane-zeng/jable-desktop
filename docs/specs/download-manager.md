@@ -1,14 +1,14 @@
 # Download Manager Specification
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-18
 
 This document specifies the current Download List and local video file management behavior.
 
 ## Scope
 
-- The feature is a download, file-management, and managed-file playback workflow. It does not download media implicitly from playback.
+- The feature is a download, file-management, and managed-file playback workflow. It does not download media implicitly from playback unless the user enables Settings > Downloads > Auto-download while playing.
 - Downloads are started explicitly by the user from Local Data video cards, either one card at a time or by selecting specific visible collection cards and downloading the selected set.
-- Playback-triggered download is not part of the current Download Manager behavior.
+- Playback-triggered download is opt-in and defaults off. When enabled, Jable HLS playback is proxied through the app, playback and background completion share one managed segment cache, and the video is added to the Download List only after the page video actually starts playing. The app avoids launching a second media-segment download for the same playback; after all media segments are cached, the normal resume/remux path assembles the MP4 from local segment files.
 - When a Jable browser tab opens a video URL with an existing ready managed download, the app may replace the page's video element source with the local managed MP4.
 - Downloaded files are opened with the operating system default player.
 - Download state is independent from Favourites and Watch Later membership.
@@ -23,7 +23,7 @@ This document specifies the current Download List and local video file managemen
 - Ready records whose files are missing are reconciled to `missing` and are not exposed for local playback.
 - The browser page receives a short-lived `jable-local-video://` source URL, never a local filesystem path.
 - The custom local playback protocol streams the managed MP4 with `Accept-Ranges: bytes` support so the page video element can seek.
-- The webview preload automatically replaces the current Jable video page's primary `<video>` source when local playback is available. If replacement fails or no local playback source is available, the original Jable page playback remains available.
+- The webview preload automatically replaces the current Jable video page's primary `<video>` source when local playback is available. If this happens after remote playback has already started, the preload preserves the current time and resumes playback only when the video was already playing. If replacement fails or no local playback source is available, the original Jable page playback remains available. If the active local playback file is deleted while the video page is open, the preload reloads the page instead of trying to partially restore the Jable player runtime.
 - When a ready managed MP4 has a generated local timeline preview cache, the same local playback protocol also serves a short-lived thumbnail VTT and JPEG thumbnails to the browser page.
 - Local timeline preview thumbnails are sampled from the managed MP4 at 60-second intervals, using 213x120 JPEG frames to match Jable's observed preview density.
 - Timeline preview generation runs as a background follow-up after the MP4 becomes ready, and local playback remains available when preview generation is pending, missing, or failed.
@@ -59,6 +59,7 @@ This document specifies the current Download List and local video file managemen
 ```
 
 - When the generated path is already used by another download record or existing local file, main process appends a numeric suffix such as ` (2)` before `.mp4`.
+- Generated filenames use the video title after removing the Jable page SEO suffix such as `- Jable.TV ...`; the renderer-provided title is cleaned again in main before `videos` or `download_assets` writes.
 - Persisted `localPath` values store only the managed-root-relative path:
 
 ```text
@@ -105,7 +106,7 @@ This document specifies the current Download List and local video file managemen
   - `failed`
   - `ready`
   - `missing`
-- Persisted `progress` is coarse-grained. It is `null` for queued/downloading/paused records and `1` for completed records.
+- Persisted `progress` is coarse-grained. It is normally `null` for queued/downloading/paused records and `1` for completed records. Playback-triggered capture may persist a reusable-segment completion fraction while it is filling the shared cache.
 - While a download is active, the main process may add runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields to `downloads-changed` payloads. These values are not persisted and are cleared when the active worker finishes.
 - Runtime speed is sampled at most once per second from completed downloaded segment bytes. It is a smoothed recent-throughput indicator, not a per-segment instantaneous peak.
 - Runtime downloaded bytes count only complete segment files that can be reused by resume. Partial `.part` files, local playlists, resume manifests, and key/control files are excluded from the user-facing downloaded-size number.
@@ -116,6 +117,18 @@ This document specifies the current Download List and local video file managemen
   - ready records become `missing` when the file is no longer present.
   - missing records become `ready` again when the file exists.
   - queued/downloading records not present in the active queue or active worker become `paused` so crash/force-quit recovery can resume instead of failing the download.
+
+## Playback-Triggered Download
+
+- Settings > Downloads > Auto-download while playing is off by default.
+- With the setting on, the webview preload may proxy Jable page `.m3u8` requests through app-owned loopback token URLs. The proxy is allowed to serve page preload traffic before playback starts, but it must not create a download record or write segment files until the preload observes a real `<video>` `play` or `playing` event for the current trusted Jable video URL.
+- When playback starts, main prepares a managed capture plan from the playlist, writes or refreshes the `videos` row first, then writes the `download_assets` row. The capture metadata includes the current page title, thumbnail/preview URLs, views, and likes when the preload can read them.
+- While background completion is filling the shared segment cache, the Download List state is `downloading`. Player segment requests and background prefetch share the same in-flight fetch/file; the same media segment must not be fetched twice by playback capture and background completion. Active capture progress is reported to the renderer as runtime-only state so segment progress does not continually rewrite the download row timestamp.
+- Pause stops playback-capture background completion and stops future capture writes for the current page load. It keeps already captured reusable segments and leaves the record `paused`; in-flight segment streams are allowed to settle without crashing the main process. Continued page playback may still use Jable remote media without being saved. Reloading the video page starts a new page-load token, so playback can create a fresh capture again. Resume moves the record through the normal queued resume/remux path.
+- If a playback-triggered record is paused, then resumed from the Download List, ownership moves to the normal queued downloader. A later video-page refresh and playback does not create another playback-capture job while that record is `queued`, `downloading`, or `ready`; the page may continue normal Jable playback while the app-owned downloader finishes in the background.
+- Cancel stops playback-capture background completion, stops future capture writes for the current page load, removes working segment files where possible, and leaves the record `failed` with the localized canceled message. Reloading the video page starts a new page-load token, so playback can create a fresh capture again. Retry clears suppression and uses the normal queued download path.
+- Delete stops playback-capture background completion, stops future capture writes for the current page load, removes managed media/working files and the download record, and suppresses recreating that record from the still-open playback token. Reloading the video page starts a new page-load token, so playback can create a fresh capture again.
+- When all media segments are present in the shared cache, the app queues the normal resume/remux worker. That worker reuses compatible local segments and produces the final MP4 without re-fetching those media segments.
 
 ## Local Data Cards
 

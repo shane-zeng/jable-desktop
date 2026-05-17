@@ -36,7 +36,8 @@ function downloadRecord(patch) {
   );
 }
 
-function createHarness(initialRecords, userDataDir) {
+function createHarness(initialRecords, userDataDir, settingsOverrides = {}) {
+  const videos = new Map();
   const records = new Map();
   for (const record of initialRecords) {
     records.set(record.videoUrl, downloadRecord(record));
@@ -48,6 +49,10 @@ function createHarness(initialRecords, userDataDir) {
     },
     getDownloadAsset: function (videoUrl) {
       return records.get(videoUrl) || null;
+    },
+    upsertVideoMetadata: function (payload) {
+      videos.set(payload.url, Object.assign({}, payload));
+      return { updated: true, url: payload.url };
     },
     upsertDownloadAsset: function (patch) {
       const current = records.get(patch.videoUrl) || downloadRecord({ videoUrl: patch.videoUrl });
@@ -68,11 +73,15 @@ function createHarness(initialRecords, userDataDir) {
     },
     dialog: {},
     getAppSettings: function () {
-      return {
-        downloadRoot: null,
-        downloadSpeedMode: 'balanced',
-        maxConcurrentDownloads: 1
-      };
+      return Object.assign(
+        {
+          autoDownloadOnPlayback: false,
+          downloadRoot: null,
+          downloadSpeedMode: 'balanced',
+          maxConcurrentDownloads: 1
+        },
+        settingsOverrides
+      );
     },
     getDatabase: function () {
       return database;
@@ -98,7 +107,8 @@ function createHarness(initialRecords, userDataDir) {
   return {
     database: database,
     manager: manager,
-    records: records
+    records: records,
+    videos: videos
   };
 }
 
@@ -124,6 +134,253 @@ test('download manager classifies and sanitizes failure metadata details', funct
   assert.match(detail, /\[download root\]/);
   assert.equal(detail.includes('token=secret'), false);
   assert.equal(detail.includes(rootPath), false);
+});
+
+test('download manager captures proxied HLS playback segments for later resume', function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-hls-capture-'));
+  try {
+    const videoUrl = 'https://jable.tv/videos/capture-test/';
+    const playlistUrl = 'https://cdn.example.test/hls/capture/index.m3u8';
+    const harness = createHarness([], userDataDir);
+
+    const plan = harness.manager.prepareHlsPlaybackCapture({
+      videoUrl: videoUrl,
+      title: 'Capture Test - Jable.TV 免費高清AV在線看 J片 AV看到',
+      views: 1234,
+      likes: 56,
+      img: 'https://cdn.example.test/capture.jpg',
+      preview: 'https://cdn.example.test/capture-preview.mp4',
+      playlistUrl: playlistUrl,
+      playlistText: [
+        '#EXTM3U',
+        '#EXT-X-TARGETDURATION:10',
+        '#EXTINF:10,',
+        'segment-001.ts',
+        '#EXTINF:8.5,',
+        'https://cdn.example.test/hls/capture/segment-002.ts?token=abc',
+        '#EXT-X-ENDLIST',
+        ''
+      ].join('\n')
+    });
+
+    assert.equal(plan.videoUrl, videoUrl);
+    assert.equal(plan.playlistUrl, playlistUrl);
+    assert.equal(plan.segmentCount, 2);
+    assert.equal(plan.segments.length, 2);
+    assert.equal(plan.segments[0].url, 'https://cdn.example.test/hls/capture/segment-001.ts');
+    assert.equal(plan.segments[1].url, 'https://cdn.example.test/hls/capture/segment-002.ts?token=abc');
+
+    const record = harness.records.get(videoUrl);
+    assert.equal(harness.videos.get(videoUrl).title, 'Capture Test');
+    assert.equal(harness.videos.get(videoUrl).views, 1234);
+    assert.equal(harness.videos.get(videoUrl).likes, 56);
+    assert.equal(harness.videos.get(videoUrl).img, 'https://cdn.example.test/capture.jpg');
+    assert.equal(harness.videos.get(videoUrl).preview, 'https://cdn.example.test/capture-preview.mp4');
+    assert.equal(record.state, 'paused');
+    assert.equal(record.title, 'Capture Test');
+    assert.equal(record.img, 'https://cdn.example.test/capture.jpg');
+    assert.equal(record.preview, 'https://cdn.example.test/capture-preview.mp4');
+    assert.equal(record.progress, 0);
+    assert.match(record.localPath, /^Capture Test.*\.mp4$/);
+
+    const outputPath = path.join(userDataDir, 'downloads', record.localPath);
+    const segmentDir = outputPath + '.segments';
+    assert.equal(path.dirname(plan.segments[0].filePath), segmentDir);
+    assert.equal(path.basename(plan.segments[0].filePath), 'segment-000001.ts');
+    assert.equal(path.basename(plan.segments[1].filePath), 'segment-000002.ts');
+    assert.equal(fs.existsSync(path.join(segmentDir, 'resume.json')), true);
+
+    fs.writeFileSync(plan.segments[0].filePath, 'segment-one');
+    harness.manager.recordHlsPlaybackCaptureSegment({
+      videoUrl: videoUrl,
+      filePath: plan.segments[0].filePath
+    });
+    assert.equal(harness.records.get(videoUrl).progress, 0.5);
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager auto-queues completed playback capture when the setting is enabled', function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-hls-capture-auto-'));
+  try {
+    const videoUrl = 'https://jable.tv/videos/capture-auto/';
+    const playlistUrl = 'https://cdn.example.test/hls/capture-auto/index.m3u8';
+    const harness = createHarness([], userDataDir, {
+      autoDownloadOnPlayback: true,
+      maxConcurrentDownloads: 0
+    });
+
+    const plan = harness.manager.prepareHlsPlaybackCapture({
+      videoUrl: videoUrl,
+      title: 'Capture Auto',
+      playlistUrl: playlistUrl,
+      playlistText: [
+        '#EXTM3U',
+        '#EXT-X-TARGETDURATION:10',
+        '#EXTINF:10,',
+        'segment-001.ts',
+        '#EXTINF:8.5,',
+        'segment-002.ts',
+        '#EXT-X-ENDLIST',
+        ''
+      ].join('\n')
+    });
+
+    assert.equal(harness.videos.get(videoUrl).title, 'Capture Auto');
+
+    fs.writeFileSync(plan.segments[0].filePath, 'segment-one');
+    harness.manager.recordHlsPlaybackCaptureSegment({
+      videoUrl: videoUrl,
+      filePath: plan.segments[0].filePath
+    });
+    assert.equal(harness.records.get(videoUrl).state, 'downloading');
+    assert.equal(harness.records.get(videoUrl).progress, 0);
+    assert.equal(
+      harness.manager.listDownloads().find(function (record) {
+        return record.videoUrl === videoUrl;
+      }).progress,
+      0.5
+    );
+
+    fs.writeFileSync(plan.segments[1].filePath, 'segment-two');
+    harness.manager.recordHlsPlaybackCaptureSegment({
+      videoUrl: videoUrl,
+      filePath: plan.segments[1].filePath
+    });
+    assert.equal(harness.records.get(videoUrl).state, 'queued');
+    assert.equal(harness.records.get(videoUrl).progress, null);
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager can pause, cancel, and delete active playback captures', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-hls-capture-controls-'));
+  try {
+    const playlistUrl = 'https://cdn.example.test/hls/capture-controls/index.m3u8';
+    const playlistText = [
+      '#EXTM3U',
+      '#EXT-X-TARGETDURATION:10',
+      '#EXTINF:10,',
+      'segment-001.ts',
+      '#EXT-X-ENDLIST',
+      ''
+    ].join('\n');
+    const harness = createHarness([], userDataDir, {
+      autoDownloadOnPlayback: true,
+      maxConcurrentDownloads: 0
+    });
+
+    const pausedUrl = 'https://jable.tv/videos/capture-pause/';
+    const pausedPlan = harness.manager.prepareHlsPlaybackCapture({
+      videoUrl: pausedUrl,
+      pageLoadId: 'pause-load-1',
+      title: 'Capture Pause',
+      playlistUrl: playlistUrl,
+      playlistText: playlistText
+    });
+    assert.equal(harness.records.get(pausedUrl).state, 'downloading');
+    assert.equal(
+      harness.manager.shouldContinueHlsPlaybackCapture({ videoUrl: pausedUrl, pageLoadId: 'pause-load-1' }),
+      true
+    );
+    const paused = harness.manager.pauseDownload(pausedUrl);
+    assert.equal(paused.record.state, 'paused');
+    assert.equal(
+      harness.manager.shouldContinueHlsPlaybackCapture({ videoUrl: pausedUrl, pageLoadId: 'pause-load-1' }),
+      false
+    );
+    assert.equal(
+      harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: pausedUrl, pageLoadId: 'pause-load-1' }),
+      false
+    );
+    assert.equal(
+      harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: pausedUrl, pageLoadId: 'pause-load-2' }),
+      true
+    );
+    fs.writeFileSync(pausedPlan.segments[0].filePath, 'segment-one');
+    harness.manager.recordHlsPlaybackCaptureSegment({
+      videoUrl: pausedUrl,
+      pageLoadId: 'pause-load-1',
+      filePath: pausedPlan.segments[0].filePath
+    });
+    assert.equal(harness.records.get(pausedUrl).progress, null);
+
+    const canceledUrl = 'https://jable.tv/videos/capture-cancel/';
+    const canceledPlan = harness.manager.prepareHlsPlaybackCapture({
+      videoUrl: canceledUrl,
+      pageLoadId: 'cancel-load-1',
+      title: 'Capture Cancel',
+      playlistUrl: playlistUrl,
+      playlistText: playlistText
+    });
+    const canceledSegmentDir = path.dirname(canceledPlan.segments[0].filePath);
+    assert.equal(fs.existsSync(canceledSegmentDir), true);
+    const canceled = harness.manager.cancelDownload(canceledUrl);
+    assert.equal(canceled.record.state, 'failed');
+    assert.equal(
+      harness.manager.shouldContinueHlsPlaybackCapture({ videoUrl: canceledUrl, pageLoadId: 'cancel-load-1' }),
+      false
+    );
+    assert.equal(
+      harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: canceledUrl, pageLoadId: 'cancel-load-1' }),
+      false
+    );
+    assert.equal(
+      harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: canceledUrl, pageLoadId: 'cancel-load-2' }),
+      true
+    );
+    assert.equal(fs.existsSync(canceledSegmentDir), false);
+
+    const deletedUrl = 'https://jable.tv/videos/capture-delete/';
+    const deletedPlan = harness.manager.prepareHlsPlaybackCapture({
+      videoUrl: deletedUrl,
+      pageLoadId: 'delete-load-1',
+      title: 'Capture Delete',
+      playlistUrl: playlistUrl,
+      playlistText: playlistText
+    });
+    const deletedSegmentDir = path.dirname(deletedPlan.segments[0].filePath);
+    const deleted = await harness.manager.deleteDownload(deletedUrl);
+    assert.equal(deleted.removed, true);
+    assert.equal(harness.records.has(deletedUrl), false);
+    assert.equal(
+      harness.manager.shouldContinueHlsPlaybackCapture({ videoUrl: deletedUrl, pageLoadId: 'delete-load-1' }),
+      false
+    );
+    assert.equal(
+      harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: deletedUrl, pageLoadId: 'delete-load-1' }),
+      false
+    );
+    assert.equal(fs.existsSync(deletedSegmentDir), false);
+    assert.equal(
+      harness.manager.prepareHlsPlaybackCapture({
+        videoUrl: deletedUrl,
+        pageLoadId: 'delete-load-1',
+        title: 'Capture Delete',
+        playlistUrl: playlistUrl,
+        playlistText: playlistText
+      }),
+      null
+    );
+    assert.equal(
+      harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: deletedUrl, pageLoadId: 'delete-load-2' }),
+      true
+    );
+    assert.notEqual(
+      harness.manager.prepareHlsPlaybackCapture({
+        videoUrl: deletedUrl,
+        pageLoadId: 'delete-load-2',
+        title: 'Capture Delete',
+        playlistUrl: playlistUrl,
+        playlistText: playlistText
+      }),
+      null
+    );
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
 });
 
 test('download manager reads the source page Chinese subtitle notice', function () {

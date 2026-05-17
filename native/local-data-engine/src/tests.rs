@@ -631,6 +631,45 @@ fn refresh_video_metadata_updates_known_collection_rows_only() {
 }
 
 #[test]
+fn upsert_video_metadata_does_not_create_collection_rows() {
+    let mut engine = test_engine("upsert-video-metadata");
+
+    let result = engine
+        .upsert_video_metadata(json!({
+            "title": "Playback Download",
+            "url": "https://fs1.app/videos/playback-download/?from=browser#ignored",
+            "views": 20,
+            "likes": 3,
+            "img": "https://example.test/playback.jpg",
+            "preview": "https://example.test/playback.mp4"
+        }))
+        .expect("metadata should upsert");
+    assert_eq!(result.get("updated"), Some(&json!(true)));
+    assert_eq!(
+        result.get("url"),
+        Some(&json!("https://jable.tv/videos/playback-download/"))
+    );
+    assert!(visible_urls(&engine, "favourites").is_empty());
+    assert!(visible_urls(&engine, "watch_later").is_empty());
+
+    let count = engine
+        .conn()
+        .expect("connection should be open")
+        .query_row(
+            "SELECT COUNT(*) FROM videos WHERE url = ? AND title = ?",
+            params![
+                "https://jable.tv/videos/playback-download/",
+                "Playback Download"
+            ],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("video row should query");
+    assert_eq!(count, 1);
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
 fn applied_deferred_local_operations_reconcile_after_finish_sync() {
     let mut engine = test_engine("defer-local-applied");
 

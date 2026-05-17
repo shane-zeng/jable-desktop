@@ -1,6 +1,6 @@
 # Testing And Validation Specification
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-18
 
 This document maps current functionality to automated and manual validation.
 
@@ -82,7 +82,7 @@ Verify these behaviors when touching related desktop areas:
 - Middle-click in embedded browser opens links in background tabs.
 - HTML fullscreen covers the app chrome and restores normal bounds after exit.
 - Browser context menus show correct link, media, selection, navigation, and page URL actions.
-- Jable video pages with ready managed downloads automatically switch the page video element to local playback; missing, failed, queued, or unavailable downloads keep normal Jable playback.
+- Jable video pages with ready managed downloads automatically switch the page video element to local playback. If the switch happens while the user is already watching, the preload preserves the current playback position and resumes only when the video was already playing; missing, failed, queued, or unavailable downloads keep normal Jable playback. If a ready local playback file is deleted while the page is using it, the page reloads so Jable rebuilds its own player.
 - Local video cards open in current tab, open in new tab through middle/platform click, and show context menu actions.
 - Local video cards show compact download states and do not expose detailed progress or error text.
 - Local video cards can be explicitly selected and the selected set can be queued for download without downloading the whole current page.
@@ -91,6 +91,8 @@ Verify these behaviors when touching related desktop areas:
 - Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
 - Settings can change the maximum active video downloads value and the queue starts additional active downloads up to that limit.
 - Settings can switch download speed mode between Stable, Balanced, and Fast without changing the maximum active video downloads value.
+- Settings can toggle playback-triggered auto-download; it defaults off, and only actual video playback should create a Download List record and write managed segment files. Page preload of a playlist before playback must not start a persisted download.
+- Active playback-triggered downloads can be paused, canceled, or deleted from the Download List. Pause preserves reusable segments and stops further capture writes; cancel removes working segment files and leaves a failed canceled record; delete removes the record/files and prevents the still-open playback token from recreating them.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
 - Download List renders queued, downloading, paused, failed, ready, and missing rows.
 - Download List multi-select filters can show or combine All, Ready, Downloading, Queued, Paused, Failed, and Missing states, and the selection survives app restart.

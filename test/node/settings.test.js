@@ -23,6 +23,7 @@ test('app settings store returns defaults and persists updates', function () {
     fullSyncAjaxWindowSize: 3,
     autoReplayDeferredSyncOperations: false,
     ffmpegPath: null,
+    autoDownloadOnPlayback: false,
     downloadRoot: null,
     downloadStateFilters: ['all'],
     downloadSpeedMode: 'balanced',
@@ -37,6 +38,7 @@ test('app settings store returns defaults and persists updates', function () {
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
+      autoDownloadOnPlayback: true,
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilters: ['downloading', 'failed'],
       downloadSpeedMode: 'fast',
@@ -49,6 +51,7 @@ test('app settings store returns defaults and persists updates', function () {
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
+      autoDownloadOnPlayback: true,
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilters: ['downloading', 'failed'],
       downloadSpeedMode: 'fast',
@@ -63,6 +66,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().fullSyncAjaxWindowSize, 5);
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
+  assert.equal(secondStore.get().autoDownloadOnPlayback, true);
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
   assert.deepEqual(secondStore.get().downloadStateFilters, ['downloading', 'failed']);
   assert.equal(secondStore.get().downloadSpeedMode, 'fast');
@@ -124,6 +128,17 @@ test('app settings normalize optional download root', function () {
 
   assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadRoot: '' }), {
     downloadRoot: null
+  });
+});
+
+test('app settings normalize playback-triggered download setting', function () {
+  assert.equal(settings.normalizeAppSettings({ autoDownloadOnPlayback: true }).autoDownloadOnPlayback, true);
+  assert.equal(settings.normalizeAppSettings({ autoDownloadOnPlayback: false }).autoDownloadOnPlayback, false);
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ autoDownloadOnPlayback: 1 }), {
+    autoDownloadOnPlayback: true
+  });
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ autoDownloadOnPlayback: 0 }), {
+    autoDownloadOnPlayback: false
   });
 });
 

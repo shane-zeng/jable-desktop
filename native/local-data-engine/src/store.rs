@@ -194,6 +194,25 @@ impl Engine {
         }))
     }
 
+    pub(crate) fn upsert_video_metadata(&self, payload: Value) -> Result<Value> {
+        let video = normalize_video(&payload).ok_or_else(|| {
+            Error::from_reason("Video metadata upsert requires a video URL".to_string())
+        })?;
+        let trusted_prefix = format!("{PRIMARY_ORIGIN}/videos/");
+        if !video.url.starts_with(&trusted_prefix) {
+            return Err(Error::from_reason(
+                "Video metadata upsert requires a trusted Jable video URL".to_string(),
+            ));
+        }
+
+        self.upsert_video(&video, &now_iso())?;
+
+        Ok(json!({
+          "updated": true,
+          "url": video.url
+        }))
+    }
+
     fn list_rows(
         &self,
         collection_key: &str,

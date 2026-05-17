@@ -111,6 +111,40 @@ type UrlPolicyModule = {
   jableCollectionUrl(collectionKey: CollectionKey, origin?: string): string;
   rewriteJableUrlOrigin(value: unknown, origin: string): string;
 };
+type HlsPlaybackCaptureModule = {
+  installHlsPlaybackCapture(context: {
+    canonicalJableVideoUrl(value: unknown): string | null;
+    env?: Record<string, string | undefined> | null;
+    getBrowserTabByWebContents(webContents: Electron.WebContents): { id: string } | null;
+    jableFallbackOrigin: string;
+    jablePrimaryOrigin: string;
+    jableSession: Electron.Session;
+    ipcMain: typeof Electron.ipcMain;
+    logger?: { info(message?: unknown, ...optionalParams: unknown[]): void } | null;
+    isAutoDownloadOnPlaybackEnabled?(): boolean;
+    completeHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): void;
+    shouldContinueHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): boolean;
+    shouldProxyHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): boolean;
+    prepareHlsPlaybackCapture?(value: {
+      videoUrl: string;
+      pageLoadId?: string | null;
+      title: string | null;
+      views: number | null;
+      likes: number | null;
+      img: string | null;
+      preview: string | null;
+      playlistUrl: string;
+      playlistText: string;
+    }): {
+      videoUrl: string;
+      playlistUrl: string;
+      segmentCount: number;
+      segments: Array<{ url: string; filePath: string }>;
+    } | null;
+    recordHlsPlaybackCaptureSegment?(value: { videoUrl: string; pageLoadId?: string | null; filePath: string }): void;
+    webContentsFromId(webContentsId: number): Electron.WebContents | null;
+  }): Promise<void>;
+};
 const electron: typeof Electron = require('electron');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
@@ -134,6 +168,7 @@ const downloadManagerModule = require('./main-process/download-manager') as {
   createDownloadManager(context: DownloadManagerContext): DownloadManager;
 };
 const i18n = require('./i18n') as I18nModule;
+const hlsPlaybackCapture = require('./main-process/hls-playback-capture') as HlsPlaybackCaptureModule;
 const ipcHandlers = require('./main-process/ipc-handlers') as {
   registerIpcHandlers(context: IpcHandlersContext): void;
 };
@@ -243,6 +278,40 @@ function installLocalPlaybackProtocol() {
 
   localPlaybackProtocol.handle(LOCAL_PLAYBACK_SCHEME, function (request: Request) {
     return getDownloadManager().handleLocalPlaybackRequest(request);
+  });
+}
+
+function installHlsPlaybackCapture(): Promise<void> {
+  return hlsPlaybackCapture.installHlsPlaybackCapture({
+    canonicalJableVideoUrl: urlPolicy.canonicalJableVideoUrl,
+    env: process.env,
+    getBrowserTabByWebContents: getBrowserTabByWebContents,
+    jableFallbackOrigin: urlPolicy.JABLE_FALLBACK_ORIGIN,
+    jablePrimaryOrigin: urlPolicy.JABLE_PRIMARY_ORIGIN,
+    jableSession: session.fromPartition(JABLE_SESSION_PARTITION),
+    ipcMain: ipcMain,
+    logger: console,
+    isAutoDownloadOnPlaybackEnabled: function () {
+      return getAppSettings().autoDownloadOnPlayback;
+    },
+    prepareHlsPlaybackCapture: function (value) {
+      return getDownloadManager().prepareHlsPlaybackCapture(value);
+    },
+    completeHlsPlaybackCapture: function (value) {
+      getDownloadManager().completeHlsPlaybackCapture(value);
+    },
+    shouldContinueHlsPlaybackCapture: function (value) {
+      return getDownloadManager().shouldContinueHlsPlaybackCapture(value);
+    },
+    shouldProxyHlsPlaybackCapture: function (value) {
+      return getDownloadManager().shouldProxyHlsPlaybackCapture(value);
+    },
+    recordHlsPlaybackCaptureSegment: function (value) {
+      getDownloadManager().recordHlsPlaybackCaptureSegment(value);
+    },
+    webContentsFromId: function (webContentsId) {
+      return electron.webContents.fromId(webContentsId) || null;
+    }
   });
 }
 
@@ -1013,7 +1082,7 @@ registerIpcHandlers();
 
 configureAppStorageForTests();
 
-app.whenReady().then(function () {
+app.whenReady().then(async function () {
   app.setName('Jable Desktop');
   currentLocale = i18n.normalizeLocale(app.getLocale());
   installApplicationMenu();
@@ -1021,6 +1090,7 @@ app.whenReady().then(function () {
   getDatabase();
   installLocalPlaybackProtocol();
   installWebViewEnhancement();
+  await installHlsPlaybackCapture();
   createWindow();
   scheduleBackgroundUpdateCheck();
 

@@ -1,6 +1,6 @@
 # IPC Contract Specification
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-18
 
 This document summarizes the current IPC boundary. `app/types/jable.ts` is the source of truth for exact TypeScript payload and response types.
 
@@ -34,6 +34,7 @@ Current behavior:
 - `getAppInfo()` returns database path, current locale, and system locale.
 - `getSettings()` returns normalized persisted app settings.
 - `updateSettings()` normalizes and persists supported settings only.
+- `autoDownloadOnPlayback` defaults to `false`; when set to `true`, Jable browser-tab HLS playback may be proxied through app-owned loopback URLs so playback and background completion share one managed segment cache. The download record is created only after webview preload reports actual video playback, not merely when the page preloads a playlist.
 - `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
 
 ## Downloads And FFmpeg API
@@ -70,16 +71,17 @@ Current behavior:
 - Download records include `collectionKeys` for current visible local collection membership. The original enqueue source collection does not control the stored file path.
 - Enqueue, retry, and resume verify FFmpeg readiness before queueing work.
 - The main-process download queue can run multiple active video downloads up to the persisted Settings > Downloads maximum.
-- Pause marks queued or active records `paused`, aborts active Rust/FFmpeg work, removes unreliable `.mp4.part` output, and preserves resumable segment temp files.
+- Pause marks queued or active records `paused`, aborts active Rust/FFmpeg work or playback-capture prefetch, removes unreliable `.mp4.part` output, and preserves resumable segment temp files.
 - During App quit, pause-and-close waits for active download workers to settle before the native data engine is closed, so paused-state cleanup can still write safely.
 - Resume moves a paused record back to `queued`; the active worker refreshes source metadata and reuses compatible completed segment files. Compatibility ignores signed CDN URL changes and uses reusable segment structure instead.
 - HLS key and segment fetching is delegated to the Rust native download engine; the main process passes request headers, segment metadata, adaptive concurrency bounds, retry limit, and a temporary directory path.
 - Open, reveal, retry, pause, resume, cancel, and delete calls use a video URL, not renderer-provided local paths.
-- Delete verifies managed-root containment before unlinking a local file.
+- Delete verifies managed-root containment before unlinking a local file. If the deleted item is an active playback-triggered capture, main also suppresses further writes from the still-open playback token so continued page playback does not recreate the record.
 - `localPlaybackSource()` returns a short-lived `jable-local-video://` source only for canonical trusted video URLs whose managed download record is `ready` and whose file still exists inside the current download root.
 - The local playback protocol supports `GET`, `HEAD`, and single byte ranges for MP4 playback. It revalidates the download record and managed file path for every request.
+- Browser-tab preload may invoke the internal `hls:playlist-proxy-url` IPC from a trusted Jable video page with the playlist URL and current page metadata. It also sends the internal `hls:playback-started` notification when the page `<video>` actually starts playing. Main returns unavailable while `autoDownloadOnPlayback` is off, unless a development HLS proxy/capture environment flag explicitly enables diagnostics.
 - Main forwards `downloads-changed` browser messages with the current download list after download state changes, and also sends the same direct message to browser-tab preloads so open video pages can re-check local playback.
-- Active `downloads-changed` records may include runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields while work is running. Download speed is sampled from completed reusable segment bytes at most once per second and is not persisted.
+- Active `downloads-changed` records may include runtime-only `downloadedBytes`, `downloadSpeedBytesPerSecond`, or playback-capture `progress` fields while work is running. Download speed and active playback-capture progress are sampled from completed reusable segment bytes and are not persisted.
 - The renderer uses `downloads-changed` to refresh Download List/source-card state and to show completion/failure toasts.
 
 ## Local Data API

@@ -110,6 +110,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     ),
     autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations),
     ffmpegPath: normalizeNullableString(record.ffmpegPath),
+    autoDownloadOnPlayback: Boolean(record.autoDownloadOnPlayback),
     downloadRoot: normalizeNullableString(record.downloadRoot),
     downloadStateFilters: normalizeDownloadStateFilters(record.downloadStateFilters, record.downloadStateFilter),
     downloadSpeedMode: normalizeDownloadSpeedMode(record.downloadSpeedMode),
@@ -154,6 +155,9 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   }
   if (Object.prototype.hasOwnProperty.call(value, 'ffmpegPath')) {
     patch.ffmpegPath = normalizeNullableString(value.ffmpegPath);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'autoDownloadOnPlayback')) {
+    patch.autoDownloadOnPlayback = Boolean(value.autoDownloadOnPlayback);
   }
   if (Object.prototype.hasOwnProperty.call(value, 'downloadRoot')) {
     patch.downloadRoot = normalizeNullableString(value.downloadRoot);

@@ -27,7 +27,8 @@ import type {
   LocalPlaybackUnavailableReason,
   OpenDownloadFileResult,
   PauseDownloadResult,
-  RevealDownloadFileResult
+  RevealDownloadFileResult,
+  VideoMetadataRefreshPayload
 } from '../types/jable';
 import {
   DownloadCanceledError,
@@ -96,9 +97,39 @@ type NativeDownloadSegmentsResult = {
   playlistPath: string;
   downloadedBytes: number;
 };
+type HlsPlaybackCapturePlan = {
+  videoUrl: string;
+  playlistUrl: string;
+  segmentCount: number;
+  segments: Array<{
+    url: string;
+    filePath: string;
+  }>;
+};
+type HlsPlaybackCapturePreparePayload = {
+  videoUrl: string;
+  pageLoadId?: string | null;
+  title: string | null;
+  views: number | null;
+  likes: number | null;
+  img: string | null;
+  preview: string | null;
+  playlistUrl: string;
+  playlistText: string;
+};
+type HlsPlaybackCaptureSegmentPayload = {
+  videoUrl: string;
+  pageLoadId?: string | null;
+  filePath: string;
+};
+type HlsPlaybackCaptureCompletePayload = {
+  videoUrl: string;
+  pageLoadId?: string | null;
+};
 type DownloadDataStore = {
   listDownloadAssets(): DownloadRecord[];
   getDownloadAsset(videoUrl: string): DownloadRecord | null;
+  upsertVideoMetadata(payload: VideoMetadataRefreshPayload): { updated: boolean; url: string };
   upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord;
   removeDownloadAsset(videoUrl: string): boolean;
 };
@@ -181,8 +212,13 @@ export type DownloadManager = {
   openDownloadRoot(): Promise<{ opened: boolean; path: string }>;
   pauseDownload(value: unknown): PauseDownloadResult;
   pauseAllDownloads(): BulkDownloadActionResult;
+  completeHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload): void;
+  prepareHlsPlaybackCapture(value: HlsPlaybackCapturePreparePayload): HlsPlaybackCapturePlan | null;
   pauseDownloadsForShutdown(): Promise<void>;
   processQueue(): void;
+  recordHlsPlaybackCaptureSegment(value: HlsPlaybackCaptureSegmentPayload): void;
+  shouldProxyHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload): boolean;
+  shouldContinueHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload): boolean;
   resumeDownload(value: unknown): Promise<EnqueueDownloadResult>;
   resumePausedDownloads(): Promise<BulkDownloadActionResult>;
   retryDownload(value: unknown): Promise<EnqueueDownloadResult>;
@@ -249,6 +285,15 @@ const localPlaybackTokens = new Map<string, { videoUrl: string; expiresAt: numbe
 const localPlaybackPreviewQueue: string[] = [];
 const localPlaybackPreviewQueuedUrls = new Set<string>();
 const localPlaybackPreviewFailedKeys = new Set<string>();
+const hlsPlaybackCaptureProgressNotifications = new Map<
+  string,
+  { captured: number; notifiedAt: number; total: number }
+>();
+const hlsPlaybackCaptureActiveDownloadUrls = new Set<string>();
+const hlsPlaybackCaptureActivePageLoadIds = new Map<string, string>();
+const hlsPlaybackCaptureAutoQueuedUrls = new Set<string>();
+const hlsPlaybackCaptureRuntimeProgress = new Map<string, number>();
+const hlsPlaybackCaptureSuppressedPageLoadIds = new Map<string, string | null>();
 let activeLocalPlaybackPreviewTask: Promise<void> | null = null;
 
 function t(key: string, params?: TranslationParams | null): string {
@@ -528,6 +573,17 @@ function upsertPersistedDownload(patch: DownloadRecordPatch): DownloadRecord {
   return getDatabase().upsertDownloadAsset(patch);
 }
 
+function upsertDownloadVideoMetadata(payload: DownloadRequestPayload) {
+  getDatabase().upsertVideoMetadata({
+    url: payload.video.url,
+    title: payload.video.title,
+    views: payload.video.views,
+    likes: payload.video.likes,
+    img: payload.video.img,
+    preview: payload.video.preview
+  });
+}
+
 function removePersistedDownload(videoUrl: string): boolean {
   return getDatabase().removeDownloadAsset(videoUrl);
 }
@@ -575,8 +631,9 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
   if (fileRecord.state !== 'queued' && fileRecord.state !== 'downloading') return fileRecord;
 
   const isActive = activeDownloads.has(fileRecord.videoUrl);
+  const isCapturingPlayback = hlsPlaybackCaptureActiveDownloadUrls.has(fileRecord.videoUrl);
   const isQueued = downloadQueue.indexOf(fileRecord.videoUrl) !== -1;
-  if (isActive || isQueued) return fileRecord;
+  if (isActive || isCapturingPlayback || isQueued) return fileRecord;
 
   return Object.assign({}, fileRecord, {
     state: 'paused' as const,
@@ -590,6 +647,13 @@ function downloadRecordWithRuntimeState(record: DownloadRecord): DownloadRecord 
 
 function downloadRecordWithRuntimeProgress(record: DownloadRecord): DownloadRecord {
   if (record.state !== 'downloading') return record;
+
+  const hlsPlaybackProgress = hlsPlaybackCaptureRuntimeProgress.get(record.videoUrl);
+  if (typeof hlsPlaybackProgress === 'number') {
+    return Object.assign({}, record, {
+      progress: hlsPlaybackProgress
+    });
+  }
 
   const runtimeProgress = downloadRuntimeProgress.get(record.videoUrl);
   if (!runtimeProgress) return record;
@@ -1622,6 +1686,342 @@ function prepareDownloadSegmentTempDirectory(
   fs.writeFileSync(downloadResumeManifestPath(outputPath), JSON.stringify(playlistResumeIdentity(playlist), null, 2));
 }
 
+function playbackCaptureDownloadPayload(
+  videoUrl: string,
+  metadata: {
+    title: string | null;
+    views: number | null;
+    likes: number | null;
+    img: string | null;
+    preview: string | null;
+  }
+): DownloadRequestPayload {
+  const cleanTitle = playbackCaptureCleanTitle(metadata.title);
+
+  return {
+    collectionKey: 'favourites',
+    video: {
+      title: cleanTitle || videoUrlSlug(videoUrl),
+      url: videoUrl,
+      views: metadata.views,
+      likes: metadata.likes,
+      img: metadata.img,
+      preview: metadata.preview
+    }
+  };
+}
+
+function playbackCaptureCleanTitle(value: string | null): string | null {
+  if (!value) return null;
+  const title = value
+    .replace(/\s+/g, ' ')
+    .replace(/\s*[-|]\s*Jable\.TV\b.*$/i, '')
+    .trim();
+  return title || null;
+}
+
+function playbackCaptureMetadata(value: Partial<HlsPlaybackCapturePreparePayload> | null | undefined) {
+  return {
+    title: typeof value?.title === 'string' && value.title.trim() ? value.title.trim() : null,
+    views: typeof value?.views === 'number' && Number.isFinite(value.views) ? value.views : null,
+    likes: typeof value?.likes === 'number' && Number.isFinite(value.likes) ? value.likes : null,
+    img: typeof value?.img === 'string' && value.img.trim() ? value.img.trim() : null,
+    preview: typeof value?.preview === 'string' && value.preview.trim() ? value.preview.trim() : null
+  };
+}
+
+function playbackCapturePageLoadId(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function playbackCaptureSegmentFiles(outputPath: string, playlist: HlsPlaylist): HlsPlaybackCapturePlan['segments'] {
+  const tempDir = downloadSegmentTempDirectory(outputPath);
+  return playlist.segments.map(function (segment, index) {
+    return {
+      url: segment.url,
+      filePath: path.join(tempDir, segmentFileName(index, segment.url))
+    };
+  });
+}
+
+function suppressHlsPlaybackCapture(videoUrl: string) {
+  hlsPlaybackCaptureActiveDownloadUrls.delete(videoUrl);
+  hlsPlaybackCaptureRuntimeProgress.delete(videoUrl);
+  hlsPlaybackCaptureProgressNotifications.delete(videoUrl);
+  hlsPlaybackCaptureSuppressedPageLoadIds.set(videoUrl, hlsPlaybackCaptureActivePageLoadIds.get(videoUrl) || null);
+}
+
+function allowHlsPlaybackCapture(videoUrl: string) {
+  hlsPlaybackCaptureSuppressedPageLoadIds.delete(videoUrl);
+}
+
+function hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl: string, pageLoadId: string | null): boolean {
+  if (!hlsPlaybackCaptureSuppressedPageLoadIds.has(videoUrl)) return false;
+
+  const suppressedPageLoadId = hlsPlaybackCaptureSuppressedPageLoadIds.get(videoUrl) || null;
+  if (!suppressedPageLoadId) {
+    hlsPlaybackCaptureSuppressedPageLoadIds.delete(videoUrl);
+    return false;
+  }
+  if (!pageLoadId) return true;
+  if (suppressedPageLoadId === pageLoadId) return true;
+
+  hlsPlaybackCaptureSuppressedPageLoadIds.delete(videoUrl);
+  return false;
+}
+
+function prepareHlsPlaybackCapture(value: HlsPlaybackCapturePreparePayload): HlsPlaybackCapturePlan | null {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(value && value.videoUrl);
+  const pageLoadId = playbackCapturePageLoadId(value && value.pageLoadId);
+  const playlistUrl = typeof value.playlistUrl === 'string' ? value.playlistUrl : '';
+  const playlistText = typeof value.playlistText === 'string' ? value.playlistText : '';
+  const metadata = playbackCaptureMetadata(value);
+  if (!videoUrl || !playlistUrl || !playlistText) return null;
+  if (hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl, pageLoadId)) return null;
+
+  let playlist: HlsPlaylist;
+  try {
+    playlist = downloadHelpers.parseHlsPlaylist(playlistText, playlistUrl);
+  } catch (error) {
+    return null;
+  }
+  if (!playlist.segments.length) return null;
+
+  const existing = getPersistedDownload(videoUrl);
+  const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
+  if (
+    existingRecord &&
+    (existingRecord.state === 'queued' || existingRecord.state === 'downloading' || existingRecord.state === 'ready')
+  ) {
+    return null;
+  }
+
+  try {
+    ensureDownloadRootReady();
+  } catch (error) {
+    return null;
+  }
+
+  const localPath =
+    existingRecord && existingRecord.localPath && resolveManagedDownloadPath(existingRecord.localPath)
+      ? existingRecord.localPath
+      : downloadOutputRelativePath(playbackCaptureDownloadPayload(videoUrl, metadata));
+  const outputPath = resolveManagedDownloadPath(localPath);
+  if (!outputPath) return null;
+
+  try {
+    prepareDownloadSegmentTempDirectory(outputPath, playlist, true);
+  } catch (error) {
+    return null;
+  }
+
+  const payload = playbackCaptureDownloadPayload(videoUrl, metadata);
+  const activePlaybackDownload = Boolean(getAppSettings().autoDownloadOnPlayback);
+  if (pageLoadId) hlsPlaybackCaptureActivePageLoadIds.set(videoUrl, pageLoadId);
+  if (activePlaybackDownload) hlsPlaybackCaptureActiveDownloadUrls.add(videoUrl);
+  upsertDownloadVideoMetadata(payload);
+  upsertPersistedDownload({
+    videoUrl: videoUrl,
+    title:
+      existingRecord && existingRecord.title
+        ? playbackCaptureCleanTitle(existingRecord.title) || payload.video.title
+        : payload.video.title,
+    img: payload.video.img || (existingRecord ? existingRecord.img : null),
+    preview: payload.video.preview || (existingRecord ? existingRecord.preview : null),
+    localPath: localPath,
+    state: activePlaybackDownload ? 'downloading' : 'paused',
+    progress: existingRecord && typeof existingRecord.progress === 'number' ? existingRecord.progress : 0,
+    error: null,
+    failurePhase: null,
+    failureCode: null,
+    lastStartedAt: activePlaybackDownload
+      ? existingRecord && existingRecord.lastStartedAt
+        ? existingRecord.lastStartedAt
+        : downloadTimestamp()
+      : existingRecord
+        ? existingRecord.lastStartedAt
+        : null,
+    completedAt: null
+  });
+  notifyDownloadsChanged();
+
+  return {
+    videoUrl: videoUrl,
+    playlistUrl: playlistUrl,
+    segmentCount: playlist.segments.length,
+    segments: playbackCaptureSegmentFiles(outputPath, playlist)
+  };
+}
+
+function capturedPlaybackSegmentCount(outputPath: string): number {
+  return reusableSegmentFileCount(outputPath, {
+    variants: [],
+    segments: playbackCaptureSegmentUrlsFromResumeManifest(outputPath),
+    targetDuration: null
+  });
+}
+
+function playbackCaptureSegmentUrlsFromResumeManifest(outputPath: string): HlsSegment[] {
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(fs.readFileSync(downloadResumeManifestPath(outputPath), 'utf8'));
+  } catch (error) {
+    return [];
+  }
+
+  const segments = manifest && typeof manifest === 'object' ? (manifest as { segments?: unknown }).segments : null;
+  if (!Array.isArray(segments)) return [];
+
+  return segments.map(function (segment, index) {
+    const record = segment && typeof segment === 'object' ? (segment as { extension?: unknown }) : {};
+    const extension = typeof record.extension === 'string' && record.extension ? record.extension : 'ts';
+    return {
+      url: 'playback-capture-segment-' + String(index + 1) + '.' + extension,
+      duration: null,
+      key: null
+    };
+  });
+}
+
+function shouldNotifyHlsPlaybackCaptureProgress(videoUrl: string, captured: number, total: number): boolean {
+  const now = Date.now();
+  const previous = hlsPlaybackCaptureProgressNotifications.get(videoUrl) || null;
+  const shouldNotify =
+    !previous ||
+    captured >= total ||
+    total !== previous.total ||
+    now - previous.notifiedAt >= DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS;
+  if (!shouldNotify) return false;
+
+  hlsPlaybackCaptureProgressNotifications.set(videoUrl, {
+    captured: captured,
+    notifiedAt: now,
+    total: total
+  });
+  return true;
+}
+
+function queueCompletedHlsPlaybackCapture(record: DownloadRecord, captured: number, total: number) {
+  if (!getAppSettings().autoDownloadOnPlayback) return;
+  if (captured < total || (record.state !== 'paused' && record.state !== 'downloading')) return;
+  if (hlsPlaybackCaptureAutoQueuedUrls.has(record.videoUrl)) return;
+  if (downloadQueue.indexOf(record.videoUrl) !== -1 || activeDownloads.has(record.videoUrl)) return;
+
+  hlsPlaybackCaptureAutoQueuedUrls.add(record.videoUrl);
+  hlsPlaybackCaptureActiveDownloadUrls.delete(record.videoUrl);
+  hlsPlaybackCaptureRuntimeProgress.delete(record.videoUrl);
+  hlsPlaybackCaptureProgressNotifications.delete(record.videoUrl);
+  resumedDownloadUrls.add(record.videoUrl);
+  const queued = upsertPersistedDownload({
+    videoUrl: record.videoUrl,
+    state: 'queued',
+    progress: null,
+    error: null,
+    failurePhase: null,
+    failureCode: null,
+    completedAt: null
+  });
+  queueDownloadRecord(queued);
+}
+
+function recordHlsPlaybackCaptureSegment(value: HlsPlaybackCaptureSegmentPayload) {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(value && value.videoUrl);
+  const pageLoadId = playbackCapturePageLoadId(value && value.pageLoadId);
+  const filePath = typeof value.filePath === 'string' ? value.filePath : '';
+  if (!videoUrl || !filePath) return;
+  if (hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl, pageLoadId)) return;
+
+  const record = getPersistedDownload(videoUrl);
+  if (!record || !record.localPath) return;
+
+  const outputPath = resolveManagedDownloadPath(record.localPath);
+  if (!outputPath) return;
+
+  const tempDir = downloadSegmentTempDirectory(outputPath);
+  if (!isPathInsideDirectory(filePath, tempDir)) return;
+
+  const segments = playbackCaptureSegmentUrlsFromResumeManifest(outputPath);
+  if (!segments.length) return;
+
+  const captured = capturedPlaybackSegmentCount(outputPath);
+  const progress = Math.max(0, Math.min(1, captured / segments.length));
+  if (record.state === 'downloading' && hlsPlaybackCaptureActiveDownloadUrls.has(videoUrl)) {
+    hlsPlaybackCaptureRuntimeProgress.set(videoUrl, progress);
+    if (shouldNotifyHlsPlaybackCaptureProgress(videoUrl, captured, segments.length)) notifyDownloadsChanged();
+    queueCompletedHlsPlaybackCapture(downloadRecordWithRuntimeProgress(record), captured, segments.length);
+    return;
+  }
+
+  const updated = upsertPersistedDownload({
+    videoUrl: videoUrl,
+    state: record.state === 'failed' || record.state === 'missing' ? 'paused' : record.state,
+    progress: progress,
+    error: null,
+    failurePhase: null,
+    failureCode: null
+  });
+
+  if (shouldNotifyHlsPlaybackCaptureProgress(videoUrl, captured, segments.length)) notifyDownloadsChanged();
+  queueCompletedHlsPlaybackCapture(updated, captured, segments.length);
+}
+
+function completeHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload) {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(value && value.videoUrl);
+  const pageLoadId = playbackCapturePageLoadId(value && value.pageLoadId);
+  if (!videoUrl) return;
+
+  hlsPlaybackCaptureActiveDownloadUrls.delete(videoUrl);
+  hlsPlaybackCaptureRuntimeProgress.delete(videoUrl);
+  hlsPlaybackCaptureProgressNotifications.delete(videoUrl);
+  if (hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl, pageLoadId)) return;
+
+  const record = getPersistedDownload(videoUrl);
+  if (!record || !record.localPath) return;
+
+  const outputPath = resolveManagedDownloadPath(record.localPath);
+  if (!outputPath) return;
+
+  const segments = playbackCaptureSegmentUrlsFromResumeManifest(outputPath);
+  if (!segments.length) return;
+
+  const captured = capturedPlaybackSegmentCount(outputPath);
+  const progress = Math.max(0, Math.min(1, captured / segments.length));
+  const current = getPersistedDownload(videoUrl);
+  if (!current) return;
+
+  if (captured >= segments.length) {
+    queueCompletedHlsPlaybackCapture(current, captured, segments.length);
+    return;
+  }
+
+  upsertPersistedDownload({
+    videoUrl: videoUrl,
+    state: 'paused',
+    progress: progress,
+    error: null,
+    failurePhase: null,
+    failureCode: null
+  });
+  notifyDownloadsChanged();
+}
+
+function shouldContinueHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload) {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(value && value.videoUrl);
+  const pageLoadId = playbackCapturePageLoadId(value && value.pageLoadId);
+  if (!videoUrl || hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl, pageLoadId)) return false;
+
+  const record = getPersistedDownload(videoUrl);
+  if (!record || !record.localPath) return false;
+  return record.state === 'downloading' || hlsPlaybackCaptureActiveDownloadUrls.has(videoUrl);
+}
+
+function shouldProxyHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload) {
+  const videoUrl = urlPolicy.canonicalJableVideoUrl(value && value.videoUrl);
+  const pageLoadId = playbackCapturePageLoadId(value && value.pageLoadId);
+  if (!videoUrl) return false;
+  return !hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl, pageLoadId);
+}
+
 function removeDownloadWorkingFiles(record: DownloadRecord) {
   const outputPath = resolveManagedDownloadPath(record.localPath);
   if (!outputPath) return;
@@ -2085,9 +2485,13 @@ async function runQueuedDownload(record: DownloadRecord) {
       if (!paused) removeDownloadSegmentTempDirectory(outputPath);
     }
     downloadRuntimeProgress.delete(record.videoUrl);
+    hlsPlaybackCaptureRuntimeProgress.delete(record.videoUrl);
+    hlsPlaybackCaptureProgressNotifications.delete(record.videoUrl);
     canceledDownloadUrls.delete(record.videoUrl);
     pausedDownloadUrls.delete(record.videoUrl);
     resumedDownloadUrls.delete(record.videoUrl);
+    hlsPlaybackCaptureActiveDownloadUrls.delete(record.videoUrl);
+    hlsPlaybackCaptureAutoQueuedUrls.delete(record.videoUrl);
     activeDownloads.delete(record.videoUrl);
   }
 }
@@ -2122,6 +2526,7 @@ function queueDownloadRecord(record: DownloadRecord) {
 
 async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const payload = normalizeDownloadRequestPayload(value);
+  allowHlsPlaybackCapture(payload.video.url);
   const existing = getPersistedDownload(payload.video.url);
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   const existingState = existingRecord ? existingRecord.state : null;
@@ -2132,10 +2537,12 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
       queued: false
     };
   }
+  if (existingState === 'paused') return resumeDownload(payload.video.url);
 
   await ffmpegCommandForDownload();
   ensureDownloadRootReady();
 
+  upsertDownloadVideoMetadata(payload);
   const record = upsertPersistedDownload({
     videoUrl: payload.video.url,
     title: payload.video.title,
@@ -2158,6 +2565,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
 
 async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:retry');
+  if (videoUrl) allowHlsPlaybackCapture(videoUrl);
   const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   const existingState = existingRecord ? existingRecord.state : null;
@@ -2223,6 +2631,7 @@ function removeQueuedDownload(videoUrl: string): boolean {
 
 async function resumeDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const videoUrl = normalizeDownloadVideoUrl(value, 'videoUrl', 'download:resume');
+  if (videoUrl) allowHlsPlaybackCapture(videoUrl);
   const existing = videoUrl ? getPersistedDownload(videoUrl) : null;
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
   const existingState = existingRecord ? existingRecord.state : null;
@@ -2291,13 +2700,15 @@ function pauseDownload(value: unknown): PauseDownloadResult {
 
   const runtime = activeDownloads.get(videoUrl) || null;
   const isActive = Boolean(runtime);
+  const isPlaybackCaptureActive = hlsPlaybackCaptureActiveDownloadUrls.has(videoUrl);
   const isQueued = removeQueuedDownload(videoUrl);
-  if (!isActive && !isQueued && currentRecord.state !== 'paused') {
+  if (!isActive && !isPlaybackCaptureActive && !isQueued && currentRecord.state !== 'paused') {
     throw new Error(t('status.downloadPauseUnavailable'));
   }
 
   canceledDownloadUrls.delete(videoUrl);
   pausedDownloadUrls.add(videoUrl);
+  suppressHlsPlaybackCapture(videoUrl);
 
   const record = upsertPersistedDownload({
     videoUrl: videoUrl,
@@ -2314,6 +2725,8 @@ function pauseDownload(value: unknown): PauseDownloadResult {
     runtime.abortController.abort();
     if (runtime.nativeId) getDownloadEngine().cancelDownload(runtime.nativeId);
     if (runtime.process) runtime.process.kill('SIGTERM');
+  } else if (isPlaybackCaptureActive) {
+    hlsPlaybackCaptureActiveDownloadUrls.delete(videoUrl);
   } else {
     removePartialDownloadFileForRecord(record);
   }
@@ -2361,12 +2774,16 @@ function cancelDownload(value: unknown): CancelDownloadResult {
 
   const runtime = activeDownloads.get(videoUrl) || null;
   const isActive = Boolean(runtime);
-  if (!isActive && currentRecord.state !== 'queued') throw new Error(t('status.downloadCancelUnavailable'));
+  const isPlaybackCaptureActive = hlsPlaybackCaptureActiveDownloadUrls.has(videoUrl);
+  if (!isActive && !isPlaybackCaptureActive && currentRecord.state !== 'queued') {
+    throw new Error(t('status.downloadCancelUnavailable'));
+  }
 
   removeQueuedDownload(videoUrl);
   if (isActive) canceledDownloadUrls.add(videoUrl);
   pausedDownloadUrls.delete(videoUrl);
   resumedDownloadUrls.delete(videoUrl);
+  suppressHlsPlaybackCapture(videoUrl);
 
   const record = upsertPersistedDownload({
     videoUrl: videoUrl,
@@ -2489,6 +2906,7 @@ function deleteDownloadRecord(visibleRecord: DownloadRecord): { deleted: boolean
   canceledDownloadUrls.delete(visibleRecord.videoUrl);
   pausedDownloadUrls.delete(visibleRecord.videoUrl);
   resumedDownloadUrls.delete(visibleRecord.videoUrl);
+  suppressHlsPlaybackCapture(visibleRecord.videoUrl);
   removeQueuedLocalPlaybackPreviewGeneration(visibleRecord.videoUrl);
 
   const deleted = deleteManagedDownloadFile(visibleRecord);
@@ -2511,7 +2929,9 @@ async function deleteDownload(value: unknown): Promise<DeleteDownloadResult> {
   const record = getPersistedDownload(videoUrl);
   const visibleRecord = record ? downloadRecordWithRuntimeState(record) : null;
   if (!visibleRecord) throw new Error(t('status.downloadFileUnavailable'));
-  if (visibleRecord.state === 'downloading') throw new Error(t('status.downloadDeleteActiveBlocked'));
+  if (visibleRecord.state === 'downloading' && !hlsPlaybackCaptureActiveDownloadUrls.has(videoUrl)) {
+    throw new Error(t('status.downloadDeleteActiveBlocked'));
+  }
 
   const confirmed = await confirmDeleteDownload(downloadRecordHasManagedFile(visibleRecord));
   if (!confirmed) {
@@ -2739,8 +3159,13 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     openDownloadRoot: openDownloadRoot,
     pauseDownload: pauseDownload,
     pauseAllDownloads: pauseAllDownloads,
+    completeHlsPlaybackCapture: completeHlsPlaybackCapture,
+    prepareHlsPlaybackCapture: prepareHlsPlaybackCapture,
     pauseDownloadsForShutdown: pauseDownloadsForShutdown,
     processQueue: processDownloadQueue,
+    recordHlsPlaybackCaptureSegment: recordHlsPlaybackCaptureSegment,
+    shouldProxyHlsPlaybackCapture: shouldProxyHlsPlaybackCapture,
+    shouldContinueHlsPlaybackCapture: shouldContinueHlsPlaybackCapture,
     resumeDownload: resumeDownload,
     resumePausedDownloads: resumePausedDownloads,
     retryDownload: retryDownload,

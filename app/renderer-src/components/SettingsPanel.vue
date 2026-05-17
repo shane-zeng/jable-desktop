@@ -137,6 +137,10 @@ function updateDownloadSpeedMode(mode: DownloadSpeedMode) {
   updateSettings({ downloadSpeedMode: mode });
 }
 
+function updateAutoDownloadOnPlayback(event: Event) {
+  updateSettings({ autoDownloadOnPlayback: eventChecked(event) });
+}
+
 function updateLocale(event: Event) {
   emit('change-locale', i18n.normalizeLocale(eventValue(event)));
 }
@@ -499,6 +503,21 @@ function confirmImport() {
                 {{ t('settings.downloads.speed.' + downloadSpeedModeHints[settings.downloadSpeedMode]) }}
               </p>
             </div>
+          </div>
+
+          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
+            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.playback.label') }}</span>
+            <label class="flex max-w-[680px] items-start gap-3 text-sm leading-6 text-[var(--muted)]">
+              <input
+                class="mt-1"
+                data-test="settings-auto-download-on-playback"
+                type="checkbox"
+                :checked="settings.autoDownloadOnPlayback"
+                :disabled="busy"
+                @change="updateAutoDownloadOnPlayback"
+              />
+              <span>{{ t('settings.downloads.playback.description') }}</span>
+            </label>
           </div>
 
           <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">

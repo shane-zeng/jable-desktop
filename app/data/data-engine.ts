@@ -65,6 +65,7 @@ export type DataEngine = {
   countVideos(collectionKey: CollectionKey, options?: DatabaseListOptions | null): number;
   getCollectionUrls(collectionKey: CollectionKey): string[];
   allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean;
+  upsertVideoMetadata(payload?: VideoMetadataRefreshPayload | null): { updated: boolean; url: string };
   refreshVideoMetadata(payload?: VideoMetadataRefreshPayload | null): VideoMetadataRefreshResult;
   saveSyncPage(payload: SyncPagePayload): { saved: number; collectionKey: CollectionKey; page: number | null };
   applyCollectionToggle(payload?: CollectionTogglePayload | null): CollectionToggleResult;
@@ -132,6 +133,10 @@ class RustDataEngine implements DataEngine {
 
   allCollectionUrlsKnown(collectionKey: CollectionKey, urls?: unknown[] | null): boolean {
     return this.callNative('allCollectionUrlsKnown', { collectionKey: collectionKey, urls: urls || [] });
+  }
+
+  upsertVideoMetadata(payload?: VideoMetadataRefreshPayload | null): { updated: boolean; url: string } {
+    return this.callNative('upsertVideoMetadata', payload || {});
   }
 
   refreshVideoMetadata(payload?: VideoMetadataRefreshPayload | null): VideoMetadataRefreshResult {

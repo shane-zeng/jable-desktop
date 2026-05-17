@@ -9,10 +9,13 @@ const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
+const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
+const HLS_RESEARCH_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-research.ts');
 const SYNC_WORKER_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'sync-worker-manager.ts');
 const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
 const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-normalizers.ts');
 const SYNC_WORKFLOW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'composables', 'useSyncWorkflow.ts');
+const STYLES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'styles.css');
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload.ts');
 const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload-helpers.ts');
 
@@ -147,6 +150,7 @@ test('renderer reports queued operation failures through the pending remote tab 
 
 test('sync queue and finalization phases surface renderer status updates', function () {
   const source = readSource(APP_SOURCE_PATH);
+  const stylesSource = readSource(STYLES_SOURCE_PATH);
   const syncWorkflowSource = readSource(SYNC_WORKFLOW_SOURCE_PATH);
   const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
 
@@ -157,6 +161,8 @@ test('sync queue and finalization phases surface renderer status updates', funct
   assert.match(source, /message\.channel === 'sync-queue-progress'/);
   assert.match(syncWorkflowSource, /status\.syncQueueProgress/);
   assert.match(source, /class="app-toast-progress"/);
+  assert.match(stylesSource, /max-height: 40px/);
+  assert.match(stylesSource, /text-overflow: ellipsis/);
   assert.match(syncWorkflowSource, /status\.syncFinalizingLocalData/);
   assert.match(syncWorkflowSource, /status\.syncReturningLibrary/);
   assert.match(syncWorkflowSource, /waitForSyncReturningNotice/);
@@ -258,6 +264,102 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(webviewPreload, /ipcRenderer\.on\('downloads-changed'/);
   assert.match(webviewPreload, /data-jable-local-playback="true"/);
   assert.match(webviewPreload, /video\.setAttribute\('src', sourceUrl\)/);
+  assert.match(webviewPreload, /function restoreLocalPlaybackTimeline/);
+  assert.match(webviewPreload, /video\.currentTime = duration/);
+  assert.match(webviewPreload, /function reloadAfterActiveLocalPlaybackRemoved/);
+  assert.match(webviewPreload, /window\.location\.reload\(\)/);
+});
+
+test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function () {
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const downloadManagerSource = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const hlsCaptureSource = readSource(HLS_CAPTURE_SOURCE_PATH);
+  const hlsResearchSource = readSource(HLS_RESEARCH_SOURCE_PATH);
+  const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+
+  assert.match(mainSource, /hlsPlaybackCapture\.installHlsPlaybackCapture/);
+  assert.match(mainSource, /main-process\/hls-playback-capture/);
+  assert.doesNotMatch(mainSource, /main-process\/hls-playback-research/);
+  assert.match(mainSource, /jableSession: session\.fromPartition\(JABLE_SESSION_PARTITION\)/);
+  assert.match(hlsResearchSource, /JABLE_HLS_PROBE/);
+  assert.match(hlsResearchSource, /installHlsPlaybackResearch/);
+  assert.match(hlsCaptureSource, /JABLE_HLS_PROXY/);
+  assert.match(hlsCaptureSource, /JABLE_HLS_CAPTURE/);
+  assert.match(hlsCaptureSource, /installHlsPlaybackCapture/);
+  assert.match(hlsCaptureSource, /const HLS_PLAYLIST_PROXY_HOST = '127\.0\.0\.1'/);
+  assert.match(hlsCaptureSource, /http\.createServer/);
+  assert.match(hlsCaptureSource, /startHlsPlaylistProxyServer/);
+  assert.match(hlsCaptureSource, /ipcMain\.handle\('hls:playlist-proxy-url'/);
+  assert.match(hlsCaptureSource, /\[hls-proxy\] token/);
+  assert.match(hlsCaptureSource, /\/playlist\/' \+ token \+ '\.m3u8'/);
+  assert.equal(hlsCaptureSource.includes('parsed.pathname.match(/^\\/playlist\\/([A-Za-z0-9_-]+)\\.m3u8$/)'), true);
+  assert.match(hlsCaptureSource, /webRequest\.onBeforeSendHeaders/);
+  assert.match(hlsCaptureSource, /webRequest\.onCompleted/);
+  assert.equal(hlsCaptureSource.includes('webRequest.onBeforeRequest'), false);
+  assert.match(hlsCaptureSource, /hlsProbePathHash/);
+  assert.match(hlsCaptureSource, /hlsPlaylistProxyRewritePlaylist/);
+  assert.match(hlsCaptureSource, /hlsPlaylistProxyAssetUrl/);
+  assert.match(hlsCaptureSource, /prepareHlsPlaybackCapture/);
+  assert.match(hlsCaptureSource, /recordHlsPlaybackCaptureSegment/);
+  assert.match(hlsCaptureSource, /hls:playback-started/);
+  assert.match(hlsCaptureSource, /hlsPlaylistProxyPayloadMetadata/);
+  assert.match(hlsCaptureSource, /hlsPlaylistProxyPayloadPageLoadId/);
+  assert.match(hlsCaptureSource, /shouldProxyHlsPlaybackCapture/);
+  assert.match(
+    hlsCaptureSource,
+    /function hlsPlaybackCaptureActivePageKey\(webContentsId: number, videoUrl: string, pageLoadId: string \| null\)/
+  );
+  assert.match(
+    hlsCaptureSource,
+    /hlsPlaybackCaptureActivePageKey\(entry\.webContentsId, entry\.videoUrl, entry\.pageLoadId\)/
+  );
+  assert.match(hlsCaptureSource, /hlsPlaybackCaptureActivePageKey\(event\.sender\.id, senderVideoUrl, pageLoadId\)/);
+  assert.match(hlsCaptureSource, /class HlsPlaybackCaptureStoppedError/);
+  assert.equal(hlsCaptureSource.includes("stopped ? '[hls-capture] segment stopped'"), true);
+  assert.match(hlsCaptureSource, /hlsPlaybackCapturePageIsActive/);
+  assert.match(hlsCaptureSource, /shouldContinueHlsPlaybackCapture/);
+  assert.match(hlsCaptureSource, /isAutoDownloadOnPlaybackEnabled/);
+  assert.match(hlsCaptureSource, /startHlsPlaybackCapturePrefetch/);
+  assert.match(hlsCaptureSource, /hlsPlaylistProxyCapturedAssetResponse/);
+  assert.match(mainSource, /getAppSettings\(\)\.autoDownloadOnPlayback/);
+  assert.match(hlsCaptureSource, /\[hls-capture\] prepared/);
+  assert.match(hlsCaptureSource, /\[hls-capture\] segment saved/);
+  assert.match(downloadManagerSource, /prepareHlsPlaybackCapture/);
+  assert.match(downloadManagerSource, /recordHlsPlaybackCaptureSegment/);
+  assert.match(downloadManagerSource, /completeHlsPlaybackCapture/);
+  assert.match(downloadManagerSource, /hlsPlaybackCaptureRuntimeProgress/);
+  assert.match(downloadManagerSource, /hlsPlaybackCaptureSuppressedPageLoadIds/);
+  assert.match(downloadManagerSource, /upsertVideoMetadata/);
+  assert.match(hlsCaptureSource, /\/asset\//);
+  assert.match(hlsCaptureSource, /\[hls-proxy\] asset/);
+  assert.match(hlsCaptureSource, /\[hls-proxy\] asset served/);
+  assert.match(hlsCaptureSource, /hlsPlaylistProxyFallbackRedirect/);
+  assert.match(hlsCaptureSource, /referer: entry\.origin \+ '\/'/);
+  assert.match(hlsCaptureSource, /access-control-allow-credentials/);
+  assert.match(hlsCaptureSource, /access-control-allow-private-network/);
+  assert.match(hlsCaptureSource, /HLS_PLAYLIST_PROXY_FETCH_TIMEOUT_MS/);
+  assert.match(hlsCaptureSource, /\[hls-proxy\] request error/);
+  assert.match(hlsCaptureSource, /loopback HLS proxy/);
+  assert.match(hlsCaptureSource, /playlist requests require Settings auto-download or debug env/);
+  assert.match(hlsCaptureSource, /full HLS URLs are not logged/);
+  assert.match(hlsCaptureSource, /getBrowserTabByWebContents\(webContents\)/);
+  assert.match(webviewPreload, /function installHlsPlaylistProxyInterception/);
+  assert.match(webviewPreload, /invoke\('hls:playlist-proxy-url'/);
+  assert.match(webviewPreload, /send\('hls:playback-started'/);
+  assert.match(webviewPreload, /pageLoadId: hlsPlaybackPageLoadId/);
+  assert.match(webviewPreload, /views: currentVideo \? currentVideo\.views : null/);
+  assert.match(webviewPreload, /preview: currentVideo \? currentVideo\.preview : null/);
+  assert.match(webviewPreload, /installHlsPlaybackStartedObserver/);
+  assert.match(webviewPreload, /XMLHttpRequest\.prototype\.open/);
+  assert.match(webviewPreload, /XMLHttpRequest\.prototype\.send/);
+  assert.match(webviewPreload, /window\.fetch = function/);
+  assert.match(webviewPreload, /window\.postMessage/);
+  assert.match(webviewPreload, /title: document\.title/);
+  assert.equal(hlsResearchSource.includes('[hls-probe] request'), true);
+  for (const line of hlsCaptureSource.split('\n')) {
+    if (line.indexOf('logger(context).info') === -1) continue;
+    assert.equal(/,\s*details\.url/.test(line), false);
+  }
 });
 
 test('browser video pages refresh known local metadata through dedicated IPC', function () {

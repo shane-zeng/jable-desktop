@@ -11,6 +11,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   fullSyncAjaxWindowSize: 3,
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
+  autoDownloadOnPlayback: false,
   downloadRoot: null,
   downloadStateFilters: ['all'],
   downloadSpeedMode: 'balanced',

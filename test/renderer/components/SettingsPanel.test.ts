@@ -11,6 +11,7 @@ const settings: AppSettings = {
   fullSyncAjaxWindowSize: 5,
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
+  autoDownloadOnPlayback: false,
   downloadRoot: null,
   downloadStateFilters: ['all'],
   downloadSpeedMode: 'balanced',
@@ -69,6 +70,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('下載位置');
     expect(wrapper.text()).toContain('最多同時下載數');
     expect(wrapper.text()).toContain('下載速度模式');
+    expect(wrapper.text()).toContain('播放時自動下載');
     expect(wrapper.text()).toContain('資料');
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
@@ -107,6 +109,9 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-download-speed-fast"]').trigger('click');
     expect(wrapper.emitted('update-settings')).toContainEqual([{ downloadSpeedMode: 'fast' }]);
+
+    await wrapper.get('[data-test="settings-auto-download-on-playback"]').setValue(true);
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ autoDownloadOnPlayback: true }]);
 
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);
