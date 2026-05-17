@@ -19,6 +19,21 @@ import { useLibraryState } from './composables/useLibraryState';
 import { usePendingRemoteActions } from './composables/usePendingRemoteActions';
 import { useSyncWorkflow } from './composables/useSyncWorkflow';
 import { errorMessage, useToastStatus } from './composables/useToastStatus';
+import {
+  batchDownloadQueueTone,
+  bulkDeleteActionTone,
+  bulkDownloadActionTone,
+  queuedDownloadUrls,
+  selectedVisibleDownloadUrls as selectedVisibleDownloadUrlsForRecords
+} from './download-actions';
+import {
+  downloadErrorSummaryLabel as displayDownloadErrorSummaryLabel,
+  downloadFailurePhaseLabel as displayDownloadFailurePhaseLabel,
+  downloadNotificationTitle,
+  downloadRequestVideo as buildDownloadRequestVideo,
+  isDownloadDeleteSelectable,
+  optionalDownloadDetail as displayOptionalDownloadDetail
+} from './download-display';
 import { useI18n } from './i18n';
 import type {
   AppSettings,
@@ -32,7 +47,6 @@ import type {
   CollectionKey,
   CollectionToggleResult,
   DownloadRecord,
-  DownloadRequestPayload,
   DownloadRootInfo,
   DownloadState,
   DownloadStateFilters,
@@ -409,10 +423,6 @@ function handleBrowserMessage(message: BrowserMessage) {
   }
 }
 
-function downloadNotificationTitle(record: DownloadRecord) {
-  return record.title || record.videoUrl;
-}
-
 function applyDownloadNotifications(records: DownloadRecord[]) {
   const nextStates = new Map<string, DownloadState>();
 
@@ -721,17 +731,6 @@ async function revealDownloadFile(videoUrl: string) {
   }
 }
 
-function downloadRequestVideo(video: VideoRow): DownloadRequestPayload['video'] {
-  return {
-    title: video.title,
-    url: video.url,
-    views: video.views,
-    likes: video.likes,
-    img: video.img,
-    preview: video.preview
-  };
-}
-
 function downloadRecordForVideoUrl(videoUrl: string) {
   return (
     library.downloadRecords.value.find(function (record) {
@@ -740,17 +739,15 @@ function downloadRecordForVideoUrl(videoUrl: string) {
   );
 }
 
+function downloadRequestVideo(video: VideoRow) {
+  return buildDownloadRequestVideo(video);
+}
+
 function selectBatchDownloadVideos(videos: VideoRow[]) {
   library.selectBatchDownloadVideos(
     videos.map(function (video) {
       return video.url;
     })
-  );
-}
-
-function isDownloadDeleteSelectable(record: DownloadRecord) {
-  return (
-    record.state === 'ready' || record.state === 'paused' || record.state === 'failed' || record.state === 'missing'
   );
 }
 
@@ -762,56 +759,19 @@ function toggleDownloadRecordSelection(payload: { videoUrl: string; selected: bo
 }
 
 function selectedVisibleDownloadUrls() {
-  const selected = new Set(selectedDownloadUrls.value);
-  return library.downloads.value
-    .filter(function (record) {
-      return selected.has(record.videoUrl) && isDownloadDeleteSelectable(record);
-    })
-    .map(function (record) {
-      return record.videoUrl;
-    });
+  return selectedVisibleDownloadUrlsForRecords(library.downloads.value, selectedDownloadUrls.value);
 }
 
 function downloadFailurePhaseLabel(record: DownloadRecord) {
-  const phase = record.failurePhase || 'unknown';
-  if (
-    phase !== 'ffmpeg_check' &&
-    phase !== 'video_page' &&
-    phase !== 'playlist' &&
-    phase !== 'segments' &&
-    phase !== 'remux' &&
-    phase !== 'file'
-  ) {
-    return i18n.t('downloadList.failurePhaseLabel.unknown');
-  }
-  return i18n.t('downloadList.failurePhaseLabel.' + phase);
+  return displayDownloadFailurePhaseLabel(record, i18n.t);
 }
 
 function downloadErrorSummaryLabel(record: DownloadRecord) {
-  if (record.state === 'missing') return i18n.t('downloadList.errorReason.missingFile');
-
-  const text = (record.error || '').trim();
-  if (!text) return i18n.t('downloadList.errorReason.generic');
-  if (/取消|cancel/i.test(text)) return i18n.t('downloadList.errorReason.cancelled');
-  if (/http\s*(401|403|428|429)|precondition|required|forbidden|unauthorized|too many requests/i.test(text)) {
-    return i18n.t('downloadList.errorReason.accessRejected');
-  }
-  if (/enoent|no such file|file removed|not found|找不到|遺失/i.test(text)) {
-    return i18n.t('downloadList.errorReason.missingFile');
-  }
-  if (/ffmpeg|muxer|output format|invalid argument|remux/i.test(text)) {
-    return i18n.t('downloadList.errorReason.ffmpeg');
-  }
-  if (/m3u8|playlist|hls|segment/i.test(text)) return i18n.t('downloadList.errorReason.playlist');
-  if (/network|timeout|timed out|econn|dns|socket|connection/i.test(text)) {
-    return i18n.t('downloadList.errorReason.network');
-  }
-  return i18n.t('downloadList.errorReason.generic');
+  return displayDownloadErrorSummaryLabel(record, i18n.t);
 }
 
 function optionalDownloadDetail(value: string | number | null | undefined) {
-  if (value === null || typeof value === 'undefined' || value === '') return i18n.t('downloadList.notAvailable');
-  return String(value);
+  return displayOptionalDownloadDetail(value, i18n.t);
 }
 
 async function downloadVideo(video: VideoRow) {
@@ -877,7 +837,7 @@ async function downloadSelectedVideos() {
         skipped: skipped,
         failed: failed
       }),
-      failed > 0 ? 'warning' : queued > 0 ? 'success' : 'info'
+      batchDownloadQueueTone({ queued: queued, failed: failed })
     );
   } finally {
     busy.value = false;
@@ -912,7 +872,7 @@ async function retryFailedDownloads() {
         skipped: result.skipped,
         failed: result.failed
       }),
-      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+      bulkDownloadActionTone(result)
     );
     await library.refreshDownloads();
   } catch (error) {
@@ -964,7 +924,7 @@ async function pauseAllDownloads() {
         skipped: result.skipped,
         failed: result.failed
       }),
-      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+      bulkDownloadActionTone(result)
     );
     await library.refreshDownloads();
   } catch (error) {
@@ -987,7 +947,7 @@ async function resumePausedDownloads() {
         skipped: result.skipped,
         failed: result.failed
       }),
-      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+      bulkDownloadActionTone(result)
     );
     await library.refreshDownloads();
   } catch (error) {
@@ -1018,13 +978,7 @@ async function cancelQueuedDownloads() {
 
   busy.value = true;
   try {
-    const queuedUrls = library.downloadRecords.value
-      .filter(function (record) {
-        return record.state === 'queued';
-      })
-      .map(function (record) {
-        return record.videoUrl;
-      });
+    const queuedUrls = queuedDownloadUrls(library.downloadRecords.value);
     queuedUrls.forEach(function (videoUrl) {
       suppressedDownloadFailureUrls.add(videoUrl);
     });
@@ -1035,7 +989,7 @@ async function cancelQueuedDownloads() {
         skipped: result.skipped,
         failed: result.failed
       }),
-      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+      bulkDownloadActionTone(result)
     );
     await library.refreshDownloads();
   } catch (error) {
@@ -1083,7 +1037,7 @@ async function deleteSelectedDownloads() {
         skipped: result.skipped,
         failed: result.failed
       }),
-      result.failed > 0 ? 'warning' : result.removedRecords > 0 ? 'success' : 'info'
+      bulkDeleteActionTone(result)
     );
     await library.refreshDownloads();
   } catch (error) {

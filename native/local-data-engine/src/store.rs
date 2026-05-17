@@ -1,6 +1,8 @@
 use napi::bindgen_prelude::*;
-use rusqlite::{params, OptionalExtension};
+use rusqlite::types::Value as SqlValue;
+use rusqlite::{params, params_from_iter};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 use crate::collections::ensure_collection;
 use crate::payload::{
@@ -10,40 +12,19 @@ use crate::rows::{list_row_json, ListRow};
 use crate::search::matches_search;
 use crate::{to_napi_error, Engine};
 
-impl Engine {
-    pub(crate) fn upsert_video(&self, video: &NormalizedVideo, timestamp: &str) -> Result<()> {
-        self
-      .conn()?
-      .execute(
-        "INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(url) DO UPDATE SET
-           title = COALESCE(excluded.title, videos.title),
-           views = COALESCE(excluded.views, videos.views),
-           likes = COALESCE(excluded.likes, videos.likes),
-           img = COALESCE(excluded.img, videos.img),
-           preview = COALESCE(excluded.preview, videos.preview),
-           search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,
-           updated_at = excluded.updated_at",
-        params![
-          video.url,
-          video.title,
-          video.views,
-          video.likes,
-          video.img,
-          video.preview,
-          video.search_text,
-          timestamp,
-          timestamp
-        ],
-      )
-      .map_err(to_napi_error)?;
+const COLLECTION_URLS_KNOWN_QUERY_CHUNK_SIZE: usize = 500;
 
-        Ok(())
-    }
+struct ListQueryOptions {
+    order_by: String,
+    visibility: &'static str,
+    download_join: &'static str,
+    download_visibility: &'static str,
+    search: Option<String>,
+    search_mode: String,
+}
 
-    fn list_rows(&self, collection_key: &str, options: &Value) -> Result<Vec<ListRow>> {
-        ensure_collection(collection_key)?;
+impl ListQueryOptions {
+    fn from_value(options: &Value) -> Self {
         let include_hidden = value_bool(object_field(options, "includeHidden"));
         let requested_sort =
             value_string(object_field(options, "sort")).unwrap_or_else(|| "site_order".to_string());
@@ -83,6 +64,96 @@ impl Engine {
         } else {
             ""
         };
+
+        Self {
+            order_by,
+            visibility,
+            download_join,
+            download_visibility,
+            search: value_string(object_field(options, "search")),
+            search_mode: value_string(object_field(options, "searchMode"))
+                .unwrap_or_else(|| "any".to_string()),
+        }
+    }
+
+    fn has_search(&self) -> bool {
+        !self.search.as_deref().unwrap_or("").trim().is_empty()
+    }
+}
+
+fn row_to_list_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ListRow> {
+    Ok(ListRow {
+        url: row.get(0)?,
+        title: row.get(1)?,
+        views: row.get(2)?,
+        likes: row.get(3)?,
+        img: row.get(4)?,
+        preview: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+        first_seen_at: row.get(8)?,
+        last_seen_at: row.get(9)?,
+        site_order: row.get(10)?,
+        is_visible: row.get(11)?,
+        missing_at: row.get(12)?,
+        last_sync_run_id: row.get(13)?,
+        search_text: row.get(14)?,
+    })
+}
+
+fn pagination_sql(limit: Option<usize>, offset: usize) -> String {
+    match limit {
+        Some(limit) => format!(" LIMIT {limit} OFFSET {offset}"),
+        None if offset > 0 => format!(" LIMIT -1 OFFSET {offset}"),
+        None => String::new(),
+    }
+}
+
+impl Engine {
+    pub(crate) fn upsert_video(&self, video: &NormalizedVideo, timestamp: &str) -> Result<()> {
+        self
+      .conn()?
+      .execute(
+        "INSERT INTO videos (url, title, views, likes, img, preview, search_text, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(url) DO UPDATE SET
+           title = COALESCE(excluded.title, videos.title),
+           views = COALESCE(excluded.views, videos.views),
+           likes = COALESCE(excluded.likes, videos.likes),
+           img = COALESCE(excluded.img, videos.img),
+           preview = COALESCE(excluded.preview, videos.preview),
+           search_text = CASE WHEN excluded.title IS NULL THEN videos.search_text ELSE excluded.search_text END,
+           updated_at = excluded.updated_at",
+        params![
+          video.url,
+          video.title,
+          video.views,
+          video.likes,
+          video.img,
+          video.preview,
+          video.search_text,
+          timestamp,
+          timestamp
+        ],
+      )
+      .map_err(to_napi_error)?;
+
+        Ok(())
+    }
+
+    fn list_rows(
+        &self,
+        collection_key: &str,
+        query: &ListQueryOptions,
+        limit: Option<usize>,
+        offset: usize,
+    ) -> Result<Vec<ListRow>> {
+        ensure_collection(collection_key)?;
+        let pagination = if query.has_search() {
+            String::new()
+        } else {
+            pagination_sql(limit, offset)
+        };
         let sql = format!(
             "SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,
               v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,
@@ -91,60 +162,67 @@ impl Engine {
        JOIN videos v ON v.url = ci.video_url
        {download_join}
        WHERE ci.collection_key = ? {visibility} {download_visibility}
-       ORDER BY {order_by}"
+       ORDER BY {order_by}{pagination}",
+            download_join = query.download_join,
+            visibility = query.visibility,
+            download_visibility = query.download_visibility,
+            order_by = query.order_by,
         );
         let mut statement = self.conn()?.prepare(&sql).map_err(to_napi_error)?;
         let mut rows = statement
-            .query_map(params![collection_key], |row| {
-                Ok(ListRow {
-                    url: row.get(0)?,
-                    title: row.get(1)?,
-                    views: row.get(2)?,
-                    likes: row.get(3)?,
-                    img: row.get(4)?,
-                    preview: row.get(5)?,
-                    created_at: row.get(6)?,
-                    updated_at: row.get(7)?,
-                    first_seen_at: row.get(8)?,
-                    last_seen_at: row.get(9)?,
-                    site_order: row.get(10)?,
-                    is_visible: row.get(11)?,
-                    missing_at: row.get(12)?,
-                    last_sync_run_id: row.get(13)?,
-                    search_text: row.get(14)?,
-                })
-            })
+            .query_map(params![collection_key], row_to_list_row)
             .map_err(to_napi_error)?
             .collect::<std::result::Result<Vec<ListRow>, _>>()
             .map_err(to_napi_error)?;
 
-        let search = value_string(object_field(options, "search"));
-        let search_mode =
-            value_string(object_field(options, "searchMode")).unwrap_or_else(|| "any".to_string());
-        if search.as_deref().unwrap_or("").trim().is_empty() {
+        if !query.has_search() {
             return Ok(rows);
         }
 
         rows.retain(|row| {
             matches_search(
                 row.search_text.as_deref().unwrap_or(""),
-                search.as_deref(),
-                &search_mode,
+                query.search.as_deref(),
+                &query.search_mode,
             )
         });
         Ok(rows)
     }
 
+    fn count_rows(&self, collection_key: &str, query: &ListQueryOptions) -> Result<usize> {
+        ensure_collection(collection_key)?;
+        let sql = format!(
+            "SELECT COUNT(*)
+       FROM collection_items ci
+       JOIN videos v ON v.url = ci.video_url
+       {download_join}
+       WHERE ci.collection_key = ? {visibility} {download_visibility}",
+            download_join = query.download_join,
+            visibility = query.visibility,
+            download_visibility = query.download_visibility,
+        );
+
+        self.conn()?
+            .query_row(&sql, params![collection_key], |row| row.get::<_, i64>(0))
+            .map(|count| count as usize)
+            .map_err(to_napi_error)
+    }
+
     pub(crate) fn list_videos(&self, payload: Value) -> Result<Value> {
         let collection_key = value_string(object_field(&payload, "collectionKey"))
             .ok_or_else(|| Error::from_reason("listVideos requires collectionKey".to_string()))?;
-        let rows = self.list_rows(&collection_key, &payload)?;
+        let query = ListQueryOptions::from_value(&payload);
         let offset = value_i64(object_field(&payload, "offset"))
             .unwrap_or(0)
             .max(0) as usize;
         let limit = value_i64(object_field(&payload, "limit"))
             .filter(|value| *value > 0)
             .map(|value| value as usize);
+        let rows = self.list_rows(&collection_key, &query, limit, offset)?;
+        if !query.has_search() {
+            return Ok(Value::Array(rows.iter().map(list_row_json).collect()));
+        }
+
         let end = limit
             .map(|limit| offset + limit)
             .unwrap_or(rows.len())
@@ -161,7 +239,14 @@ impl Engine {
     pub(crate) fn count_videos(&self, payload: Value) -> Result<Value> {
         let collection_key = value_string(object_field(&payload, "collectionKey"))
             .ok_or_else(|| Error::from_reason("countVideos requires collectionKey".to_string()))?;
-        Ok(json!(self.list_rows(&collection_key, &payload)?.len()))
+        let query = ListQueryOptions::from_value(&payload);
+        if query.has_search() {
+            return Ok(json!(self
+                .list_rows(&collection_key, &query, None, 0)?
+                .len()));
+        }
+
+        Ok(json!(self.count_rows(&collection_key, &query)?))
     }
 
     pub(crate) fn get_collection_urls(&self, payload: Value) -> Result<Value> {
@@ -200,38 +285,47 @@ impl Engine {
             return Ok(json!(false));
         }
 
-        let mut normalized = Vec::new();
+        let mut normalized = HashSet::new();
         for url in urls {
             let Some(url) = normalize_video_url(Some(url)) else {
                 return Ok(json!(false));
             };
-            if !normalized.iter().any(|entry| entry == &url) {
-                normalized.push(url);
-            }
+            normalized.insert(url);
         }
 
         if normalized.is_empty() {
             return Ok(json!(false));
         }
-
-        let mut known = 0;
-        let mut statement = self
-            .conn()?
-            .prepare(
-                "SELECT 1 FROM collection_items WHERE collection_key = ? AND video_url = ? LIMIT 1",
-            )
-            .map_err(to_napi_error)?;
-        for url in &normalized {
-            let row: Option<i64> = statement
-                .query_row(params![collection_key, url], |row| row.get(0))
-                .optional()
-                .map_err(to_napi_error)?;
-            if row.is_some() {
-                known += 1;
-            }
-        }
+        let normalized = normalized.into_iter().collect::<Vec<String>>();
+        let known = self.known_collection_url_count(&collection_key, &normalized)?;
 
         Ok(json!(known == normalized.len()))
+    }
+
+    fn known_collection_url_count(&self, collection_key: &str, urls: &[String]) -> Result<usize> {
+        let mut known = 0;
+        for chunk in urls.chunks(COLLECTION_URLS_KNOWN_QUERY_CHUNK_SIZE) {
+            let placeholders = std::iter::repeat_n("?", chunk.len())
+                .collect::<Vec<&str>>()
+                .join(", ");
+            let sql = format!(
+                "SELECT COUNT(DISTINCT video_url)
+         FROM collection_items
+         WHERE collection_key = ? AND video_url IN ({placeholders})"
+            );
+            let mut query_params = Vec::with_capacity(chunk.len() + 1);
+            query_params.push(SqlValue::Text(collection_key.to_string()));
+            query_params.extend(chunk.iter().cloned().map(SqlValue::Text));
+            let count = self
+                .conn()?
+                .query_row(&sql, params_from_iter(query_params.iter()), |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map_err(to_napi_error)?;
+            known += count as usize;
+        }
+
+        Ok(known)
     }
 
     pub(crate) fn visible_urls_for_resequence(&self, collection_key: &str) -> Result<Vec<String>> {

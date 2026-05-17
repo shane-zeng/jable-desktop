@@ -25,11 +25,23 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `test/electron/`: Playwright Electron smoke tests for app startup, preload IPC, browser tab IPC, and import/export integration.
 - `scripts/update-release-changelog.js`: release automation helper that updates `CHANGELOG.md` for a completed version tag.
 - `docs/`: user guides, implementation-backed specs, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
+- `docs/refactor-opportunities.md`: no-spec-change optimization backlog and completed refactor batches. Use it as the starting point when continuing maintainability work.
 - `docs/specs/`: current feature specifications backed by implementation and tests. English `*.md` specs are authoritative; matching `*.local.md` files may exist as ignored local reading copies for other languages.
 - `CHANGELOG.md`: generated release history for version tags. Do not edit it during normal feature or bug-fix work.
 - `AGENTS.md`: contributor guidance for future maintenance.
 
 Keep the userscript self-contained. Put desktop-only code under `app/`, Node tests under `test/node/`, and renderer tests under `test/renderer/`.
+
+## Refactor Backlog and No-Spec-Change Optimization
+
+For no-spec-change optimization candidates and completed refactor batches, start from `docs/refactor-opportunities.md`.
+
+When asked to continue optimization or refactor work:
+
+- Do not re-analyze the full project structure first unless the user explicitly asks for a fresh audit.
+- Read `docs/refactor-opportunities.md`, verify the relevant current code and tests, then implement the next selected item.
+- Preserve documented behavior, IPC contracts, sync semantics, JSON shapes, renderer UI behavior, and userscript output.
+- If the backlog appears stale, update it as part of the same change instead of duplicating completed work.
 
 ## Build, Test, and Development Commands
 

@@ -99,6 +99,16 @@ impl Engine {
                 }
             }
         }
+        let completed = object_field(&resource, "meta")
+            .and_then(|meta| object_field(meta, "completed"))
+            .and_then(|value| value.as_bool())
+            == Some(true);
+        let last_known_url = if completed {
+            rows.last()
+                .and_then(|row| normalize_video_url(object_field(row, "url")))
+        } else {
+            None
+        };
 
         let saved = self.save_sync_page(json!({
       "collectionKey": collection_key,
@@ -110,14 +120,7 @@ impl Engine {
             .and_then(|value| value.as_u64())
             .unwrap_or(0);
 
-        if object_field(&resource, "meta")
-            .and_then(|meta| object_field(meta, "completed"))
-            .and_then(|value| value.as_bool())
-            == Some(true)
-        {
-            let last_known_url = flatten_resource(&resource)
-                .last()
-                .and_then(|row| normalize_video_url(object_field(row, "url")));
+        if completed {
             self.finish_sync(json!({
         "collectionKey": collection_key,
         "result": {

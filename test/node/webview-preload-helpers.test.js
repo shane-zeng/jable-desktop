@@ -71,3 +71,201 @@ test('webview helper calculates retry and failure details', function () {
     3250
   );
 });
+
+test('webview helper retries ajax HTML fetches with reported delay details', async function () {
+  const retryEvents = [];
+  const sleepDelays = [];
+  let calls = 0;
+  const html = await helpers.fetchAjaxHtmlWithRetry(
+    'https://jable.tv/my/favourites/videos/?mode=async',
+    3,
+    function (event) {
+      retryEvents.push(event);
+    },
+    {
+      fetchText: async function () {
+        calls += 1;
+        if (calls === 1) {
+          return {
+            ok: false,
+            detail: 'HTTP 500 Server Error',
+            reason: 'http-500',
+            retryable: true,
+            retryAfterMs: 1000,
+            status: 500
+          };
+        }
+
+        return {
+          ok: true,
+          retryAfterMs: null,
+          status: 200,
+          text: '<div>ok</div>'
+        };
+      },
+      random: function () {
+        return 0;
+      },
+      sleep: async function (ms) {
+        sleepDelays.push(ms);
+      }
+    }
+  );
+
+  assert.equal(html, '<div>ok</div>');
+  assert.equal(calls, 2);
+  assert.deepEqual(sleepDelays, [1250]);
+  assert.deepEqual(retryEvents, [
+    {
+      attempt: 1,
+      delayMs: 1250,
+      maxRetries: 3,
+      pageNumber: 3,
+      reason: 'HTTP 500 Server Error'
+    }
+  ]);
+});
+
+test('webview helper retries ajax sync page parsing without real network fetches', async function () {
+  const retryEvents = [];
+  const sleepDelays = [];
+  const fetchedUrls = [];
+  let parseCalls = 0;
+  const page = await helpers.fetchAjaxSyncPage({
+    expectedLastPage: 3,
+    fetchText: async function (url) {
+      fetchedUrls.push(url);
+      return {
+        ok: true,
+        retryAfterMs: null,
+        status: 200,
+        text: '<div>ok</div>'
+      };
+    },
+    isTrustedUrl: function () {
+      return true;
+    },
+    onRetry: function (event) {
+      retryEvents.push(event);
+    },
+    pageNumber: 2,
+    parsePage: function (html, url, pageNumber, expectedLastPage) {
+      parseCalls += 1;
+      if (parseCalls === 1) {
+        throw new helpers.AjaxSyncError('ajax-empty-page', 'AJAX page contained no rows', null, true);
+      }
+
+      return {
+        pageNumber: pageNumber,
+        rows: [{ url: 'https://jable.tv/videos/three/' }],
+        signature: html,
+        lastPage: expectedLastPage,
+        url: url
+      };
+    },
+    random: function () {
+      return 0;
+    },
+    sleep: async function (ms) {
+      sleepDelays.push(ms);
+    },
+    template: {
+      ajaxUrl: 'https://jable.tv/my/favourites/videos/?mode=async&from=0001',
+      pageParamName: 'from',
+      pageParamWidth: 4
+    }
+  });
+
+  assert.equal(parseCalls, 2);
+  assert.deepEqual(fetchedUrls, [
+    'https://jable.tv/my/favourites/videos/?mode=async&from=0002',
+    'https://jable.tv/my/favourites/videos/?mode=async&from=0002'
+  ]);
+  assert.deepEqual(sleepDelays, [1250]);
+  assert.deepEqual(retryEvents, [
+    {
+      attempt: 1,
+      delayMs: 1250,
+      maxRetries: 3,
+      pageNumber: 2,
+      reason: 'AJAX page contained no rows'
+    }
+  ]);
+  assert.deepEqual(page, {
+    pageNumber: 2,
+    rows: [{ url: 'https://jable.tv/videos/three/' }],
+    signature: '<div>ok</div>',
+    lastPage: 3,
+    url: 'https://jable.tv/my/favourites/videos/?mode=async&from=0002'
+  });
+});
+
+test('webview helper runs ajax page windows concurrently while preserving result order', async function () {
+  const started = [];
+  const completed = [];
+  const pages = await helpers.fetchAjaxPagesWithWindow({
+    start: 2,
+    end: 5,
+    windowSize: 2,
+    onPageStart: function (pageNumber) {
+      started.push(pageNumber);
+    },
+    fetchPage: async function (pageNumber) {
+      completed.push(pageNumber);
+      return { pageNumber: pageNumber };
+    },
+    pageDelayMs: function () {
+      return 0;
+    },
+    sleep: async function () {}
+  });
+
+  assert.deepEqual(started, [2, 3, 4, 5]);
+  assert.deepEqual(completed, [2, 3, 4, 5]);
+  assert.deepEqual(
+    pages.map(function (page) {
+      return page.pageNumber;
+    }),
+    [2, 3, 4, 5]
+  );
+});
+
+test('webview helper validates ajax page duplicates and first page stability', function () {
+  const firstRows = [{ url: 'https://jable.tv/videos/one/' }, { url: 'https://jable.tv/videos/two/' }];
+  const page = {
+    pageNumber: 2,
+    rows: [{ url: 'https://jable.tv/videos/three/' }],
+    signature: '2|one|two',
+    lastPage: 2,
+    url: 'https://jable.tv/my/favourites/videos/?from=0024'
+  };
+
+  assert.doesNotThrow(function () {
+    helpers.validateAjaxFirstPage(firstRows, '2|one|two', {
+      pageNumber: 1,
+      rows: firstRows,
+      signature: '2|one|two',
+      lastPage: 2,
+      url: 'https://jable.tv/my/favourites/videos/'
+    });
+    helpers.validateAjaxPages(firstRows, [page]);
+  });
+
+  assert.throws(function () {
+    helpers.validateAjaxPages(firstRows, [
+      Object.assign({}, page, {
+        rows: [{ url: 'https://jable.tv/videos/two/' }]
+      })
+    ]);
+  }, /AJAX page returned a duplicate URL/);
+
+  assert.throws(function () {
+    helpers.validateAjaxFirstPage(firstRows, '2|one|two', {
+      pageNumber: 1,
+      rows: firstRows,
+      signature: '2|changed',
+      lastPage: 2,
+      url: 'https://jable.tv/my/favourites/videos/'
+    });
+  }, /AJAX first page signature changed during sync/);
+});

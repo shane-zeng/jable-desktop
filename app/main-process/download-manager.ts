@@ -29,7 +29,33 @@ import type {
   PauseDownloadResult,
   RevealDownloadFileResult
 } from '../types/jable';
+import {
+  DownloadCanceledError,
+  DownloadFileSystemError,
+  DownloadHttpError,
+  DownloadPausedError,
+  DownloadSegmentError,
+  FfmpegDownloadError,
+  HlsPlaylistNotFoundError,
+  HlsPlaylistUnsupportedError,
+  downloadErrorMessage as formatDownloadErrorMessage,
+  downloadFailureCode,
+  isDownloadCanceledError,
+  isDownloadPausedError,
+  isSegmentRefreshCandidate,
+  mainErrorMessage,
+  sanitizeDownloadErrorDetail
+} from './download-errors';
 import { normalizeCollectionKey, requiredRecord, requiredStringValue } from './ipc-normalizers';
+import { parseLocalPlaybackRangeHeader } from './local-playback';
+
+export {
+  downloadFailureCode,
+  downloadHttpStatusFromMessage,
+  isSegmentRefreshCandidate,
+  sanitizeDownloadErrorDetail
+} from './download-errors';
+export { parseLocalPlaybackRangeHeader } from './local-playback';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 type DownloadRuntimeProgress = {
@@ -82,17 +108,6 @@ type LocalPlaybackFile = {
   filePath: string;
   stats: NodeFs.Stats;
 };
-type LocalPlaybackRange =
-  | {
-      satisfiable: true;
-      start: number;
-      end: number;
-      status: 200 | 206;
-    }
-  | {
-      satisfiable: false;
-      status: 416;
-    };
 
 export type DownloadManagerContext = {
   app: Electron.App;
@@ -195,10 +210,6 @@ function t(key: string, params?: TranslationParams | null): string {
   return translate(key, params);
 }
 
-function mainErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function maxConcurrentDownloads() {
   return getAppSettings().maxConcurrentDownloads;
 }
@@ -215,96 +226,16 @@ function currentDownloadSegmentConcurrency() {
   return downloadSegmentConcurrencyForSpeedMode(getAppSettings().downloadSpeedMode);
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-export function sanitizeDownloadErrorDetail(message: string, downloadRootPath?: string | null): string {
-  let sanitized = message.replace(/https?:\/\/[^\s"'<>]+/g, '[remote URL]');
-  const rootPath = downloadRootPath || '';
-  if (rootPath) {
-    sanitized = sanitized.replace(new RegExp(escapeRegExp(rootPath), 'g'), '[download root]');
-  }
-  return sanitized;
-}
-
 function sanitizedDownloadErrorDetail(error: unknown): string {
   return sanitizeDownloadErrorDetail(mainErrorMessage(error), getDownloadRoot().path);
 }
 
-class DownloadHttpError extends Error {
-  readonly status: number;
-
-  constructor(status: number) {
-    super('HTTP ' + status);
-    this.name = 'DownloadHttpError';
-    this.status = status;
-  }
-}
-
-class HlsPlaylistNotFoundError extends Error {
-  constructor() {
-    super('HLS playlist was not found');
-    this.name = 'HlsPlaylistNotFoundError';
-  }
-}
-
-class HlsPlaylistUnsupportedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'HlsPlaylistUnsupportedError';
-  }
-}
-
-class DownloadSegmentError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'DownloadSegmentError';
-  }
-}
-
-class FfmpegDownloadError extends Error {
-  constructor(message: string) {
-    super(message || 'FFmpeg failed');
-    this.name = 'FfmpegDownloadError';
-  }
-}
-
-class DownloadFileSystemError extends Error {
-  constructor(error: unknown) {
-    super(mainErrorMessage(error));
-    this.name = 'DownloadFileSystemError';
-  }
-}
-
-class DownloadCanceledError extends Error {
-  constructor() {
-    super(t('status.downloadCanceled'));
-    this.name = 'DownloadCanceledError';
-  }
-}
-
-class DownloadPausedError extends Error {
-  constructor() {
-    super(t('status.downloadPaused'));
-    this.name = 'DownloadPausedError';
-  }
-}
-
 function downloadCanceledError() {
-  return new DownloadCanceledError();
+  return new DownloadCanceledError(t('status.downloadCanceled'));
 }
 
 function downloadPausedError() {
-  return new DownloadPausedError();
-}
-
-function isDownloadCanceledError(error: unknown): boolean {
-  return error instanceof DownloadCanceledError;
-}
-
-function isDownloadPausedError(error: unknown): boolean {
-  return error instanceof DownloadPausedError;
+  return new DownloadPausedError(t('status.downloadPaused'));
 }
 
 function throwIfDownloadCanceled(videoUrl: string) {
@@ -316,61 +247,8 @@ function downloadFileSystemError(error: unknown) {
   return new DownloadFileSystemError(error);
 }
 
-function isLikelyNetworkError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return error.name === 'TypeError' || /fetch|network|socket|timed out|ECONN|ENOTFOUND|EAI_AGAIN/i.test(error.message);
-}
-
 function downloadErrorMessage(error: unknown): string {
-  if (isDownloadPausedError(error)) return t('status.downloadPaused');
-  if (isDownloadCanceledError(error)) return t('status.downloadCanceled');
-  if (error instanceof Error && error.name === 'AbortError') return t('status.downloadCanceled');
-  if (error instanceof DownloadHttpError) return t('status.downloadErrorVideoPageHttp', { status: error.status });
-  if (error instanceof HlsPlaylistNotFoundError) return t('status.downloadErrorPlaylistMissing');
-  if (error instanceof HlsPlaylistUnsupportedError) {
-    return t('status.downloadErrorPlaylistUnsupported', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (error instanceof DownloadSegmentError) {
-    return t('status.downloadErrorSegment', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (error instanceof FfmpegDownloadError) {
-    return t('status.downloadErrorFfmpeg', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (error instanceof DownloadFileSystemError) {
-    return t('status.downloadErrorFileSystem', { error: sanitizedDownloadErrorDetail(error) });
-  }
-  if (isLikelyNetworkError(error))
-    return t('status.downloadErrorNetwork', { error: sanitizedDownloadErrorDetail(error) });
-  return t('status.downloadErrorUnknown', { error: sanitizedDownloadErrorDetail(error) });
-}
-
-export function downloadHttpStatusFromMessage(error: unknown): number | null {
-  const match = mainErrorMessage(error).match(/HTTP\s+(\d{3})|HTTP\s*(\d{3})|http[_\s-]*(\d{3})/i);
-  if (!match) return null;
-  const status = Number(match[1] || match[2] || match[3]);
-  return Number.isFinite(status) ? status : null;
-}
-
-export function isSegmentRefreshCandidate(error: unknown): boolean {
-  if (!(error instanceof DownloadSegmentError)) return false;
-  const status = downloadHttpStatusFromMessage(error);
-  return status === 403 || status === 428 || status === 429 || status === 503 || status === 504;
-}
-
-export function downloadFailureCode(error: unknown): string {
-  if (isDownloadCanceledError(error) || (error instanceof Error && error.name === 'AbortError'))
-    return 'download_canceled';
-  if (error instanceof DownloadHttpError) return 'video_page_http_' + error.status;
-  if (error instanceof HlsPlaylistNotFoundError) return 'playlist_not_found';
-  if (error instanceof HlsPlaylistUnsupportedError) return 'playlist_unsupported';
-  if (error instanceof DownloadSegmentError) {
-    const status = downloadHttpStatusFromMessage(error);
-    return status ? 'segment_http_' + status : 'segment_failed';
-  }
-  if (error instanceof FfmpegDownloadError) return 'ffmpeg_exit';
-  if (error instanceof DownloadFileSystemError) return 'file_system';
-  if (isLikelyNetworkError(error)) return 'network';
-  return 'unknown';
+  return formatDownloadErrorMessage(error, t, getDownloadRoot().path);
 }
 
 function ffmpegVersion(command: string): Promise<{ version: string; path: string }> {
@@ -929,54 +807,6 @@ function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
     sourceUrl: localPlaybackTokenUrl(createLocalPlaybackToken(readyFile.record.videoUrl)),
     title: readyFile.record.title,
     fileSizeBytes: readyFile.stats.size
-  };
-}
-
-export function parseLocalPlaybackRangeHeader(value: string | null, size: number): LocalPlaybackRange {
-  const fileSize = Number.isFinite(size) ? Math.max(0, Math.floor(size)) : 0;
-  const range = String(value || '').trim();
-  if (!range) {
-    return {
-      satisfiable: true,
-      start: 0,
-      end: Math.max(0, fileSize - 1),
-      status: 200
-    };
-  }
-
-  const match = range.match(/^bytes=([^,]+)$/);
-  if (!match || fileSize <= 0) return { satisfiable: false, status: 416 };
-
-  const parts = match[1].split('-');
-  if (parts.length !== 2) return { satisfiable: false, status: 416 };
-
-  const startText = parts[0].trim();
-  const endText = parts[1].trim();
-  if (!startText && !endText) return { satisfiable: false, status: 416 };
-
-  let start: number;
-  let end: number;
-
-  if (!startText) {
-    const suffixLength = Number(endText);
-    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return { satisfiable: false, status: 416 };
-    start = Math.max(0, fileSize - suffixLength);
-    end = fileSize - 1;
-  } else {
-    start = Number(startText);
-    end = endText ? Number(endText) : fileSize - 1;
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) {
-      return { satisfiable: false, status: 416 };
-    }
-    if (start >= fileSize) return { satisfiable: false, status: 416 };
-    end = Math.min(end, fileSize - 1);
-  }
-
-  return {
-    satisfiable: true,
-    start: start,
-    end: end,
-    status: 206
   };
 }
 

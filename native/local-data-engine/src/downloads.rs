@@ -1,6 +1,7 @@
 use napi::bindgen_prelude::*;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 
 use crate::payload::{normalize_video_url, object_field, value_string};
 use crate::{now_iso, to_napi_error, Engine};
@@ -223,6 +224,36 @@ impl Engine {
         Ok(rows)
     }
 
+    fn download_asset_collection_keys_by_url(&self) -> Result<HashMap<String, Vec<String>>> {
+        let binding = self.conn()?;
+        let mut statement = binding
+            .prepare(
+                "SELECT ci.video_url, ci.collection_key
+         FROM collection_items ci
+         JOIN download_assets da ON da.video_url = ci.video_url
+         WHERE ci.is_visible = 1
+         ORDER BY ci.video_url ASC, CASE ci.collection_key
+           WHEN 'favourites' THEN 0
+           WHEN 'watch_later' THEN 1
+           ELSE 2
+         END, ci.collection_key ASC",
+            )
+            .map_err(to_napi_error)?;
+
+        let mut rows = statement.query([]).map_err(to_napi_error)?;
+        let mut collection_keys_by_url: HashMap<String, Vec<String>> = HashMap::new();
+        while let Some(row) = rows.next().map_err(to_napi_error)? {
+            let video_url: String = row.get(0).map_err(to_napi_error)?;
+            let collection_key: String = row.get(1).map_err(to_napi_error)?;
+            collection_keys_by_url
+                .entry(video_url)
+                .or_default()
+                .push(collection_key);
+        }
+
+        Ok(collection_keys_by_url)
+    }
+
     fn get_download_asset_row(&self, video_url: &str) -> Result<Option<DownloadAssetRow>> {
         let row = self
             .conn()?
@@ -258,20 +289,18 @@ impl Engine {
          ORDER BY da.updated_at DESC, da.video_url ASC",
             )
             .map_err(to_napi_error)?;
-        let records = statement
+        let mut records = statement
             .query_map([], row_to_record)
             .map_err(to_napi_error)?
             .collect::<std::result::Result<Vec<DownloadAssetRow>, _>>()
-            .map_err(to_napi_error)?
-            .into_iter()
-            .map(|mut record| {
-                record.collection_keys = self.download_asset_collection_keys(&record.video_url)?;
-                Ok(record)
-            })
-            .collect::<Result<Vec<DownloadAssetRow>>>()?
-            .into_iter()
-            .map(record_json)
-            .collect();
+            .map_err(to_napi_error)?;
+        let mut collection_keys_by_url = self.download_asset_collection_keys_by_url()?;
+        for record in &mut records {
+            record.collection_keys = collection_keys_by_url
+                .remove(&record.video_url)
+                .unwrap_or_default();
+        }
+        let records = records.into_iter().map(record_json).collect();
 
         Ok(Value::Array(records))
     }
