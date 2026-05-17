@@ -326,6 +326,10 @@ export function useLibraryState(api: JableAppApi) {
     batchDownloadSelection.value = Array.from(next);
   }
 
+  function selectBatchDownloadVideos(videoUrls: string[]) {
+    batchDownloadSelection.value = Array.from(new Set(videoUrls));
+  }
+
   function clearBatchDownloadSelection() {
     if (!batchDownloadSelection.value.length) return;
     batchDownloadSelection.value = [];
@@ -371,6 +375,7 @@ export function useLibraryState(api: JableAppApi) {
     resetPage: resetPage,
     goToPage: goToPage,
     toggleBatchDownloadSelection: toggleBatchDownloadSelection,
+    selectBatchDownloadVideos: selectBatchDownloadVideos,
     clearBatchDownloadSelection: clearBatchDownloadSelection
   };
 }

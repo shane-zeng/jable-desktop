@@ -91,6 +91,7 @@ const emit = defineEmits<{
   'cancel-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
   'download-video': [video: VideoRow];
+  'select-downloadable': [videos: VideoRow[]];
   'download-selected': [];
   'clear-download-selection': [];
   'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
@@ -152,6 +153,27 @@ function downloadRecordForVideo(video: VideoRow) {
   return downloadRecordByVideoUrl.value.get(video.url) || null;
 }
 
+function isVideoDownloadSelectable(video: VideoRow) {
+  const record = downloadRecordForVideo(video);
+  return !record || record.state === 'failed' || record.state === 'missing' || record.state === 'paused';
+}
+
+const selectableBatchDownloadVideos = computed(function () {
+  return props.rows.filter(isVideoDownloadSelectable);
+});
+
+const selectableBatchDownloadCount = computed(function () {
+  return selectableBatchDownloadVideos.value.length;
+});
+
+const allSelectableBatchDownloadsSelected = computed(function () {
+  if (selectableBatchDownloadCount.value === 0) return false;
+
+  return selectableBatchDownloadVideos.value.every(function (video) {
+    return batchDownloadSelectionSet.value.has(video.url);
+  });
+});
+
 function isVideoSelectedForDownload(video: VideoRow) {
   return batchDownloadSelectionSet.value.has(video.url);
 }
@@ -174,6 +196,15 @@ function isVideoSelectedForDownload(video: VideoRow) {
       />
 
       <div v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'" class="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          :disabled="busy || selectableBatchDownloadCount === 0 || allSelectableBatchDownloadsSelected"
+          :title="t('library.selectAllDownloadableTitle')"
+          data-test="library-select-downloadable"
+          @click="emit('select-downloadable', selectableBatchDownloadVideos)"
+        >
+          {{ t('library.selectAllDownloadable') }}
+        </button>
         <button
           type="button"
           :disabled="busy || batchDownloadSelectionCount === 0"

@@ -75,6 +75,8 @@
     "searchPlaceholder": "タイトルまたは URL を検索",
     "sort": "並び替え",
     "sortDirection": "並び順",
+    "selectAllDownloadable": "すべて選択",
+    "selectAllDownloadableTitle": "このページのダウンロード可能な項目だけを選択",
     "downloadSelected": "選択をダウンロード ({count})",
     "clearSelection": "選択を解除",
     "empty": "ローカルデータはまだありません",

@@ -35,6 +35,7 @@ describe('LibraryPanel', function () {
 
     expect(wrapper.text()).toContain('Quick Sync');
     expect(wrapper.text()).toContain('Full Sync');
+    expect(wrapper.text()).toContain('Select All');
     expect(wrapper.text()).toContain('Download Selected (0)');
     expect(wrapper.text()).not.toContain('Import JSON');
     expect(wrapper.text()).toContain('No local data yet');
@@ -161,6 +162,12 @@ describe('LibraryPanel', function () {
     });
 
     expect((wrapper.get('[data-test="library-download-selected"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="library-select-downloadable"]').element as HTMLButtonElement).disabled).toBe(
+      false
+    );
+
+    await wrapper.get('[data-test="library-select-downloadable"]').trigger('click');
+    expect(wrapper.emitted('select-downloadable')).toEqual([[[video]]]);
 
     await wrapper.get('[data-test="video-download-select"]').setValue(true);
     expect(wrapper.emitted('toggle-download-selection')).toEqual([[{ video: video, selected: true }]]);
@@ -260,6 +267,9 @@ describe('LibraryPanel', function () {
     expect((wrapper.findAll('[data-test="video-download-select"]')[1].element as HTMLInputElement).disabled).toBe(
       false
     );
+
+    await wrapper.get('[data-test="library-select-downloadable"]').trigger('click');
+    expect(wrapper.emitted('select-downloadable')).toEqual([[[failedVideo]]]);
 
     await buttons[1].trigger('click');
 

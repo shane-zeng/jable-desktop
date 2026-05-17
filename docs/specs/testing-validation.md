@@ -84,6 +84,7 @@ Verify these behaviors when touching related desktop areas:
 - Local video cards open in current tab, open in new tab through middle/platform click, and show context menu actions.
 - Local video cards show compact download states and do not expose detailed progress or error text.
 - Local video cards can be explicitly selected and the selected set can be queued for download without downloading the whole current page.
+- Local video card Select All selects only visible downloadable cards and skips already downloaded, queued, or active downloads.
 - Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
 - Settings can change the maximum active video downloads value and the queue starts additional active downloads up to that limit.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.

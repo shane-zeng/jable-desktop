@@ -75,6 +75,8 @@
     "searchPlaceholder": "搜尋標題或 URL",
     "sort": "排序",
     "sortDirection": "排序方向",
+    "selectAllDownloadable": "全選",
+    "selectAllDownloadableTitle": "只選取本頁可下載項目",
     "downloadSelected": "下載已勾選 ({count})",
     "clearSelection": "清除選取",
     "empty": "目前沒有本機資料",

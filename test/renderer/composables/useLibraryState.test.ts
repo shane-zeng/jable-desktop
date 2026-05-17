@@ -367,6 +367,9 @@ describe('useLibraryState', function () {
       setup.state.toggleBatchDownloadSelection(rows[0].url, false);
       expect(setup.state.batchDownloadSelection.value).toEqual([rows[1].url]);
 
+      setup.state.selectBatchDownloadVideos([rows[0].url, rows[1].url, rows[0].url]);
+      expect(setup.state.batchDownloadSelection.value).toEqual([rows[0].url, rows[1].url]);
+
       await setup.state.goToPage(2);
       expect(setup.state.batchDownloadSelection.value).toEqual([]);
 

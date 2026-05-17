@@ -41,6 +41,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Quick Sync
   - Full Sync
   - Selected batch download for explicitly checked visible video cards
+  - Select All for visible downloadable video cards only
   - Search text
   - Search mode: `any`, `all`, `phrase`
   - Sort key: `site_order`, `title`, `views`, `likes`
@@ -49,6 +50,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Page size is 24 rows.
 - Video cards show thumbnail, optional hover preview, title, views, likes, and last synced time.
 - Video cards show a compact download button and a checkbox for selected batch download. Download controls reflect the global download state for that video URL and avoid showing detailed progress or error text on source collection cards.
+- Select All does not select `queued`, `downloading`, or `ready` cards.
 - Clicking a local video opens it in the current browser tab.
 - Middle-click or platform new-tab click opens a local video in a new browser tab.
 - Right-clicking a local video opens a native context menu with open/copy actions.

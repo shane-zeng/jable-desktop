@@ -613,6 +613,14 @@ function downloadRecordForVideoUrl(videoUrl: string) {
   );
 }
 
+function selectBatchDownloadVideos(videos: VideoRow[]) {
+  library.selectBatchDownloadVideos(
+    videos.map(function (video) {
+      return video.url;
+    })
+  );
+}
+
 async function downloadVideo(video: VideoRow) {
   if (!video || !video.url || busy.value || syncing.value) return;
 
@@ -931,6 +939,7 @@ onMounted(async function () {
         @cancel-download="cancelDownload"
         @delete-download="deleteDownload"
         @download-video="downloadVideo"
+        @select-downloadable="selectBatchDownloadVideos"
         @download-selected="downloadSelectedVideos"
         @clear-download-selection="library.clearBatchDownloadSelection"
         @toggle-download-selection="library.toggleBatchDownloadSelection($event.video.url, $event.selected)"

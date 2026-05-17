@@ -75,6 +75,8 @@
     "searchPlaceholder": "Search title or URL",
     "sort": "Sort",
     "sortDirection": "Sort Direction",
+    "selectAllDownloadable": "Select All",
+    "selectAllDownloadableTitle": "Select downloadable items on this page",
     "downloadSelected": "Download Selected ({count})",
     "clearSelection": "Clear Selection",
     "empty": "No local data yet",

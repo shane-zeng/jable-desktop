@@ -96,6 +96,8 @@ This document specifies the current Download List and local video file managemen
 - Favourites and Watch Later video cards show a compact download action.
 - Favourites and Watch Later video cards also expose a checkbox for selected batch download.
 - Batch download is based on explicit user selection, not the whole current page or the Download List contents.
+- The Select All action applies only to visible source cards that can start, resume, or retry a download.
+- Select All excludes `queued`, `downloading`, and `ready` source cards.
 - Selected batch download can enqueue normal downloads and retry selected failed or missing downloads.
 - Selected batch download resumes selected paused downloads.
 - Selection is cleared when the user changes collection, tab, page, search, sort, or search mode.
