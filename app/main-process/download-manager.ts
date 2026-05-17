@@ -40,7 +40,6 @@ import {
   HlsPlaylistUnsupportedError,
   downloadErrorMessage as formatDownloadErrorMessage,
   downloadFailureCode,
-  isDownloadCanceledError,
   isDownloadPausedError,
   isSegmentRefreshCandidate,
   mainErrorMessage,
@@ -108,6 +107,8 @@ type LocalPlaybackFile = {
   filePath: string;
   stats: NodeFs.Stats;
 };
+type LocalPlaybackResponseBody = ConstructorParameters<typeof Response>[0];
+type LocalPlaybackResponseHeaders = NonNullable<ConstructorParameters<typeof Response>[1]>['headers'];
 
 export type DownloadManagerContext = {
   app: Electron.App;
@@ -157,7 +158,7 @@ export type DownloadManager = {
 };
 
 const childProcess: typeof NodeChildProcess = require('node:child_process');
-const crypto: typeof NodeCrypto = require('node:crypto');
+const nodeCrypto: typeof NodeCrypto = require('node:crypto');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const stream: typeof NodeStream = require('node:stream');
@@ -735,7 +736,7 @@ function purgeExpiredLocalPlaybackTokens(now = Date.now()) {
 
 function createLocalPlaybackToken(videoUrl: string): string {
   purgeExpiredLocalPlaybackTokens();
-  const token = crypto.randomBytes(18).toString('base64url');
+  const token = nodeCrypto.randomBytes(18).toString('base64url');
   localPlaybackTokens.set(token, {
     videoUrl: videoUrl,
     expiresAt: Date.now() + LOCAL_PLAYBACK_TOKEN_TTL_MS
@@ -810,7 +811,11 @@ function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
   };
 }
 
-function localPlaybackResponse(status: number, body: BodyInit | null, headers?: HeadersInit): Response {
+function localPlaybackResponse(
+  status: number,
+  body: LocalPlaybackResponseBody,
+  headers?: LocalPlaybackResponseHeaders
+): Response {
   return new Response(body, {
     status: status,
     headers: headers
@@ -850,7 +855,7 @@ function localPlaybackFileResponse(file: LocalPlaybackFile, request: Request): R
     start: range.start,
     end: range.end
   });
-  const body = stream.Readable.toWeb(fileStream) as unknown as BodyInit;
+  const body = stream.Readable.toWeb(fileStream) as unknown as LocalPlaybackResponseBody;
   return localPlaybackResponse(range.status, body, headers);
 }
 
