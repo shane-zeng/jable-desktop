@@ -32,6 +32,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Locked sync tabs cannot be closed from the tab UI.
 - Browser tabs expose media state indicators for muted, audible, media playing, picture-in-picture, and discarded state.
 - When a browser tab opens a Jable video page and that video has a ready managed download, the page video source is automatically replaced with the local MP4. Missing or unavailable downloads leave the original Jable player behavior unchanged.
+- When a browser tab opens a Jable video page that already exists in synced local collection data, the app refreshes the local video's title, views, likes, thumbnail, preview, and search metadata without changing collection membership or ordering.
 
 ## Local Data View
 

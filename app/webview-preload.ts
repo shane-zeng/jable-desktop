@@ -68,6 +68,22 @@ type LocalPlaybackRestoreState = {
   sources: LocalPlaybackSourceSnapshot[];
 };
 type LocalPlaybackErrorHandler = (event: Event) => void;
+type LocalPlaybackPreviewCue = {
+  start: number;
+  end: number;
+  imageUrl: string;
+};
+type LocalPlaybackPreviewController = {
+  dispose(): void;
+};
+type LocalPlaybackSourcePageNotice = {
+  sourcePageChineseSubtitleNotice: boolean;
+  sourcePageSubtitleNoticeText: string | null;
+};
+type DownloadRecordStateSnapshot = {
+  videoUrl: string;
+  state: string;
+};
 type PagerLink = AjaxPagerTemplate & {
   el: HTMLAnchorElement;
   href: string;
@@ -115,11 +131,16 @@ const COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS = 4000;
 const COLLECTION_TOGGLE_CONFIRM_POLL_MS = 120;
 const WEBVIEW_CONTENT_POLICY_SCAN_DELAY_MS = 0;
 const LOCAL_PLAYBACK_SCAN_DELAY_MS = 120;
+const VIDEO_METADATA_REFRESH_DELAY_MS = 400;
+const LOCAL_PLAYBACK_PREVIEW_WIDTH = 213;
+const LOCAL_PLAYBACK_PREVIEW_HEIGHT = 120;
+const CHINESE_SUBTITLE_NOTICE_TOKEN = '中文字幕版';
 let trackpadHistoryDeltaX = 0;
 let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
 let webViewContentPolicyScanTimer: ReturnType<typeof setTimeout> | null = null;
 let localPlaybackScanTimer: ReturnType<typeof setTimeout> | null = null;
+let videoMetadataRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let webViewEnhancementMode = false;
 let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
 let pendingCollectionOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
@@ -127,10 +148,15 @@ let pendingCollectionOverlayTimer: ReturnType<typeof setTimeout> | null = null;
 let localPlaybackRequestSequence = 0;
 let activeLocalPlaybackVideoUrl: string | null = null;
 let activeLocalPlaybackSourceUrl: string | null = null;
+let activeLocalPlaybackThumbnailVttUrl: string | null = null;
+let activeLocalPlaybackSourcePageChineseSubtitleNotice: boolean | null = null;
+let activeLocalPlaybackPreviewRefreshInFlight = false;
+let lastVideoMetadataRefreshSignature = '';
 const failedLocalPlaybackSources: Record<string, boolean> = {};
 const failedLocalPlaybackVideoUrls: Record<string, boolean> = {};
 const localPlaybackRestoreStates = new WeakMap<HTMLVideoElement, LocalPlaybackRestoreState>();
 const localPlaybackErrorHandlers = new WeakMap<HTMLVideoElement, LocalPlaybackErrorHandler>();
+const localPlaybackPreviewControllers = new WeakMap<HTMLVideoElement, LocalPlaybackPreviewController>();
 
 function elementFromTarget(target: EventTarget | null): Element | null {
   if (target instanceof Element) return target;
@@ -1016,6 +1042,25 @@ function readFirstText(selectors: string[]) {
   return '';
 }
 
+function readCurrentChineseSubtitleNoticeText(): string | null {
+  const elements = document.querySelectorAll<HTMLElement>('h5.desc.h6-md');
+
+  for (let i = 0; i < elements.length; i++) {
+    const text = normalizePageText(elements[i].textContent);
+    if (text.indexOf(CHINESE_SUBTITLE_NOTICE_TOKEN) !== -1) return text;
+  }
+
+  return null;
+}
+
+function readCurrentLocalPlaybackSourcePageNotice(): LocalPlaybackSourcePageNotice {
+  const text = readCurrentChineseSubtitleNoticeText();
+  return {
+    sourcePageChineseSubtitleNotice: text !== null,
+    sourcePageSubtitleNoticeText: text
+  };
+}
+
 function cleanVideoTitle(value: unknown) {
   let text = normalizePageText(value);
   if (!text) return null;
@@ -1085,6 +1130,66 @@ function readCurrentVideoDetails(): ScrapedVideoRow | null {
   };
 }
 
+function videoMetadataRefreshSignature(video: ScrapedVideoRow) {
+  return [
+    video.url,
+    video.title || '',
+    video.views === null ? '' : String(video.views),
+    video.likes === null ? '' : String(video.likes),
+    video.img || '',
+    video.preview || ''
+  ].join('\n');
+}
+
+async function refreshCurrentVideoMetadata() {
+  videoMetadataRefreshTimer = null;
+  const video = readCurrentVideoDetails();
+  if (!video) return;
+
+  const metadataSignature = videoMetadataRefreshSignature(video);
+  if (metadataSignature === lastVideoMetadataRefreshSignature) return;
+  lastVideoMetadataRefreshSignature = metadataSignature;
+
+  try {
+    await ipcRenderer.invoke('db:refresh-video-metadata', video);
+  } catch (error) {
+    console.warn('[JableDesktopScraper] video metadata refresh failed', error);
+  }
+}
+
+function scheduleCurrentVideoMetadataRefresh() {
+  if (!currentVideoUrl()) return;
+  if (videoMetadataRefreshTimer) clearTimeout(videoMetadataRefreshTimer);
+  videoMetadataRefreshTimer = setTimeout(refreshCurrentVideoMetadata, VIDEO_METADATA_REFRESH_DELAY_MS);
+}
+
+function installVideoMetadataRefresh() {
+  scheduleCurrentVideoMetadataRefresh();
+  document.addEventListener('DOMContentLoaded', scheduleCurrentVideoMetadataRefresh, { once: true });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) scheduleCurrentVideoMetadataRefresh();
+  });
+  window.addEventListener('focus', scheduleCurrentVideoMetadataRefresh);
+  window.addEventListener('pageshow', scheduleCurrentVideoMetadataRefresh);
+  window.addEventListener('load', scheduleCurrentVideoMetadataRefresh, { once: true });
+
+  if (typeof MutationObserver === 'undefined') return;
+
+  const target = document.documentElement || document;
+  const observer = new MutationObserver(function (records) {
+    for (let i = 0; i < records.length; i++) {
+      if (records[i].type === 'childList' && (records[i].addedNodes.length || records[i].removedNodes.length)) {
+        scheduleCurrentVideoMetadataRefresh();
+        return;
+      }
+    }
+  });
+  observer.observe(target, {
+    childList: true,
+    subtree: true
+  });
+}
+
 function localPlaybackSourceIsAvailable(
   value: LocalPlaybackSourceResult
 ): value is Extract<LocalPlaybackSourceResult, { available: true }> {
@@ -1111,6 +1216,299 @@ function mainVideoElement(): HTMLVideoElement | null {
   }
 
   return best;
+}
+
+function installLocalPlaybackPreviewStyle() {
+  if (document.getElementById('jable-local-playback-preview-style')) return;
+
+  const style = document.createElement('style');
+  style.id = 'jable-local-playback-preview-style';
+  style.textContent =
+    '.jable-local-playback-preview{' +
+    'position:fixed;' +
+    'z-index:2147483646;' +
+    'width:' +
+    LOCAL_PLAYBACK_PREVIEW_WIDTH +
+    'px;' +
+    'pointer-events:none;' +
+    'opacity:0;' +
+    'transform:translateX(-50%) translateY(4px);' +
+    'transition:opacity .08s ease,transform .08s ease;' +
+    'border:2px solid rgba(255,255,255,.9);' +
+    'border-radius:6px;' +
+    'overflow:hidden;' +
+    'background:#111;' +
+    'box-shadow:0 10px 28px rgba(0,0,0,.42);' +
+    '}' +
+    '.jable-local-playback-preview.active{' +
+    'opacity:1;' +
+    'transform:translateX(-50%) translateY(0);' +
+    '}' +
+    '.jable-local-playback-preview img{' +
+    'display:block;' +
+    'width:' +
+    LOCAL_PLAYBACK_PREVIEW_WIDTH +
+    'px;' +
+    'height:' +
+    LOCAL_PLAYBACK_PREVIEW_HEIGHT +
+    'px;' +
+    'object-fit:cover;' +
+    '}' +
+    '.jable-local-playback-preview span{' +
+    'position:absolute;' +
+    'right:6px;' +
+    'bottom:5px;' +
+    'border-radius:4px;' +
+    'background:rgba(15,16,20,.78);' +
+    'padding:2px 6px;' +
+    'color:#fff;' +
+    'font:600 12px/1.3 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+    '}';
+  document.documentElement.appendChild(style);
+}
+
+function parseVttTimestamp(value: string): number | null {
+  const match = value.trim().match(/^(\d+):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  const milliseconds = Number((match[4] || '').padEnd(3, '0') || '0');
+
+  if (
+    !Number.isFinite(hours) ||
+    !Number.isFinite(minutes) ||
+    !Number.isFinite(seconds) ||
+    !Number.isFinite(milliseconds)
+  ) {
+    return null;
+  }
+
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+}
+
+function parseLocalPlaybackPreviewVtt(text: string, baseUrl: string): LocalPlaybackPreviewCue[] {
+  const cues: LocalPlaybackPreviewCue[] = [];
+  const lines = text.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].trim();
+    if (!line.includes('-->')) continue;
+
+    const parts = line.split(/\s+-->\s+/);
+    if (parts.length !== 2) continue;
+
+    const start = parseVttTimestamp(parts[0]);
+    const end = parseVttTimestamp(parts[1].split(/\s+/)[0]);
+    if (start === null || end === null || end <= start) continue;
+
+    let imageLine = '';
+    for (let cueIndex = index + 1; cueIndex < lines.length; cueIndex++) {
+      imageLine = lines[cueIndex].trim();
+      if (imageLine) break;
+    }
+    if (!imageLine) continue;
+
+    cues.push({
+      start: start,
+      end: end,
+      imageUrl: absUrl(imageLine, baseUrl)
+    });
+  }
+
+  return cues;
+}
+
+function localPlaybackPreviewCueAtTime(
+  cues: LocalPlaybackPreviewCue[],
+  seconds: number
+): LocalPlaybackPreviewCue | null {
+  for (let index = 0; index < cues.length; index++) {
+    const cue = cues[index];
+    if (seconds >= cue.start && seconds < cue.end) return cue;
+  }
+
+  return cues.length ? cues[cues.length - 1] : null;
+}
+
+function formatLocalPlaybackPreviewTime(seconds: number): string {
+  const wholeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(wholeSeconds / 3600);
+  const minutes = Math.floor((wholeSeconds % 3600) / 60);
+  const remainingSeconds = wholeSeconds % 60;
+
+  if (hours > 0) {
+    return hours + ':' + String(minutes).padStart(2, '0') + ':' + String(remainingSeconds).padStart(2, '0');
+  }
+
+  return minutes + ':' + String(remainingSeconds).padStart(2, '0');
+}
+
+function createLocalPlaybackPreviewController(
+  video: HTMLVideoElement,
+  cues: LocalPlaybackPreviewCue[]
+): LocalPlaybackPreviewController {
+  installLocalPlaybackPreviewStyle();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'jable-local-playback-preview';
+  const image = document.createElement('img');
+  image.alt = '';
+  image.decoding = 'async';
+  const time = document.createElement('span');
+  overlay.appendChild(image);
+  overlay.appendChild(time);
+  (document.body || document.documentElement).appendChild(overlay);
+
+  function hide() {
+    overlay.classList.remove('active');
+  }
+
+  function showForPointer(event: PointerEvent) {
+    const rect = video.getBoundingClientRect();
+    const duration = video.duration;
+    if (rect.width <= 0 || rect.height <= 0 || !Number.isFinite(duration) || duration <= 0) {
+      hide();
+      return;
+    }
+
+    const controlBandHeight = Math.min(110, Math.max(56, rect.height * 0.22));
+    const inVideoX = event.clientX >= rect.left && event.clientX <= rect.right;
+    const inControlBand = event.clientY >= rect.bottom - controlBandHeight && event.clientY <= rect.bottom;
+    if (!inVideoX || !inControlBand) {
+      hide();
+      return;
+    }
+
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const previewTime = Math.min(duration, Math.max(0, ratio * duration));
+    const cue = localPlaybackPreviewCueAtTime(cues, previewTime);
+    if (!cue) {
+      hide();
+      return;
+    }
+
+    if (image.getAttribute('src') !== cue.imageUrl) image.setAttribute('src', cue.imageUrl);
+    time.textContent = formatLocalPlaybackPreviewTime(previewTime);
+
+    const halfWidth = LOCAL_PLAYBACK_PREVIEW_WIDTH / 2;
+    const edgeMargin = 8;
+    const left = Math.min(window.innerWidth - halfWidth - edgeMargin, Math.max(halfWidth + edgeMargin, event.clientX));
+    const top = Math.max(edgeMargin, rect.bottom - controlBandHeight - LOCAL_PLAYBACK_PREVIEW_HEIGHT - 16);
+    overlay.style.left = left + 'px';
+    overlay.style.top = top + 'px';
+    overlay.classList.add('active');
+  }
+
+  function hideOnVisibilityChange() {
+    if (document.hidden) hide();
+  }
+
+  document.addEventListener('pointermove', showForPointer, true);
+  document.addEventListener('pointerleave', hide, true);
+  document.addEventListener('visibilitychange', hideOnVisibilityChange);
+  window.addEventListener('blur', hide);
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+
+  return {
+    dispose: function () {
+      document.removeEventListener('pointermove', showForPointer, true);
+      document.removeEventListener('pointerleave', hide, true);
+      document.removeEventListener('visibilitychange', hideOnVisibilityChange);
+      window.removeEventListener('blur', hide);
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+      overlay.remove();
+    }
+  };
+}
+
+function removeLocalPlaybackPreview(video: HTMLVideoElement) {
+  const controller = localPlaybackPreviewControllers.get(video);
+  if (!controller) return;
+
+  controller.dispose();
+  localPlaybackPreviewControllers.delete(video);
+}
+
+async function installLocalPlaybackPreview(video: HTMLVideoElement, thumbnailVttUrl: string | null) {
+  removeLocalPlaybackPreview(video);
+  if (!thumbnailVttUrl) return;
+
+  const sourceUrl = video.dataset.jableLocalPlaybackSource || '';
+  let text: string;
+  try {
+    const response = await fetch(thumbnailVttUrl);
+    if (!response.ok) return;
+    text = await response.text();
+  } catch (error) {
+    return;
+  }
+
+  if (video.dataset.jableLocalPlaybackSource !== sourceUrl || !document.documentElement.contains(video)) return;
+
+  const cues = parseLocalPlaybackPreviewVtt(text, thumbnailVttUrl);
+  if (!cues.length) return;
+
+  localPlaybackPreviewControllers.set(video, createLocalPlaybackPreviewController(video, cues));
+}
+
+function downloadRecordStateSnapshots(value: unknown): DownloadRecordStateSnapshot[] {
+  if (!Array.isArray(value)) return [];
+
+  const records: DownloadRecordStateSnapshot[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+
+    const record = item as { videoUrl?: unknown; state?: unknown };
+    if (typeof record.videoUrl !== 'string' || typeof record.state !== 'string') continue;
+
+    records.push({
+      videoUrl: record.videoUrl,
+      state: record.state
+    });
+  }
+
+  return records;
+}
+
+function downloadRecordStateForVideo(records: DownloadRecordStateSnapshot[], videoUrl: string): string | null {
+  const snapshots = records;
+  for (const record of snapshots) {
+    if (record.videoUrl === videoUrl) return record.state;
+  }
+
+  return null;
+}
+
+async function refreshActiveLocalPlaybackPreview() {
+  if (activeLocalPlaybackPreviewRefreshInFlight) return;
+  if (!activeLocalPlaybackVideoUrl || !activeLocalPlaybackSourceUrl || activeLocalPlaybackThumbnailVttUrl) return;
+
+  const videoUrl = activeLocalPlaybackVideoUrl;
+  const sourceUrl = activeLocalPlaybackSourceUrl;
+  const sourcePageChineseSubtitleNotice = activeLocalPlaybackSourcePageChineseSubtitleNotice;
+  activeLocalPlaybackPreviewRefreshInFlight = true;
+
+  try {
+    const result = (await ipcRenderer.invoke('download:local-playback-source', {
+      videoUrl: videoUrl,
+      sourcePageChineseSubtitleNotice: sourcePageChineseSubtitleNotice
+    })) as LocalPlaybackSourceResult;
+    if (!localPlaybackSourceIsAvailable(result) || !result.thumbnailVttUrl) return;
+    if (activeLocalPlaybackVideoUrl !== videoUrl || activeLocalPlaybackSourceUrl !== sourceUrl) return;
+
+    const video = mainVideoElement();
+    if (!video || video.dataset.jableLocalPlaybackSource !== sourceUrl) return;
+
+    activeLocalPlaybackThumbnailVttUrl = result.thumbnailVttUrl;
+    await installLocalPlaybackPreview(video, result.thumbnailVttUrl);
+  } catch (error) {
+  } finally {
+    activeLocalPlaybackPreviewRefreshInFlight = false;
+  }
 }
 
 function snapshotLocalPlaybackSource(source: HTMLSourceElement): LocalPlaybackSourceSnapshot {
@@ -1140,6 +1538,7 @@ function restoreLocalPlaybackVideo(video: HTMLVideoElement) {
     video.removeEventListener('error', handler);
     localPlaybackErrorHandlers.delete(video);
   }
+  removeLocalPlaybackPreview(video);
 
   const state = localPlaybackRestoreStates.get(video);
   if (!state) return;
@@ -1161,6 +1560,8 @@ function restoreLocalPlaybackVideo(video: HTMLVideoElement) {
   localPlaybackRestoreStates.delete(video);
   activeLocalPlaybackVideoUrl = null;
   activeLocalPlaybackSourceUrl = null;
+  activeLocalPlaybackThumbnailVttUrl = null;
+  activeLocalPlaybackSourcePageChineseSubtitleNotice = null;
 
   try {
     video.load();
@@ -1182,11 +1583,18 @@ function markLocalPlaybackFailed(video: HTMLVideoElement) {
   restoreLocalPlaybackVideo(video);
 }
 
-function setLocalPlaybackSource(video: HTMLVideoElement, videoUrl: string, sourceUrl: string) {
+function setLocalPlaybackSource(
+  video: HTMLVideoElement,
+  videoUrl: string,
+  sourceUrl: string,
+  thumbnailVttUrl: string | null,
+  sourcePageNotice: LocalPlaybackSourcePageNotice
+) {
   if (video.dataset.jableLocalPlaybackSource === sourceUrl) return;
 
   const oldHandler = localPlaybackErrorHandlers.get(video);
   if (oldHandler) video.removeEventListener('error', oldHandler);
+  removeLocalPlaybackPreview(video);
 
   ensureLocalPlaybackRestoreState(video);
 
@@ -1201,6 +1609,8 @@ function setLocalPlaybackSource(video: HTMLVideoElement, videoUrl: string, sourc
   video.dataset.jableLocalPlaybackSource = sourceUrl;
   activeLocalPlaybackVideoUrl = videoUrl;
   activeLocalPlaybackSourceUrl = sourceUrl;
+  activeLocalPlaybackThumbnailVttUrl = thumbnailVttUrl;
+  activeLocalPlaybackSourcePageChineseSubtitleNotice = sourcePageNotice.sourcePageChineseSubtitleNotice;
 
   const handler = function () {
     markLocalPlaybackFailed(video);
@@ -1215,6 +1625,8 @@ function setLocalPlaybackSource(video: HTMLVideoElement, videoUrl: string, sourc
   if (wasPlaying) {
     video.play().catch(function () {});
   }
+
+  void installLocalPlaybackPreview(video, thumbnailVttUrl);
 }
 
 async function applyLocalPlaybackSource() {
@@ -1228,19 +1640,33 @@ async function applyLocalPlaybackSource() {
   }
   if (failedLocalPlaybackVideoUrls[videoUrl]) return;
 
+  const sourcePageNotice = readCurrentLocalPlaybackSourcePageNotice();
   if (
     activeLocalPlaybackVideoUrl === videoUrl &&
     activeLocalPlaybackSourceUrl &&
+    activeLocalPlaybackSourcePageChineseSubtitleNotice === sourcePageNotice.sourcePageChineseSubtitleNotice &&
     !failedLocalPlaybackSources[activeLocalPlaybackSourceUrl]
   ) {
     const activeVideo = mainVideoElement();
-    if (activeVideo) setLocalPlaybackSource(activeVideo, videoUrl, activeLocalPlaybackSourceUrl);
+    if (activeVideo) {
+      setLocalPlaybackSource(
+        activeVideo,
+        videoUrl,
+        activeLocalPlaybackSourceUrl,
+        activeLocalPlaybackThumbnailVttUrl,
+        sourcePageNotice
+      );
+    }
     return;
   }
 
   let result: LocalPlaybackSourceResult;
   try {
-    result = (await ipcRenderer.invoke('download:local-playback-source', videoUrl)) as LocalPlaybackSourceResult;
+    result = (await ipcRenderer.invoke('download:local-playback-source', {
+      videoUrl: videoUrl,
+      sourcePageChineseSubtitleNotice: sourcePageNotice.sourcePageChineseSubtitleNotice,
+      sourcePageSubtitleNoticeText: sourcePageNotice.sourcePageSubtitleNoticeText
+    })) as LocalPlaybackSourceResult;
   } catch (error) {
     return;
   }
@@ -1257,7 +1683,7 @@ async function applyLocalPlaybackSource() {
   const video = mainVideoElement();
   if (!video) return;
 
-  setLocalPlaybackSource(video, result.videoUrl, result.sourceUrl);
+  setLocalPlaybackSource(video, result.videoUrl, result.sourceUrl, result.thumbnailVttUrl, sourcePageNotice);
 }
 
 function scheduleLocalPlaybackSourceCheck() {
@@ -1274,10 +1700,20 @@ function installLocalPlaybackReplacement() {
   window.addEventListener('focus', scheduleLocalPlaybackSourceCheck);
   window.addEventListener('pageshow', scheduleLocalPlaybackSourceCheck);
   window.addEventListener('load', scheduleLocalPlaybackSourceCheck, { once: true });
-  ipcRenderer.on('downloads-changed', function () {
-    activeLocalPlaybackVideoUrl = null;
-    activeLocalPlaybackSourceUrl = null;
+  ipcRenderer.on('downloads-changed', function (_event, records) {
     for (const videoUrl in failedLocalPlaybackVideoUrls) delete failedLocalPlaybackVideoUrls[videoUrl];
+
+    if (activeLocalPlaybackVideoUrl && activeLocalPlaybackSourceUrl) {
+      const state = downloadRecordStateForVideo(downloadRecordStateSnapshots(records), activeLocalPlaybackVideoUrl);
+      if (Array.isArray(records) && state !== 'ready') {
+        restoreLocalPlaybackVideos();
+        return;
+      }
+
+      void refreshActiveLocalPlaybackPreview();
+      return;
+    }
+
     scheduleLocalPlaybackSourceCheck();
   });
 
@@ -2025,4 +2461,5 @@ ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
 
 installPendingCollectionOperationOverlay();
 installWebViewContentRules();
+installVideoMetadataRefresh();
 installLocalPlaybackReplacement();

@@ -106,6 +106,7 @@ Current behavior:
 - `importJson()` imports an already parsed JSON resource into an explicit collection.
 - `exportJson()` returns an in-memory export resource.
 - `exportJsonFile()` opens a native save dialog and streams export JSON to disk when not canceled.
+- WebView preload may call `db:refresh-video-metadata` directly for Jable video pages. This IPC is not exposed through `window.jableApp`; it canonicalizes trusted Jable video URLs and refreshes only existing local video metadata without changing collection membership.
 
 ## Pending Remote Operation API
 

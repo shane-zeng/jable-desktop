@@ -260,6 +260,19 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(webviewPreload, /video\.setAttribute\('src', sourceUrl\)/);
 });
 
+test('browser video pages refresh known local metadata through dedicated IPC', function () {
+  const dataEngineSource = readSource(path.join(ROOT_DIR, 'app', 'data', 'data-engine.ts'));
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+  const ipcNormalizersSource = readSource(IPC_NORMALIZERS_SOURCE_PATH);
+  const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+
+  assert.match(dataEngineSource, /refreshVideoMetadata/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('db:refresh-video-metadata'/);
+  assert.match(ipcNormalizersSource, /canonicalJableVideoUrl\(record\.url\)/);
+  assert.match(webviewPreload, /function installVideoMetadataRefresh/);
+  assert.match(webviewPreload, /ipcRenderer\.invoke\('db:refresh-video-metadata', video\)/);
+});
+
 test('main process forces MP4 muxing for partial download files', function () {
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
