@@ -6,6 +6,7 @@ import PaginationControls from './PaginationControls.vue';
 import PendingRemoteOperationCard from './PendingRemoteOperationCard.vue';
 import VideoCard from './VideoCard.vue';
 import {
+  COLLECTION_DOWNLOAD_FILTER_OPTIONS,
   DIRECTION_OPTIONS,
   DOWNLOAD_SORT_OPTIONS,
   DOWNLOAD_STATE_FILTER_OPTIONS,
@@ -14,6 +15,7 @@ import {
 } from '../constants';
 import { t } from '../i18n';
 import type {
+  CollectionDownloadFilter,
   CollectionKey,
   DownloadRecord,
   DownloadSortKey,
@@ -39,6 +41,7 @@ const props = withDefaults(
     pendingGroups: PendingRemoteOperationGroup[];
     search: string;
     searchMode: SearchMode;
+    collectionDownloadFilter?: CollectionDownloadFilter;
     sort: SortKey;
     direction: SortDirection;
     downloadSearch?: string;
@@ -56,6 +59,7 @@ const props = withDefaults(
   }>(),
   {
     downloadSearch: '',
+    collectionDownloadFilter: 'all',
     downloadSort: 'updated_at',
     downloadDirection: 'desc',
     downloadStateFilter: 'all',
@@ -74,6 +78,7 @@ const emit = defineEmits<{
   'full-sync': [];
   'update:search': [value: string];
   'update:search-mode': [value: SearchMode];
+  'update:collection-download-filter': [value: CollectionDownloadFilter];
   'update:sort': [value: SortKey];
   'update:direction': [value: SortDirection];
   'update:download-search': [value: string];
@@ -109,6 +114,10 @@ function inputValue(event: Event) {
 
 function updateSearchMode(event: Event) {
   emit('update:search-mode', inputValue(event) as SearchMode);
+}
+
+function updateCollectionDownloadFilter(event: Event) {
+  emit('update:collection-download-filter', inputValue(event) as CollectionDownloadFilter);
 }
 
 function updateSort(event: Event) {
@@ -233,7 +242,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
 
     <div
       v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'"
-      class="grid grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_minmax(132px,max-content)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
       data-test="library-filters"
     >
       <select
@@ -252,6 +261,16 @@ function isVideoSelectedForDownload(video: VideoRow) {
         :value="search"
         @input="emit('update:search', inputValue($event))"
       />
+      <select
+        class="w-auto min-w-[132px] max-w-[220px]"
+        :aria-label="t('library.downloadFilter')"
+        :value="collectionDownloadFilter"
+        @change="updateCollectionDownloadFilter"
+      >
+        <option v-for="option in COLLECTION_DOWNLOAD_FILTER_OPTIONS" :key="option.value" :value="option.value">
+          {{ t('options.collectionDownloadFilter.' + option.value) }}
+        </option>
+      </select>
       <select :aria-label="t('library.sort')" :value="sort" @change="updateSort">
         <option v-for="option in SORT_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.sort.' + option.value) }}

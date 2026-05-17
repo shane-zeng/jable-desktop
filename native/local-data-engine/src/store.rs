@@ -71,13 +71,26 @@ impl Engine {
         } else {
             "AND ci.is_visible = 1"
         };
+        let download_filter = value_string(object_field(options, "downloadFilter"))
+            .unwrap_or_else(|| "all".to_string());
+        let download_join = if download_filter == "downloadable" {
+            "LEFT JOIN download_assets da ON da.video_url = v.url"
+        } else {
+            ""
+        };
+        let download_visibility = if download_filter == "downloadable" {
+            "AND (da.video_url IS NULL OR da.status IN ('paused', 'failed', 'missing'))"
+        } else {
+            ""
+        };
         let sql = format!(
             "SELECT v.url, v.title, v.views, v.likes, v.img, v.preview,
               v.created_at, v.updated_at, ci.first_seen_at, ci.last_seen_at,
               ci.site_order, ci.is_visible, ci.missing_at, ci.last_sync_run_id, v.search_text
        FROM collection_items ci
        JOIN videos v ON v.url = ci.video_url
-       WHERE ci.collection_key = ? {visibility}
+       {download_join}
+       WHERE ci.collection_key = ? {visibility} {download_visibility}
        ORDER BY {order_by}"
         );
         let mut statement = self.conn()?.prepare(&sql).map_err(to_napi_error)?;

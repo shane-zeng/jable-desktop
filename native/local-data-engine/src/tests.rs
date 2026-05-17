@@ -351,6 +351,76 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
 }
 
 #[test]
+fn list_videos_can_filter_to_downloadable_collection_rows() {
+    let mut engine = test_engine("downloadable-filter");
+
+    engine
+        .save_sync_page(json!({
+            "collectionKey": "favourites",
+            "page": 1,
+            "rows": [
+                { "title": "No Record", "url": "https://jable.tv/videos/no-record/", "siteOrder": 1 },
+                { "title": "Ready", "url": "https://jable.tv/videos/ready-record/", "siteOrder": 2 },
+                { "title": "Queued", "url": "https://jable.tv/videos/queued-record/", "siteOrder": 3 },
+                { "title": "Failed", "url": "https://jable.tv/videos/failed-record/", "siteOrder": 4 },
+                { "title": "Paused", "url": "https://jable.tv/videos/paused-record/", "siteOrder": 5 },
+                { "title": "Missing", "url": "https://jable.tv/videos/missing-record/", "siteOrder": 6 }
+            ]
+        }))
+        .expect("collection rows should save");
+
+    for (slug, state) in [
+        ("ready-record", "ready"),
+        ("queued-record", "queued"),
+        ("failed-record", "failed"),
+        ("paused-record", "paused"),
+        ("missing-record", "missing"),
+    ] {
+        engine
+            .upsert_download_asset(json!({
+                "videoUrl": format!("https://jable.tv/videos/{slug}/"),
+                "localPath": format!("{slug}.mp4"),
+                "state": state
+            }))
+            .expect("download asset should upsert");
+    }
+
+    let rows = engine
+        .list_videos(json!({
+            "collectionKey": "favourites",
+            "downloadFilter": "downloadable"
+        }))
+        .expect("downloadable rows should list");
+    let urls: Vec<&str> = rows
+        .as_array()
+        .expect("rows should be an array")
+        .iter()
+        .filter_map(|row| row.get("url").and_then(Value::as_str))
+        .collect();
+
+    assert_eq!(
+        engine
+            .count_videos(json!({
+                "collectionKey": "favourites",
+                "downloadFilter": "downloadable"
+            }))
+            .expect("downloadable rows should count"),
+        json!(4)
+    );
+    assert_eq!(
+        urls,
+        vec![
+            "https://jable.tv/videos/no-record/",
+            "https://jable.tv/videos/failed-record/",
+            "https://jable.tv/videos/paused-record/",
+            "https://jable.tv/videos/missing-record/"
+        ]
+    );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
 fn applied_deferred_local_operations_reconcile_after_finish_sync() {
     let mut engine = test_engine("defer-local-applied");
 

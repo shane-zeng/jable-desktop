@@ -430,6 +430,84 @@ test('countVideos uses the same search and visibility filters as listVideos', fu
   );
 });
 
+test('listVideos can filter collection rows to downloadable videos', function (t) {
+  const db = createTestEngine(t);
+
+  db.saveSyncPage({
+    collectionKey: 'favourites',
+    page: 1,
+    rows: [
+      {
+        title: 'No record',
+        url: 'https://jable.tv/videos/no-record/',
+        siteOrder: 1
+      },
+      {
+        title: 'Ready record',
+        url: 'https://jable.tv/videos/ready-record/',
+        siteOrder: 2
+      },
+      {
+        title: 'Queued record',
+        url: 'https://jable.tv/videos/queued-record/',
+        siteOrder: 3
+      },
+      {
+        title: 'Failed record',
+        url: 'https://jable.tv/videos/failed-record/',
+        siteOrder: 4
+      },
+      {
+        title: 'Paused record',
+        url: 'https://jable.tv/videos/paused-record/',
+        siteOrder: 5
+      },
+      {
+        title: 'Missing record',
+        url: 'https://jable.tv/videos/missing-record/',
+        siteOrder: 6
+      }
+    ]
+  });
+  db.upsertDownloadAsset({
+    videoUrl: 'https://jable.tv/videos/ready-record/',
+    localPath: 'ready-record.mp4',
+    state: 'ready'
+  });
+  db.upsertDownloadAsset({
+    videoUrl: 'https://jable.tv/videos/queued-record/',
+    localPath: 'queued-record.mp4',
+    state: 'queued'
+  });
+  db.upsertDownloadAsset({
+    videoUrl: 'https://jable.tv/videos/failed-record/',
+    localPath: 'failed-record.mp4',
+    state: 'failed'
+  });
+  db.upsertDownloadAsset({
+    videoUrl: 'https://jable.tv/videos/paused-record/',
+    localPath: 'paused-record.mp4',
+    state: 'paused'
+  });
+  db.upsertDownloadAsset({
+    videoUrl: 'https://jable.tv/videos/missing-record/',
+    localPath: 'missing-record.mp4',
+    state: 'missing'
+  });
+
+  const urls = db.listVideos('favourites', { downloadFilter: 'downloadable' }).map(function (row) {
+    return row.url;
+  });
+
+  assert.equal(db.countVideos('favourites', { downloadFilter: 'downloadable' }), 4);
+  assert.deepEqual(urls, [
+    'https://jable.tv/videos/no-record/',
+    'https://jable.tv/videos/failed-record/',
+    'https://jable.tv/videos/paused-record/',
+    'https://jable.tv/videos/missing-record/'
+  ]);
+});
+
 test('applyCollectionToggle adds, hides, and restores a local collection item', function (t) {
   const db = createTestEngine(t);
 

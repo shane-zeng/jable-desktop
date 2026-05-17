@@ -30,6 +30,10 @@
       "ready_downloading": "Downloaded and Downloading",
       "needs_attention": "Needs Attention"
     },
+    "collectionDownloadFilter": {
+      "all": "All",
+      "downloadable": "Not Downloaded"
+    },
     "searchMode": {
       "any": "Any Word",
       "all": "All Words",
@@ -72,6 +76,7 @@
     "importJson": "Import JSON",
     "exportJson": "Export JSON",
     "searchMode": "Search Mode",
+    "downloadFilter": "Download State Filter",
     "searchPlaceholder": "Search title or URL",
     "sort": "Sort",
     "sortDirection": "Sort Direction",

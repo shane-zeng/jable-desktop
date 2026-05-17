@@ -30,6 +30,10 @@
       "ready_downloading": "完了とダウンロード中",
       "needs_attention": "要対応"
     },
+    "collectionDownloadFilter": {
+      "all": "すべて",
+      "downloadable": "未ダウンロード"
+    },
     "searchMode": {
       "any": "いずれかの語",
       "all": "すべての語",
@@ -72,6 +76,7 @@
     "importJson": "Import JSON",
     "exportJson": "Export JSON",
     "searchMode": "検索モード",
+    "downloadFilter": "ダウンロード状態フィルター",
     "searchPlaceholder": "タイトルまたは URL を検索",
     "sort": "並び替え",
     "sortDirection": "並び順",

@@ -8,7 +8,7 @@ describe('LibraryPanel', function () {
     setLocale('zh-TW', false);
   });
 
-  it('renders English controls, placeholders, empty state, and option labels', function () {
+  it('renders English controls, placeholders, empty state, and option labels', async function () {
     setLocale('en-US', false);
     const wrapper = mount(LibraryPanel, {
       props: {
@@ -37,12 +37,18 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('Full Sync');
     expect(wrapper.text()).toContain('Select All');
     expect(wrapper.text()).toContain('Download Selected (0)');
+    expect(wrapper.text()).toContain('Not Downloaded');
     expect(wrapper.text()).not.toContain('Import JSON');
     expect(wrapper.text()).toContain('No local data yet');
     expect(wrapper.find('input[type="search"]').attributes('placeholder')).toBe('Search title or URL');
     expect(wrapper.find('[aria-label="Search Mode"]').text()).toContain('Any Word');
+    expect(wrapper.find('[aria-label="Download State Filter"]').text()).toContain('All');
+    expect(wrapper.find('[aria-label="Download State Filter"]').text()).toContain('Not Downloaded');
     expect(wrapper.find('[aria-label="Sort"]').text()).toContain('Site Order');
     expect(wrapper.find('[aria-label="Sort Direction"]').text()).toContain('Ascending');
+
+    await wrapper.get('select[aria-label="Download State Filter"]').setValue('downloadable');
+    expect(wrapper.emitted('update:collection-download-filter')).toEqual([['downloadable']]);
   });
 
   it('renders Japanese controls, placeholders, empty state, and option labels', function () {
@@ -79,7 +85,7 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('/ 1');
     expect((wrapper.get('[data-test="pagination-page-input"]').element as HTMLInputElement).value).toBe('1');
     expect(wrapper.find('[data-test="library-filters"]').classes()).toContain(
-      'grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_160px_120px]'
+      'grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_minmax(132px,max-content)_160px_120px]'
     );
     expect(wrapper.find('[aria-label="検索モード"]').classes()).toEqual(
       expect.arrayContaining(['w-auto', 'min-w-[132px]', 'max-w-[220px]'])

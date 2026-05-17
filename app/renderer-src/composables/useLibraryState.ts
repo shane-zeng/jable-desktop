@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue';
 import {
+  COLLECTION_DOWNLOAD_FILTER_OPTIONS,
   COLLECTIONS,
   DOWNLOAD_SORT_OPTIONS,
   DOWNLOAD_STATE_FILTER_OPTIONS,
@@ -9,6 +10,7 @@ import {
 } from '../constants';
 import { t } from '../i18n';
 import type {
+  CollectionDownloadFilter,
   CollectionKey,
   DownloadSortKey,
   DownloadRecord,
@@ -32,6 +34,10 @@ const DEFAULT_SEARCH_MODE: SearchMode = 'any';
 const SEARCH_MODE_VALUES = SEARCH_MODE_OPTIONS.map(function (option) {
   return option.value;
 });
+const DEFAULT_COLLECTION_DOWNLOAD_FILTER: CollectionDownloadFilter = 'all';
+const COLLECTION_DOWNLOAD_FILTER_VALUES = COLLECTION_DOWNLOAD_FILTER_OPTIONS.map(function (option) {
+  return option.value;
+});
 const DEFAULT_DOWNLOAD_SORT: DownloadSortKey = 'updated_at';
 const DOWNLOAD_SORT_VALUES = DOWNLOAD_SORT_OPTIONS.map(function (option) {
   return option.value;
@@ -47,6 +53,12 @@ function normalizeSort(value: string): SortKey {
 
 function normalizeSearchMode(value: string): SearchMode {
   return SEARCH_MODE_VALUES.indexOf(value as SearchMode) === -1 ? DEFAULT_SEARCH_MODE : (value as SearchMode);
+}
+
+function normalizeCollectionDownloadFilter(value: string): CollectionDownloadFilter {
+  return COLLECTION_DOWNLOAD_FILTER_VALUES.indexOf(value as CollectionDownloadFilter) === -1
+    ? DEFAULT_COLLECTION_DOWNLOAD_FILTER
+    : (value as CollectionDownloadFilter);
 }
 
 function normalizeDownloadSort(value: string): DownloadSortKey {
@@ -112,6 +124,7 @@ export function useLibraryState(api: JableAppApi) {
   const totalRows = ref(0);
   const search = ref('');
   const searchMode = ref<SearchMode>('any');
+  const collectionDownloadFilter = ref<CollectionDownloadFilter>('all');
   const sort = ref<SortKey>('site_order');
   const direction = ref<SortDirection>('asc');
   const downloadSearch = ref('');
@@ -227,8 +240,12 @@ export function useLibraryState(api: JableAppApi) {
     const token = ++refreshToken;
     const safeSort = normalizeSort(sort.value);
     const safeSearchMode = normalizeSearchMode(searchMode.value);
+    const safeCollectionDownloadFilter = normalizeCollectionDownloadFilter(collectionDownloadFilter.value);
     if (safeSort !== sort.value) sort.value = safeSort;
     if (safeSearchMode !== searchMode.value) searchMode.value = safeSearchMode;
+    if (safeCollectionDownloadFilter !== collectionDownloadFilter.value) {
+      collectionDownloadFilter.value = safeCollectionDownloadFilter;
+    }
 
     const params: ListVideosOptions = {
       collectionKey: activeCollection.value,
@@ -237,6 +254,7 @@ export function useLibraryState(api: JableAppApi) {
       sort: safeSort,
       direction: direction.value
     };
+    if (safeCollectionDownloadFilter !== 'all') params.downloadFilter = safeCollectionDownloadFilter;
     const total = await api.countVideos(params);
 
     if (token !== refreshToken) return;
@@ -302,7 +320,7 @@ export function useLibraryState(api: JableAppApi) {
     await refreshVideos();
   }
 
-  watch([search, searchMode, sort, direction], function () {
+  watch([search, searchMode, collectionDownloadFilter, sort, direction], function () {
     if (isPendingTab.value || isDownloadsTab.value) return;
 
     currentPage.value = 1;
@@ -363,6 +381,7 @@ export function useLibraryState(api: JableAppApi) {
     pageLabel: pageLabel,
     search: search,
     searchMode: searchMode,
+    collectionDownloadFilter: collectionDownloadFilter,
     sort: sort,
     direction: direction,
     fullSyncContinuation: fullSyncContinuation,

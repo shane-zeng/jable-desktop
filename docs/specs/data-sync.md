@@ -73,6 +73,7 @@ Important outbox fields:
   - `collectionKey`
   - `search`
   - `searchMode`
+  - `downloadFilter`
   - `sort`
   - `direction`
   - `includeHidden`
@@ -81,6 +82,7 @@ Important outbox fields:
 - Default renderer page size is 24.
 - Default local sort is `site_order` ascending.
 - Rows with no `site_order` sort after ordered rows for site-order sorting.
+- `downloadFilter: downloadable` keeps rows with no download record plus `paused`, `failed`, or `missing` download records, and excludes `queued`, `downloading`, and `ready` records.
 
 ## Search
 

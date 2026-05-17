@@ -30,6 +30,10 @@
       "ready_downloading": "已下載與下載中",
       "needs_attention": "需要處理"
     },
+    "collectionDownloadFilter": {
+      "all": "全部",
+      "downloadable": "未下載"
+    },
     "searchMode": {
       "any": "任一詞",
       "all": "全部詞",
@@ -72,6 +76,7 @@
     "importJson": "匯入 JSON",
     "exportJson": "匯出 JSON",
     "searchMode": "搜尋模式",
+    "downloadFilter": "下載狀態篩選",
     "searchPlaceholder": "搜尋標題或 URL",
     "sort": "排序",
     "sortDirection": "排序方向",

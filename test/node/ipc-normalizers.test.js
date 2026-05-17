@@ -12,6 +12,7 @@ test('IPC normalizers preserve valid list options and reject invalid enums', fun
         collectionKey: 'watch_later',
         search: 'alpha beta',
         searchMode: 'all',
+        downloadFilter: 'downloadable',
         sort: 'likes',
         direction: 'desc',
         includeHidden: true,
@@ -24,6 +25,7 @@ test('IPC normalizers preserve valid list options and reject invalid enums', fun
       collectionKey: 'watch_later',
       search: 'alpha beta',
       searchMode: 'all',
+      downloadFilter: 'downloadable',
       sort: 'likes',
       direction: 'desc',
       includeHidden: true,
@@ -35,6 +37,10 @@ test('IPC normalizers preserve valid list options and reject invalid enums', fun
   assert.throws(function () {
     normalizers.normalizeListVideosOptions({ collectionKey: 'favourites', sort: 'updated_at' }, 'db:list-videos');
   }, /Invalid IPC payload for db:list-videos: sort/);
+
+  assert.throws(function () {
+    normalizers.normalizeListVideosOptions({ collectionKey: 'favourites', downloadFilter: 'ready' }, 'db:list-videos');
+  }, /Invalid IPC payload for db:list-videos: downloadFilter/);
 });
 
 test('IPC normalizers validate collection keys, sync modes, and browser payloads', function () {

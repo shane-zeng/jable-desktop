@@ -1,5 +1,6 @@
 import type {
   CollectionDefinition,
+  CollectionDownloadFilter,
   CollectionKey,
   DownloadSortKey,
   DownloadStateFilter,
@@ -46,6 +47,11 @@ export const SORT_OPTIONS: ValueOption<SortKey>[] = [
 ];
 
 export const SEARCH_MODE_OPTIONS: ValueOption<SearchMode>[] = [{ value: 'any' }, { value: 'all' }, { value: 'phrase' }];
+
+export const COLLECTION_DOWNLOAD_FILTER_OPTIONS: ValueOption<CollectionDownloadFilter>[] = [
+  { value: 'all' },
+  { value: 'downloadable' }
+];
 
 export const DIRECTION_OPTIONS: ValueOption<SortDirection>[] = [{ value: 'asc' }, { value: 'desc' }];
 

@@ -95,7 +95,7 @@ Renderer API group:
 
 Current behavior:
 
-- `listVideos()` and `countVideos()` share the same filter and search options.
+- `listVideos()` and `countVideos()` share the same filter and search options, including collection download filtering.
 - `getCollectionUrls()` returns known URLs for a collection.
 - `saveSyncPage()` persists scraped sync rows.
 - `finishSync()` finalizes sync state and applies full-sync visibility rules.

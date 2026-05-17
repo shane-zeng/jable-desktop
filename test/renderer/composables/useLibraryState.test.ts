@@ -347,6 +347,40 @@ describe('useLibraryState', function () {
     }
   });
 
+  it('uses the collection download filter in local list and count queries', async function () {
+    const rows = makeRows(PAGE_SIZE + 1);
+    const api = createPagedApi(rows);
+    const setup = createState(api);
+
+    try {
+      await setup.state.refreshVideos();
+
+      setup.state.collectionDownloadFilter.value = 'downloadable';
+      await settleWatchers();
+
+      expect(api.countVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        searchMode: 'any',
+        downloadFilter: 'downloadable',
+        sort: 'site_order',
+        direction: 'asc'
+      });
+      expect(api.listVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        searchMode: 'any',
+        downloadFilter: 'downloadable',
+        sort: 'site_order',
+        direction: 'asc',
+        limit: PAGE_SIZE,
+        offset: 0
+      });
+    } finally {
+      setup.stop();
+    }
+  });
+
   it('tracks selected videos for batch downloads and clears selection when the page changes', async function () {
     const rows = makeRows(PAGE_SIZE + 1);
     const api = createPagedApi(rows);

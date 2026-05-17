@@ -2,6 +2,7 @@ export type CollectionKey = 'favourites' | 'watch_later';
 export type SortKey = 'site_order' | 'title' | 'views' | 'likes';
 export type SortDirection = 'asc' | 'desc';
 export type SearchMode = 'any' | 'all' | 'phrase';
+export type CollectionDownloadFilter = 'all' | 'downloadable';
 export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
 export type AppView = 'browser' | 'library' | 'settings';
@@ -54,6 +55,7 @@ export interface ListVideosOptions {
   collectionKey: CollectionKey;
   search?: string;
   searchMode?: SearchMode;
+  downloadFilter?: CollectionDownloadFilter;
   sort?: SortKey;
   direction?: SortDirection;
   includeHidden?: boolean;

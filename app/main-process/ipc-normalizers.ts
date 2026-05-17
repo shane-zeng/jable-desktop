@@ -8,6 +8,7 @@ import type {
   BrowserTabMutedPayload,
   BrowserTabPayload,
   CollectionKey,
+  CollectionDownloadFilter,
   CreateBrowserTabPayload,
   ExportResource,
   FinishSyncPayload,
@@ -127,6 +128,15 @@ export function normalizeSearchMode(value: unknown, channel: string): SearchMode
   throw ipcPayloadError(channel, 'searchMode');
 }
 
+export function normalizeCollectionDownloadFilter(
+  value: unknown,
+  channel: string
+): CollectionDownloadFilter | undefined {
+  if (value === null || typeof value === 'undefined') return undefined;
+  if (value === 'all' || value === 'downloadable') return value;
+  throw ipcPayloadError(channel, 'downloadFilter');
+}
+
 export function normalizeSortKey(value: unknown, channel: string): SortKey | undefined {
   if (value === null || typeof value === 'undefined') return undefined;
   if (value === 'site_order' || value === 'title' || value === 'views' || value === 'likes') return value;
@@ -151,6 +161,7 @@ export function normalizeListVideosOptions(payload: unknown, channel: string): L
   };
   const search = optionalStringField(record, 'search', channel);
   const searchMode = normalizeSearchMode(record.searchMode, channel);
+  const downloadFilter = normalizeCollectionDownloadFilter(record.downloadFilter, channel);
   const sort = normalizeSortKey(record.sort, channel);
   const direction = normalizeSortDirection(record.direction, channel);
   const includeHidden = optionalBooleanField(record, 'includeHidden', channel);
@@ -159,6 +170,7 @@ export function normalizeListVideosOptions(payload: unknown, channel: string): L
 
   if (typeof search !== 'undefined') options.search = search;
   if (typeof searchMode !== 'undefined') options.searchMode = searchMode;
+  if (typeof downloadFilter !== 'undefined') options.downloadFilter = downloadFilter;
   if (typeof sort !== 'undefined') options.sort = sort;
   if (typeof direction !== 'undefined') options.direction = direction;
   if (typeof includeHidden !== 'undefined') options.includeHidden = includeHidden;
