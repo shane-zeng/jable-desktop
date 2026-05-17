@@ -88,18 +88,17 @@ type I18nModule = {
   normalizeLocale(value: unknown): SupportedLocale;
   t(locale: SupportedLocale, key: string, params?: TranslationParams | null): string;
 };
-type AdBlockerModule = {
-  installJableAdBlocker(
+type WebViewEnhancementModule = {
+  installJableWebViewEnhancement(
     session: Electron.Session,
     options?: {
-      enabled?: boolean;
+      enabled?: boolean | (() => boolean);
       debug?: boolean;
       logger?: { info(message?: unknown, ...optionalParams: unknown[]): void };
     } | null
-  ): { enabled: boolean; patterns: string[] };
-  isAdBlockDebugEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
-  isAdBlockEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
-  shouldBlockAdNavigation(value: unknown): boolean;
+  ): { installed: boolean; patterns: string[] };
+  isWebViewEnhancementDebugEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
+  shouldSuppressWebViewNavigation(value: unknown): boolean;
 };
 type UrlPolicyModule = {
   JABLE_PRIMARY_ORIGIN: string;
@@ -115,7 +114,7 @@ type UrlPolicyModule = {
 const electron: typeof Electron = require('electron');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
-const adBlocker = require('./browser/ad-blocker') as AdBlockerModule;
+const webViewEnhancement = require('./browser/webview-enhancement') as WebViewEnhancementModule;
 const appMenuManagerModule = require('./main-process/app-menu-manager') as {
   createAppMenuManager(context: AppMenuManagerContext): AppMenuManager;
 };
@@ -197,24 +196,28 @@ function configureAppStorageForTests() {
   if (userDataDir) app.setPath('userData', path.resolve(userDataDir));
 }
 
-function shouldDenyAdNavigation(url: unknown): boolean {
-  const blocked = adBlocker.shouldBlockAdNavigation(url);
+function shouldDenyWebViewEnhancementNavigation(url: unknown): boolean {
+  if (!getAppSettings().webViewEnhancementMode) return false;
 
-  if (blocked && adBlocker.isAdBlockDebugEnabledByEnv(process.env)) {
-    console.info('[ad-blocker] blocked navigation', url);
+  const suppressed = webViewEnhancement.shouldSuppressWebViewNavigation(url);
+
+  if (suppressed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
+    console.info('[webview-enhancement] suppressed navigation', url);
   }
 
-  return blocked;
+  return suppressed;
 }
 
-function installAdBlocker() {
-  const result = adBlocker.installJableAdBlocker(session.fromPartition(JABLE_SESSION_PARTITION), {
-    enabled: adBlocker.isAdBlockEnabledByEnv(process.env),
-    debug: adBlocker.isAdBlockDebugEnabledByEnv(process.env)
+function installWebViewEnhancement() {
+  const result = webViewEnhancement.installJableWebViewEnhancement(session.fromPartition(JABLE_SESSION_PARTITION), {
+    enabled: function () {
+      return getAppSettings().webViewEnhancementMode;
+    },
+    debug: webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)
   });
 
-  if (result.enabled && adBlocker.isAdBlockDebugEnabledByEnv(process.env)) {
-    console.info('[ad-blocker] enabled with ' + result.patterns.length + ' URL patterns');
+  if (result.installed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
+    console.info('[webview-enhancement] installed with ' + result.patterns.length + ' URL patterns');
   }
 }
 
@@ -304,6 +307,7 @@ function updateAppSettings(patch: unknown): AppSettings {
   const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
   notifyBrowserTabsChanged();
   forwardBrowserMessage('settings-changed', settings);
+  if (browserTabManager) browserTabManager.sendToAllTabs('settings-changed', settings);
   if (downloadManager) downloadManager.processQueue();
   return settings;
 }
@@ -422,7 +426,7 @@ function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
-      if (shouldDenyAdNavigation(details.url)) return { action: 'deny' };
+      if (shouldDenyWebViewEnhancementNavigation(details.url)) return { action: 'deny' };
 
       try {
         createBrowserTab({
@@ -572,7 +576,7 @@ function getBrowserTabManager(): BrowserTabManager {
       rejectPreloadRequestsForWebContents: rejectBrowserPreloadRequestsForWebContents,
       sessionPartition: JABLE_SESSION_PARTITION,
       shouldActivateWindowOpen: shouldActivateWindowOpen,
-      shouldDenyAdNavigation: shouldDenyAdNavigation,
+      shouldDenyWebViewEnhancementNavigation: shouldDenyWebViewEnhancementNavigation,
       showBrowserContextMenu: showBrowserContextMenu,
       t: t,
       WebContentsView: WebContentsView,
@@ -776,7 +780,7 @@ function getSyncWorkerManager(): SyncWorkerManager {
         getBrowserTabManager().sendToAllTabs(channel, payload);
       },
       sessionPartition: JABLE_SESSION_PARTITION,
-      shouldDenyAdNavigation: shouldDenyAdNavigation,
+      shouldDenyWebViewEnhancementNavigation: shouldDenyWebViewEnhancementNavigation,
       t: t,
       webviewPreloadPath: path.join(__dirname, 'webview-preload.js')
     });
@@ -987,7 +991,7 @@ app.whenReady().then(function () {
   installApplicationMenu();
 
   getDatabase();
-  installAdBlocker();
+  installWebViewEnhancement();
   createWindow();
   scheduleBackgroundUpdateCheck();
 

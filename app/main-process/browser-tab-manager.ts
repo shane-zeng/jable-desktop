@@ -61,7 +61,7 @@ export type BrowserTabManagerContext = {
   rejectPreloadRequestsForWebContents(webContentsId: number, message: string): void;
   sessionPartition: string;
   shouldActivateWindowOpen(details: Electron.HandlerDetails | null | undefined): boolean;
-  shouldDenyAdNavigation(url: unknown): boolean;
+  shouldDenyWebViewEnhancementNavigation(url: unknown): boolean;
   showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuParams): void;
   t(key: string, params?: TranslationParams | null): string;
   WebContentsView: typeof Electron.WebContentsView;
@@ -114,7 +114,7 @@ let registerShortcuts: (webContents: Electron.WebContents) => void;
 let rejectPreloadRequestsForWebContents: (webContentsId: number, message: string) => void;
 let sessionPartition = '';
 let shouldActivateWindowOpen: (details: Electron.HandlerDetails | null | undefined) => boolean;
-let shouldDenyAdNavigation: (url: unknown) => boolean;
+let shouldDenyWebViewEnhancementNavigation: (url: unknown) => boolean;
 let showBrowserContextMenu: (tab: BrowserTab, params: Electron.ContextMenuParams) => void;
 let translate: (key: string, params?: TranslationParams | null) => string;
 let WebContentsView: typeof Electron.WebContentsView;
@@ -212,7 +212,7 @@ function wireBrowserTab(tab: BrowserTab) {
 
   tab.view.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
-      if (shouldDenyAdNavigation(details.url)) return { action: 'deny' };
+      if (shouldDenyWebViewEnhancementNavigation(details.url)) return { action: 'deny' };
 
       try {
         createBrowserTab({
@@ -228,7 +228,7 @@ function wireBrowserTab(tab: BrowserTab) {
   });
 
   tab.view.webContents.on('will-navigate', function (event: Electron.Event, url: string) {
-    if (shouldDenyAdNavigation(url)) event.preventDefault();
+    if (shouldDenyWebViewEnhancementNavigation(url)) event.preventDefault();
   });
 
   tab.view.webContents.on('page-title-updated', function (_event: Electron.Event, title: string) {
@@ -812,7 +812,7 @@ export function createBrowserTabManager(context: BrowserTabManagerContext): Brow
   rejectPreloadRequestsForWebContents = context.rejectPreloadRequestsForWebContents;
   sessionPartition = context.sessionPartition;
   shouldActivateWindowOpen = context.shouldActivateWindowOpen;
-  shouldDenyAdNavigation = context.shouldDenyAdNavigation;
+  shouldDenyWebViewEnhancementNavigation = context.shouldDenyWebViewEnhancementNavigation;
   showBrowserContextMenu = context.showBrowserContextMenu;
   translate = context.t;
   WebContentsView = context.WebContentsView;

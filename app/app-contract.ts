@@ -7,11 +7,13 @@ export const PAGE_SIZE = 24;
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   maxBrowserTabs: 14,
   compactBrowserTabs: false,
+  webViewEnhancementMode: false,
   fullSyncAjaxWindowSize: 3,
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
   downloadRoot: null,
-  downloadStateFilter: 'all',
+  downloadStateFilters: ['all'],
+  downloadSpeedMode: 'balanced',
   maxConcurrentDownloads: 1
 };
 

@@ -27,8 +27,17 @@
     },
     "downloadStateFilter": {
       "all": "すべての状態",
-      "ready_downloading": "完了とダウンロード中",
-      "needs_attention": "要対応"
+      "queued": "待機中",
+      "downloading": "ダウンロード中",
+      "paused": "一時停止",
+      "failed": "失敗",
+      "ready": "完了",
+      "missing": "ファイルなし"
+    },
+    "downloadSpeedMode": {
+      "stable": "安定",
+      "balanced": "バランス",
+      "fast": "高速"
     },
     "collectionDownloadFilter": {
       "all": "すべて",
@@ -120,6 +129,7 @@
     "sort": "ダウンロードの並び替え",
     "sortDirection": "ダウンロードの並び順",
     "stateFilter": "ダウンロード状態の絞り込み",
+    "stateFilterSelected": "{count} 件の状態",
     "open": "開く",
     "openPage": "ページを開く",
     "openPageShort": "ページ",
@@ -130,6 +140,24 @@
     "reveal": "場所を表示",
     "revealShort": "場所",
     "delete": "削除",
+    "retryFailed": "失敗を再試行",
+    "queueActions": "キュー操作",
+    "pauseAll": "すべて一時停止",
+    "resumeAll": "すべて再開",
+    "cancelQueued": "待機をキャンセル",
+    "deleteSelected": "選択項目を削除",
+    "errorLog": "エラーログ",
+    "selectDownload": "ダウンロード項目を選択",
+    "errorLogTitle": "ダウンロードエラーログ",
+    "errorLogEmpty": "失敗またはファイルなしのダウンロード項目はありません。",
+    "errorLogClose": "エラーログを閉じる",
+    "errorLogState": "状態: {state}",
+    "failurePhase": "失敗フェーズ: {phase}",
+    "failureCode": "失敗コード: {code}",
+    "attemptCount": "試行回数: {count}",
+    "lastStartedAt": "最後の開始: {time}",
+    "lastErrorAt": "最後の失敗: {time}",
+    "notAvailable": "利用不可",
     "fileSize": "ファイルサイズ: {size}",
     "downloadedBytes": "ダウンロード済み: {size}",
     "downloadSpeed": "速度: {speed}",
@@ -150,6 +178,15 @@
       "playlist": "動画セグメント一覧が見つかりません",
       "network": "接続がタイムアウトしました。後で再試行してください",
       "generic": "ダウンロードに失敗しました。後で再試行してください"
+    },
+    "failurePhaseLabel": {
+      "ffmpeg_check": "FFmpeg チェック",
+      "video_page": "動画ページ",
+      "playlist": "プレイリスト",
+      "segments": "セグメント",
+      "remux": "MP4 処理",
+      "file": "ローカルファイル",
+      "unknown": "不明"
     },
     "state": {
       "queued": "待機中",
@@ -200,6 +237,8 @@
       "maxTabsWarning": "タブが多いほどページ状態を保持できますが、メモリ使用量が増え、動画再生や同期速度に影響する場合があります。",
       "compactTabs": "コンパクトなタブレール",
       "compactTabsDescription": "起動時に幅の狭いタブレールを使います。",
+      "webViewEnhancementMode": "WebView 拡張モード",
+      "webViewEnhancementModeDescription": "追加の WebView 読み込みと画面整理ルールを適用します。表示が不安定な場合はオフにしてください。",
       "tabWidth": "タブレール幅",
       "resetTabWidth": "幅をリセット"
     },
@@ -238,6 +277,13 @@
       "concurrent": {
         "label": "最大同時ダウンロード数",
         "description": "各動画は内部でセグメントを並列取得します。値を上げるほどネットワークと CPU を使います。"
+      },
+      "speed": {
+        "label": "ダウンロード速度モード",
+        "description": "各動画の内部セグメント取得の並列数を制御します。",
+        "stableHint": "低めの並列数で CDN に拒否されるリスクを下げます。",
+        "balancedHint": "速度と安定性のバランスを取る既定の動作です。",
+        "fastHint": "高めの並列数です。一部の CDN セッションでは不安定になる場合があります。"
       },
       "root": {
         "label": "ダウンロード先",
@@ -347,6 +393,9 @@
     "downloadQueued": "ダウンロード一覧に追加しました",
     "downloadBatchQueued": "{queued} 件を追加、{skipped} 件をスキップ、{failed} 件が失敗しました",
     "downloadBatchNoSelection": "ダウンロードする動画を選択してください",
+    "downloadBulkActionComplete": "処理完了: 反映 {affected} 件、スキップ {skipped} 件、失敗 {failed} 件",
+    "downloadBulkDeleteComplete": "削除完了: ファイル削除 {deletedFiles} 件、記録削除 {removedRecords} 件、スキップ {skipped} 件、失敗 {failed} 件",
+    "downloadBulkNoSelection": "削除するダウンロード項目を選択してください",
     "downloadAlreadyQueued": "動画はすでにダウンロード一覧にあります",
     "downloadCompleted": "ダウンロード完了: {title}",
     "downloadFailed": "ダウンロード失敗: {title}: {error}",
@@ -452,6 +501,9 @@
     "deleteDownloadMessage": "ローカルファイルを削除し、ダウンロード一覧からこの項目を削除します。",
     "deleteDownloadRecordMessage": "ダウンロード一覧からこの項目を削除します。お気に入り、あとで見る、Jable には影響しません。",
     "deleteDownloadConfirm": "削除",
+    "deleteDownloadsTitle": "選択したダウンロード項目を削除",
+    "deleteDownloadsMessage": "選択した項目のローカルファイルを削除し、ダウンロード一覧の記録を削除します。お気に入り、あとで見る、Jable には影響しません。",
+    "deleteDownloadsConfirm": "選択項目を削除",
     "pauseDownloadsBeforeQuitTitle": "ダウンロードが実行中です",
     "pauseDownloadsBeforeQuitMessage": "閉じる前にダウンロードを一時停止しますか？",
     "pauseDownloadsAndClose": "一時停止して閉じる",

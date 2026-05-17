@@ -26,8 +26,9 @@ The original userscript remains available as `jable-favourites-exporter.user.js`
 - No external dependencies for the userscript.
 - Desktop app stores synced data in SQLite and supports JSON import/export.
 - Desktop sync preserves Jable site order and supports quick/full sync modes.
+- Desktop app includes Download List and local video file management.
 - Embedded browser uses multi-tab `WebContentsView` tabs with a persistent Jable session partition.
-- Embedded browser blocks a small, Jable-specific set of known ad and popup requests in the shared session.
+- Optional WebView enhancement mode can apply a small, Jable-specific loading and page cleanup ruleset in the shared session. It is off by default.
 - Renderer UI is dark-mode-only, with no system appearance selector.
 - Desktop and userscript UI support Traditional Chinese, English, and Japanese localization.
 - Browser shortcuts and quick interactions are documented in [`docs/shortcuts.md`](shortcuts.md).
@@ -130,7 +131,7 @@ Browser and tab behavior:
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.
 - Keyboard previous/next tab switching follows tab rail visual order and wraps at both ends. After active-tab changes, `app/main.ts` focuses the new active `BrowserView.webContents` so repeated shortcuts keep working.
 - `window.open` and `target=_blank` create app browser tabs. Background-tab dispositions remain background tabs; other dispositions activate the new tab.
-- `app/browser/ad-blocker.ts` centralizes Jable-specific ad request patterns for the `persist:jable-session` Electron session. It blocks known third-party ad subresources and suppresses known ad popup navigations, but keeps Jable `mainFrame` navigations and `blob:` media URLs untouched. `app/browser/ad-cosmetic-policy.ts` is used by the webview preload to remove leftover ad card, sponsor, and modal containers whose URLs match those same rules. Set `JABLE_DESKTOP_AD_BLOCK=0` to disable both request blocking and cosmetic filtering while testing, or `JABLE_DESKTOP_AD_BLOCK_DEBUG=1` to log blocked requests, navigations, and removed containers.
+- `app/browser/webview-enhancement.ts` centralizes the optional Jable-specific WebView loading rules for the `persist:jable-session` Electron session. It keeps Jable `mainFrame` navigations and `blob:` media URLs untouched. `app/browser/webview-content-policy.ts` is used by the webview preload to apply matching page cleanup rules. The Settings value `webViewEnhancementMode` defaults to `false`; when enabled, the main process forwards `settings-changed` to active BrowserView tabs so the preload can apply the mode without restarting.
 - `app/browser/url-policy.ts` centralizes trusted Jable origins (`https://jable.tv`, `https://fs1.app`), safe browser-tab protocols, GitHub release external URL checks, collection URL checks, and fallback-origin rewrites.
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
 - Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Pure webview preload helper behavior for pager/AJAX URL parsing, retry/backoff, metric parsing, page numbers, and video path keys lives in `app/browser/webview-preload-helpers.ts`. Do not call embedded page functions through injected JavaScript strings.
@@ -166,6 +167,14 @@ Userscript cache behavior:
 - The userscript remains self-contained and dependency-free, but large exports prefer an IndexedDB cache with localStorage fallback.
 - IndexedDB cache methods cover open/read meta/load rows/known URL map/save progress/mark base rows/replace rows/migration. Preserve localStorage migration and progress feedback when changing long-running export flow.
 
+Licensing and attribution:
+
+- The project license is Apache License 2.0. Keep `LICENSE`, `package.json`, the root package entry in `package-lock.json`, `jable-favourites-exporter.user.js` metadata, `README.md`, and `docs/README.*.md` aligned when license metadata changes.
+- The root `LICENSE` file should stay as the canonical Apache License 2.0 text for scanner compatibility. Project-specific copyright, disclaimers, and acknowledgements belong in README/user documentation.
+- `package-lock.json` also records dependency licenses. Only the root package entry reflects this project's license; do not bulk-edit dependency license fields.
+- Download workflow design is acknowledged in README as referencing `hcjohn463/JableDownload`. If future changes copy code, assets, or substantial implementation text from that or any other project, verify license compatibility and preserve required copyright, attribution, and NOTICE material.
+- Do not add a root `NOTICE` file unless there is a concrete notice obligation or project-level attribution that downstream redistributors must preserve.
+
 Desktop app files:
 
 - `app/app-contract.ts`: shared user-facing contract constants such as page size, app settings defaults, and settings limit ranges.
@@ -173,7 +182,7 @@ Desktop app files:
 - `app/main-process/`: main-process domain modules for BrowserView tabs, keyboard shortcuts, app/native menus and update dialogs, context menus, download orchestration, sync workers, IPC registration, IPC payload normalizers, settings persistence, and release update fetching.
 - `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
 - `app/webview-preload.ts`: scraper injected into each embedded Jable `WebContentsView`.
-- `app/browser/`: browser/runtime policy modules: pure BrowserView tab policy, trusted URL policy, Jable ad request blocking, DOM-level ad cleanup, and pure webview preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys.
+- `app/browser/`: browser/runtime policy modules: pure BrowserView tab policy, trusted URL policy, optional WebView loading and page cleanup rules, and pure webview preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys.
 - `app/sync/`: shared pager-selection helper for sync pagination.
 - `app/data/`: app collection metadata, local data engine boundary backed by the Rust native addon, and native data addon loader.
 - `app/download/`: HLS playlist parsing helpers and native download addon loader.
@@ -221,15 +230,18 @@ TypeScript covers the renderer, shared IPC/wire types, and Electron runtime sour
 Test coverage map:
 
 - `test/node/database.test.js`: SQLite schema migrations, sync visibility, search, import/export, streamed file export, and collection toggle persistence.
-- `test/node/ad-blocker.test.js`: Jable ad request matching, popup navigation suppression, environment switches, and Electron listener installation.
-- `test/node/ad-cosmetic-policy.test.js`: DOM container removal for blocked ad cards, sponsor rows, and modal wrappers.
+- `test/node/webview-enhancement.test.js`: optional WebView loading rule matching, navigation suppression, environment switches, and Electron listener installation.
+- `test/node/webview-content-policy.test.js`: DOM container removal for configured WebView content cleanup rules.
 - `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
+- `test/node/download-helpers.test.js`: HLS playlist extraction, playlist parsing, request header handling, resume manifest compatibility, and error sanitization helpers.
+- `test/node/download-manager.test.js`: Download Manager orchestration helpers, speed mode mapping, failure classification, bulk result shapes, refresh retry compatibility, and sanitizer behavior.
 - `test/node/ipc-normalizers.test.js`: renderer IPC payload validation and normalization.
 - `test/node/webview-preload-helpers.test.js`: pure webview preload helper behavior for constants, metrics, page parsing, AJAX URLs, and retry details.
 - `test/node/settings.test.js`: app settings defaults, persistence, and user-facing limit clamping.
 - `test/node/sync-utils.test.js`: numeric pager selection.
 - `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
-- `native/local-data-engine/src/tests.rs`: Rust-native data-engine invariants that should not depend only on addon contract coverage, including URL normalization, site-order import aliases, search token matching, outbox grouping, resolved groups, and full-sync superseded state.
+- `native/local-data-engine/src/tests.rs`: Rust-native data-engine invariants that should not depend only on addon contract coverage, including URL normalization, site-order import aliases, search token matching, outbox grouping, resolved groups, full-sync superseded state, and download asset metadata persistence.
+- `native/download-engine/src/planning.rs` and `native/download-engine/src/playlist.rs`: Rust-native download engine concurrency planning, CDN rejection handling, and local HLS playlist generation.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state, library pagination/filter state, sync workflow status, pending remote actions, and toast status.
 - `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, settings IPC, browser tab create/activate/close IPC, and import/export happy path.

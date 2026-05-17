@@ -20,7 +20,6 @@ V3 should focus on the remaining management and recovery features:
 - structured failure metadata
 - better retry decisions after expired or rejected playlist/segment URLs
 - error details that stay understandable and sanitized
-- a research path for playback-triggered download discovery
 
 ## Goals
 
@@ -67,13 +66,15 @@ V3 should improve scanning and routine operations without making each card visua
 
 Potential improvements:
 
-- Add clearer state filters or grouping:
+- Add persisted multi-select state filters:
   - All
-  - Active
+  - Ready
+  - Downloading
+  - Queued
   - Paused
   - Failed
-  - Ready
   - Missing
+- `All` is exclusive. Multiple specific filters use OR semantics and survive app restart.
 - Add a compact active queue section when downloads are running.
 - Keep source cards compact; detailed progress, errors, bulk actions, and cleanup controls stay in Download List.
 - Reduce routine transition toasts when Download List is already visible.
@@ -86,15 +87,18 @@ Safe bulk actions should be available from Download List, not source cards.
 Recommended actions:
 
 - Retry Failed
-- Cancel Queued
-- Clear Completed Records
-- Delete Selected Local Files
+- Queue Actions
+  - Pause All
+  - Resume All
+  - Cancel Queued
+- Delete Selected Downloads
 
 Rules:
 
 - Bulk delete must require confirmation.
 - Bulk delete must not remove videos from Favourites, Watch Later, or remote Jable state.
-- Clear Completed Records should remove ready records from Download List. If it also deletes local files, the UI must say that explicitly; otherwise it should only clear records for files already removed or intentionally leave files in place. This behavior needs product confirmation before implementation.
+- Pause All applies to queued and downloading records and preserves resumable segment work when possible.
+- Resume All applies to paused records and uses the same segment-level resume path as single-card Resume.
 - Cancel Queued should not delete completed local files.
 - Retry Failed should not duplicate existing ready, queued, or downloading assets.
 
@@ -209,21 +213,22 @@ Older proposals mentioned some behaviors that are not currently implemented exac
 - Dedicated `getDownloadStates(videoUrls)` / `countDownloads(options)` IPC methods versus the current `listDownloads()` plus renderer filtering.
 - Separate `download-state-changed`, `download-progress`, and `download-error` events versus the current consolidated `downloads-changed`.
 - Download row context menu actions versus the current in-card buttons.
-- Persisted `deleting` state for delete-in-progress, which is currently not used.
 - Direct source URL display on Download List cards, which is currently represented by an Open Page action.
 
 ## Implementation Milestones
 
 1. Download List state scanning
-   - add finer state filters or grouping
+   - add finalized multi-select state filters
    - optionally add compact active queue section
    - keep persisted filter behavior aligned with settings
 
 2. Bulk actions
    - add Retry Failed
+   - add Queue Actions menu
+   - add Pause All
+   - add Resume All
    - add Cancel Queued
-   - decide and implement Clear Completed Records semantics
-   - design Delete Selected Local Files with confirmation
+   - design Delete Selected Downloads with confirmation
 
 3. Speed modes
    - add persisted `downloadSpeedMode`
@@ -242,10 +247,8 @@ Older proposals mentioned some behaviors that are not currently implemented exac
    - refresh video page and playlist once
    - retry unfinished segment work only when compatible
 
-6. Playback-triggered download research
-   - inspect observed media request availability
-   - determine whether playlist/header reuse is enough
-   - keep Chromium cache byte reuse deferred unless proven safe
+6. Carry-over cleanup
+   - confirm rejected IPC/event/context-menu/source-URL behaviors stay out of V3
 
 ## Test Plan
 
@@ -253,19 +256,19 @@ Older proposals mentioned some behaviors that are not currently implemented exac
 - Node tests for settings normalization and any new migration fields.
 - Node tests for failure classification, stable failure codes, and sanitization.
 - Renderer tests for Download List filters/grouping, bulk actions, error details, and source-card state behavior.
-- Electron tests for graceful quit with active downloads, pause/resume/cancel/retry, open/reveal, and download-root safety.
+- Electron tests for graceful quit with active downloads, pause/resume/cancel/retry, Pause All, Resume All, Cancel Queued, open/reveal, and download-root safety.
 - Manual tests on macOS and Windows for:
   - Stable/Balanced/Fast modes
   - Retry Failed
+  - Pause All
+  - Resume All
   - Cancel Queued
-  - Clear Completed Records
-  - Delete Selected Local Files
+  - Delete Selected Downloads
   - failed retry after segment URL rejection
-  - playback-triggered download research observations
 
-## Open Questions
+## Resolved Decisions
 
-- Should Clear Completed Records delete files, only remove records for missing files, or be replaced with a differently named action?
-- Should speed mode include only Stable/Balanced/Fast, or also Advanced custom min/max controls?
-- Should ready source-card click open the local file, or should opening remain reserved for Download List?
-- Should playback-triggered download be part of V3 delivery or only a research spike for a later version?
+- Clear Completed Records is not part of V3.
+- Speed mode is limited to Stable, Balanced, and Fast.
+- Ready source-card clicks remain state-only; opening local files stays reserved for Download List.
+- Playback-triggered download is future research, not V3 delivery.

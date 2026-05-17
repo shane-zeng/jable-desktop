@@ -2,8 +2,8 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const adBlocker = require('../../app/runtime-dist/browser/ad-blocker');
-const adCosmeticPolicy = require('../../app/runtime-dist/browser/ad-cosmetic-policy');
+const webViewEnhancement = require('../../app/runtime-dist/browser/webview-enhancement');
+const webViewContentPolicy = require('../../app/runtime-dist/browser/webview-content-policy');
 
 async function createDocument(html) {
   const happyDom = await import('happy-dom');
@@ -12,17 +12,17 @@ async function createDocument(html) {
   return window.document;
 }
 
-test('removes the full video grid column for known ad cards', async function () {
+test('removes the full video grid column for configured cards', async function () {
   const document = await createDocument(`
     <div class="row">
-      <div id="ad-card" class="col-6 col-sm-4 col-lg-12">
+      <div id="configured-card" class="col-6 col-sm-4 col-lg-12">
         <div class="video-img-box mb-e-20">
           <div class="img-box cover-md">
             <a target="_blank" href="https://t.fluxtrck.site/c1/9432b3b0-661c-4d05-9552-29757dafc4cb?cv1=%7Bbanner%7D">
               <img src="https://assets-cdn.jable.tv/assets/images/252/427-240-3.gif">
             </a>
           </div>
-          <div class="detail">ad text</div>
+          <div class="detail">remote text</div>
         </div>
       </div>
       <div id="real-card" class="col-6 col-sm-4 col-lg-12">
@@ -37,34 +37,40 @@ test('removes the full video grid column for known ad cards', async function () 
     </div>
   `);
 
-  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+  const removed = webViewContentPolicy.applyWebViewContentPolicy(
+    document,
+    webViewEnhancement.shouldSuppressWebViewNavigation
+  );
 
   assert.equal(removed, 1);
-  assert.equal(document.querySelector('#ad-card'), null);
+  assert.equal(document.querySelector('#configured-card'), null);
   assert.notEqual(document.querySelector('#real-card'), null);
 });
 
-test('removes sponsor text rows for known external sponsor links', async function () {
+test('removes configured external text rows', async function () {
   const document = await createDocument(`
-    <div id="sponsor-row" class="text-center">
-      <a class="text-sponsor" target="_blank" href="https://s.zline0.com/v1/d.php?z=4789176">Sponsor</a>
+    <div id="external-text-row" class="text-center">
+      <a class="text-sponsor" target="_blank" href="https://s.zline0.com/v1/d.php?z=4789176">External</a>
     </div>
     <div id="content-row" class="text-center">
       <a href="/videos/real-video/">Real link</a>
     </div>
   `);
 
-  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+  const removed = webViewContentPolicy.applyWebViewContentPolicy(
+    document,
+    webViewEnhancement.shouldSuppressWebViewNavigation
+  );
 
   assert.equal(removed, 1);
-  assert.equal(document.querySelector('#sponsor-row'), null);
+  assert.equal(document.querySelector('#external-text-row'), null);
   assert.notEqual(document.querySelector('#content-row'), null);
 });
 
-test('keeps collection action buttons when removing a sponsor link from a shared detail row', async function () {
+test('keeps collection action buttons when removing a configured link from a shared detail row', async function () {
   const document = await createDocument(`
     <div id="shared-row" class="text-center">
-      <a class="text-sponsor" target="_blank" href="https://s.zline0.com/v1/d.php?z=4789176">Sponsor</a>
+      <a class="text-sponsor" target="_blank" href="https://s.zline0.com/v1/d.php?z=4789176">External</a>
       <style>.text-sponsor::before { content: 'x'; }</style>
       <div class="my-3">
         <button id="fav-button" data-fav-video-id="59085" data-fav-type="0" class="btn btn-action fav mr-2">
@@ -76,7 +82,10 @@ test('keeps collection action buttons when removing a sponsor link from a shared
     </div>
   `);
 
-  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+  const removed = webViewContentPolicy.applyWebViewContentPolicy(
+    document,
+    webViewEnhancement.shouldSuppressWebViewNavigation
+  );
 
   assert.equal(removed, 1);
   assert.notEqual(document.querySelector('#shared-row'), null);
@@ -85,9 +94,9 @@ test('keeps collection action buttons when removing a sponsor link from a shared
   assert.notEqual(document.querySelector('#watch-later-button'), null);
 });
 
-test('removes modal wrappers when their media comes from known ad hosts', async function () {
+test('removes modal wrappers when their media comes from configured hosts', async function () {
   const document = await createDocument(`
-    <div id="ad-modal" class="modelWrapper--hcpk7">
+    <div id="configured-modal" class="modelWrapper--hcpk7">
       <div class="layoutWrapper--zyz7H">
         <a href="https://go.bluetrafficstream.com/?seenLanding=1" target="_blank">
           <img src="https://img.doppiocdn.com/thumbs/1778850764/208569547">
@@ -97,26 +106,32 @@ test('removes modal wrappers when their media comes from known ad hosts', async 
     <main id="page-content"></main>
   `);
 
-  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+  const removed = webViewContentPolicy.applyWebViewContentPolicy(
+    document,
+    webViewEnhancement.shouldSuppressWebViewNavigation
+  );
 
   assert.equal(removed, 1);
-  assert.equal(document.querySelector('#ad-modal'), null);
+  assert.equal(document.querySelector('#configured-modal'), null);
   assert.notEqual(document.querySelector('#page-content'), null);
 });
 
-test('removes fullscreen ad iframes left behind after request blocking', async function () {
+test('removes fullscreen iframes left behind after request filtering', async function () {
   const document = await createDocument(`
     <iframe
-      id="ad-iframe"
+      id="configured-iframe"
       src="https://go.xlivrdr.com/smartpop/ebdeebd?p1=3730011"
       style="width: 100vw; height: 100vh;"
     ></iframe>
     <iframe id="real-iframe" src="https://jable.tv/embed/player"></iframe>
   `);
 
-  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
+  const removed = webViewContentPolicy.applyWebViewContentPolicy(
+    document,
+    webViewEnhancement.shouldSuppressWebViewNavigation
+  );
 
   assert.equal(removed, 1);
-  assert.equal(document.querySelector('#ad-iframe'), null);
+  assert.equal(document.querySelector('#configured-iframe'), null);
   assert.notEqual(document.querySelector('#real-iframe'), null);
 });

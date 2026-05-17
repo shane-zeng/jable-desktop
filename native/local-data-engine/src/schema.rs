@@ -93,6 +93,11 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
            duration_seconds REAL,
            progress REAL,
            error TEXT,
+           failure_phase TEXT,
+           failure_code TEXT,
+           attempt_count INTEGER NOT NULL DEFAULT 0,
+           last_started_at TEXT,
+           last_error_at TEXT,
            downloaded_at TEXT,
            last_checked_at TEXT,
            created_at TEXT NOT NULL,
@@ -141,6 +146,16 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
     )?;
     ensure_column(conn, "videos", "search_text", "TEXT")?;
     ensure_column(conn, "download_assets", "preview", "TEXT")?;
+    ensure_column(conn, "download_assets", "failure_phase", "TEXT")?;
+    ensure_column(conn, "download_assets", "failure_code", "TEXT")?;
+    ensure_column(
+        conn,
+        "download_assets",
+        "attempt_count",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    ensure_column(conn, "download_assets", "last_started_at", "TEXT")?;
+    ensure_column(conn, "download_assets", "last_error_at", "TEXT")?;
     ensure_download_assets_paused_state(conn)?;
 
     backfill_remote_apply_state(conn)?;
@@ -179,6 +194,11 @@ fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
            duration_seconds REAL,
            progress REAL,
            error TEXT,
+           failure_phase TEXT,
+           failure_code TEXT,
+           attempt_count INTEGER NOT NULL DEFAULT 0,
+           last_started_at TEXT,
+           last_error_at TEXT,
            downloaded_at TEXT,
            last_checked_at TEXT,
            created_at TEXT NOT NULL,
@@ -186,11 +206,13 @@ fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
          );
          INSERT INTO download_assets_new (
            video_url, status, file_relative_path, format, title, img, preview,
-           size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
+           size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
+           last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
          SELECT
            video_url, status, file_relative_path, format, title, img, preview,
-           size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
+           size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
+           last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          FROM download_assets;
          DROP TABLE download_assets;
          ALTER TABLE download_assets_new RENAME TO download_assets;

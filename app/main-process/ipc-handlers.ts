@@ -192,16 +192,32 @@ function registerDownloadHandlers(context: IpcHandlersContext) {
     return context.getDownloadManager().retryDownload(videoUrl);
   });
 
+  context.ipcMain.handle('download:retry-failed', function () {
+    return context.getDownloadManager().retryFailedDownloads();
+  });
+
   context.ipcMain.handle('download:pause', function (_event, videoUrl) {
     return context.getDownloadManager().pauseDownload(videoUrl);
+  });
+
+  context.ipcMain.handle('download:pause-all', function () {
+    return context.getDownloadManager().pauseAllDownloads();
   });
 
   context.ipcMain.handle('download:resume', function (_event, videoUrl) {
     return context.getDownloadManager().resumeDownload(videoUrl);
   });
 
+  context.ipcMain.handle('download:resume-paused', function () {
+    return context.getDownloadManager().resumePausedDownloads();
+  });
+
   context.ipcMain.handle('download:cancel', function (_event, videoUrl) {
     return context.getDownloadManager().cancelDownload(videoUrl);
+  });
+
+  context.ipcMain.handle('download:cancel-queued', function () {
+    return context.getDownloadManager().cancelQueuedDownloads();
   });
 
   context.ipcMain.handle('download:open-file', function (_event, videoUrl) {
@@ -214,6 +230,10 @@ function registerDownloadHandlers(context: IpcHandlersContext) {
 
   context.ipcMain.handle('download:delete', function (_event, videoUrl) {
     return context.getDownloadManager().deleteDownload(videoUrl);
+  });
+
+  context.ipcMain.handle('download:delete-many', function (_event, videoUrls) {
+    return context.getDownloadManager().deleteDownloads(videoUrls);
   });
 }
 

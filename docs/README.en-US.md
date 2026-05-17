@@ -95,6 +95,7 @@ After installing FFmpeg, open Settings > Downloads:
 - Click Check Again to let the app detect FFmpeg from `PATH`
 - Or click Choose FFmpeg to manually select the `ffmpeg` binary
 - Use the same section to choose the download folder if needed
+- Choose Stable, Balanced, or Fast download speed mode. This controls segment download speed for each video and does not change how many videos run at once.
 
 ### macOS
 
@@ -116,7 +117,7 @@ winget install Gyan.FFmpeg
 
 You can also download an FFmpeg build, extract it, add its `bin` folder to `PATH`, or manually choose `ffmpeg.exe` in the app settings page.
 
-Downloaded videos appear in the Download List tab under Local Data. Ready items can be opened with the system default player, revealed in the file manager, opened back on Jable, retried after failure, or explicitly deleted from local storage.
+Downloaded videos appear in the Download List tab under Local Data. Ready items can be opened with the system default player, revealed in the file manager, opened back on Jable, retried after failure, or explicitly deleted from local storage. The Download List also supports persisted multi-select state filtering, bulk retry for failed items, Queue Actions for Pause All / Resume All / Cancel Queued, Delete Selected, and an Error Log for failed or missing records.
 
 ## Installation
 
@@ -148,9 +149,10 @@ The Settings page controls:
 
 - Interface language
 - Maximum open browser tabs, with a memory and playback warning above the recommended range
+- WebView Enhancement Mode, off by default; when enabled, it applies extra WebView loading and page cleanup rules
 - Full Sync acceleration: Safe, Standard, or Fast
 - Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
-- FFmpeg status, Check Again, manual FFmpeg selection, and the download folder location
+- FFmpeg status, Check Again, manual FFmpeg selection, download folder location, concurrent video downloads, and download speed mode
 - JSON import, JSON export, the local database path, and opening the local data folder in Finder or File Explorer
 - Manual update checks
 
@@ -201,8 +203,16 @@ Development notes include:
 - Packaging and release workflow
 - Testing and validation checklist
 
+## Disclaimer
+
+> **This tool is provided only for learning and technical research.** Users are responsible for complying with local laws and respecting content copyright. The developer is not responsible for legal liability arising from use of this tool. Do not use this tool for illegal or infringing purposes.
+
+## Acknowledgements
+
+The download feature and download workflow design reference [hcjohn463/JableDownload](https://github.com/hcjohn463/JableDownload). This project is not a fork of that project; the related implementation is integrated into Jable Desktop's Electron / Rust architecture.
+
 ## License
 
-MIT License.
+Apache License 2.0.
 
 See [LICENSE](../LICENSE).

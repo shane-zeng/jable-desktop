@@ -3,8 +3,10 @@ import { ref } from 'vue';
 import { t } from '../i18n';
 import type { CollectionKey, DownloadRecord, DownloadState } from '../../types/jable';
 
-defineProps<{
+const props = defineProps<{
   record: DownloadRecord;
+  selectable?: boolean;
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -16,6 +18,7 @@ const emit = defineEmits<{
   resume: [videoUrl: string];
   cancel: [videoUrl: string];
   delete: [videoUrl: string];
+  'toggle-select': [payload: { videoUrl: string; selected: boolean }];
 }>();
 
 const previewVideo = ref<HTMLVideoElement | null>(null);
@@ -190,13 +193,34 @@ function stopPreview() {
     previewVideo.value.currentTime = 0;
   } catch (error) {}
 }
+
+function toggleSelected(event: Event) {
+  emit('toggle-select', {
+    videoUrl: props.record.videoUrl,
+    selected: (event.target as HTMLInputElement).checked
+  });
+}
 </script>
 
 <template>
   <article
-    class="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
+    class="relative grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
     data-test="download-record-card"
   >
+    <label
+      v-if="selectable"
+      class="absolute top-4 left-4 z-10 grid h-7 w-7 place-items-center rounded-md border border-[var(--panel-border)] bg-[rgba(17,19,24,0.82)]"
+      :title="t('downloadList.selectDownload')"
+    >
+      <input
+        class="h-5 w-5"
+        type="checkbox"
+        data-test="download-record-select"
+        :aria-label="t('downloadList.selectDownload')"
+        :checked="selected"
+        @change="toggleSelected"
+      />
+    </label>
     <a
       class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
       :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"

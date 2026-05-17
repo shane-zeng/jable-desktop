@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import CollectionTabs from './CollectionTabs.vue';
 import DownloadRecordCard from './DownloadRecordCard.vue';
 import PaginationControls from './PaginationControls.vue';
@@ -20,6 +20,7 @@ import type {
   DownloadRecord,
   DownloadSortKey,
   DownloadStateFilter,
+  DownloadStateFilters,
   LibraryTabKey,
   LibraryVideoMenuPayload,
   PendingRemoteOperationGroup,
@@ -47,12 +48,13 @@ const props = withDefaults(
     downloadSearch?: string;
     downloadSort?: DownloadSortKey;
     downloadDirection?: SortDirection;
-    downloadStateFilter?: DownloadStateFilter;
+    downloadStateFilters?: DownloadStateFilters;
     countLabel: string;
     pageLabel: string;
     downloads: DownloadRecord[];
     downloadRecords?: DownloadRecord[];
     batchDownloadSelection?: string[];
+    selectedDownloadUrls?: string[];
     rows: VideoRow[];
     currentPage: number;
     totalPages: number;
@@ -62,11 +64,16 @@ const props = withDefaults(
     collectionDownloadFilter: 'all',
     downloadSort: 'updated_at',
     downloadDirection: 'desc',
-    downloadStateFilter: 'all',
+    downloadStateFilters: function () {
+      return ['all'];
+    },
     downloadRecords: function () {
       return [];
     },
     batchDownloadSelection: function () {
+      return [];
+    },
+    selectedDownloadUrls: function () {
       return [];
     }
   }
@@ -84,7 +91,7 @@ const emit = defineEmits<{
   'update:download-search': [value: string];
   'update:download-sort': [value: DownloadSortKey];
   'update:download-direction': [value: SortDirection];
-  'update:download-state-filter': [value: DownloadStateFilter];
+  'update:download-state-filters': [value: DownloadStateFilters];
   'prev-page': [];
   'next-page': [];
   'go-page': [page: number];
@@ -95,6 +102,13 @@ const emit = defineEmits<{
   'resume-download': [videoUrl: string];
   'cancel-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
+  'retry-failed-downloads': [];
+  'pause-all-downloads': [];
+  'resume-paused-downloads': [];
+  'cancel-queued-downloads': [];
+  'delete-selected-downloads': [];
+  'show-download-error-log': [];
+  'toggle-download-record-selection': [payload: { videoUrl: string; selected: boolean }];
   'download-video': [video: VideoRow];
   'select-downloadable': [videos: VideoRow[]];
   'download-selected': [];
@@ -107,6 +121,9 @@ const emit = defineEmits<{
   'resolve-pending-group': [groupId: string];
   'video-context-menu': [payload: LibraryVideoMenuPayload];
 }>();
+
+const downloadQueueActionsRef = ref<HTMLDetailsElement | null>(null);
+const downloadStateFiltersRef = ref<HTMLDetailsElement | null>(null);
 
 function inputValue(event: Event) {
   return (event.target as HTMLInputElement | HTMLSelectElement).value;
@@ -136,10 +153,6 @@ function updateDownloadDirection(event: Event) {
   emit('update:download-direction', inputValue(event) as SortDirection);
 }
 
-function updateDownloadStateFilter(event: Event) {
-  emit('update:download-state-filter', inputValue(event) as DownloadStateFilter);
-}
-
 const downloadRecordByVideoUrl = computed(function () {
   const records = new Map<string, DownloadRecord>();
 
@@ -156,6 +169,106 @@ const batchDownloadSelectionSet = computed(function () {
 
 const batchDownloadSelectionCount = computed(function () {
   return props.batchDownloadSelection.length;
+});
+
+const selectedDownloadUrlSet = computed(function () {
+  return new Set(props.selectedDownloadUrls);
+});
+
+const selectedDownloadStateFilters = computed(function () {
+  return new Set(props.downloadStateFilters);
+});
+
+const downloadStateFilterLabel = computed(function () {
+  if (selectedDownloadStateFilters.value.has('all') || props.downloadStateFilters.length === 0) {
+    return t('options.downloadStateFilter.all');
+  }
+  if (props.downloadStateFilters.length === 1) {
+    return t('options.downloadStateFilter.' + props.downloadStateFilters[0]);
+  }
+  return t('downloadList.stateFilterSelected', { count: props.downloadStateFilters.length });
+});
+
+const downloadActionRecords = computed(function () {
+  return props.downloadRecords.length ? props.downloadRecords : props.downloads;
+});
+
+const retryFailedDownloadCount = computed(function () {
+  return downloadActionRecords.value.filter(function (record) {
+    return record.state === 'failed' || record.state === 'missing';
+  }).length;
+});
+
+const activeDownloadCount = computed(function () {
+  return downloadActionRecords.value.filter(function (record) {
+    return record.state === 'queued' || record.state === 'downloading';
+  }).length;
+});
+
+const pausedDownloadCount = computed(function () {
+  return downloadActionRecords.value.filter(function (record) {
+    return record.state === 'paused';
+  }).length;
+});
+
+const queuedDownloadCount = computed(function () {
+  return downloadActionRecords.value.filter(function (record) {
+    return record.state === 'queued';
+  }).length;
+});
+
+function isDownloadStateFilterSelected(filter: DownloadStateFilter) {
+  if (filter === 'all') return selectedDownloadStateFilters.value.has('all') || props.downloadStateFilters.length === 0;
+  return !selectedDownloadStateFilters.value.has('all') && selectedDownloadStateFilters.value.has(filter);
+}
+
+function toggleDownloadStateFilter(filter: DownloadStateFilter) {
+  if (filter === 'all') {
+    emit('update:download-state-filters', ['all']);
+    return;
+  }
+
+  const next = props.downloadStateFilters.filter(function (value) {
+    return value !== 'all';
+  });
+  const index = next.indexOf(filter);
+  if (index === -1) next.push(filter);
+  else next.splice(index, 1);
+
+  const orderedNext = DOWNLOAD_STATE_FILTER_OPTIONS.map(function (option) {
+    return option.value;
+  }).filter(function (value) {
+    return value !== 'all' && next.indexOf(value) !== -1;
+  });
+
+  emit('update:download-state-filters', orderedNext.length ? orderedNext : ['all']);
+}
+
+function closeDownloadQueueActions() {
+  if (downloadQueueActionsRef.value) downloadQueueActionsRef.value.open = false;
+}
+
+function closeDropdownsOnOutsideClick(event: MouseEvent) {
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+
+  const queueActions = downloadQueueActionsRef.value;
+  if (queueActions && queueActions.open && !queueActions.contains(target)) queueActions.open = false;
+
+  const stateFilters = downloadStateFiltersRef.value;
+  if (stateFilters && stateFilters.open && !stateFilters.contains(target)) stateFilters.open = false;
+}
+
+function isDownloadDeleteSelectable(record: DownloadRecord) {
+  return (
+    record.state === 'ready' || record.state === 'paused' || record.state === 'failed' || record.state === 'missing'
+  );
+}
+
+const selectedDownloadCount = computed(function () {
+  return props.downloads.filter(function (record) {
+    return isDownloadDeleteSelectable(record) && selectedDownloadUrlSet.value.has(record.videoUrl);
+  }).length;
 });
 
 function downloadRecordForVideo(video: VideoRow) {
@@ -186,6 +299,14 @@ const allSelectableBatchDownloadsSelected = computed(function () {
 function isVideoSelectedForDownload(video: VideoRow) {
   return batchDownloadSelectionSet.value.has(video.url);
 }
+
+onMounted(function () {
+  document.addEventListener('click', closeDropdownsOnOutsideClick);
+});
+
+onBeforeUnmount(function () {
+  document.removeEventListener('click', closeDropdownsOnOutsideClick);
+});
 </script>
 
 <template>
@@ -238,6 +359,82 @@ function isVideoSelectedForDownload(video: VideoRow) {
           {{ fullSyncLabel }}
         </button>
       </div>
+      <div v-else-if="activeTab === 'downloads' && ffmpegReady" class="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          :disabled="busy || retryFailedDownloadCount === 0"
+          data-test="download-retry-failed"
+          @click="emit('retry-failed-downloads')"
+        >
+          {{ t('downloadList.retryFailed') }}
+        </button>
+        <details ref="downloadQueueActionsRef" class="relative" data-test="download-queue-actions">
+          <summary
+            class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md border border-[var(--control-border)] bg-[var(--control)] px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm outline-none hover:border-[var(--accent)] hover:bg-[var(--control-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden"
+          >
+            <span>{{ t('downloadList.queueActions') }}</span>
+            <span
+              class="h-2 w-2 shrink-0 rotate-45 border-b border-r border-current text-[var(--muted)]"
+              aria-hidden="true"
+            ></span>
+          </summary>
+          <div
+            class="absolute right-0 z-20 mt-2 grid min-w-52 gap-1 rounded-md border border-[var(--panel-border)] bg-[var(--card)] p-2 shadow-[var(--shadow)]"
+          >
+            <button
+              type="button"
+              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 text-left"
+              :disabled="busy || activeDownloadCount === 0"
+              data-test="download-pause-all"
+              @click="
+                closeDownloadQueueActions();
+                emit('pause-all-downloads');
+              "
+            >
+              <span>{{ t('downloadList.pauseAll') }}</span>
+              <span class="tabular-nums text-[var(--muted)]">{{ activeDownloadCount }}</span>
+            </button>
+            <button
+              type="button"
+              class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 text-left"
+              :disabled="busy || pausedDownloadCount === 0"
+              data-test="download-resume-paused"
+              @click="
+                closeDownloadQueueActions();
+                emit('resume-paused-downloads');
+              "
+            >
+              <span>{{ t('downloadList.resumeAll') }}</span>
+              <span class="tabular-nums text-[var(--muted)]">{{ pausedDownloadCount }}</span>
+            </button>
+            <button
+              type="button"
+              class="danger grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 text-left"
+              :disabled="busy || queuedDownloadCount === 0"
+              data-test="download-cancel-queued"
+              @click="
+                closeDownloadQueueActions();
+                emit('cancel-queued-downloads');
+              "
+            >
+              <span>{{ t('downloadList.cancelQueued') }}</span>
+              <span class="tabular-nums text-[var(--muted)]">{{ queuedDownloadCount }}</span>
+            </button>
+          </div>
+        </details>
+        <button
+          type="button"
+          class="danger"
+          :disabled="busy || selectedDownloadCount === 0"
+          data-test="download-delete-selected"
+          @click="emit('delete-selected-downloads')"
+        >
+          {{ t('downloadList.deleteSelected') }}
+        </button>
+        <button type="button" :disabled="busy" data-test="download-error-log" @click="emit('show-download-error-log')">
+          {{ t('downloadList.errorLog') }}
+        </button>
+      </div>
     </div>
 
     <div
@@ -285,7 +482,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
 
     <div
       v-if="activeTab === 'downloads' && ffmpegReady"
-      class="grid grid-cols-[minmax(220px,1fr)_minmax(170px,max-content)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[minmax(220px,1fr)_minmax(190px,max-content)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
       data-test="download-filters"
     >
       <input
@@ -294,16 +491,46 @@ function isVideoSelectedForDownload(video: VideoRow) {
         :value="downloadSearch"
         @input="emit('update:download-search', inputValue($event))"
       />
-      <select
-        class="w-auto min-w-[170px] max-w-[260px]"
-        :aria-label="t('downloadList.stateFilter')"
-        :value="downloadStateFilter"
-        @change="updateDownloadStateFilter"
-      >
-        <option v-for="option in DOWNLOAD_STATE_FILTER_OPTIONS" :key="option.value" :value="option.value">
-          {{ t('options.downloadStateFilter.' + option.value) }}
-        </option>
-      </select>
+      <details ref="downloadStateFiltersRef" class="relative min-w-[190px]" data-test="download-state-filters">
+        <summary
+          class="flex min-h-[42px] cursor-pointer list-none items-center justify-between rounded-md border border-[var(--control-border)] bg-[var(--control)] px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm outline-none hover:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden"
+          :aria-label="t('downloadList.stateFilter')"
+        >
+          <span class="min-w-0 truncate">{{ downloadStateFilterLabel }}</span>
+          <span
+            class="ml-3 h-2 w-2 shrink-0 rotate-45 border-b border-r border-current text-[var(--muted)]"
+            aria-hidden="true"
+          ></span>
+        </summary>
+        <div
+          class="absolute left-0 z-20 mt-2 grid min-w-56 gap-1 rounded-md border border-[var(--panel-border)] bg-[var(--card)] p-2 shadow-[var(--shadow)]"
+        >
+          <button
+            v-for="option in DOWNLOAD_STATE_FILTER_OPTIONS"
+            :key="option.value"
+            type="button"
+            class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-[var(--text)] hover:bg-[var(--control-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            :class="{ 'bg-[var(--control)]': isDownloadStateFilterSelected(option.value) }"
+            role="menuitemcheckbox"
+            :aria-checked="isDownloadStateFilterSelected(option.value)"
+            :data-test="'download-state-filter-' + option.value"
+            @click="toggleDownloadStateFilter(option.value)"
+          >
+            <span
+              class="grid h-4 w-4 place-items-center rounded border border-[var(--control-border)]"
+              :class="
+                isDownloadStateFilterSelected(option.value)
+                  ? 'border-[var(--accent-strong)] bg-[var(--accent)]'
+                  : 'bg-[var(--control)]'
+              "
+              aria-hidden="true"
+            >
+              <span v-if="isDownloadStateFilterSelected(option.value)" class="h-1.5 w-1.5 rounded-sm bg-white"></span>
+            </span>
+            <span class="min-w-0 truncate">{{ t('options.downloadStateFilter.' + option.value) }}</span>
+          </button>
+        </div>
+      </details>
       <select :aria-label="t('downloadList.sort')" :value="downloadSort" @change="updateDownloadSort">
         <option v-for="option in DOWNLOAD_SORT_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.downloadSort.' + option.value) }}
@@ -373,6 +600,8 @@ function isVideoSelectedForDownload(video: VideoRow) {
             v-for="record in downloads"
             :key="record.videoUrl"
             :record="record"
+            :selectable="isDownloadDeleteSelectable(record)"
+            :selected="selectedDownloadUrlSet.has(record.videoUrl)"
             @open="emit('open-download', $event)"
             @open-page="emit('open-video', $event)"
             @reveal="emit('reveal-download', $event)"
@@ -381,6 +610,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
             @resume="emit('resume-download', $event)"
             @cancel="emit('cancel-download', $event)"
             @delete="emit('delete-download', $event)"
+            @toggle-select="emit('toggle-download-record-selection', $event)"
           />
         </template>
       </template>

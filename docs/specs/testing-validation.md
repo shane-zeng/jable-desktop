@@ -39,13 +39,14 @@ fnm exec --using 24 npm run test:electron
 | Settings normalization and persistence                                                        | `test/node/settings.test.js`                |
 | Download asset persistence and normalization                                                  | `test/node/data-engine-contract.test.js`    |
 | HLS playlist extraction, parsing, and request header helpers                                  | `test/node/download-helpers.test.js`        |
+| Download Manager orchestration, speed modes, failure classification, sanitization             | `test/node/download-manager.test.js`        |
 | Rust native download engine adaptive concurrency, playlist generation, build/check/clippy     | `npm run rust:ci`                           |
 | IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
 | Userscript i18n guardrails                                                                    | `test/node/userscript-i18n.test.js`         |
 | Update checking                                                                               | `test/node/update-checker.test.js`          |
-| Ad request blocking                                                                           | `test/node/ad-blocker.test.js`              |
-| Cosmetic ad filtering                                                                         | `test/node/ad-cosmetic-policy.test.js`      |
+| WebView enhancement loading rules                                                             | `test/node/webview-enhancement.test.js`     |
+| WebView content cleanup rules                                                                 | `test/node/webview-content-policy.test.js`  |
 | Webview preload pure helpers                                                                  | `test/node/webview-preload-helpers.test.js` |
 | Main/preload IPC guardrails                                                                   | `test/node/ipc-guardrails.test.js`          |
 | Renderer i18n                                                                                 | `test/renderer/i18n/index.test.ts`          |
@@ -62,7 +63,7 @@ fnm exec --using 24 npm run test:electron
 - Webview preload helper changes: run webview helper tests, IPC guardrail tests, and Node tests covering URL/sync helper behavior.
 - URL policy or release URL changes: run URL policy and update checker tests.
 - Settings changes: run settings tests plus renderer SettingsPanel tests.
-- Download List, FFmpeg, native download engine, pause/resume, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring, app-close behavior, or shell/file boundary behavior changes.
+- Download List, FFmpeg, native download engine, speed modes, failure metadata, pause/resume, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring, bulk actions, app-close behavior, or shell/file boundary behavior changes.
 - Search, migrations, sync visibility, outbox, pending remote, or import/export changes: run Node database tests, data-engine contract tests, and Rust tests.
 - Rust-native data-engine invariant changes: update and run `native/local-data-engine/src/tests.rs` through `fnm exec --using 24 npm run rust:ci`.
 - Documentation-only changes: run `fnm exec --using 24 npm run format:check`.
@@ -88,12 +89,20 @@ Verify these behaviors when touching related desktop areas:
 - Local video card download-state filtering can show not downloaded rows without including queued, active, or ready downloads.
 - Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
 - Settings can change the maximum active video downloads value and the queue starts additional active downloads up to that limit.
+- Settings can switch download speed mode between Stable, Balanced, and Fast without changing the maximum active video downloads value.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
 - Download List renders queued, downloading, paused, failed, ready, and missing rows.
+- Download List multi-select filters can show or combine All, Ready, Downloading, Queued, Paused, Failed, and Missing states, and the selection survives app restart.
 - Ready downloads open through the OS default player and can be revealed in the OS file manager.
 - Failed and missing downloads can be retried.
-- Queued and active downloads can be paused or canceled.
+- Retry Failed queues failed and missing records without duplicating ready, queued, or active records.
+- Queued and active downloads can be paused individually, and Queue Actions > Pause All moves queued and active records to paused without deleting preserved segments.
+- Paused downloads can be resumed individually, and Queue Actions > Resume All queues paused records through the normal segment-level resume path.
+- Queued downloads can be canceled individually, and Cancel Queued marks queued records failed with the canceled message without deleting ready files.
+- Delete Selected only applies to visible selected eligible Download List records and does not modify collection membership or Jable remote state.
+- Download Error Log opens as a modal and shows sanitized failed/missing detail without signed URLs, cookies, HLS keys, or full download-root paths.
 - Paused downloads can be resumed without restarting from zero when preserved segments are compatible.
+- Segment failures from refreshable HTTP/CDN rejection statuses refresh the video page and playlist once, then retry only when the existing work is compatible.
 - Closing or quitting the app with queued or active downloads prompts to pause downloads before closing.
 - Force quit or crash recovery reconciles orphaned queued/downloading records to paused on next launch/listing.
 - Deleting a Download List item removes the local managed file and download record without changing collection membership.

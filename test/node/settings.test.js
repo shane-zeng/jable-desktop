@@ -19,11 +19,13 @@ test('app settings store returns defaults and persists updates', function () {
   assert.deepEqual(store.get(), {
     maxBrowserTabs: 14,
     compactBrowserTabs: false,
+    webViewEnhancementMode: false,
     fullSyncAjaxWindowSize: 3,
     autoReplayDeferredSyncOperations: false,
     ffmpegPath: null,
     downloadRoot: null,
-    downloadStateFilter: 'all',
+    downloadStateFilters: ['all'],
+    downloadSpeedMode: 'balanced',
     maxConcurrentDownloads: 1
   });
 
@@ -31,21 +33,25 @@ test('app settings store returns defaults and persists updates', function () {
     store.update({
       maxBrowserTabs: 22,
       compactBrowserTabs: true,
+      webViewEnhancementMode: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
       downloadRoot: '/Users/example/Jable Downloads',
-      downloadStateFilter: 'ready_downloading',
+      downloadStateFilters: ['downloading', 'failed'],
+      downloadSpeedMode: 'fast',
       maxConcurrentDownloads: 8
     }),
     {
       maxBrowserTabs: 22,
       compactBrowserTabs: true,
+      webViewEnhancementMode: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
       downloadRoot: '/Users/example/Jable Downloads',
-      downloadStateFilter: 'ready_downloading',
+      downloadStateFilters: ['downloading', 'failed'],
+      downloadSpeedMode: 'fast',
       maxConcurrentDownloads: 8
     }
   );
@@ -53,11 +59,13 @@ test('app settings store returns defaults and persists updates', function () {
   const secondStore = new settings.AppSettingsStore(filePath);
   assert.equal(secondStore.get().maxBrowserTabs, 22);
   assert.equal(secondStore.get().compactBrowserTabs, true);
+  assert.equal(secondStore.get().webViewEnhancementMode, true);
   assert.equal(secondStore.get().fullSyncAjaxWindowSize, 5);
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
-  assert.equal(secondStore.get().downloadStateFilter, 'ready_downloading');
+  assert.deepEqual(secondStore.get().downloadStateFilters, ['downloading', 'failed']);
+  assert.equal(secondStore.get().downloadSpeedMode, 'fast');
   assert.equal(secondStore.get().maxConcurrentDownloads, 8);
 });
 
@@ -89,6 +97,16 @@ test('app settings patch clamps user-facing limits', function () {
   );
 });
 
+test('app settings patch normalizes WebView enhancement mode', function () {
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ webViewEnhancementMode: 1 }), {
+    webViewEnhancementMode: true
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ webViewEnhancementMode: 0 }), {
+    webViewEnhancementMode: false
+  });
+});
+
 test('app settings normalize optional ffmpeg path', function () {
   assert.deepEqual(settings.normalizeAppSettingsPatch({ ffmpegPath: '  /opt/homebrew/bin/ffmpeg  ' }), {
     ffmpegPath: '/opt/homebrew/bin/ffmpeg'
@@ -109,16 +127,52 @@ test('app settings normalize optional download root', function () {
   });
 });
 
-test('app settings normalize download state filter', function () {
+test('app settings normalize download state filters', function () {
+  for (const filter of ['queued', 'downloading', 'paused', 'failed', 'ready', 'missing']) {
+    assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: filter }), {
+      downloadStateFilters: [filter]
+    });
+  }
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'active' }), {
+    downloadStateFilters: ['downloading', 'queued']
+  });
+
+  assert.deepEqual(settings.normalizeAppSettings({ downloadStateFilter: 'failed' }).downloadStateFilters, ['failed']);
+
+  assert.deepEqual(settings.normalizeAppSettings({ downloadStateFilters: ['active', 'failed'] }).downloadStateFilters, [
+    'downloading',
+    'queued',
+    'failed'
+  ]);
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilters: ['failed', 'missing', 'failed'] }), {
+    downloadStateFilters: ['failed', 'missing']
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilters: ['all', 'failed'] }), {
+    downloadStateFilters: ['all']
+  });
+
   assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'ready_downloading' }), {
-    downloadStateFilter: 'ready_downloading'
+    downloadStateFilters: ['all']
   });
 
   assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'needs_attention' }), {
-    downloadStateFilter: 'needs_attention'
+    downloadStateFilters: ['all']
+  });
+});
+
+test('app settings normalize download speed mode', function () {
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadSpeedMode: 'stable' }), {
+    downloadSpeedMode: 'stable'
   });
 
-  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadStateFilter: 'failed' }), {
-    downloadStateFilter: 'all'
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadSpeedMode: 'fast' }), {
+    downloadSpeedMode: 'fast'
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadSpeedMode: 'custom' }), {
+    downloadSpeedMode: 'balanced'
   });
 });

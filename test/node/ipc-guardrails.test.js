@@ -259,12 +259,15 @@ test('main process downloads HLS segments in bounded parallel batches', function
   const nativeLoader = readSource(path.join(ROOT_DIR, 'app', 'download', 'native-download-engine.ts'));
   const buildScript = readSource(path.join(ROOT_DIR, 'scripts', 'build-rust-engine.js'));
 
-  assert.match(source, /const DOWNLOAD_SEGMENT_MIN_CONCURRENCY = 8/);
-  assert.match(source, /const DOWNLOAD_SEGMENT_MAX_CONCURRENCY = 32/);
+  assert.match(source, /const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY/);
+  assert.match(source, /stable: \{ min: 4, max: 8 \}/);
+  assert.match(source, /balanced: \{ min: 8, max: 32 \}/);
+  assert.match(source, /fast: \{ min: 16, max: 32 \}/);
   assert.match(source, /const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3/);
   assert.match(source, /getDownloadEngine\(\)\.downloadHlsSegments/);
-  assert.match(source, /minConcurrency: DOWNLOAD_SEGMENT_MIN_CONCURRENCY/);
-  assert.match(source, /maxConcurrency: DOWNLOAD_SEGMENT_MAX_CONCURRENCY/);
+  assert.match(source, /const concurrency = currentDownloadSegmentConcurrency\(\)/);
+  assert.match(source, /minConcurrency: concurrency\.min/);
+  assert.match(source, /maxConcurrency: concurrency\.max/);
   assert.match(source, /sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT/);
   assert.match(source, /retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT/);
   assert.match(source, /const activeDownloads = new Map<string, ActiveDownloadRuntime>\(\)/);
@@ -277,6 +280,9 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /const resumedDownloadUrls = new Set<string>\(\)/);
   assert.match(source, /state: 'paused'/);
   assert.match(source, /resumeManifestMatches\(outputPath, playlist\)/);
+  assert.match(source, /downloadHlsSegmentsWithPlaylistRefresh/);
+  assert.match(source, /resolveDownloadHlsSource\(videoUrl, signal\)/);
+  assert.match(source, /isSegmentRefreshCandidate\(error\)/);
   assert.match(source, /function shouldReuseDownloadSegmentTempDirectory/);
   assert.match(source, /function reusableSegmentFileCount/);
   assert.match(source, /function segmentResumeExtension/);
@@ -298,10 +304,32 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(buildScript, /libraryName: 'jable_download_engine'/);
 });
 
+test('preload and IPC expose bulk download list actions', function () {
+  const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
+  const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:retry-failed'/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:pause-all'/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:resume-paused'/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:cancel-queued'/);
+  assert.match(ipcHandlersSource, /ipcMain\.handle\('download:delete-many'/);
+  assert.match(preload, /retryFailedDownloads/);
+  assert.match(preload, /pauseAllDownloads/);
+  assert.match(preload, /resumePausedDownloads/);
+  assert.match(preload, /cancelQueuedDownloads/);
+  assert.match(preload, /deleteDownloads/);
+  assert.match(types, /retryFailedDownloads\(\): Promise<BulkDownloadActionResult>/);
+  assert.match(types, /pauseAllDownloads\(\): Promise<BulkDownloadActionResult>/);
+  assert.match(types, /resumePausedDownloads\(\): Promise<BulkDownloadActionResult>/);
+  assert.match(types, /cancelQueuedDownloads\(\): Promise<BulkDownloadActionResult>/);
+  assert.match(types, /deleteDownloads\(videoUrls: string\[\]\): Promise<DeleteDownloadsResult>/);
+});
+
 test('main process remuxes downloaded local HLS segments with FFmpeg', function () {
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
 
-  assert.match(source, /const localPlaylistPath = await downloadHlsSegmentsWithNative/);
+  assert.match(source, /const localPlaylistPath = await downloadHlsSegmentsWithPlaylistRefresh/);
   assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath, runtime\)/);
   assert.match(source, /'-allowed_extensions',\n\s*'ALL',\n\s*'-protocol_whitelist',\n\s*'file,crypto'/);
 });

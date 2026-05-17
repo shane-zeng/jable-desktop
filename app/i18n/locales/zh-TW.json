@@ -27,8 +27,17 @@
     },
     "downloadStateFilter": {
       "all": "全部狀態",
-      "ready_downloading": "已下載與下載中",
-      "needs_attention": "需要處理"
+      "queued": "等待中",
+      "downloading": "下載中",
+      "paused": "已暫停",
+      "failed": "失敗",
+      "ready": "已下載",
+      "missing": "檔案遺失"
+    },
+    "downloadSpeedMode": {
+      "stable": "穩定",
+      "balanced": "平衡",
+      "fast": "快速"
     },
     "collectionDownloadFilter": {
       "all": "全部",
@@ -120,6 +129,7 @@
     "sort": "下載排序",
     "sortDirection": "下載排序方向",
     "stateFilter": "下載狀態篩選",
+    "stateFilterSelected": "{count} 個狀態",
     "open": "開啟",
     "openPage": "開啟頁面",
     "openPageShort": "頁面",
@@ -130,6 +140,24 @@
     "reveal": "顯示位置",
     "revealShort": "位置",
     "delete": "刪除",
+    "retryFailed": "重試失敗",
+    "queueActions": "下載佇列",
+    "pauseAll": "全部暫停",
+    "resumeAll": "全部繼續",
+    "cancelQueued": "取消等待",
+    "deleteSelected": "刪除選取",
+    "errorLog": "錯誤紀錄",
+    "selectDownload": "選取下載項目",
+    "errorLogTitle": "下載錯誤紀錄",
+    "errorLogEmpty": "目前沒有失敗或檔案遺失的下載項目。",
+    "errorLogClose": "關閉錯誤紀錄",
+    "errorLogState": "狀態：{state}",
+    "failurePhase": "失敗階段：{phase}",
+    "failureCode": "失敗代碼：{code}",
+    "attemptCount": "嘗試次數：{count}",
+    "lastStartedAt": "最後開始：{time}",
+    "lastErrorAt": "最後失敗：{time}",
+    "notAvailable": "無資料",
     "fileSize": "檔案大小：{size}",
     "downloadedBytes": "已下載：{size}",
     "downloadSpeed": "速度：{speed}",
@@ -150,6 +178,15 @@
       "playlist": "找不到影片片段清單",
       "network": "連線逾時，請稍後重試",
       "generic": "下載失敗，請稍後重試"
+    },
+    "failurePhaseLabel": {
+      "ffmpeg_check": "FFmpeg 檢查",
+      "video_page": "影片頁面",
+      "playlist": "串流清單",
+      "segments": "影片片段",
+      "remux": "MP4 處理",
+      "file": "本機檔案",
+      "unknown": "未知"
     },
     "state": {
       "queued": "等待中",
@@ -200,6 +237,8 @@
       "maxTabsWarning": "分頁越多會保留更多頁面狀態，但也會使用更多記憶體，可能影響影片播放與同步速度。",
       "compactTabs": "緊湊分頁列",
       "compactTabsDescription": "啟動時使用較窄的分頁列。",
+      "webViewEnhancementMode": "WebView 增強模式",
+      "webViewEnhancementModeDescription": "啟用額外的 WebView 載入與畫面整理規則；若網站顯示異常，請關閉後重試。",
       "tabWidth": "分頁列寬度",
       "resetTabWidth": "重設寬度"
     },
@@ -238,6 +277,13 @@
       "concurrent": {
         "label": "最多同時下載數",
         "description": "每個影片仍會並行抓取片段；數值越高越吃網路與 CPU。"
+      },
+      "speed": {
+        "label": "下載速度模式",
+        "description": "控制每部影片內部片段下載的併發程度。",
+        "stableHint": "較低併發，降低 CDN 拒絕風險。",
+        "balancedHint": "預設行為，兼顧速度與穩定性。",
+        "fastHint": "較高併發，部分 CDN session 可能比較不穩。"
       },
       "root": {
         "label": "下載位置",
@@ -347,6 +393,9 @@
     "downloadQueued": "已加入下載清單",
     "downloadBatchQueued": "已加入 {queued} 筆下載，略過 {skipped} 筆，失敗 {failed} 筆",
     "downloadBatchNoSelection": "請先選取要下載的影片",
+    "downloadBulkActionComplete": "處理完成：影響 {affected} 筆，略過 {skipped} 筆，失敗 {failed} 筆",
+    "downloadBulkDeleteComplete": "刪除完成：刪除檔案 {deletedFiles} 個，移除紀錄 {removedRecords} 筆，略過 {skipped} 筆，失敗 {failed} 筆",
+    "downloadBulkNoSelection": "請先選取要刪除的下載項目",
     "downloadAlreadyQueued": "影片已在下載清單中",
     "downloadCompleted": "下載完成：{title}",
     "downloadFailed": "下載失敗：{title}：{error}",
@@ -452,6 +501,9 @@
     "deleteDownloadMessage": "這會刪除本機檔案並移除下載清單項目。",
     "deleteDownloadRecordMessage": "這會從下載清單移除此項目，不會影響收藏、稍後觀看或 Jable。",
     "deleteDownloadConfirm": "刪除",
+    "deleteDownloadsTitle": "刪除選取的下載項目",
+    "deleteDownloadsMessage": "這會刪除選取項目的本機檔案並移除下載清單紀錄，不會影響收藏、稍後觀看或 Jable。",
+    "deleteDownloadsConfirm": "刪除選取項目",
     "pauseDownloadsBeforeQuitTitle": "下載仍在進行",
     "pauseDownloadsBeforeQuitMessage": "關閉前要先暫停下載嗎？",
     "pauseDownloadsAndClose": "暫停並關閉",

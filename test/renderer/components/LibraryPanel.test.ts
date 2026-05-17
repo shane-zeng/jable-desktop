@@ -2,6 +2,33 @@ import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
 import LibraryPanel from '@/components/LibraryPanel.vue';
 import { setLocale } from '@/i18n';
+import type { DownloadRecord } from '../../../app/types/jable';
+
+function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord {
+  return Object.assign(
+    {
+      videoUrl: 'https://jable.tv/videos/default/',
+      collectionKeys: [],
+      title: 'Default Video',
+      img: null,
+      preview: null,
+      localPath: '/tmp/default.mp4',
+      state: 'ready',
+      progress: null,
+      fileSizeBytes: null,
+      error: null,
+      failurePhase: null,
+      failureCode: null,
+      attemptCount: 0,
+      lastStartedAt: null,
+      lastErrorAt: null,
+      createdAt: '2026-05-16T00:00:00.000Z',
+      updatedAt: '2026-05-16T00:00:00.000Z',
+      completedAt: null
+    },
+    overrides
+  );
+}
 
 describe('LibraryPanel', function () {
   beforeEach(function () {
@@ -227,7 +254,7 @@ describe('LibraryPanel', function () {
         pageLabel: '第 1 / 1 頁',
         downloads: [],
         downloadRecords: [
-          {
+          makeDownloadRecord({
             videoUrl: readyVideo.url,
             collectionKeys: ['favourites'],
             title: readyVideo.title,
@@ -241,8 +268,8 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: '2026-05-16T00:00:00.000Z'
-          },
-          {
+          }),
+          makeDownloadRecord({
             videoUrl: failedVideo.url,
             collectionKeys: ['favourites'],
             title: failedVideo.title,
@@ -256,7 +283,7 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
-          }
+          })
         ],
         rows: [readyVideo, failedVideo],
         currentPage: 1,
@@ -424,14 +451,41 @@ describe('LibraryPanel', function () {
 
     expect(empty.get('[data-test="download-list-empty"]').text()).toBe('目前沒有下載項目');
     expect(empty.get('[data-test="download-filters"]').text()).toContain('更新時間');
-    expect(empty.get('[data-test="download-filters"]').text()).toContain('全部狀態');
-    expect(empty.get('[data-test="download-filters"]').text()).toContain('需要處理');
+    expect(empty.findAll('[data-test="download-state-filters"] button').map((button) => button.text())).toEqual([
+      '全部狀態',
+      '已下載',
+      '下載中',
+      '等待中',
+      '已暫停',
+      '失敗',
+      '檔案遺失'
+    ]);
     expect(empty.find('[data-test="download-filters"] input[type="search"]').attributes('placeholder')).toBe(
       '搜尋下載標題或 URL'
     );
+    expect((empty.get('[data-test="download-retry-failed"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect(empty.get('[data-test="download-queue-actions"]').text()).toContain('下載佇列');
+    expect((empty.get('[data-test="download-pause-all"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((empty.get('[data-test="download-resume-paused"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((empty.get('[data-test="download-cancel-queued"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((empty.get('[data-test="download-delete-selected"]').element as HTMLButtonElement).disabled).toBe(true);
 
-    await empty.get('select[aria-label="下載狀態篩選"]').setValue('ready_downloading');
-    expect(empty.emitted('update:download-state-filter')).toEqual([['ready_downloading']]);
+    await empty.get('[data-test="download-state-filter-ready"]').trigger('click');
+    expect(empty.emitted('update:download-state-filters')).toEqual([[['ready']]]);
+
+    await empty.setProps({ downloadStateFilters: ['ready'] });
+    await empty.get('[data-test="download-state-filter-failed"]').trigger('click');
+    expect(empty.emitted('update:download-state-filters')).toEqual([[['ready']], [['ready', 'failed']]]);
+
+    const stateFilterMenu = empty.get('[data-test="download-state-filters"]').element as HTMLDetailsElement;
+    stateFilterMenu.open = true;
+    document.body.click();
+    expect(stateFilterMenu.open).toBe(false);
+
+    const queueActionsMenu = empty.get('[data-test="download-queue-actions"]').element as HTMLDetailsElement;
+    queueActionsMenu.open = true;
+    document.body.click();
+    expect(queueActionsMenu.open).toBe(false);
   });
 
   it('renders download records and emits ready file open actions', async function () {
@@ -452,7 +506,7 @@ describe('LibraryPanel', function () {
         countLabel: '2 筆下載',
         pageLabel: '第 1 / 1 頁',
         downloads: [
-          {
+          makeDownloadRecord({
             videoUrl: 'https://jable.tv/videos/ready/',
             collectionKeys: ['favourites', 'watch_later'],
             title: 'Ready Video',
@@ -466,8 +520,8 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: '2026-05-16T00:00:00.000Z'
-          },
-          {
+          }),
+          makeDownloadRecord({
             videoUrl: 'https://jable.tv/videos/missing/',
             collectionKeys: [],
             title: 'Missing Video',
@@ -481,7 +535,7 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
-          }
+          })
         ],
         rows: [],
         currentPage: 1,
@@ -508,6 +562,17 @@ describe('LibraryPanel', function () {
     expect(cards[1].text()).not.toContain('更新 ');
     expect(cards[1].text()).not.toContain('/tmp/missing.mp4');
     expect(cards[1].find('[data-test="download-record-error-details"]').exists()).toBe(false);
+    expect((wrapper.get('[data-test="download-retry-failed"]').element as HTMLButtonElement).disabled).toBe(false);
+    expect((wrapper.get('[data-test="download-pause-all"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="download-resume-paused"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="download-cancel-queued"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="download-delete-selected"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect(cards[0].find('[data-test="download-record-select"]').exists()).toBe(true);
+    expect(cards[1].find('[data-test="download-record-select"]').exists()).toBe(true);
+
+    await cards[1].get('[data-test="download-record-select"]').setValue(true);
+    await wrapper.setProps({ selectedDownloadUrls: ['https://jable.tv/videos/missing/'] });
+    expect((wrapper.get('[data-test="download-delete-selected"]').element as HTMLButtonElement).disabled).toBe(false);
 
     await cards[0].get('a').trigger('click');
     await cards[1].get('a').trigger('click');
@@ -516,6 +581,8 @@ describe('LibraryPanel', function () {
     await cards[1].get('[data-test="download-record-open-page"]').trigger('click');
     await cards[1].get('[data-test="download-record-retry"]').trigger('click');
     await cards[1].get('[data-test="download-record-delete"]').trigger('click');
+    await wrapper.get('[data-test="download-retry-failed"]').trigger('click');
+    await wrapper.get('[data-test="download-delete-selected"]').trigger('click');
 
     expect(wrapper.emitted('open-download')).toEqual([['https://jable.tv/videos/ready/']]);
     expect(wrapper.emitted('open-video')).toEqual([['https://jable.tv/videos/missing/']]);
@@ -525,6 +592,11 @@ describe('LibraryPanel', function () {
       ['https://jable.tv/videos/ready/'],
       ['https://jable.tv/videos/missing/']
     ]);
+    expect(wrapper.emitted('toggle-download-record-selection')).toEqual([
+      [{ videoUrl: 'https://jable.tv/videos/missing/', selected: true }]
+    ]);
+    expect(wrapper.emitted('retry-failed-downloads')).toEqual([[]]);
+    expect(wrapper.emitted('delete-selected-downloads')).toEqual([[]]);
   });
 
   it('emits pause and cancel actions for queued and active download records', async function () {
@@ -545,7 +617,7 @@ describe('LibraryPanel', function () {
         countLabel: '3 筆下載',
         pageLabel: '第 1 / 1 頁',
         downloads: [
-          {
+          makeDownloadRecord({
             videoUrl: 'https://jable.tv/videos/queued/',
             collectionKeys: ['favourites'],
             title: 'Queued Video',
@@ -559,8 +631,8 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
-          },
-          {
+          }),
+          makeDownloadRecord({
             videoUrl: 'https://jable.tv/videos/downloading/',
             collectionKeys: ['watch_later'],
             title: 'Downloading Video',
@@ -574,8 +646,8 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
-          },
-          {
+          }),
+          makeDownloadRecord({
             videoUrl: 'https://jable.tv/videos/downloading-unknown/',
             collectionKeys: ['watch_later'],
             title: 'Downloading Unknown Progress Video',
@@ -589,7 +661,7 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
-          }
+          })
         ],
         rows: [],
         currentPage: 1,
@@ -603,6 +675,11 @@ describe('LibraryPanel', function () {
     expect(cards[1].text()).toContain('42%');
     expect(cards[2].text()).toContain('下載中');
     expect(cards[2].find('.download-progress-indeterminate').exists()).toBe(true);
+    expect(wrapper.find('[data-test="download-record-select"]').exists()).toBe(false);
+    expect((wrapper.get('[data-test="download-retry-failed"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="download-pause-all"]').element as HTMLButtonElement).disabled).toBe(false);
+    expect((wrapper.get('[data-test="download-resume-paused"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="download-cancel-queued"]').element as HTMLButtonElement).disabled).toBe(false);
 
     await cards[0].get('[data-test="download-record-pause"]').trigger('click');
     await cards[1].get('[data-test="download-record-pause"]').trigger('click');
@@ -610,6 +687,8 @@ describe('LibraryPanel', function () {
     await cards[0].get('[data-test="download-record-cancel"]').trigger('click');
     await cards[1].get('[data-test="download-record-cancel"]').trigger('click');
     await cards[2].get('[data-test="download-record-cancel"]').trigger('click');
+    await wrapper.get('[data-test="download-pause-all"]').trigger('click');
+    await wrapper.get('[data-test="download-cancel-queued"]').trigger('click');
 
     expect(wrapper.emitted('pause-download')).toEqual([
       ['https://jable.tv/videos/queued/'],
@@ -621,6 +700,8 @@ describe('LibraryPanel', function () {
       ['https://jable.tv/videos/downloading/'],
       ['https://jable.tv/videos/downloading-unknown/']
     ]);
+    expect(wrapper.emitted('pause-all-downloads')).toEqual([[]]);
+    expect(wrapper.emitted('cancel-queued-downloads')).toEqual([[]]);
   });
 
   it('emits resume and delete actions for paused download records', async function () {
@@ -641,7 +722,7 @@ describe('LibraryPanel', function () {
         countLabel: '1 筆下載',
         pageLabel: '第 1 / 1 頁',
         downloads: [
-          {
+          makeDownloadRecord({
             videoUrl: 'https://jable.tv/videos/paused/',
             collectionKeys: ['favourites'],
             title: 'Paused Video',
@@ -655,7 +736,7 @@ describe('LibraryPanel', function () {
             createdAt: '2026-05-16T00:00:00.000Z',
             updatedAt: '2026-05-16T00:00:00.000Z',
             completedAt: null
-          }
+          })
         ],
         rows: [],
         currentPage: 1,
@@ -666,11 +747,16 @@ describe('LibraryPanel', function () {
     const card = wrapper.get('[data-test="download-record-card"]');
     expect(card.text()).toContain('已暫停');
     expect(card.text()).toContain('已暫停，可繼續下載');
+    expect((wrapper.get('[data-test="download-pause-all"]').element as HTMLButtonElement).disabled).toBe(true);
+    expect((wrapper.get('[data-test="download-resume-paused"]').element as HTMLButtonElement).disabled).toBe(false);
+    expect((wrapper.get('[data-test="download-cancel-queued"]').element as HTMLButtonElement).disabled).toBe(true);
 
     await card.get('[data-test="download-record-resume"]').trigger('click');
     await card.get('[data-test="download-record-delete"]').trigger('click');
+    await wrapper.get('[data-test="download-resume-paused"]').trigger('click');
 
     expect(wrapper.emitted('resume-download')).toEqual([['https://jable.tv/videos/paused/']]);
+    expect(wrapper.emitted('resume-paused-downloads')).toEqual([[]]);
     expect(wrapper.emitted('delete-download')).toEqual([['https://jable.tv/videos/paused/']]);
   });
 });

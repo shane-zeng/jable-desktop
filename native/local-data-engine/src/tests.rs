@@ -145,6 +145,11 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     assert_eq!(ready.get("state"), Some(&json!("ready")));
     assert_eq!(ready.get("progress"), Some(&json!(1.0)));
     assert_eq!(ready.get("fileSizeBytes"), Some(&json!(2048)));
+    assert_eq!(ready.get("failurePhase"), Some(&Value::Null));
+    assert_eq!(ready.get("failureCode"), Some(&Value::Null));
+    assert_eq!(ready.get("attemptCount"), Some(&json!(0)));
+    assert_eq!(ready.get("lastStartedAt"), Some(&Value::Null));
+    assert_eq!(ready.get("lastErrorAt"), Some(&Value::Null));
     assert_eq!(
         ready.get("completedAt"),
         Some(&json!("2026-05-17T00:00:00.000Z"))
@@ -192,6 +197,11 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             "state": "failed",
             "progress": null,
             "error": "HTTP 403",
+            "failurePhase": "segments",
+            "failureCode": "segment_http_403",
+            "attemptCount": 2,
+            "lastStartedAt": "2026-05-17T01:00:00.000Z",
+            "lastErrorAt": "2026-05-17T01:01:00.000Z",
             "completedAt": null
         }))
         .expect("download asset should update");
@@ -204,6 +214,17 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     assert_eq!(failed.get("state"), Some(&json!("failed")));
     assert_eq!(failed.get("progress"), Some(&Value::Null));
     assert_eq!(failed.get("error"), Some(&json!("HTTP 403")));
+    assert_eq!(failed.get("failurePhase"), Some(&json!("segments")));
+    assert_eq!(failed.get("failureCode"), Some(&json!("segment_http_403")));
+    assert_eq!(failed.get("attemptCount"), Some(&json!(2)));
+    assert_eq!(
+        failed.get("lastStartedAt"),
+        Some(&json!("2026-05-17T01:00:00.000Z"))
+    );
+    assert_eq!(
+        failed.get("lastErrorAt"),
+        Some(&json!("2026-05-17T01:01:00.000Z"))
+    );
     assert_eq!(failed.get("completedAt"), Some(&Value::Null));
 
     engine
@@ -346,6 +367,86 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             .expect("download asset should load missing"),
         Value::Null
     );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
+fn download_asset_failure_metadata_columns_migrate_existing_database() {
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "jable-rust-engine-download-assets-migration-{}-{}.sqlite",
+        std::process::id(),
+        now_millis()
+    ));
+
+    {
+        let connection = Connection::open(&path).expect("old database should open");
+        connection
+            .execute_batch(
+                "CREATE TABLE download_assets (
+                   video_url TEXT PRIMARY KEY,
+                   status TEXT NOT NULL CHECK(status IN ('queued', 'downloading', 'failed', 'ready', 'missing')),
+                   file_relative_path TEXT,
+                   format TEXT,
+                   title TEXT,
+                   img TEXT,
+                   size_bytes INTEGER,
+                   duration_seconds REAL,
+                   progress REAL,
+                   error TEXT,
+                   downloaded_at TEXT,
+                   last_checked_at TEXT,
+                   created_at TEXT NOT NULL,
+                   updated_at TEXT NOT NULL
+                 );
+                 INSERT INTO download_assets (
+                   video_url, status, file_relative_path, title, created_at, updated_at
+                 ) VALUES (
+                   'https://jable.tv/videos/legacy-download/', 'failed', 'legacy.mp4', 'Legacy Download',
+                   '2026-05-17T00:00:00.000Z', '2026-05-17T00:00:00.000Z'
+                 );",
+            )
+            .expect("old download table should create");
+    }
+
+    let mut engine =
+        Engine::open(path.to_string_lossy().as_ref()).expect("migrated engine should open");
+    let connection = engine.conn().expect("connection should be open");
+    for column_name in [
+        "failure_phase",
+        "failure_code",
+        "attempt_count",
+        "last_started_at",
+        "last_error_at",
+    ] {
+        let exists: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('download_assets') WHERE name = ?",
+                params![column_name],
+                |row| row.get(0),
+            )
+            .expect("download asset column should query");
+        assert_eq!(exists, 1, "{column_name} column should exist");
+    }
+
+    let attempt_count: i64 = connection
+        .query_row(
+            "SELECT attempt_count FROM download_assets WHERE video_url = ?",
+            params!["https://jable.tv/videos/legacy-download/"],
+            |row| row.get(0),
+        )
+        .expect("legacy attempt count should query");
+    assert_eq!(attempt_count, 0);
+
+    let legacy = engine
+        .get_download_asset(json!("https://jable.tv/videos/legacy-download/"))
+        .expect("legacy download asset should load");
+    assert_eq!(legacy.get("attemptCount"), Some(&json!(0)));
+    assert_eq!(legacy.get("failurePhase"), Some(&Value::Null));
+    assert_eq!(legacy.get("failureCode"), Some(&Value::Null));
+    assert_eq!(legacy.get("lastStartedAt"), Some(&Value::Null));
+    assert_eq!(legacy.get("lastErrorAt"), Some(&Value::Null));
 
     remove_temp_database(&mut engine);
 }

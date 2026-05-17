@@ -7,11 +7,13 @@ import type { AppSettings, ExportResource } from '../../../app/types/jable';
 const settings: AppSettings = {
   maxBrowserTabs: 22,
   compactBrowserTabs: true,
+  webViewEnhancementMode: false,
   fullSyncAjaxWindowSize: 5,
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
   downloadRoot: null,
-  downloadStateFilter: 'all',
+  downloadStateFilters: ['all'],
+  downloadSpeedMode: 'balanced',
   maxConcurrentDownloads: 1
 };
 
@@ -61,10 +63,12 @@ describe('SettingsPanel', function () {
 
     expect(wrapper.text()).toContain('一般');
     expect(wrapper.text()).toContain('瀏覽器');
+    expect(wrapper.text()).toContain('WebView 增強模式');
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('下載');
     expect(wrapper.text()).toContain('下載位置');
     expect(wrapper.text()).toContain('最多同時下載數');
+    expect(wrapper.text()).toContain('下載速度模式');
     expect(wrapper.text()).toContain('資料');
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
@@ -80,6 +84,12 @@ describe('SettingsPanel', function () {
     await wrapper.get('[data-test="settings-auto-replay"]').setValue(true);
     expect(wrapper.emitted('update-settings')).toContainEqual([{ autoReplayDeferredSyncOperations: true }]);
 
+    expect((wrapper.get('[data-test="settings-webview-enhancement-mode"]').element as HTMLInputElement).checked).toBe(
+      false
+    );
+    await wrapper.get('[data-test="settings-webview-enhancement-mode"]').setValue(true);
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ webViewEnhancementMode: true }]);
+
     await wrapper.get('[data-test="settings-ffmpeg-refresh"]').trigger('click');
     expect(wrapper.emitted('refresh-ffmpeg')).toEqual([[]]);
 
@@ -94,6 +104,9 @@ describe('SettingsPanel', function () {
     await wrapper.get('[data-test="settings-max-concurrent-downloads"]').setValue('8');
     await wrapper.get('[data-test="settings-max-concurrent-downloads"]').trigger('change');
     expect(wrapper.emitted('update-settings')).toContainEqual([{ maxConcurrentDownloads: 8 }]);
+
+    await wrapper.get('[data-test="settings-download-speed-fast"]').trigger('click');
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ downloadSpeedMode: 'fast' }]);
 
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);

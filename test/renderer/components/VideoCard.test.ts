@@ -34,6 +34,11 @@ function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>
       progress: null,
       fileSizeBytes: 1024,
       error: null,
+      failurePhase: null,
+      failureCode: null,
+      attemptCount: 0,
+      lastStartedAt: null,
+      lastErrorAt: null,
       createdAt: '2026-05-16T00:00:00.000Z',
       updatedAt: '2026-05-16T00:00:00.000Z',
       completedAt: '2026-05-16T00:00:00.000Z'

@@ -27,8 +27,17 @@
     },
     "downloadStateFilter": {
       "all": "All Statuses",
-      "ready_downloading": "Downloaded and Downloading",
-      "needs_attention": "Needs Attention"
+      "queued": "Queued",
+      "downloading": "Downloading",
+      "paused": "Paused",
+      "failed": "Failed",
+      "ready": "Ready",
+      "missing": "Missing"
+    },
+    "downloadSpeedMode": {
+      "stable": "Stable",
+      "balanced": "Balanced",
+      "fast": "Fast"
     },
     "collectionDownloadFilter": {
       "all": "All",
@@ -120,6 +129,7 @@
     "sort": "Download Sort",
     "sortDirection": "Download Sort Direction",
     "stateFilter": "Download State Filter",
+    "stateFilterSelected": "{count} states",
     "open": "Open",
     "openPage": "Open Page",
     "openPageShort": "Page",
@@ -130,6 +140,24 @@
     "reveal": "Reveal",
     "revealShort": "Reveal",
     "delete": "Delete",
+    "retryFailed": "Retry Failed",
+    "queueActions": "Queue Actions",
+    "pauseAll": "Pause All",
+    "resumeAll": "Resume All",
+    "cancelQueued": "Cancel Queued",
+    "deleteSelected": "Delete Selected",
+    "errorLog": "Error Log",
+    "selectDownload": "Select download item",
+    "errorLogTitle": "Download Error Log",
+    "errorLogEmpty": "There are no failed or missing download items.",
+    "errorLogClose": "Close error log",
+    "errorLogState": "State: {state}",
+    "failurePhase": "Failure phase: {phase}",
+    "failureCode": "Failure code: {code}",
+    "attemptCount": "Attempts: {count}",
+    "lastStartedAt": "Last started: {time}",
+    "lastErrorAt": "Last failed: {time}",
+    "notAvailable": "Unavailable",
     "fileSize": "File size: {size}",
     "downloadedBytes": "Downloaded: {size}",
     "downloadSpeed": "Speed: {speed}",
@@ -150,6 +178,15 @@
       "playlist": "Video segment list not found",
       "network": "Connection timed out; retry later",
       "generic": "Download failed; retry later"
+    },
+    "failurePhaseLabel": {
+      "ffmpeg_check": "FFmpeg check",
+      "video_page": "Video page",
+      "playlist": "Playlist",
+      "segments": "Segments",
+      "remux": "MP4 processing",
+      "file": "Local file",
+      "unknown": "Unknown"
     },
     "state": {
       "queued": "Queued",
@@ -200,6 +237,8 @@
       "maxTabsWarning": "More tabs preserve more page state, but they also use more memory and can affect video playback or sync speed.",
       "compactTabs": "Compact Tab Rail",
       "compactTabsDescription": "Use a narrower tab rail on startup.",
+      "webViewEnhancementMode": "WebView Enhancement Mode",
+      "webViewEnhancementModeDescription": "Applies extra WebView loading and page cleanup rules. Turn it off if a site renders unexpectedly.",
       "tabWidth": "Tab Rail Width",
       "resetTabWidth": "Reset Width"
     },
@@ -238,6 +277,13 @@
       "concurrent": {
         "label": "Maximum Concurrent Downloads",
         "description": "Each video still fetches segments in parallel. Higher values use more network and CPU."
+      },
+      "speed": {
+        "label": "Download Speed Mode",
+        "description": "Controls internal segment download concurrency for each video.",
+        "stableHint": "Lower concurrency to reduce CDN rejection risk.",
+        "balancedHint": "Default behavior balancing speed and stability.",
+        "fastHint": "Higher concurrency; some CDN sessions may be less stable."
       },
       "root": {
         "label": "Download Location",
@@ -347,6 +393,9 @@
     "downloadQueued": "Added to the download list",
     "downloadBatchQueued": "Added {queued} downloads, skipped {skipped}, failed {failed}",
     "downloadBatchNoSelection": "Select videos to download first",
+    "downloadBulkActionComplete": "Action complete: affected {affected}, skipped {skipped}, failed {failed}",
+    "downloadBulkDeleteComplete": "Delete complete: deleted {deletedFiles} files, removed {removedRecords} records, skipped {skipped}, failed {failed}",
+    "downloadBulkNoSelection": "Select download items to delete first",
     "downloadAlreadyQueued": "Video is already in the download list",
     "downloadCompleted": "Download complete: {title}",
     "downloadFailed": "Download failed: {title}: {error}",
@@ -452,6 +501,9 @@
     "deleteDownloadMessage": "This will delete the local file and remove the download list item.",
     "deleteDownloadRecordMessage": "This will remove the item from the Download List without changing Favourites, Watch Later, or Jable.",
     "deleteDownloadConfirm": "Delete",
+    "deleteDownloadsTitle": "Delete Selected Download Items",
+    "deleteDownloadsMessage": "This will delete local files for the selected items and remove their Download List records. It will not change Favourites, Watch Later, or Jable.",
+    "deleteDownloadsConfirm": "Delete Selected",
     "pauseDownloadsBeforeQuitTitle": "Downloads are still running",
     "pauseDownloadsBeforeQuitMessage": "Pause downloads before closing?",
     "pauseDownloadsAndClose": "Pause and Close",

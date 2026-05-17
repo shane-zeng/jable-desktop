@@ -9,7 +9,9 @@ export type AppView = 'browser' | 'library' | 'settings';
 export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 export type LibraryTabKey = CollectionKey | 'downloads' | 'pending_remote';
 export type DownloadSortKey = 'updated_at' | 'title' | 'state' | 'file_size';
-export type DownloadStateFilter = 'all' | 'ready_downloading' | 'needs_attention';
+export type DownloadStateFilter = 'all' | 'queued' | 'downloading' | 'paused' | 'failed' | 'ready' | 'missing';
+export type DownloadStateFilters = DownloadStateFilter[];
+export type DownloadSpeedMode = 'stable' | 'balanced' | 'fast';
 export type CollectionAction = 'add' | 'remove';
 export type PendingRemoteOperationState = 'failed' | 'blocked' | 'pending';
 export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsupported';
@@ -127,15 +129,19 @@ export interface BrowserTabsState {
 export interface AppSettings {
   maxBrowserTabs: number;
   compactBrowserTabs: boolean;
+  webViewEnhancementMode: boolean;
   fullSyncAjaxWindowSize: number;
   autoReplayDeferredSyncOperations: boolean;
   ffmpegPath: string | null;
   downloadRoot: string | null;
-  downloadStateFilter: DownloadStateFilter;
+  downloadStateFilters: DownloadStateFilters;
+  downloadSpeedMode: DownloadSpeedMode;
   maxConcurrentDownloads: number;
 }
 
-export type AppSettingsPatch = Partial<AppSettings>;
+export type AppSettingsPatch = Partial<AppSettings> & {
+  downloadStateFilter?: DownloadStateFilter;
+};
 
 export interface FfmpegStatus {
   state: FfmpegStatusState;
@@ -172,6 +178,11 @@ export interface DownloadRecord {
   downloadedBytes?: number | null;
   downloadSpeedBytesPerSecond?: number | null;
   error: string | null;
+  failurePhase: string | null;
+  failureCode: string | null;
+  attemptCount: number;
+  lastStartedAt: string | null;
+  lastErrorAt: string | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -192,6 +203,22 @@ export interface RevealDownloadFileResult {
 export interface DeleteDownloadResult {
   deleted: boolean;
   removed: boolean;
+  canceled?: boolean;
+}
+
+export interface BulkDownloadActionResult {
+  requested: number;
+  affected: number;
+  skipped: number;
+  failed: number;
+}
+
+export interface DeleteDownloadsResult {
+  requested: number;
+  deletedFiles: number;
+  removedRecords: number;
+  skipped: number;
+  failed: number;
   canceled?: boolean;
 }
 
@@ -481,12 +508,17 @@ export interface JableAppApi {
   listDownloads(): Promise<DownloadRecord[]>;
   enqueueDownload(payload: DownloadRequestPayload): Promise<EnqueueDownloadResult>;
   retryDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
+  retryFailedDownloads(): Promise<BulkDownloadActionResult>;
   pauseDownload(videoUrl: string): Promise<PauseDownloadResult>;
+  pauseAllDownloads(): Promise<BulkDownloadActionResult>;
   resumeDownload(videoUrl: string): Promise<EnqueueDownloadResult>;
+  resumePausedDownloads(): Promise<BulkDownloadActionResult>;
   cancelDownload(videoUrl: string): Promise<CancelDownloadResult>;
+  cancelQueuedDownloads(): Promise<BulkDownloadActionResult>;
   openDownloadFile(videoUrl: string): Promise<OpenDownloadFileResult>;
   revealDownloadFile(videoUrl: string): Promise<RevealDownloadFileResult>;
   deleteDownload(videoUrl: string): Promise<DeleteDownloadResult>;
+  deleteDownloads(videoUrls: string[]): Promise<DeleteDownloadsResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;

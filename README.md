@@ -30,6 +30,7 @@ The project also includes the original self-contained Tampermonkey exporter: [`j
 - Local SQLite storage with FTS5 search
 - Quick sync and full sync modes
 - JSON import/export with legacy userscript compatibility
+- Download List and local video file management
 - Lightweight Traditional Chinese / English / Japanese localization across desktop and userscript UI
 - macOS and Windows release targets
 
@@ -52,6 +53,16 @@ npm install
 fnm exec --using 24 npm run check
 ```
 
+## 免責聲明
+
+> **本工具僅供學習與技術研究用途。** 使用者應遵守當地法律法規，尊重內容版權。開發者不對任何因使用本工具而產生的法律責任負責。請勿將本工具用於任何非法或侵權用途。
+
+## 致謝
+
+下載功能與下載流程設計參考 [hcjohn463/JableDownload](https://github.com/hcjohn463/JableDownload)。本專案並非該專案的 fork；相關實作已依 Jable Desktop 的 Electron / Rust 架構重新整合。
+
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+Copyright 2026 shane-zeng.
+
+Licensed under the Apache License 2.0. See [LICENSE](LICENSE).

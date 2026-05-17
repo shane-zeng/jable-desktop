@@ -1,9 +1,9 @@
 'use strict';
 
-type AdUrlMatcher = (value: unknown) => boolean;
+type UrlMatcher = (value: unknown) => boolean;
 
-const AD_URL_ATTRIBUTES = ['href', 'src', 'data-src'];
-const AD_URL_SELECTOR = 'a[href], img[src], img[data-src], iframe[src], script[src], source[src], video[src]';
+const REMOTE_URL_ATTRIBUTES = ['href', 'src', 'data-src'];
+const REMOTE_URL_SELECTOR = 'a[href], img[src], img[data-src], iframe[src], script[src], source[src], video[src]';
 const COLLECTION_ACTION_SELECTOR =
   'button.btn-action, button[data-fav-video-id][data-fav-type], .action[data-fav-video-id]';
 
@@ -48,10 +48,10 @@ function closestByClassNamePart(element: Element, classNamePart: string): Elemen
   return null;
 }
 
-function hasBlockedAdUrl(element: Element, isBlockedAdUrl: AdUrlMatcher): boolean {
-  for (let i = 0; i < AD_URL_ATTRIBUTES.length; i++) {
-    const value = element.getAttribute(AD_URL_ATTRIBUTES[i]);
-    if (value && isBlockedAdUrl(absoluteElementUrl(element, value))) return true;
+function hasSuppressedRemoteUrl(element: Element, isSuppressedRemoteUrl: UrlMatcher): boolean {
+  for (let i = 0; i < REMOTE_URL_ATTRIBUTES.length; i++) {
+    const value = element.getAttribute(REMOTE_URL_ATTRIBUTES[i]);
+    if (value && isSuppressedRemoteUrl(absoluteElementUrl(element, value))) return true;
   }
 
   return false;
@@ -61,14 +61,14 @@ function hasCollectionActionControls(element: Element): boolean {
   return Boolean(element.querySelector(COLLECTION_ACTION_SELECTOR));
 }
 
-function textSponsorContainerForElement(element: Element): Element {
+function externalTextContainerForElement(element: Element): Element {
   const textCenter = element.closest('div.text-center');
   if (textCenter && !hasCollectionActionControls(textCenter)) return textCenter;
 
   return element;
 }
 
-function cosmeticAdContainerForElement(element: Element): Element {
+function contentContainerForElement(element: Element): Element {
   const videoBox = element.closest('div.video-img-box');
   if (videoBox) {
     const column = videoBox.parentElement;
@@ -79,8 +79,8 @@ function cosmeticAdContainerForElement(element: Element): Element {
   const modalWrapper = closestByClassNamePart(element, 'modelWrapper');
   if (modalWrapper) return modalWrapper;
 
-  const textSponsor = element.closest('a.text-sponsor');
-  if (textSponsor) return textSponsorContainerForElement(textSponsor);
+  const externalTextLink = element.closest('a.text-sponsor');
+  if (externalTextLink) return externalTextContainerForElement(externalTextLink);
 
   const iframe = element.closest('iframe');
   if (iframe) return iframe;
@@ -88,37 +88,37 @@ function cosmeticAdContainerForElement(element: Element): Element {
   return element.closest('a[href]') || element;
 }
 
-function addCosmeticAdContainer(
+function addWebViewContentContainer(
   element: Element,
-  isBlockedAdUrl: AdUrlMatcher,
+  isSuppressedRemoteUrl: UrlMatcher,
   containers: Element[],
   seen: Set<Element>
 ) {
-  if (!hasBlockedAdUrl(element, isBlockedAdUrl)) return;
+  if (!hasSuppressedRemoteUrl(element, isSuppressedRemoteUrl)) return;
 
-  const container = cosmeticAdContainerForElement(element);
+  const container = contentContainerForElement(element);
   if (seen.has(container)) return;
 
   seen.add(container);
   containers.push(container);
 }
 
-function collectCosmeticAdContainers(root: Document | Element, isBlockedAdUrl: AdUrlMatcher): Element[] {
+function collectWebViewContentContainers(root: Document | Element, isSuppressedRemoteUrl: UrlMatcher): Element[] {
   const containers: Element[] = [];
   const seen = new Set<Element>();
 
-  if (isElementLike(root)) addCosmeticAdContainer(root, isBlockedAdUrl, containers, seen);
+  if (isElementLike(root)) addWebViewContentContainer(root, isSuppressedRemoteUrl, containers, seen);
 
-  const elements = root.querySelectorAll<Element>(AD_URL_SELECTOR);
+  const elements = root.querySelectorAll<Element>(REMOTE_URL_SELECTOR);
   for (let i = 0; i < elements.length; i++) {
-    addCosmeticAdContainer(elements[i], isBlockedAdUrl, containers, seen);
+    addWebViewContentContainer(elements[i], isSuppressedRemoteUrl, containers, seen);
   }
 
   return containers;
 }
 
-function removeCosmeticAds(root: Document | Element, isBlockedAdUrl: AdUrlMatcher): number {
-  const containers = collectCosmeticAdContainers(root, isBlockedAdUrl);
+function applyWebViewContentPolicy(root: Document | Element, isSuppressedRemoteUrl: UrlMatcher): number {
+  const containers = collectWebViewContentContainers(root, isSuppressedRemoteUrl);
 
   for (let i = 0; i < containers.length; i++) {
     containers[i].remove();
@@ -128,7 +128,7 @@ function removeCosmeticAds(root: Document | Element, isBlockedAdUrl: AdUrlMatche
 }
 
 module.exports = {
-  collectCosmeticAdContainers: collectCosmeticAdContainers,
-  cosmeticAdContainerForElement: cosmeticAdContainerForElement,
-  removeCosmeticAds: removeCosmeticAds
+  applyWebViewContentPolicy: applyWebViewContentPolicy,
+  collectWebViewContentContainers: collectWebViewContentContainers,
+  contentContainerForElement: contentContainerForElement
 };

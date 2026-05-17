@@ -429,6 +429,11 @@ for (const kind of ENGINE_KINDS) {
       assert.equal(ready.state, 'ready');
       assert.equal(ready.progress, 1);
       assert.equal(ready.fileSizeBytes, 2048);
+      assert.equal(ready.failurePhase, null);
+      assert.equal(ready.failureCode, null);
+      assert.equal(ready.attemptCount, 0);
+      assert.equal(ready.lastStartedAt, null);
+      assert.equal(ready.lastErrorAt, null);
       assert.equal(ready.completedAt, '2026-05-17T00:00:00.000Z');
       assert.equal(engine.getDownloadAsset('https://jable.tv/videos/download-me/').title, 'Download Me');
       assert.throws(function () {
@@ -451,6 +456,11 @@ for (const kind of ENGINE_KINDS) {
         state: 'failed',
         progress: null,
         error: 'HTTP 403',
+        failurePhase: 'segments',
+        failureCode: 'segment_http_403',
+        attemptCount: 2,
+        lastStartedAt: '2026-05-17T01:00:00.000Z',
+        lastErrorAt: '2026-05-17T01:01:00.000Z',
         completedAt: null
       });
 
@@ -459,6 +469,11 @@ for (const kind of ENGINE_KINDS) {
       assert.equal(failed.state, 'failed');
       assert.equal(failed.progress, null);
       assert.equal(failed.error, 'HTTP 403');
+      assert.equal(failed.failurePhase, 'segments');
+      assert.equal(failed.failureCode, 'segment_http_403');
+      assert.equal(failed.attemptCount, 2);
+      assert.equal(failed.lastStartedAt, '2026-05-17T01:00:00.000Z');
+      assert.equal(failed.lastErrorAt, '2026-05-17T01:01:00.000Z');
       assert.equal(failed.completedAt, null);
 
       engine.applyCollectionToggle({

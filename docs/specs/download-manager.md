@@ -8,6 +8,7 @@ This document specifies the current Download List and local video file managemen
 
 - The feature is a download and file-management workflow, not an in-app video player.
 - Downloads are started explicitly by the user from Local Data video cards, either one card at a time or by selecting specific visible collection cards and downloading the selected set.
+- Playback-triggered download is not part of the current Download Manager behavior and is reserved for future work.
 - Downloaded files are opened with the operating system default player.
 - Download state is independent from Favourites and Watch Later membership.
 - Removing a video from a local collection does not delete a downloaded file.
@@ -72,6 +73,11 @@ This document specifies the current Download List and local video file managemen
   - `progress`
   - `fileSizeBytes`
   - `error`
+  - `failurePhase`
+  - `failureCode`
+  - `attemptCount`
+  - `lastStartedAt`
+  - `lastErrorAt`
   - `createdAt`
   - `updatedAt`
   - `completedAt`
@@ -86,6 +92,9 @@ This document specifies the current Download List and local video file managemen
 - While a download is active, the main process may add runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields to `downloads-changed` payloads. These values are not persisted and are cleared when the active worker finishes.
 - Runtime speed is sampled at most once per second from completed downloaded segment bytes. It is a smoothed recent-throughput indicator, not a per-segment instantaneous peak.
 - Runtime downloaded bytes count only complete segment files that can be reused by resume. Partial `.part` files, local playlists, resume manifests, and key/control files are excluded from the user-facing downloaded-size number.
+- When a worker enters `downloading`, `attemptCount` is incremented, `lastStartedAt` is updated, and stale failure fields are cleared.
+- When a worker fails, main persists stable failure metadata: `failurePhase`, `failureCode`, and `lastErrorAt`.
+- Ready and paused records do not retain stale failure metadata.
 - Startup/listing reconciliation infers runtime-safe state:
   - ready records become `missing` when the file is no longer present.
   - missing records become `ready` again when the file exists.
@@ -128,12 +137,19 @@ This document specifies the current Download List and local video file managemen
   - `failed`
   - `ready`
   - `missing`
-- Download List supports local search, state filtering, and sorting in the renderer.
-- The state filter is persisted in app settings and survives app restart.
+- Download List supports local search, multi-select state filtering, and sorting in the renderer.
+- The selected state filters are persisted in app settings and survive app restart.
 - Supported state filters are:
   - all states
-  - ready/downloading records
-  - records needing attention (`failed` and `missing`)
+  - ready
+  - downloading
+  - queued
+  - paused
+  - failed
+  - missing
+- `all states` is exclusive. Selecting any specific filter removes `all states`; clearing every specific filter falls back to `all states`.
+- Multiple specific filters use OR semantics. For example, `downloading` plus `failed` shows downloading and failed records.
+- Legacy persisted single-filter values are upgraded into the new filter array. Legacy `active` maps to `downloading` plus `queued`; legacy values `ready_downloading` and `needs_attention` normalize to `all states` so app upgrades do not hide records.
 - Sort keys are:
   - updated time
   - title
@@ -160,6 +176,16 @@ This document specifies the current Download List and local video file managemen
 - Queued and downloading rows expose Pause, Cancel, and Open Page actions.
 - Paused rows expose Resume, Open Page, and Delete actions.
 - Delete removes the managed local file when present and removes the persisted download record. It does not modify collection membership or Jable remote state.
+- The Download List toolbar exposes Retry Failed, Queue Actions, Delete Selected, and Error Log.
+- Queue Actions contains Pause All, Resume All, and Cancel Queued with per-action counts and disabled states.
+- Retry Failed is global to all download records and queues only `failed` and `missing` records. It does not duplicate `ready`, `queued`, or `downloading` records.
+- Pause All is global to `queued` and `downloading` records and moves them to `paused` through the segment-preserving pause path.
+- Resume All is global to `paused` records and reuses the same segment-level resume path as single-card Resume.
+- Cancel Queued is global to `queued` records and uses the same semantics as single queued cancel: the record becomes `failed` with the localized canceled message and ready MP4 files are not deleted.
+- Download List cards show selection checkboxes only for `ready`, `paused`, `failed`, and `missing` records.
+- Delete Selected applies only to the currently visible selected eligible records. It asks for confirmation once, deletes managed files when present, removes records, and cleans safe working files. It does not modify Favourites, Watch Later, or Jable remote state.
+- Error Log opens a modal for `failed` and `missing` records. It shows title, video URL, state, short reason, failure phase/code, attempt count, last started time, and last error time.
+- Error Log detail follows the same sanitization rules as download errors: signed remote URLs and the managed download root are masked; cookies, HLS keys, signed segment URLs, and full local paths are not stored or shown.
 
 ## Download Pipeline
 
@@ -170,7 +196,14 @@ This document specifies the current Download List and local video file managemen
 - Video download queue concurrency is controlled by Settings > Downloads.
 - The default maximum active video downloads is 1.
 - The user-facing maximum active video downloads value is clamped from 1 to 8.
-- Each active video download still uses Rust segment-level adaptive concurrency internally, so increasing active video downloads multiplies network and CPU usage.
+- Download speed mode is also controlled by Settings > Downloads and is persisted as `downloadSpeedMode`.
+- Speed mode controls segment-level concurrency per active video download:
+  - Stable: 4 minimum workers, 8 maximum workers
+  - Balanced: 8 minimum workers, 32 maximum workers
+  - Fast: 16 minimum workers, 32 maximum workers
+- Balanced is the default and preserves the previous 8/32 segment concurrency envelope.
+- Maximum active video downloads remains a separate setting for how many videos can run at once. It is not mixed with segment speed mode.
+- Each active video download still uses Rust segment-level adaptive concurrency within the selected speed-mode envelope, so increasing active video downloads multiplies network and CPU usage.
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.
 - The worker fetches the Jable video page using the isolated Jable session cookies.
@@ -179,7 +212,7 @@ This document specifies the current Download List and local video file managemen
 - The HLS parser supports master playlist variant selection, media playlist segments, `#EXTINF` durations, `#EXT-X-TARGETDURATION`, and AES-128 key metadata.
 - The active worker delegates HLS key and segment download to the Rust native download engine before FFmpeg remuxing:
   - Rust samples up to 3 segment downloads before the parallel phase
-  - segment request concurrency is selected from 8 to 32 workers based on sampled single-worker throughput
+  - segment request concurrency is selected inside the current speed-mode min/max envelope based on sampled single-worker throughput
   - if a parallel batch receives concurrency-sensitive CDN errors such as HTTP 403, 428, 429, 503, or 504, Rust backs off and retries unfinished segments with lower concurrency
   - the same `reqwest` client and connection pool are reused across sampled and parallel segment requests
   - 3 retries per key or segment request
@@ -198,6 +231,9 @@ This document specifies the current Download List and local video file managemen
   - `-movflags +faststart`
   - `-f mp4` because the temporary output file uses a `.part` suffix
 - FFmpeg is responsible for remuxing downloaded HLS media into MP4 and handling supported local HLS AES-128 decryption through the local playlist/key files.
+- If segment download fails with HTTP 403, 428, 429, 503, 504, or a compatible CDN rejection pattern, main refreshes the video page and playlist once before final failure.
+- Refreshed playlist retry is allowed only when the existing resume manifest matches or the segment structure can be safely reused. If refresh fails or the refreshed playlist is incompatible, the original segment failure remains the final failure metadata.
+- Pause or cancel requests are honored before and after the refresh retry attempt.
 - On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, and state becomes `ready`.
 - On failure the partial file and temporary segment files are removed where possible and state becomes `failed`.
 - On pause the unreliable `.mp4.part` output is removed, the `.segments` working directory is preserved, and state becomes `paused`.
@@ -244,10 +280,16 @@ This document specifies the current Download List and local video file managemen
 ## Related Files
 
 - `app/download/download-helpers.ts`
+- `app/download/native-download-engine.ts`
 - `app/main.ts`
+- `app/main-process/download-manager.ts`
+- `app/main-process/ipc-handlers.ts`
 - `app/preload.ts`
 - `app/types/jable.ts`
 - `app/main-process/settings.ts`
+- `native/download-engine/`
+- `native/local-data-engine/src/downloads.rs`
+- `native/local-data-engine/src/schema.rs`
 - `app/renderer-src/App.vue`
 - `app/renderer-src/components/CollectionTabs.vue`
 - `app/renderer-src/components/DownloadRecordCard.vue`
@@ -255,8 +297,15 @@ This document specifies the current Download List and local video file managemen
 - `app/renderer-src/components/SettingsPanel.vue`
 - `app/renderer-src/components/VideoCard.vue`
 - `app/renderer-src/composables/useLibraryState.ts`
+- `test/node/data-engine-contract.test.js`
+- `test/node/download-manager.test.js`
 - `test/node/download-helpers.test.js`
+- `test/node/ipc-guardrails.test.js`
+- `native/download-engine/src/planning.rs`
+- `native/download-engine/src/playlist.rs`
+- `native/local-data-engine/src/tests.rs`
 - `test/electron/app-smoke.test.js`
 - `test/renderer/components/LibraryPanel.test.ts`
+- `test/renderer/components/SettingsPanel.test.ts`
 - `test/renderer/components/VideoCard.test.ts`
 - `test/renderer/composables/useLibraryState.test.ts`

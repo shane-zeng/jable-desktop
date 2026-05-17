@@ -25,6 +25,11 @@ struct DownloadAssetRow {
     progress: Option<f64>,
     file_size_bytes: Option<i64>,
     error: Option<String>,
+    failure_phase: Option<String>,
+    failure_code: Option<String>,
+    attempt_count: i64,
+    last_started_at: Option<String>,
+    last_error_at: Option<String>,
     created_at: String,
     updated_at: String,
     completed_at: Option<String>,
@@ -159,9 +164,14 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> 
         progress: row.get(6)?,
         file_size_bytes: row.get(7)?,
         error: row.get(8)?,
-        created_at: row.get(9)?,
-        updated_at: row.get(10)?,
-        completed_at: row.get(11)?,
+        failure_phase: row.get(9)?,
+        failure_code: row.get(10)?,
+        attempt_count: row.get(11)?,
+        last_started_at: row.get(12)?,
+        last_error_at: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        completed_at: row.get(16)?,
     })
 }
 
@@ -177,6 +187,11 @@ fn record_json(record: DownloadAssetRow) -> Value {
       "progress": record.progress,
       "fileSizeBytes": record.file_size_bytes,
       "error": record.error,
+      "failurePhase": record.failure_phase,
+      "failureCode": record.failure_code,
+      "attemptCount": record.attempt_count,
+      "lastStartedAt": record.last_started_at,
+      "lastErrorAt": record.last_error_at,
       "createdAt": record.created_at,
       "updatedAt": record.updated_at,
       "completedAt": record.completed_at
@@ -213,7 +228,8 @@ impl Engine {
             .conn()?
             .query_row(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
-           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.created_at, da.updated_at, da.downloaded_at
+           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.failure_phase, da.failure_code,
+           da.attempt_count, da.last_started_at, da.last_error_at, da.created_at, da.updated_at, da.downloaded_at
          FROM download_assets da
          LEFT JOIN videos v ON v.url = da.video_url
          WHERE da.video_url = ?",
@@ -235,7 +251,8 @@ impl Engine {
             .conn()?
             .prepare(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
-           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.created_at, da.updated_at, da.downloaded_at
+           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.failure_phase, da.failure_code,
+           da.attempt_count, da.last_started_at, da.last_error_at, da.created_at, da.updated_at, da.downloaded_at
          FROM download_assets da
          LEFT JOIN videos v ON v.url = da.video_url
          ORDER BY da.updated_at DESC, da.video_url ASC",
@@ -327,6 +344,41 @@ impl Engine {
             &["error"],
             existing.as_ref().and_then(|record| record.error.clone()),
         );
+        let failure_phase = patch_string(
+            &payload,
+            &["failurePhase", "failure_phase"],
+            existing
+                .as_ref()
+                .and_then(|record| record.failure_phase.clone()),
+        );
+        let failure_code = patch_string(
+            &payload,
+            &["failureCode", "failure_code"],
+            existing
+                .as_ref()
+                .and_then(|record| record.failure_code.clone()),
+        );
+        let attempt_count = patch_i64(
+            &payload,
+            &["attemptCount", "attempt_count"],
+            existing.as_ref().map(|record| record.attempt_count),
+        )
+        .unwrap_or(0)
+        .max(0);
+        let last_started_at = patch_string(
+            &payload,
+            &["lastStartedAt", "last_started_at"],
+            existing
+                .as_ref()
+                .and_then(|record| record.last_started_at.clone()),
+        );
+        let last_error_at = patch_string(
+            &payload,
+            &["lastErrorAt", "last_error_at"],
+            existing
+                .as_ref()
+                .and_then(|record| record.last_error_at.clone()),
+        );
         let completed_at = patch_string(
             &payload,
             &[
@@ -344,9 +396,10 @@ impl Engine {
             .execute(
                 "INSERT INTO download_assets (
            video_url, status, file_relative_path, format, title, img, preview,
-           size_bytes, duration_seconds, progress, error, downloaded_at, last_checked_at, created_at, updated_at
+           size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
+           last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
-         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(video_url) DO UPDATE SET
            status = excluded.status,
            file_relative_path = excluded.file_relative_path,
@@ -356,6 +409,11 @@ impl Engine {
            size_bytes = excluded.size_bytes,
            progress = excluded.progress,
            error = excluded.error,
+           failure_phase = excluded.failure_phase,
+           failure_code = excluded.failure_code,
+           attempt_count = excluded.attempt_count,
+           last_started_at = excluded.last_started_at,
+           last_error_at = excluded.last_error_at,
            downloaded_at = excluded.downloaded_at,
            last_checked_at = excluded.last_checked_at,
            updated_at = excluded.updated_at",
@@ -369,6 +427,11 @@ impl Engine {
                     file_size_bytes,
                     progress,
                     error,
+                    failure_phase,
+                    failure_code,
+                    attempt_count,
+                    last_started_at,
+                    last_error_at,
                     completed_at,
                     timestamp,
                     created_at,

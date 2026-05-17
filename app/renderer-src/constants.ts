@@ -3,6 +3,7 @@ import type {
   CollectionDownloadFilter,
   CollectionKey,
   DownloadSortKey,
+  DownloadSpeedMode,
   DownloadStateFilter,
   SearchMode,
   SortDirection,
@@ -64,6 +65,16 @@ export const DOWNLOAD_SORT_OPTIONS: ValueOption<DownloadSortKey>[] = [
 
 export const DOWNLOAD_STATE_FILTER_OPTIONS: ValueOption<DownloadStateFilter>[] = [
   { value: 'all' },
-  { value: 'ready_downloading' },
-  { value: 'needs_attention' }
+  { value: 'ready' },
+  { value: 'downloading' },
+  { value: 'queued' },
+  { value: 'paused' },
+  { value: 'failed' },
+  { value: 'missing' }
+];
+
+export const DOWNLOAD_SPEED_MODE_OPTIONS: ValueOption<DownloadSpeedMode>[] = [
+  { value: 'stable' },
+  { value: 'balanced' },
+  { value: 'fast' }
 ];

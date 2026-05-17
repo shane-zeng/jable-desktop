@@ -73,27 +73,27 @@ V3 聚焦剩下的管理與復原能力：
 - Download List 卡片上的 failed/missing 提示暫時不改。卡片只顯示簡短 localized reason，不顯示 raw technical details。
 - Download Error Log 放在 Local Data / Download List 的右上角入口，位置概念類似 collection 的完整同步 action。
 - Speed mode 只提供 Stable、Balanced、Fast。
-- V3 加入 Pause All，作用於 queued 與 downloading records。
-- V3 加入 Cancel All Queued，只取消 queued records。
+- V3 以 Download List 右上角的下載佇列選單收納 Pause All、Resume All、Cancel All Queued。
+- Pause All 作用於 queued 與 downloading records；Resume All 作用於 paused records；Cancel All Queued 只取消 queued records。
 - V3 不加入 Clear Completed Records。
 - 批次刪除命名為 Delete Selected Downloads，不命名為 Delete Selected Local Files。
 - 舊 proposal 提過的 dedicated download state IPC、separate progress/error events、download row context menu、source URL 直接顯示皆維持目前做法。
-- Persisted `deleting` state 不納入 V3；如果文件或 dead code 仍有殘留，後續可移除。
 
 ## Download List UX
 
 V3 應改善掃描與日常操作，但不要讓每張卡片變得太吵。
 
-State filtering 應支援更清楚的狀態切換：
+State filtering 應支援可持久化的多選狀態切換：
 
 - All
-- Active (`queued` + `downloading`)
-- Queued
+- Ready
 - Downloading
+- Queued
 - Paused
 - Failed
-- Ready
 - Missing
+
+`All` 為排他選項；選取任何具體狀態會取消 `All`，多個具體狀態以 OR 邏輯顯示紀錄，且重開 App 後仍保留選取狀態。
 
 規則：
 
@@ -110,14 +110,17 @@ State filtering 應支援更清楚的狀態切換：
 V3 actions：
 
 - Retry Failed
-- Pause All
-- Cancel All Queued
+- Queue Actions
+  - Pause All
+  - Resume All
+  - Cancel All Queued
 - Delete Selected Downloads
 
 規則：
 
 - Retry Failed 應處理 failed 與 missing records，但不得 duplicate existing ready、queued、downloading assets。
 - Pause All 作用於 queued 與 downloading records，結果應是 `paused`，並盡可能保留可 resume 的 completed segment files。
+- Resume All 作用於 paused records，沿用單筆 Resume 的 segment-level resume path。
 - Cancel All Queued 只作用於 queued records，不取消 active downloads。
 - Cancel All Queued 會移除等待佇列中的項目，並可清理該項目的暫存工作檔；它不得刪除任何已完成的 ready MP4。
 - Delete Selected Downloads 只應對 ready、paused、failed、missing records 開放。
@@ -241,20 +244,21 @@ Playback-triggered download 不納入 V3 delivery。V3 只保留以下 future re
 - 維持目前 `listDownloads()` 加 renderer filtering，不加入 dedicated `getDownloadStates(videoUrls)` / `countDownloads(options)` IPC methods。
 - 維持目前 consolidated `downloads-changed` event，不拆成 separate `download-state-changed`、`download-progress`、`download-error` events。
 - 維持目前 in-card buttons，不加入 Download row context menu actions。
-- 不使用 persisted `deleting` state；如果後續發現文件或 dead code 殘留，可移除。
 - Download List cards 不直接顯示 source URL，維持用 Open Page action 代表。
 
 ## Implementation Milestones
 
 1. Download List state scanning
-   - 加入 finalized state filters。
+   - 加入 finalized multi-select state filters。
    - 確認 queued records 可見且標示清楚。
    - 維持 source-card ready click 不開啟本機檔案。
    - persisted filter behavior 與 settings 保持一致。
 
 2. Bulk actions
    - 加入 Retry Failed。
+   - 加入 Queue Actions menu。
    - 加入 Pause All。
+   - 加入 Resume All。
    - 加入 Cancel All Queued。
    - 加入 Delete Selected Downloads 與 confirmation。
    - 確認所有 bulk actions 不影響 Favourites、Watch Later 或 Jable remote state。
@@ -277,7 +281,6 @@ Playback-triggered download 不納入 V3 delivery。V3 只保留以下 future re
    - 只在相容時 retry unfinished segment work。
 
 6. Carry-over cleanup
-   - 移除或忽略 stale `deleting` state 相關殘留。
    - 確認舊 proposal 中未採納的 IPC/event/context-menu/source-URL 行為不進 V3。
 
 ## Test Plan
@@ -286,11 +289,12 @@ Playback-triggered download 不納入 V3 delivery。V3 只保留以下 future re
 - Node tests：settings normalization 與新的 migration fields。
 - Node tests：failure classification、stable failure codes、sanitization。
 - Renderer tests：Download List filters/grouping、bulk actions、Download Error Log、source-card state behavior。
-- Electron tests：graceful quit with active downloads、pause/resume/cancel/retry、Pause All、Cancel All Queued、open/reveal、download-root safety。
+- Electron tests：graceful quit with active downloads、pause/resume/cancel/retry、Pause All、Resume All、Cancel All Queued、open/reveal、download-root safety。
 - macOS / Windows manual tests：
   - Stable/Balanced/Fast modes
   - Retry Failed
   - Pause All
+  - Resume All
   - Cancel All Queued
   - Delete Selected Downloads
   - Download Error Log sanitization

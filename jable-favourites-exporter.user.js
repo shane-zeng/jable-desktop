@@ -3,7 +3,7 @@
 // @namespace    shane.tools
 // @version      1.0.0
 // @description  Export titles, URLs, views, and likes from Jable favourites pages by simulating pagination clicks (no direct crawling).
-// @license      MIT
+// @license      Apache-2.0
 // @author       shane
 // @match        https://jable.tv/*
 // @match        https://fs1.app/*

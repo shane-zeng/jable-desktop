@@ -9,17 +9,18 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/main-process/`: Electron main-process domain modules. Browser tab/window orchestration lives in `browser-tab-manager.ts`, keyboard shortcut registration in `browser-shortcut-manager.ts`, native app menu and update dialogs in `app-menu-manager.ts`, context menus in `context-menu-manager.ts`, download orchestration in `download-manager.ts`, sync worker orchestration in `sync-worker-manager.ts`, IPC registration in `ipc-handlers.ts`, IPC payload normalizers in `ipc-normalizers.ts`, settings persistence in `settings.ts`, and release update fetching in `update-checker.ts`.
 - `app/preload.ts`: context-isolated bridge that exposes the only renderer-to-main API as `window.jableApp`.
 - `app/webview-preload.ts`: scraper and collection action observer injected into embedded Jable `WebContentsView` instances.
-- `app/browser/`: browser/runtime policy modules used by main, renderer, and webview preload. `browser-tab-policy.ts` owns pure tab policy helpers, `url-policy.ts` owns trusted URL rules, `ad-blocker.ts` owns session-level request blocking, `ad-cosmetic-policy.ts` owns DOM-level ad cleanup rules, and `webview-preload-helpers.ts` owns pure scraper/pager/AJAX helpers.
+- `app/browser/`: browser/runtime policy modules used by main, renderer, and webview preload. `browser-tab-policy.ts` owns pure tab policy helpers, `url-policy.ts` owns trusted URL rules, `webview-enhancement.ts` owns optional WebView loading rules, `webview-content-policy.ts` owns matching page cleanup rules, and `webview-preload-helpers.ts` owns pure scraper/pager/AJAX helpers.
 - `app/sync/`: shared pagination helper logic for sync flows.
 - `app/data/`: local data boundary. `collections.ts` owns app-level collection metadata shared by Electron runtime code and must stay aligned with Rust `collections()` metadata in `native/local-data-engine/src/collections.rs`; `data-engine.ts` is the Rust-backed local data engine boundary; `native-data-engine.ts` loads the built native addon.
 - `app/download/`: download helper and native addon boundary for HLS playlist parsing and Rust HLS segment/key downloads.
 - `native/local-data-engine/`: Rust SQLite data engine. `src/lib.rs` owns the N-API bridge and method dispatch, `src/collections.rs` owns collection metadata, `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts, `src/sync.rs` owns sync/outbox state transitions, `src/resource.rs` owns JSON import/export, and `src/rows.rs` owns row mapping structs/helpers.
+- `native/download-engine/`: Rust HLS download engine. It owns sampled adaptive concurrency, bounded parallel key/segment HTTP fetching, retry, cancellation flags, temporary segment writes, and local playlist generation for main-process FFmpeg remuxing.
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
-- `test/node/`: Node test files for database behavior, import/export, sync utilities, i18n, userscript i18n, update checks, and browser tab policy.
+- `test/node/`: Node test files for database behavior, import/export, sync utilities, download helpers/manager behavior, i18n, userscript i18n, update checks, and browser tab policy.
 - `test/renderer/`: Vitest renderer, component, composable, and renderer i18n tests.
 - `test/electron/`: Playwright Electron smoke tests for app startup, preload IPC, browser tab IPC, and import/export integration.
 - `scripts/update-release-changelog.js`: release automation helper that updates `CHANGELOG.md` for a completed version tag.
@@ -121,9 +122,17 @@ Keep documentation split by audience:
 
 When behavior changes, update the relevant spec in `docs/specs/` in the same pull request as the implementation or test change. Keep public user guidance in `docs/README.*.md`, and use matching `docs/specs/*.local.md` only for ignored local reading copies in other languages.
 
+## Licensing and Attribution
+
+The project is licensed under Apache License 2.0. Keep the root `LICENSE` file, `package.json`, root package entry in `package-lock.json`, userscript `@license` metadata, `README.md`, and `docs/README.*.md` aligned when changing license metadata. Do not rewrite dependency license entries in `package-lock.json`.
+
+The root `LICENSE` file should remain the canonical Apache License 2.0 text so license scanners can recognize it. Put project-specific copyright, disclaimers, and acknowledgements in README/user documentation rather than editing the license text itself.
+
+If code, assets, or substantial implementation text are copied or adapted from another project, verify that project's license first and preserve any required copyright, attribution, and NOTICE material. Do not add a root `NOTICE` file unless there is a concrete notice obligation or project-level attribution that downstream redistributors must preserve.
+
 ## Testing Guidelines
 
-Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes and shared settings persistence. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine changes, especially migrations, search, sync reducers, and outbox state. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, settings IPC, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes, shared settings persistence, and Download Manager helpers/orchestration. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine or download-engine changes, especially migrations, search, sync reducers, outbox state, segment planning, retry behavior, and local playlist generation. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, settings IPC, Download Manager IPC, shell/file boundaries, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
 
 GitHub Actions run formatting checks, linting, typechecking, tests, and renderer builds on pushes and pull requests. Release workflows also run formatting checks and the same full quality gate before packaging unsigned artifacts.
 

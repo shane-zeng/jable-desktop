@@ -8,7 +8,13 @@ import {
   MAX_BROWSER_TABS_LIMITS,
   MAX_CONCURRENT_DOWNLOADS_LIMITS
 } from '../app-contract';
-import type { AppSettings, AppSettingsPatch, DownloadStateFilter } from '../types/jable';
+import type {
+  AppSettings,
+  AppSettingsPatch,
+  DownloadSpeedMode,
+  DownloadStateFilter,
+  DownloadStateFilters
+} from '../types/jable';
 
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
@@ -33,9 +39,55 @@ function normalizeNullableString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function normalizeDownloadStateFilter(value: unknown): DownloadStateFilter {
-  if (value === 'needs_attention') return 'needs_attention';
-  return value === 'ready_downloading' ? 'ready_downloading' : DEFAULT_APP_SETTINGS.downloadStateFilter;
+const DOWNLOAD_STATE_FILTER_VALUES: DownloadStateFilter[] = [
+  'all',
+  'ready',
+  'downloading',
+  'queued',
+  'paused',
+  'failed',
+  'missing'
+];
+
+function isDownloadStateFilter(value: unknown): value is DownloadStateFilter {
+  return typeof value === 'string' && DOWNLOAD_STATE_FILTER_VALUES.indexOf(value as DownloadStateFilter) !== -1;
+}
+
+function addDownloadStateFilter(filters: Set<DownloadStateFilter>, value: unknown) {
+  if (value === 'active') {
+    filters.add('downloading');
+    filters.add('queued');
+    return;
+  }
+  if (isDownloadStateFilter(value)) filters.add(value);
+}
+
+function normalizeDownloadStateFilters(value: unknown, legacyValue?: unknown): DownloadStateFilters {
+  const filters = new Set<DownloadStateFilter>();
+
+  if (!Array.isArray(value)) {
+    addDownloadStateFilter(filters, typeof value === 'undefined' ? legacyValue : value);
+  } else {
+    for (const item of value) {
+      addDownloadStateFilter(filters, item);
+    }
+  }
+
+  if (filters.size === 0 || filters.has('all')) return ['all'];
+  return DOWNLOAD_STATE_FILTER_VALUES.filter(function (filter) {
+    return filter !== 'all' && filters.has(filter);
+  });
+}
+
+function normalizeDownloadSpeedMode(value: unknown): DownloadSpeedMode {
+  if (value === 'stable' || value === 'fast') return value;
+  return DEFAULT_APP_SETTINGS.downloadSpeedMode;
+}
+
+function cloneAppSettings(settings: AppSettings): AppSettings {
+  return Object.assign({}, settings, {
+    downloadStateFilters: settings.downloadStateFilters.slice()
+  });
 }
 
 export function normalizeAppSettings(value: unknown): AppSettings {
@@ -49,6 +101,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       MAX_BROWSER_TABS_LIMITS.max
     ),
     compactBrowserTabs: Boolean(record.compactBrowserTabs),
+    webViewEnhancementMode: Boolean(record.webViewEnhancementMode),
     fullSyncAjaxWindowSize: clampInteger(
       record.fullSyncAjaxWindowSize,
       DEFAULT_APP_SETTINGS.fullSyncAjaxWindowSize,
@@ -58,7 +111,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     autoReplayDeferredSyncOperations: Boolean(record.autoReplayDeferredSyncOperations),
     ffmpegPath: normalizeNullableString(record.ffmpegPath),
     downloadRoot: normalizeNullableString(record.downloadRoot),
-    downloadStateFilter: normalizeDownloadStateFilter(record.downloadStateFilter),
+    downloadStateFilters: normalizeDownloadStateFilters(record.downloadStateFilters, record.downloadStateFilter),
+    downloadSpeedMode: normalizeDownloadSpeedMode(record.downloadSpeedMode),
     maxConcurrentDownloads: clampInteger(
       record.maxConcurrentDownloads,
       DEFAULT_APP_SETTINGS.maxConcurrentDownloads,
@@ -84,6 +138,9 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   if (Object.prototype.hasOwnProperty.call(value, 'compactBrowserTabs')) {
     patch.compactBrowserTabs = Boolean(value.compactBrowserTabs);
   }
+  if (Object.prototype.hasOwnProperty.call(value, 'webViewEnhancementMode')) {
+    patch.webViewEnhancementMode = Boolean(value.webViewEnhancementMode);
+  }
   if (Object.prototype.hasOwnProperty.call(value, 'fullSyncAjaxWindowSize')) {
     patch.fullSyncAjaxWindowSize = clampInteger(
       value.fullSyncAjaxWindowSize,
@@ -101,8 +158,13 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   if (Object.prototype.hasOwnProperty.call(value, 'downloadRoot')) {
     patch.downloadRoot = normalizeNullableString(value.downloadRoot);
   }
-  if (Object.prototype.hasOwnProperty.call(value, 'downloadStateFilter')) {
-    patch.downloadStateFilter = normalizeDownloadStateFilter(value.downloadStateFilter);
+  if (Object.prototype.hasOwnProperty.call(value, 'downloadStateFilters')) {
+    patch.downloadStateFilters = normalizeDownloadStateFilters(value.downloadStateFilters);
+  } else if (Object.prototype.hasOwnProperty.call(value, 'downloadStateFilter')) {
+    patch.downloadStateFilters = normalizeDownloadStateFilters(value.downloadStateFilter);
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'downloadSpeedMode')) {
+    patch.downloadSpeedMode = normalizeDownloadSpeedMode(value.downloadSpeedMode);
   }
   if (Object.prototype.hasOwnProperty.call(value, 'maxConcurrentDownloads')) {
     patch.maxConcurrentDownloads = clampInteger(
@@ -131,14 +193,14 @@ export class AppSettingsStore {
 
   get(): AppSettings {
     if (!this.settings) this.settings = this.read();
-    return Object.assign({}, this.settings);
+    return cloneAppSettings(this.settings);
   }
 
   update(patch: AppSettingsPatch): AppSettings {
     const next = normalizeAppSettings(Object.assign({}, this.get(), normalizeAppSettingsPatch(patch)));
     this.settings = next;
     this.write(next);
-    return Object.assign({}, next);
+    return cloneAppSettings(next);
   }
 
   private read(): AppSettings {
@@ -146,7 +208,7 @@ export class AppSettingsStore {
       const raw = fs.readFileSync(this.filePath, 'utf8');
       return normalizeAppSettings(JSON.parse(raw));
     } catch (error) {
-      return Object.assign({}, DEFAULT_APP_SETTINGS);
+      return normalizeAppSettings({});
     }
   }
 

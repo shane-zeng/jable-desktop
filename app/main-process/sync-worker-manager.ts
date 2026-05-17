@@ -82,7 +82,7 @@ export type SyncWorkerManagerContext = {
   ): Promise<T>;
   sendToAllBrowserTabs(channel: string, payload: unknown): void;
   sessionPartition: string;
-  shouldDenyAdNavigation(url: unknown): boolean;
+  shouldDenyWebViewEnhancementNavigation(url: unknown): boolean;
   t(key: string, params?: TranslationParams | null): string;
   webviewPreloadPath: string;
 };
@@ -121,7 +121,7 @@ let requestWebContentsPreload: <T>(
 ) => Promise<T>;
 let sendToAllBrowserTabs: (channel: string, payload: unknown) => void;
 let sessionPartition = '';
-let shouldDenyAdNavigation: (url: unknown) => boolean;
+let shouldDenyWebViewEnhancementNavigation: (url: unknown) => boolean;
 let translate: (key: string, params?: TranslationParams | null) => string;
 let webviewPreloadPath = '';
 
@@ -161,12 +161,12 @@ function createSyncWorker(collectionKey: CollectionKey, syncRunId: string): Sync
 
 function wireSyncWorker(worker: SyncWorker) {
   worker.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
-    if (details.url && shouldDenyAdNavigation(details.url)) return { action: 'deny' };
+    if (details.url && shouldDenyWebViewEnhancementNavigation(details.url)) return { action: 'deny' };
     return { action: 'deny' };
   });
 
   worker.webContents.on('will-navigate', function (event: Electron.Event, url: string) {
-    if (shouldDenyAdNavigation(url)) event.preventDefault();
+    if (shouldDenyWebViewEnhancementNavigation(url)) event.preventDefault();
   });
 
   worker.webContents.on(
@@ -641,7 +641,7 @@ export function createSyncWorkerManager(context: SyncWorkerManagerContext): Sync
   requestWebContentsPreload = context.requestWebContentsPreload;
   sendToAllBrowserTabs = context.sendToAllBrowserTabs;
   sessionPartition = context.sessionPartition;
-  shouldDenyAdNavigation = context.shouldDenyAdNavigation;
+  shouldDenyWebViewEnhancementNavigation = context.shouldDenyWebViewEnhancementNavigation;
   translate = context.t;
   webviewPreloadPath = context.webviewPreloadPath;
 

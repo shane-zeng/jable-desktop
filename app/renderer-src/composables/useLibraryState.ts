@@ -15,6 +15,7 @@ import type {
   DownloadSortKey,
   DownloadRecord,
   DownloadStateFilter,
+  DownloadStateFilters,
   FullSyncContinuation,
   JableAppApi,
   LibraryTabKey,
@@ -42,10 +43,10 @@ const DEFAULT_DOWNLOAD_SORT: DownloadSortKey = 'updated_at';
 const DOWNLOAD_SORT_VALUES = DOWNLOAD_SORT_OPTIONS.map(function (option) {
   return option.value;
 });
-const DEFAULT_DOWNLOAD_STATE_FILTER: DownloadStateFilter = 'all';
 const DOWNLOAD_STATE_FILTER_VALUES = DOWNLOAD_STATE_FILTER_OPTIONS.map(function (option) {
   return option.value;
 });
+const DEFAULT_DOWNLOAD_STATE_FILTERS: DownloadStateFilters = ['all'];
 
 function normalizeSort(value: string): SortKey {
   return SORT_VALUES.indexOf(value as SortKey) === -1 ? DEFAULT_SORT : (value as SortKey);
@@ -67,10 +68,15 @@ function normalizeDownloadSort(value: string): DownloadSortKey {
     : (value as DownloadSortKey);
 }
 
-function normalizeDownloadStateFilter(value: string): DownloadStateFilter {
-  return DOWNLOAD_STATE_FILTER_VALUES.indexOf(value as DownloadStateFilter) === -1
-    ? DEFAULT_DOWNLOAD_STATE_FILTER
-    : (value as DownloadStateFilter);
+function normalizeDownloadStateFilters(values: DownloadStateFilters): DownloadStateFilters {
+  const filters: DownloadStateFilter[] = [];
+  for (const value of values) {
+    if (DOWNLOAD_STATE_FILTER_VALUES.indexOf(value) === -1 || filters.indexOf(value) !== -1) continue;
+    filters.push(value);
+  }
+
+  if (filters.length === 0 || filters.indexOf('all') !== -1) return DEFAULT_DOWNLOAD_STATE_FILTERS.slice();
+  return filters;
 }
 
 function isCollectionKey(value: string): value is CollectionKey {
@@ -88,9 +94,23 @@ function searchableDownloadText(record: DownloadRecord): string {
 }
 
 function matchesDownloadStateFilter(record: DownloadRecord, filter: DownloadStateFilter) {
-  if (filter === 'ready_downloading') return record.state === 'ready' || record.state === 'downloading';
-  if (filter === 'needs_attention') return record.state === 'failed' || record.state === 'missing';
+  if (filter !== 'all') return record.state === filter;
   return true;
+}
+
+function matchesDownloadStateFilters(record: DownloadRecord, filters: DownloadStateFilters) {
+  if (filters.indexOf('all') !== -1) return true;
+
+  return filters.some(function (filter) {
+    return matchesDownloadStateFilter(record, filter);
+  });
+}
+
+function arraysEqual(left: string[], right: string[]) {
+  if (left.length !== right.length) return false;
+  return left.every(function (value, index) {
+    return value === right[index];
+  });
 }
 
 function downloadSortValue(record: DownloadRecord, sortKey: DownloadSortKey): string | number {
@@ -130,7 +150,7 @@ export function useLibraryState(api: JableAppApi) {
   const downloadSearch = ref('');
   const downloadSort = ref<DownloadSortKey>('updated_at');
   const downloadDirection = ref<SortDirection>('desc');
-  const downloadStateFilter = ref<DownloadStateFilter>('all');
+  const downloadStateFilters = ref<DownloadStateFilters>(DEFAULT_DOWNLOAD_STATE_FILTERS.slice());
   const batchDownloadSelection = ref<string[]>([]);
   const fullSyncContinuation = ref<FullSyncContinuation | null>(null);
   let refreshToken = 0;
@@ -160,11 +180,11 @@ export function useLibraryState(api: JableAppApi) {
   const downloads = computed(function () {
     const query = downloadSearch.value.trim().toLowerCase();
     const safeSort = normalizeDownloadSort(downloadSort.value);
-    const safeStateFilter = normalizeDownloadStateFilter(downloadStateFilter.value);
+    const safeStateFilters = normalizeDownloadStateFilters(downloadStateFilters.value);
 
     return downloadRecords.value
       .filter(function (record) {
-        if (!matchesDownloadStateFilter(record, safeStateFilter)) return false;
+        if (!matchesDownloadStateFilters(record, safeStateFilters)) return false;
         return !query || searchableDownloadText(record).indexOf(query) !== -1;
       })
       .slice()
@@ -328,12 +348,12 @@ export function useLibraryState(api: JableAppApi) {
     refreshVideos();
   });
 
-  watch([downloadSearch, downloadSort, downloadDirection, downloadStateFilter], function () {
+  watch([downloadSearch, downloadSort, downloadDirection, downloadStateFilters], function () {
     if (!isDownloadsTab.value) return;
     const safeSort = normalizeDownloadSort(downloadSort.value);
-    const safeStateFilter = normalizeDownloadStateFilter(downloadStateFilter.value);
+    const safeStateFilters = normalizeDownloadStateFilters(downloadStateFilters.value);
     if (safeSort !== downloadSort.value) downloadSort.value = safeSort;
-    if (safeStateFilter !== downloadStateFilter.value) downloadStateFilter.value = safeStateFilter;
+    if (!arraysEqual(safeStateFilters, downloadStateFilters.value)) downloadStateFilters.value = safeStateFilters;
     currentPage.value = 1;
   });
 
@@ -366,7 +386,7 @@ export function useLibraryState(api: JableAppApi) {
     downloadSearch: downloadSearch,
     downloadSort: downloadSort,
     downloadDirection: downloadDirection,
-    downloadStateFilter: downloadStateFilter,
+    downloadStateFilters: downloadStateFilters,
     batchDownloadSelection: batchDownloadSelection,
     batchDownloadSelectionSet: batchDownloadSelectionSet,
     selectedBatchDownloadVideos: selectedBatchDownloadVideos,

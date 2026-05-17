@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { MAX_BROWSER_TABS_WARNING_THRESHOLD, MAX_CONCURRENT_DOWNLOADS_LIMITS } from '../constants';
+import {
+  DOWNLOAD_SPEED_MODE_OPTIONS,
+  MAX_BROWSER_TABS_WARNING_THRESHOLD,
+  MAX_CONCURRENT_DOWNLOADS_LIMITS
+} from '../constants';
 import { t, useI18n } from '../i18n';
 import type {
   AppSettings,
   AppSettingsPatch,
   CollectionKey,
   DownloadRootInfo,
+  DownloadSpeedMode,
   ExportResource,
   FfmpegStatus,
   SupportedLocale
@@ -58,6 +63,11 @@ const speedOptions = [
   { value: 3, key: 'standard' },
   { value: 5, key: 'fast' }
 ];
+const downloadSpeedModeHints: Record<DownloadSpeedMode, string> = {
+  stable: 'stableHint',
+  balanced: 'balancedHint',
+  fast: 'fastHint'
+};
 
 const showMaxTabsWarning = computed(function () {
   return props.settings.maxBrowserTabs > MAX_BROWSER_TABS_WARNING_THRESHOLD;
@@ -121,6 +131,10 @@ function updateMaxBrowserTabs(event: Event) {
 
 function updateMaxConcurrentDownloads(event: Event) {
   updateSettings({ maxConcurrentDownloads: Number(eventValue(event)) });
+}
+
+function updateDownloadSpeedMode(mode: DownloadSpeedMode) {
+  updateSettings({ downloadSpeedMode: mode });
 }
 
 function updateLocale(event: Event) {
@@ -299,6 +313,22 @@ function confirmImport() {
           <div
             class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
           >
+            <span class="text-sm font-semibold">{{ t('settings.browser.webViewEnhancementMode') }}</span>
+            <label class="flex min-h-[34px] items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                data-test="settings-webview-enhancement-mode"
+                :checked="settings.webViewEnhancementMode"
+                :disabled="busy"
+                @change="updateSettings({ webViewEnhancementMode: eventChecked($event) })"
+              />
+              <span>{{ t('settings.browser.webViewEnhancementModeDescription') }}</span>
+            </label>
+          </div>
+
+          <div
+            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
+          >
             <span class="text-sm font-semibold">{{ t('settings.browser.tabWidth') }}</span>
             <button type="button" class="w-fit" :disabled="busy" @click="emit('reset-tabs-width')">
               {{ t('settings.browser.resetTabWidth') }}
@@ -438,6 +468,35 @@ function confirmImport() {
               />
               <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
                 {{ t('settings.downloads.concurrent.description') }}
+              </p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
+            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.speed.label') }}</span>
+            <div class="grid gap-2">
+              <div
+                class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+              >
+                <button
+                  v-for="option in DOWNLOAD_SPEED_MODE_OPTIONS"
+                  :key="option.value"
+                  class="segmented-tab min-h-[30px]"
+                  :class="{ 'is-active': settings.downloadSpeedMode === option.value }"
+                  type="button"
+                  :data-test="'settings-download-speed-' + option.value"
+                  :aria-pressed="settings.downloadSpeedMode === option.value"
+                  :disabled="busy"
+                  @click="updateDownloadSpeedMode(option.value)"
+                >
+                  {{ t('options.downloadSpeedMode.' + option.value) }}
+                </button>
+              </div>
+              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+                {{ t('settings.downloads.speed.description') }}
+              </p>
+              <p class="m-0 max-w-[680px] text-xs leading-5 text-[#f2b35d]">
+                {{ t('settings.downloads.speed.' + downloadSpeedModeHints[settings.downloadSpeedMode]) }}
               </p>
             </div>
           </div>

@@ -103,19 +103,18 @@ type ChooseNextPagerLink = (links: PagerLink[], currentPage: number | null) => P
 type UrlPolicyModule = {
   isTrustedJableUrl(value: unknown): boolean;
 };
-type AdBlockerModule = {
-  isAdBlockDebugEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
-  isAdBlockEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
-  shouldBlockAdNavigation(value: unknown): boolean;
+type WebViewEnhancementModule = {
+  isWebViewEnhancementDebugEnabledByEnv(env?: Record<string, string | undefined> | null): boolean;
+  shouldSuppressWebViewNavigation(value: unknown): boolean;
 };
-type AdCosmeticPolicyModule = {
-  removeCosmeticAds(root: Document | Element, isBlockedAdUrl: (value: unknown) => boolean): number;
+type WebViewContentPolicyModule = {
+  applyWebViewContentPolicy(root: Document | Element, isSuppressedRemoteUrl: (value: unknown) => boolean): number;
 };
 
 const electron: typeof Electron = require('electron');
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
-const adBlocker = require('./browser/ad-blocker') as AdBlockerModule;
-const adCosmeticPolicy = require('./browser/ad-cosmetic-policy') as AdCosmeticPolicyModule;
+const webViewEnhancement = require('./browser/webview-enhancement') as WebViewEnhancementModule;
+const webViewContentPolicy = require('./browser/webview-content-policy') as WebViewContentPolicyModule;
 const syncUtils = require('./sync/sync-utils') as {
   chooseFirstPagerLink: ChooseFirstPagerLink;
   chooseNextPagerLink: ChooseNextPagerLink;
@@ -134,11 +133,12 @@ const TRACKPAD_HISTORY_COOLDOWN_MS = 700;
 const TRACKPAD_HISTORY_RESET_MS = 180;
 const COLLECTION_TOGGLE_CONFIRM_TIMEOUT_MS = 4000;
 const COLLECTION_TOGGLE_CONFIRM_POLL_MS = 120;
-const AD_COSMETIC_SCAN_DELAY_MS = 0;
+const WEBVIEW_CONTENT_POLICY_SCAN_DELAY_MS = 0;
 let trackpadHistoryDeltaX = 0;
 let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
-let adCosmeticScanTimer: ReturnType<typeof setTimeout> | null = null;
+let webViewContentPolicyScanTimer: ReturnType<typeof setTimeout> | null = null;
+let webViewEnhancementMode = false;
 let activeSyncLocks: Partial<Record<CollectionKey, ActiveSyncLock>> = {};
 let pendingCollectionOperations: Partial<Record<CollectionKey, PendingCollectionOperation[]>> = {};
 let pendingCollectionOverlayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -170,32 +170,47 @@ function uniqByUrl(rows: ScrapedVideoRow[]) {
   return out;
 }
 
-function runAdCosmeticFilter() {
-  adCosmeticScanTimer = null;
+function applyWebViewContentRules() {
+  webViewContentPolicyScanTimer = null;
+  if (!webViewEnhancementMode) return;
 
-  const removed = adCosmeticPolicy.removeCosmeticAds(document, adBlocker.shouldBlockAdNavigation);
-  if (removed && adBlocker.isAdBlockDebugEnabledByEnv(process.env)) {
-    console.info('[ad-blocker] removed ' + removed + ' ad container(s)');
+  const removed = webViewContentPolicy.applyWebViewContentPolicy(
+    document,
+    webViewEnhancement.shouldSuppressWebViewNavigation
+  );
+  if (removed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
+    console.info('[webview-enhancement] updated ' + removed + ' container(s)');
   }
 }
 
-function scheduleAdCosmeticFilter() {
-  if (adCosmeticScanTimer) return;
+function scheduleWebViewContentRules() {
+  if (!webViewEnhancementMode || webViewContentPolicyScanTimer) return;
 
-  adCosmeticScanTimer = setTimeout(runAdCosmeticFilter, AD_COSMETIC_SCAN_DELAY_MS);
+  webViewContentPolicyScanTimer = setTimeout(applyWebViewContentRules, WEBVIEW_CONTENT_POLICY_SCAN_DELAY_MS);
 }
 
-function installAdCosmeticFilter() {
-  if (!adBlocker.isAdBlockEnabledByEnv(process.env)) return;
+function applyWebViewEnhancementSettings(value: unknown) {
+  webViewEnhancementMode = Boolean(isRecord(value) && value.webViewEnhancementMode);
+  if (webViewEnhancementMode) scheduleWebViewContentRules();
+}
 
-  scheduleAdCosmeticFilter();
+function installWebViewContentRules() {
+  ipcRenderer
+    .invoke('app:get-settings')
+    .then(applyWebViewEnhancementSettings)
+    .catch(function () {
+      applyWebViewEnhancementSettings(null);
+    });
+  ipcRenderer.on('settings-changed', function (_event, settings) {
+    applyWebViewEnhancementSettings(settings);
+  });
 
-  document.addEventListener('DOMContentLoaded', scheduleAdCosmeticFilter, { once: true });
+  document.addEventListener('DOMContentLoaded', scheduleWebViewContentRules, { once: true });
 
   if (typeof MutationObserver === 'undefined') return;
 
   const target = document.documentElement || document;
-  const observer = new MutationObserver(scheduleAdCosmeticFilter);
+  const observer = new MutationObserver(scheduleWebViewContentRules);
   observer.observe(target, {
     attributes: true,
     attributeFilter: ['href', 'src', 'data-src'],
@@ -693,7 +708,7 @@ async function loadPagerLinkByFetch(link: PagerLink, oldSig: string) {
     if (!replaceCollectionDomFromDocument(doc)) continue;
 
     scheduleApplyPendingCollectionOperations();
-    scheduleAdCosmeticFilter();
+    scheduleWebViewContentRules();
 
     return signature() !== oldSig;
   }
@@ -1982,4 +1997,4 @@ ipcRenderer.on('browser:diagnose-request', function (_event, payload: unknown) {
 });
 
 installPendingCollectionOperationOverlay();
-installAdCosmeticFilter();
+installWebViewContentRules();

@@ -127,7 +127,11 @@ export default [
     }
   },
   {
-    files: ['app/browser/ad-cosmetic-policy.ts', 'app/browser/webview-preload-helpers.ts', 'app/webview-preload.ts'],
+    files: [
+      'app/browser/webview-content-policy.ts',
+      'app/browser/webview-preload-helpers.ts',
+      'app/webview-preload.ts'
+    ],
     languageOptions: {
       globals: {
         ...nodeGlobals,

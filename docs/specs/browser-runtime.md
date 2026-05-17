@@ -87,17 +87,16 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Leaving fullscreen restores the renderer-provided browser bounds.
 - Fullscreen applies to the active BrowserView, not a separate native app window.
 
-## Ad Blocking And Cosmetic Filtering
+## WebView Enhancement Mode
 
-- The session-level ad blocker is installed on the shared Jable session partition.
-- Known third-party ad subresource requests are blocked.
-- Known ad popup navigations are suppressed before creating app tabs.
-- Jable main-frame page navigations are not blocked by the ad request rules.
-- `blob:` media URLs are not blocked.
-- Cosmetic filtering runs in `app/webview-preload.ts` to remove leftover ad cards, sponsor rows, modal wrappers, and fullscreen ad iframes whose URLs match the ad-blocking rules.
-- Cosmetic filtering must preserve collection action buttons when removing sponsor links from shared detail rows.
-- Set `JABLE_DESKTOP_AD_BLOCK=0` to disable request blocking and cosmetic filtering.
-- Set `JABLE_DESKTOP_AD_BLOCK_DEBUG=1` to log blocked requests, navigations, and removed containers.
+- Settings includes `WebView Enhancement Mode`, backed by `AppSettings.webViewEnhancementMode`.
+- The setting defaults to off. When it is off, the shared Jable session does not apply the optional WebView loading rules, and the webview preload does not run the matching page cleanup rules.
+- When enabled, the main process applies a small, Jable-specific loading ruleset on the shared Jable session partition.
+- Matching navigations are suppressed before creating app tabs.
+- Jable main-frame page navigations and `blob:` media URLs remain untouched by these rules.
+- Page cleanup runs in `app/webview-preload.ts` and must preserve collection action buttons when a configured link appears in a shared detail row.
+- Settings changes are forwarded to active BrowserView tabs through `settings-changed`, so enabling the mode does not require restarting the app.
+- Set `JABLE_DESKTOP_WEBVIEW_ENHANCEMENT_DEBUG=1` to log matching request, navigation, and page cleanup events while testing.
 
 ## Update Checks
 
@@ -117,8 +116,8 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - `app/browser/webview-preload-helpers.ts`
 - `app/browser/browser-tab-policy.ts`
 - `app/browser/url-policy.ts`
-- `app/browser/ad-blocker.ts`
-- `app/browser/ad-cosmetic-policy.ts`
+- `app/browser/webview-enhancement.ts`
+- `app/browser/webview-content-policy.ts`
 - `app/main-process/update-checker.ts`
 - `docs/shortcuts.md`
 

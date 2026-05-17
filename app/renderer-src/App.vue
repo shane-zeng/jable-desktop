@@ -35,7 +35,7 @@ import type {
   DownloadRequestPayload,
   DownloadRootInfo,
   DownloadState,
-  DownloadStateFilter,
+  DownloadStateFilters,
   ExportResource,
   FfmpegStatus,
   LibraryVideoMenuAction,
@@ -57,9 +57,15 @@ const busy = ref(false);
 const browserTabsCompact = ref(false);
 const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
-const appSettings = ref<AppSettings>(Object.assign({}, DEFAULT_APP_SETTINGS));
+const appSettings = ref<AppSettings>(
+  Object.assign({}, DEFAULT_APP_SETTINGS, {
+    downloadStateFilters: DEFAULT_APP_SETTINGS.downloadStateFilters.slice()
+  })
+);
 const ffmpegStatus = ref<FfmpegStatus | null>(null);
 const downloadRoot = ref<DownloadRootInfo | null>(null);
+const selectedDownloadUrls = ref<string[]>([]);
+const showDownloadErrorLog = ref(false);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
@@ -90,6 +96,12 @@ const { addPendingRemoteOperationGroup, removePendingRemoteOperationGroup, resol
 
 const pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
+});
+
+const downloadErrorLogRecords = computed<DownloadRecord[]>(function () {
+  return library.downloadRecords.value.filter(function (record) {
+    return record.state === 'failed' || record.state === 'missing';
+  });
 });
 
 const libraryBusy = computed(function () {
@@ -439,7 +451,7 @@ async function showLibraryVideoMenu(payload: LibraryVideoMenuPayload) {
 function applyAppSettings(settings: AppSettings) {
   appSettings.value = settings;
   browserTabsCompact.value = Boolean(settings.compactBrowserTabs);
-  library.downloadStateFilter.value = settings.downloadStateFilter;
+  library.downloadStateFilters.value = settings.downloadStateFilters.slice();
   browser.scheduleResize();
 }
 
@@ -452,10 +464,10 @@ async function updateAppSettings(patch: AppSettingsPatch) {
   }
 }
 
-async function updateDownloadStateFilter(value: DownloadStateFilter) {
-  library.downloadStateFilter.value = value;
+async function updateDownloadStateFilters(value: DownloadStateFilters) {
+  library.downloadStateFilters.value = value;
   try {
-    applyAppSettings(await api.updateSettings({ downloadStateFilter: value }));
+    applyAppSettings(await api.updateSettings({ downloadStateFilters: value }));
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
@@ -621,6 +633,72 @@ function selectBatchDownloadVideos(videos: VideoRow[]) {
   );
 }
 
+function isDownloadDeleteSelectable(record: DownloadRecord) {
+  return (
+    record.state === 'ready' || record.state === 'paused' || record.state === 'failed' || record.state === 'missing'
+  );
+}
+
+function toggleDownloadRecordSelection(payload: { videoUrl: string; selected: boolean }) {
+  const next = new Set(selectedDownloadUrls.value);
+  if (payload.selected) next.add(payload.videoUrl);
+  else next.delete(payload.videoUrl);
+  selectedDownloadUrls.value = Array.from(next);
+}
+
+function selectedVisibleDownloadUrls() {
+  const selected = new Set(selectedDownloadUrls.value);
+  return library.downloads.value
+    .filter(function (record) {
+      return selected.has(record.videoUrl) && isDownloadDeleteSelectable(record);
+    })
+    .map(function (record) {
+      return record.videoUrl;
+    });
+}
+
+function downloadFailurePhaseLabel(record: DownloadRecord) {
+  const phase = record.failurePhase || 'unknown';
+  if (
+    phase !== 'ffmpeg_check' &&
+    phase !== 'video_page' &&
+    phase !== 'playlist' &&
+    phase !== 'segments' &&
+    phase !== 'remux' &&
+    phase !== 'file'
+  ) {
+    return i18n.t('downloadList.failurePhaseLabel.unknown');
+  }
+  return i18n.t('downloadList.failurePhaseLabel.' + phase);
+}
+
+function downloadErrorSummaryLabel(record: DownloadRecord) {
+  if (record.state === 'missing') return i18n.t('downloadList.errorReason.missingFile');
+
+  const text = (record.error || '').trim();
+  if (!text) return i18n.t('downloadList.errorReason.generic');
+  if (/取消|cancel/i.test(text)) return i18n.t('downloadList.errorReason.cancelled');
+  if (/http\s*(401|403|428|429)|precondition|required|forbidden|unauthorized|too many requests/i.test(text)) {
+    return i18n.t('downloadList.errorReason.accessRejected');
+  }
+  if (/enoent|no such file|file removed|not found|找不到|遺失/i.test(text)) {
+    return i18n.t('downloadList.errorReason.missingFile');
+  }
+  if (/ffmpeg|muxer|output format|invalid argument|remux/i.test(text)) {
+    return i18n.t('downloadList.errorReason.ffmpeg');
+  }
+  if (/m3u8|playlist|hls|segment/i.test(text)) return i18n.t('downloadList.errorReason.playlist');
+  if (/network|timeout|timed out|econn|dns|socket|connection/i.test(text)) {
+    return i18n.t('downloadList.errorReason.network');
+  }
+  return i18n.t('downloadList.errorReason.generic');
+}
+
+function optionalDownloadDetail(value: string | number | null | undefined) {
+  if (value === null || typeof value === 'undefined' || value === '') return i18n.t('downloadList.notAvailable');
+  return String(value);
+}
+
 async function downloadVideo(video: VideoRow) {
   if (!video || !video.url || busy.value || syncing.value) return;
 
@@ -707,6 +785,29 @@ async function retryDownload(videoUrl: string) {
   }
 }
 
+async function retryFailedDownloads() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+  try {
+    const result = await api.retryFailedDownloads();
+    setStatus(
+      i18n.t('status.downloadBulkActionComplete', {
+        affected: result.affected,
+        skipped: result.skipped,
+        failed: result.failed
+      }),
+      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+    );
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadRetryFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function resumeDownload(videoUrl: string) {
   if (!videoUrl || busy.value || syncing.value) return;
 
@@ -736,6 +837,52 @@ async function pauseDownload(videoUrl: string) {
   }
 }
 
+async function pauseAllDownloads() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+  try {
+    const result = await api.pauseAllDownloads();
+    setStatus(
+      i18n.t('status.downloadBulkActionComplete', {
+        affected: result.affected,
+        skipped: result.skipped,
+        failed: result.failed
+      }),
+      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+    );
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadPauseFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function resumePausedDownloads() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+  try {
+    const result = await api.resumePausedDownloads();
+    setStatus(
+      i18n.t('status.downloadBulkActionComplete', {
+        affected: result.affected,
+        skipped: result.skipped,
+        failed: result.failed
+      }),
+      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+    );
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadResumeFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function cancelDownload(videoUrl: string) {
   if (!videoUrl || busy.value || syncing.value) return;
 
@@ -751,6 +898,39 @@ async function cancelDownload(videoUrl: string) {
   }
 }
 
+async function cancelQueuedDownloads() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+  try {
+    const queuedUrls = library.downloadRecords.value
+      .filter(function (record) {
+        return record.state === 'queued';
+      })
+      .map(function (record) {
+        return record.videoUrl;
+      });
+    queuedUrls.forEach(function (videoUrl) {
+      suppressedDownloadFailureUrls.add(videoUrl);
+    });
+    const result = await api.cancelQueuedDownloads();
+    setStatus(
+      i18n.t('status.downloadBulkActionComplete', {
+        affected: result.affected,
+        skipped: result.skipped,
+        failed: result.failed
+      }),
+      result.failed > 0 ? 'warning' : result.affected > 0 ? 'success' : 'info'
+    );
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadCancelFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function deleteDownload(videoUrl: string) {
   if (!videoUrl || busy.value || syncing.value) return;
 
@@ -762,6 +942,40 @@ async function deleteDownload(videoUrl: string) {
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.downloadDeleteFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
+async function deleteSelectedDownloads() {
+  if (busy.value || syncing.value) return;
+
+  const videoUrls = selectedVisibleDownloadUrls();
+  if (!videoUrls.length) {
+    setStatus(i18n.t('status.downloadBulkNoSelection'), 'info');
+    return;
+  }
+
+  busy.value = true;
+  try {
+    const result = await api.deleteDownloads(videoUrls);
+    if (result.canceled) return;
+    selectedDownloadUrls.value = selectedDownloadUrls.value.filter(function (videoUrl) {
+      return videoUrls.indexOf(videoUrl) === -1;
+    });
+    setStatus(
+      i18n.t('status.downloadBulkDeleteComplete', {
+        deletedFiles: result.deletedFiles,
+        removedRecords: result.removedRecords,
+        skipped: result.skipped,
+        failed: result.failed
+      }),
+      result.failed > 0 ? 'warning' : result.removedRecords > 0 ? 'success' : 'info'
+    );
+    await library.refreshDownloads();
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.downloadDeleteFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
   }
 }
 
@@ -809,6 +1023,17 @@ async function syncMainLocale(locale: string) {
 watch(i18n.locale, function (locale) {
   if (!mainLocaleSynced) return;
   syncMainLocale(locale);
+});
+
+watch(library.downloadRecords, function (records) {
+  const selectable = new Set(
+    records.filter(isDownloadDeleteSelectable).map(function (record) {
+      return record.videoUrl;
+    })
+  );
+  selectedDownloadUrls.value = selectedDownloadUrls.value.filter(function (videoUrl) {
+    return selectable.has(videoUrl);
+  });
 });
 
 onMounted(async function () {
@@ -909,12 +1134,13 @@ onMounted(async function () {
         :download-search="library.downloadSearch.value"
         :download-sort="library.downloadSort.value"
         :download-direction="library.downloadDirection.value"
-        :download-state-filter="library.downloadStateFilter.value"
+        :download-state-filters="library.downloadStateFilters.value"
         :count-label="library.countLabel.value"
         :page-label="library.pageLabel.value"
         :downloads="library.downloads.value"
         :download-records="library.downloadRecords.value"
         :batch-download-selection="library.batchDownloadSelection.value"
+        :selected-download-urls="selectedDownloadUrls"
         :rows="pageRows"
         :current-page="library.currentPage.value"
         :total-pages="library.totalPages.value"
@@ -929,17 +1155,24 @@ onMounted(async function () {
         @update:download-search="library.downloadSearch.value = $event"
         @update:download-sort="library.downloadSort.value = $event"
         @update:download-direction="library.downloadDirection.value = $event"
-        @update:download-state-filter="updateDownloadStateFilter"
+        @update:download-state-filters="updateDownloadStateFilters"
         @prev-page="library.goToPage(library.currentPage.value - 1)"
         @next-page="library.goToPage(library.currentPage.value + 1)"
         @go-page="library.goToPage($event)"
         @open-download="openDownloadFile"
         @reveal-download="revealDownloadFile"
         @retry-download="retryDownload"
+        @retry-failed-downloads="retryFailedDownloads"
         @pause-download="pauseDownload"
+        @pause-all-downloads="pauseAllDownloads"
         @resume-download="resumeDownload"
+        @resume-paused-downloads="resumePausedDownloads"
         @cancel-download="cancelDownload"
+        @cancel-queued-downloads="cancelQueuedDownloads"
         @delete-download="deleteDownload"
+        @delete-selected-downloads="deleteSelectedDownloads"
+        @show-download-error-log="showDownloadErrorLog = true"
+        @toggle-download-record-selection="toggleDownloadRecordSelection"
         @download-video="downloadVideo"
         @select-downloadable="selectBatchDownloadVideos"
         @download-selected="downloadSelectedVideos"
@@ -974,6 +1207,68 @@ onMounted(async function () {
         @import-json="importJsonToCollection"
         @export-json="exportCollection"
       />
+
+      <Transition name="app-modal">
+        <div
+          v-if="showDownloadErrorLog"
+          class="app-modal-backdrop"
+          role="presentation"
+          @click.self="showDownloadErrorLog = false"
+        >
+          <section
+            class="app-modal"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="i18n.t('downloadList.errorLogTitle')"
+            data-test="download-error-log-modal"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-base font-bold">{{ i18n.t('downloadList.errorLogTitle') }}</h2>
+              <button
+                type="button"
+                class="app-toast-close"
+                :aria-label="i18n.t('downloadList.errorLogClose')"
+                @click="showDownloadErrorLog = false"
+              >
+                ×
+              </button>
+            </div>
+            <div v-if="!downloadErrorLogRecords.length" class="text-sm text-[var(--muted)]">
+              {{ i18n.t('downloadList.errorLogEmpty') }}
+            </div>
+            <div v-else class="grid max-h-[520px] gap-3 overflow-auto pr-1">
+              <article
+                v-for="record in downloadErrorLogRecords"
+                :key="record.videoUrl"
+                class="grid gap-1 rounded-md border border-[var(--panel-border)] bg-[var(--card)] p-3 text-xs leading-5"
+                data-test="download-error-log-row"
+              >
+                <h3 class="text-sm font-semibold text-[var(--text)]">{{ record.title || record.videoUrl }}</h3>
+                <p class="m-0 break-all text-[var(--muted)]">{{ record.videoUrl }}</p>
+                <p class="m-0 text-[var(--muted)]">
+                  {{ i18n.t('downloadList.errorLogState', { state: i18n.t('downloadList.state.' + record.state) }) }}
+                </p>
+                <p class="m-0 text-[#f2b35d]">{{ downloadErrorSummaryLabel(record) }}</p>
+                <p class="m-0 text-[var(--muted)]">
+                  {{ i18n.t('downloadList.failurePhase', { phase: downloadFailurePhaseLabel(record) }) }}
+                </p>
+                <p class="m-0 text-[var(--muted)]">
+                  {{ i18n.t('downloadList.failureCode', { code: optionalDownloadDetail(record.failureCode) }) }}
+                </p>
+                <p class="m-0 text-[var(--muted)]">
+                  {{ i18n.t('downloadList.attemptCount', { count: record.attemptCount || 0 }) }}
+                </p>
+                <p class="m-0 text-[var(--muted)]">
+                  {{ i18n.t('downloadList.lastStartedAt', { time: optionalDownloadDetail(record.lastStartedAt) }) }}
+                </p>
+                <p class="m-0 text-[var(--muted)]">
+                  {{ i18n.t('downloadList.lastErrorAt', { time: optionalDownloadDetail(record.lastErrorAt) }) }}
+                </p>
+              </article>
+            </div>
+          </section>
+        </div>
+      </Transition>
     </main>
   </div>
 </template>

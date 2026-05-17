@@ -60,14 +60,26 @@ const jableApp: JableAppApi = {
   retryDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:retry', videoUrl);
   },
+  retryFailedDownloads: function () {
+    return ipcRenderer.invoke('download:retry-failed');
+  },
   pauseDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:pause', videoUrl);
+  },
+  pauseAllDownloads: function () {
+    return ipcRenderer.invoke('download:pause-all');
   },
   resumeDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:resume', videoUrl);
   },
+  resumePausedDownloads: function () {
+    return ipcRenderer.invoke('download:resume-paused');
+  },
   cancelDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:cancel', videoUrl);
+  },
+  cancelQueuedDownloads: function () {
+    return ipcRenderer.invoke('download:cancel-queued');
   },
   openDownloadFile: function (videoUrl) {
     return ipcRenderer.invoke('download:open-file', videoUrl);
@@ -77,6 +89,9 @@ const jableApp: JableAppApi = {
   },
   deleteDownload: function (videoUrl) {
     return ipcRenderer.invoke('download:delete', videoUrl);
+  },
+  deleteDownloads: function (videoUrls) {
+    return ipcRenderer.invoke('download:delete-many', videoUrls);
   },
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
