@@ -225,9 +225,9 @@ function stopPreview() {
       ></video>
     </a>
 
-    <div class="flex min-h-[140px] min-w-0 flex-col gap-2">
+    <div class="grid min-w-0 gap-2">
       <a
-        class="min-h-[3.9em] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
+        class="h-[4.5rem] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
         :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
         :href="record.videoUrl"
         :aria-disabled="record.state !== 'ready'"
@@ -236,8 +236,8 @@ function stopPreview() {
         {{ record.title || record.videoUrl }}
       </a>
 
-      <div class="mt-auto grid gap-2 pt-2">
-        <div class="h-1.5 overflow-hidden rounded-full bg-[var(--control)]" data-test="download-record-progress">
+      <div class="grid gap-2">
+        <div class="h-1.5 overflow-hidden rounded-full bg-[var(--panel-border)]" data-test="download-record-progress">
           <div
             v-if="isIndeterminateProgress(record)"
             class="download-progress-indeterminate h-full rounded-full"
@@ -251,8 +251,8 @@ function stopPreview() {
           ></div>
         </div>
 
-        <div class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <div class="flex min-w-0 flex-wrap gap-1.5">
+        <div class="grid min-h-7 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div class="flex min-w-0 gap-1.5 overflow-hidden">
             <span
               v-for="collectionKey in collectionList(record)"
               :key="collectionKey"
