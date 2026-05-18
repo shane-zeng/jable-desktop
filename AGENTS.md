@@ -18,7 +18,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/types/`: renderer-facing TypeScript wire types for IPC payloads and app state.
 - `app/i18n/`: desktop locale dictionaries and helpers for Electron main-process and renderer UI copy.
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
-- `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source.
+- `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source. `components/BrowserTabRail.vue` owns the reusable browser tab rail shared by Browser and Local Data modes, while `App.vue` decides whether new browser tabs opened from Local Data remain in the background.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/node/`: Node test files for database behavior, import/export, sync utilities, download helpers/manager behavior, i18n, userscript i18n, update checks, and browser tab policy.
 - `test/renderer/`: Vitest renderer, component, composable, and renderer i18n tests.
@@ -90,13 +90,15 @@ ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the
 
 Avoid dependencies, bundlers, or broad abstractions unless the script or desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
 
+After completing an implementation, perform one self-review pass before finalizing. Preserve the agreed behavior and documented specs. Use this pass only for low-risk maintainability improvements such as clearer ownership boundaries, better test placement or naming, removing accidental duplication, and aligning docs with the implemented behavior. Do not expand scope, introduce speculative abstractions, or change product logic during this pass; if a cleanup would alter behavior, document it separately instead of folding it into the implementation.
+
 For desktop main/preload code, use TypeScript source compiled to CommonJS runtime output, two-space indentation, and direct IPC handlers. Keep `app/main.ts` as the composition root; place main-process behavior under `app/main-process/` by domain. Keep scraper selectors and collection add/remove interception centralized in `app/webview-preload.ts`. Keep app-level collection metadata centralized in `app/data/collections.ts` and aligned with Rust `collections()` metadata in `native/local-data-engine/src/collections.rs`. Keep local data API shape centralized in `app/data/data-engine.ts`, and keep database behavior in the Rust module that owns that concern under `native/local-data-engine/src/`.
 
 For renderer code, use Vue single-file components under `app/renderer-src/`, TypeScript where the renderer already uses it, Tailwind utilities for layout/state styling, and `window.jableApp` as the only renderer-to-main boundary. Treat `app/types/jable.ts` as the IPC contract.
 
 For user-facing app settings, keep the shared contract aligned across `app/types/jable.ts`, `app/main-process/settings.ts`, `app/main.ts`, `app/preload.ts`, renderer settings UI, and tests. Settings belong in the Electron `userData` JSON store unless they are data-engine state or backup data.
 
-For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. When changing tab behavior, keep `app/browser/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
+For embedded browsing, the app uses multi-tab `WebContentsView` instances. Keep embedded browser geometry, visibility, tab state, navigation state, and resize scheduling in `app/renderer-src/composables/useBrowserBounds.ts`. Keep reusable tab rail UI in `app/renderer-src/components/BrowserTabRail.vue`; top-level view switching and Local Data background-tab decisions belong in `app/renderer-src/App.vue`. When changing tab behavior, keep `app/browser/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 
 ## Data, Sync, and JSON Rules
 
@@ -155,7 +157,7 @@ Verify relevant behavior after changes:
 - JSON and CSV output still include `title`, `url`, `views`, and `likes`; desktop JSON backups also preserve `site_order`.
 - Both favourites and watch-later pages produce the expected filenames.
 - The desktop app can open Jable, preserve login after restart when the server-side session remains valid, sync both collections, search local data, persist settings, and import/export JSON from the settings page.
-- Browser tabs, context menus, keyboard shortcuts, fullscreen video, compact tab mode, and `WebContentsView` bounds still behave as documented in `docs/shortcuts.md` and `docs/development.md`.
+- Browser tabs, context menus, keyboard shortcuts, fullscreen video, tab rail display modes, and `WebContentsView` bounds still behave as documented in `docs/shortcuts.md` and `docs/development.md`.
 
 ## Commit & Pull Request Guidelines
 

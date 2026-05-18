@@ -16,12 +16,13 @@ This document inventories the application-specific keyboard shortcuts, mouse sho
 
 ## Mouse Shortcuts
 
-| Location                    | Shortcut                                          | Behavior                                                                         |
-| --------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Embedded browser page links | Middle-click a link                               | Opens the link in a new background browser tab and keeps the current tab active. |
-| Local Data video cards      | Middle-click the thumbnail or title               | Opens the video page in a new browser tab and activates it.                      |
-| Local Data video cards      | macOS `Command+Click` the thumbnail or title      | Opens the video page in a new browser tab and activates it.                      |
-| Local Data video cards      | Windows/Linux `Ctrl+Click` the thumbnail or title | Opens the video page in a new browser tab and activates it.                      |
+| Location                    | Shortcut                                          | Behavior                                                                          |
+| --------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Embedded browser page links | Middle-click a link                               | Opens the link in a new background browser tab and keeps the current tab active.  |
+| Local Data shared tab rail  | New Tab button                                    | Creates a new background Jable home tab and keeps Local Data active.              |
+| Local Data video cards      | Middle-click the thumbnail or title               | Opens the video page in a new background browser tab and keeps Local Data active. |
+| Local Data video cards      | macOS `Command+Click` the thumbnail or title      | Opens the video page in a new background browser tab and keeps Local Data active. |
+| Local Data video cards      | Windows/Linux `Ctrl+Click` the thumbnail or title | Opens the video page in a new background browser tab and keeps Local Data active. |
 
 ## Browser Gestures
 
@@ -60,5 +61,5 @@ These items are provided through Electron menu `role` entries. Labels and accele
 - The shortcut handler ignores auto-repeat and uses a short debounce to avoid handling the same keypress from multiple `webContents`.
 - After a successful tab switch, focus is moved to the new active BrowserView so repeated tab-switching shortcuts continue to work.
 - Tab-switching, opener-group new-tab placement, close activation, and reload shortcut helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser-shortcut-manager.ts`.
-- Embedded browser middle-click new-tab behavior lives in `app/webview-preload.ts`; Local Data video-card new-tab behavior lives in `app/renderer-src/components/VideoCard.vue`.
+- Embedded browser middle-click new-tab behavior lives in `app/webview-preload.ts`; Local Data video-card new-tab gestures originate in `app/renderer-src/components/VideoCard.vue`, and `app/renderer-src/App.vue` decides whether the created browser tab is activated.
 - Electron menu role defaults follow the Electron documentation: <https://www.electronjs.org/docs/latest/tutorial/menus>.

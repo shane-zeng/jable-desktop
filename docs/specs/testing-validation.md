@@ -76,14 +76,15 @@ Verify these behaviors when touching related desktop areas:
 - Jable login persists across restart while the server-side session remains valid.
 - Primary-origin load failure falls back to `https://fs1.app` and local storage still canonicalizes video URLs.
 - Browser tabs open, switch, close, mute, right-click, and preserve active-tab policy.
-- Compact tab mode can be toggled and persists through Settings.
+- Tab rail display mode can be changed through Settings, including shared mode.
 - Tab rail width can be resized and reset.
 - `target=_blank` and `window.open` create app tabs.
 - Middle-click in embedded browser opens links in background tabs.
 - HTML fullscreen covers the app chrome and restores normal bounds after exit.
 - Browser context menus show correct link, media, selection, navigation, and page URL actions.
 - Jable video pages with ready managed downloads automatically switch the page video element to local playback. If the switch happens while the user is already watching, the preload preserves the current playback position and resumes only when the video was already playing; missing, failed, queued, or unavailable downloads keep normal Jable playback. If a ready local playback file is deleted while the page is using it, the page reloads so Jable rebuilds its own player.
-- Local video cards open in current tab, open in new tab through middle/platform click, and show context menu actions.
+- In shared tab rail mode, Local Data new-tab actions create background browser tabs without switching away from Local Data.
+- Local video cards open in current tab, open in background new tabs through middle/platform click, and show context menu actions.
 - Local video cards show compact download states and do not expose detailed progress or error text.
 - Local video cards can be explicitly selected and the selected set can be queued for download without downloading the whole current page.
 - Local video card Select All selects only visible downloadable cards and skips already downloaded, queued, or active downloads.

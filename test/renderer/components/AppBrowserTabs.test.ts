@@ -1,0 +1,75 @@
+import { mount } from '@vue/test-utils';
+import { afterEach, describe, expect, it } from 'vitest';
+import App from '@/App.vue';
+import LibraryPanel from '@/components/LibraryPanel.vue';
+import { DEFAULT_BROWSER_URL } from '@/constants';
+import { clickButtonByText, createAppTestApi, settle } from '../helpers/appTestUtils';
+
+describe('App browser tab behavior', function () {
+  afterEach(function () {
+    document.body.innerHTML = '';
+    localStorage.clear();
+    delete window.jableApp;
+  });
+
+  it('keeps Local Data active when creating a tab from the shared rail', async function () {
+    const api = createAppTestApi([], {
+      browserTabsMode: 'shared',
+      compactBrowserTabs: false
+    });
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          SettingsPanel: true
+        }
+      }
+    });
+    await settle();
+    await clickButtonByText(wrapper, '本機資料');
+
+    await wrapper.get('[aria-label="新增分頁"]').trigger('click');
+    await settle();
+
+    expect(api.createBrowserTab).toHaveBeenCalledWith({
+      url: DEFAULT_BROWSER_URL,
+      active: false
+    });
+    expect(wrapper.find('[aria-label="本機資料庫"]').isVisible()).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('opens Local Data card new-tab actions in the background', async function () {
+    const api = createAppTestApi();
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          BrowserPanel: true,
+          SettingsPanel: true
+        }
+      }
+    });
+    await settle();
+    await clickButtonByText(wrapper, '本機資料');
+
+    const videoUrl = 'https://jable.tv/videos/background-open/';
+    const libraryPanel = wrapper.findComponent(LibraryPanel);
+    expect(libraryPanel.exists()).toBe(true);
+    libraryPanel.vm.$emit('open-video-new-tab', videoUrl);
+    await settle();
+
+    expect(api.createBrowserTab).toHaveBeenCalledWith({
+      url: videoUrl,
+      active: false
+    });
+    expect(wrapper.find('[aria-label="本機資料庫"]').isVisible()).toBe(true);
+
+    wrapper.unmount();
+  });
+});

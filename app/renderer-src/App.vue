@@ -323,8 +323,11 @@ async function openInNewBrowserTab(url: string) {
   if (!url || busy.value) return;
 
   try {
-    setActiveView('browser');
-    await browser.createTab(url, { active: true });
+    const openInBackground = activeView.value === 'library';
+    if (!openInBackground) {
+      setActiveView('browser');
+    }
+    await browser.createTab(url, { active: !openInBackground });
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.browserOpenNewTabFailed', { error: errorMessage(error) }), 'error');

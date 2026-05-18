@@ -31,7 +31,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Tab rail width is a renderer-local `localStorage` preference.
 - Tab width can be reset from Settings.
 - Compact mode reveals a floating tab rail when the pointer enters the compact trigger area.
-- Shared mode shows the same tab rail in Browser and Local Data views; activating a browser tab from Local Data returns to Browser.
+- Shared mode shows the same tab rail in Browser and Local Data views. Creating a new tab from Local Data adds it in the background and keeps Local Data active; activating an existing browser tab from Local Data returns to Browser.
 - Locked sync tabs cannot be closed from the tab UI.
 - Browser tabs expose media state for muted, audible, media playing, picture-in-picture, and discarded state. The tab rail mute control appears only for muted or audible tabs, so silent hover preview playback does not show an audio control by itself.
 - When a browser tab opens a Jable video page and that video has a ready managed download, the page video source is automatically replaced with the local MP4. Missing or unavailable downloads leave the original Jable player behavior unchanged.
@@ -59,7 +59,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Select All does not select `queued`, `downloading`, or `ready` cards.
 - The not downloaded collection filter shows rows with no download record plus `paused`, `failed`, or `missing` records. It excludes `queued`, `downloading`, and `ready` records.
 - Clicking a local video opens it in the current browser tab.
-- Middle-click or platform new-tab click opens a local video in a new browser tab.
+- Middle-click or platform new-tab click opens a local video in a background browser tab and keeps Local Data active.
 - Right-clicking a local video opens a native context menu with open/copy actions.
 
 ## Pending Sync View

@@ -232,6 +232,26 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     }, initialTabs.tabs[0].id);
     expect(activatedTabs.activeTabId).toBe(initialTabs.tabs[0].id);
 
+    const backgroundTabs = await window.evaluate(function (url) {
+      return globalThis.jableApp.createBrowserTab({ url: url + 'background-tab', active: false });
+    }, smokeServer.url);
+    const backgroundTab = backgroundTabs.tabs.find(function (tab) {
+      return tab.url.indexOf('/background-tab') !== -1;
+    });
+
+    expect(backgroundTab).toBeTruthy();
+    expect(backgroundTabs.activeTabId).toBe(initialTabs.tabs[0].id);
+
+    const closedBackgroundTabs = await window.evaluate(function (tabId) {
+      return globalThis.jableApp.closeBrowserTab(tabId);
+    }, backgroundTab.id);
+    expect(closedBackgroundTabs.activeTabId).toBe(initialTabs.tabs[0].id);
+    expect(
+      closedBackgroundTabs.tabs.some(function (tab) {
+        return tab.id === backgroundTab.id;
+      })
+    ).toBe(false);
+
     const closedTabs = await window.evaluate(function (tabId) {
       return globalThis.jableApp.closeBrowserTab(tabId);
     }, createdTab.id);

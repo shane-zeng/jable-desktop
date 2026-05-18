@@ -88,7 +88,7 @@ npm install
 npm start
 ```
 
-Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has a compact floating mode, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. If `https://jable.tv` fails to load, the app automatically falls back to `https://fs1.app` for the current session. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
+Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has standard, compact, and shared tab rail modes, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, and navigation. In shared mode, Local Data can show the browser tab rail while keeping new tabs opened from Local Data in the background. If `https://jable.tv` fails to load, the app automatically falls back to `https://fs1.app` for the current session. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
 
 `npm start` builds the Rust native addons into `app/native-dist/`, compiles the Electron runtime into `app/runtime-dist/`, and builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
 
@@ -144,13 +144,13 @@ Renderer behavior:
 
 - `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.
 - `app/main-process/ipc-normalizers.ts` normalizes and validates IPC payloads at runtime before database or browser-tab handlers use them. Keep preload method shapes, `app/types/jable.ts`, and IPC normalizers aligned when adding IPC calls.
-- `app/renderer-src/App.vue` owns top-level renderer wiring for Browser, Local Data, Settings, browser messages, import/export, and layout. Focused composables own BrowserView state, local library state, sync workflow, pending remote actions, and toast status.
+- `app/renderer-src/App.vue` owns top-level renderer wiring for Browser, Local Data, Settings, browser messages, import/export, layout, and whether Local Data new-tab actions activate Browser or stay in the background. Focused composables own BrowserView state, local library state, sync workflow, pending remote actions, and toast status.
 - `useBrowserBounds` owns BrowserView geometry, visibility, tab state, navigation state, and resize scheduling. When leaving the browser view, it hides BrowserViews by sending `{ visible: false }`.
 - `useLibraryState` owns collection/pending-tab selection, pagination, search mode, sorting, pending remote operation groups, refresh token cancellation, and the pending full-sync continuation label.
 - `useSyncWorkflow` owns quick/full sync orchestration, queue progress status, AJAX retry/fallback status, finalization, and full-sync continuation updates.
 - `usePendingRemoteActions` owns Pending Sync Add/Remove/Resolved renderer actions and their refresh/status side effects.
 - `useToastStatus` owns toast filtering, tone inference, sticky state, and auto-hide timing.
-- Browser compact-mode is stored in shared app settings. Tab rail width remains a renderer-local `localStorage` preference because it only affects layout.
+- Browser tab rail display mode is stored in shared app settings. Tab rail width remains a renderer-local `localStorage` preference because it only affects layout.
 - The renderer stylesheet is intentionally dark-mode-only. If appearance modes are reintroduced, keep `styles.css`, persisted preferences, and any docs in sync.
 
 Localization behavior:
@@ -263,7 +263,7 @@ For targeted checks, use `npm test` for SQLite/import/export/search behavior, `n
 Manual checks:
 
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
-- Open, switch, close, right-click, toggle compact mode, hover to reveal close buttons, and drag-resize browser tabs. Confirm Jable `target=_blank` links open a new app tab.
+- Open, switch, close, right-click, toggle tab rail display modes, hover to reveal close buttons, and drag-resize browser tabs. In shared mode, confirm Local Data shows the same tab rail and its new-tab actions create background tabs without switching away from Local Data. Confirm Jable `target=_blank` links open a new app tab.
 - Enter and leave fullscreen from a Jable video player. Confirm fullscreen covers the tab rail and top bar, then restores the normal browser layout after exit.
 - Verify keyboard tab switching shortcuts from [`docs/shortcuts.md`](shortcuts.md), including repeated previous/next switching without clicking the page between keystrokes.
 - Right-click Jable page content and verify link, media, selection, navigation, and page URL menu actions appear in the expected contexts.

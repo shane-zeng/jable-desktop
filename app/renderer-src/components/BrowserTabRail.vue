@@ -155,7 +155,8 @@ onBeforeUnmount(function () {
 <template>
   <div
     v-if="compact"
-    class="absolute inset-y-0 left-0 z-30 w-[18px]"
+    class="absolute inset-y-0 left-0 z-30"
+    :style="{ width: COMPACT_TRIGGER_WIDTH + 'px' }"
     data-test="compact-tab-trigger"
     @pointerenter="showCompactTabs"
   ></div>
