@@ -27,16 +27,10 @@ Before implementing a candidate:
   Download action orchestration and shared display formatting are split out of `app/renderer-src/App.vue` and reused by download record components.
 - WebView preload AJAX sync helper extraction.
   AJAX fetch timeout handling, retry/backoff, page validation, and bounded concurrent prefetch execution live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps DOM scraping, IPC progress reporting, and fallback orchestration.
+- Rust sync pending-remote cleanup.
+  Pending remote group parsing, latest operation lookup, group resolution, and sync-owned visible/hidden collection item upserts are centralized in `native/local-data-engine/src/sync.rs`.
 
 ## Remaining Candidates
-
-### Rust sync pending-remote cleanup
-
-Risk: low to medium.
-
-`native/local-data-engine/src/sync.rs` still has repeated pending remote operation and visibility update SQL. Good candidates are helpers with clear sync-domain names, such as resolving pending groups or applying local add/remove visibility. Avoid generic SQL helpers that hide the state-machine rules.
-
-Validation should include Rust tests for outbox ordering, pending remote grouping, resolved/superseded handling, and full-sync visibility behavior.
 
 ### Download Manager bulk queue action cleanup
 
