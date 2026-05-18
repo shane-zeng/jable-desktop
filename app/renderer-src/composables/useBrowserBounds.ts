@@ -1,5 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import type { Ref } from 'vue';
+import { canonicalJableVideoUrl } from '../../browser/url-policy';
 import type {
   AppView,
   BrowserBounds,
@@ -177,6 +178,10 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   async function loadBrowser(url: string, forceReload: boolean, tabId?: string | null) {
     const targetTabId = tabId || activeTabId.value;
     scheduleResize();
+    if (!forceReload && (await isSameOpenVideo(url, targetTabId))) {
+      return;
+    }
+
     await api.navigateBrowser({
       url: url,
       forceReload: forceReload,
@@ -184,6 +189,14 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
     });
     await refreshTabs();
     scheduleResize();
+  }
+
+  async function isSameOpenVideo(url: string, tabId?: string | null) {
+    const targetVideoUrl = canonicalJableVideoUrl(url);
+
+    if (!targetVideoUrl) return false;
+
+    return canonicalJableVideoUrl(await currentBrowserUrl(tabId)) === targetVideoUrl;
   }
 
   async function currentBrowserUrl(tabId?: string | null) {

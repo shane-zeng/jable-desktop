@@ -170,4 +170,59 @@ describe('useBrowserBounds', function () {
       setup.stop();
     }
   });
+
+  it('skips navigation when the target video is already open in the tab', async function () {
+    const api = {
+      setBrowserBounds: vi.fn(),
+      getBrowserUrl: vi.fn().mockResolvedValue('https://fs1.app/videos/sample/?autoplay=1#player'),
+      navigateBrowser: vi.fn(),
+      listBrowserTabs: vi.fn()
+    };
+    const setup = createState(api);
+
+    try {
+      setup.state.applyTabsState(
+        makeTabsState({
+          tabs: [makeTab('tab-1', 'normal', { url: 'https://jable.tv/videos/sample/' })]
+        })
+      );
+
+      await setup.state.loadBrowser('https://jable.tv/videos/sample/', false);
+
+      expect(api.getBrowserUrl).toHaveBeenCalledWith({ tabId: 'tab-1' });
+      expect(api.navigateBrowser).not.toHaveBeenCalled();
+      expect(api.listBrowserTabs).not.toHaveBeenCalled();
+    } finally {
+      setup.stop();
+    }
+  });
+
+  it('navigates when the target video differs from the current tab', async function () {
+    const targetTabsState = makeTabsState({
+      tabs: [makeTab('tab-1', 'normal', { url: 'https://jable.tv/videos/target/' })]
+    });
+    const api = {
+      setBrowserBounds: vi.fn(),
+      getBrowserUrl: vi.fn().mockResolvedValue('https://jable.tv/videos/current/'),
+      navigateBrowser: vi.fn().mockResolvedValue('https://jable.tv/videos/target/'),
+      listBrowserTabs: vi.fn().mockResolvedValue(targetTabsState)
+    };
+    const setup = createState(api);
+
+    try {
+      setup.state.applyTabsState(makeTabsState());
+
+      await setup.state.loadBrowser('https://jable.tv/videos/target/', false);
+
+      expect(api.navigateBrowser).toHaveBeenCalledWith({
+        url: 'https://jable.tv/videos/target/',
+        forceReload: false,
+        tabId: 'tab-1'
+      });
+      expect(api.listBrowserTabs).toHaveBeenCalledTimes(1);
+      expect(setup.state.tabs.value[0].url).toBe('https://jable.tv/videos/target/');
+    } finally {
+      setup.stop();
+    }
+  });
 });
