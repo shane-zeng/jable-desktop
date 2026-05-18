@@ -77,6 +77,7 @@ export type IpcHandlersContext = {
   markActiveSyncMutated(collectionKey: CollectionKey): void;
   navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string>;
   notifyPendingCollectionOperationsChanged(): void;
+  openFfmpegGuide(): Promise<{ opened: boolean; url: string }>;
   openLocalDataFolder(): Promise<{ opened: boolean; path: string }>;
   pendingCollectionOperationsState(): PendingCollectionOperationOverlayState;
   reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState>;
@@ -133,6 +134,10 @@ function registerAppHandlers(context: IpcHandlersContext) {
 
   context.ipcMain.handle('app:open-local-data-folder', function () {
     return context.openLocalDataFolder();
+  });
+
+  context.ipcMain.handle('app:open-ffmpeg-guide', function () {
+    return context.openFfmpegGuide();
   });
 
   context.ipcMain.handle('app:check-for-updates', function () {

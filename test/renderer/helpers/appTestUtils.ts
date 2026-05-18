@@ -86,6 +86,7 @@ export function createAppTestApi(
     revealDownloadFile: vi.fn(),
     deleteDownload: vi.fn(),
     deleteDownloads: vi.fn(),
+    openFfmpegGuide: vi.fn(),
     openLocalDataFolder: vi.fn(),
     checkForUpdates: vi.fn(),
     listVideos: vi.fn().mockResolvedValue([]),

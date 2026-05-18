@@ -19,6 +19,14 @@ const SYNC_WORKER_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process
 const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
 const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-normalizers.ts');
 const SYNC_WORKFLOW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'composables', 'useSyncWorkflow.ts');
+const DOWNLOAD_WORKFLOW_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'renderer-src',
+  'composables',
+  'useDownloadWorkflow.ts'
+);
+const DOWNLOAD_DISPLAY_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'download-display.ts');
 const STYLES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'styles.css');
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload.ts');
 const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload-helpers.ts');
@@ -32,6 +40,7 @@ test('main process uses preload IPC for browser page requests', function () {
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
   const preloadSource = readSource(path.join(__dirname, '..', '..', 'app', 'preload.ts'));
+  const typesSource = readSource(TYPES_SOURCE_PATH);
   const forbiddenMethod = 'execute' + 'JavaScript';
   const removedGlobal = 'jableDesktop' + 'Scraper';
 
@@ -44,11 +53,18 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(ipcHandlersSource, /app:get-settings/);
   assert.match(ipcHandlersSource, /app:update-settings/);
   assert.match(ipcHandlersSource, /app:open-local-data-folder/);
+  assert.match(ipcHandlersSource, /app:open-ffmpeg-guide/);
   assert.match(ipcHandlersSource, /app:check-for-updates/);
   assert.match(preloadSource, /getSettings/);
   assert.match(preloadSource, /updateSettings/);
+  assert.match(preloadSource, /openFfmpegGuide/);
   assert.match(preloadSource, /openLocalDataFolder/);
   assert.match(preloadSource, /checkForUpdates/);
+  assert.match(typesSource, /openFfmpegGuide\(\): Promise<OpenDocumentationResult>/);
+  assert.match(source, /README\.zh-TW\.md#/);
+  assert.match(source, /README\.en-US\.md#download-list-and-ffmpeg/);
+  assert.match(source, /README\.ja-JP\.md#/);
+  assert.match(source, /shell\.openExternal\(url\)/);
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
@@ -508,8 +524,11 @@ test('main process remuxes downloaded local HLS segments with FFmpeg', function 
 });
 
 test('renderer sends cloneable plain download payloads', function () {
-  const source = readSource(APP_SOURCE_PATH);
+  const source = readSource(DOWNLOAD_WORKFLOW_SOURCE_PATH);
+  const displaySource = readSource(DOWNLOAD_DISPLAY_SOURCE_PATH);
 
+  assert.match(displaySource, /export function downloadRequestVideo\(video: VideoRow\)/);
+  assert.match(source, /downloadRequestVideo as buildDownloadRequestVideo/);
   assert.match(source, /function downloadRequestVideo\(video: VideoRow\)/);
   assert.match(source, /video: downloadRequestVideo\(video\)/);
   assert.equal(source.includes('video: video'), false);

@@ -231,6 +231,11 @@ export interface OpenDownloadFileResult {
   path: string;
 }
 
+export interface OpenDocumentationResult {
+  opened: boolean;
+  url: string;
+}
+
 export interface RevealDownloadFileResult {
   revealed: boolean;
   path: string;
@@ -557,6 +562,7 @@ export interface JableAppApi {
   deleteDownload(videoUrl: string): Promise<DeleteDownloadResult>;
   deleteDownloads(videoUrls: string[]): Promise<DeleteDownloadsResult>;
   localPlaybackSource(videoUrl: string): Promise<LocalPlaybackSourceResult>;
+  openFfmpegGuide(): Promise<OpenDocumentationResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;

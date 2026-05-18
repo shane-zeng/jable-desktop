@@ -573,6 +573,16 @@ async function clearFfmpegPath() {
   }
 }
 
+async function openFfmpegGuide() {
+  try {
+    await api.openFfmpegGuide();
+    setStatus(i18n.t('status.ffmpegGuideOpened'), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.ffmpegGuideOpenFailed', { error: errorMessage(error) }), 'error');
+  }
+}
+
 async function chooseDownloadRoot() {
   try {
     const result = await api.chooseDownloadRoot();
@@ -835,6 +845,9 @@ onBeforeUnmount(function () {
           @delete-download="deleteDownload"
           @delete-selected-downloads="deleteSelectedDownloads"
           @toggle-download-record-selection="toggleDownloadRecordSelection"
+          @refresh-ffmpeg="refreshFfmpegStatus"
+          @choose-ffmpeg="chooseFfmpegPath"
+          @open-ffmpeg-guide="openFfmpegGuide"
           @download-video="downloadVideo"
           @select-downloadable="selectBatchDownloadVideos"
           @download-selected="downloadSelectedVideos"

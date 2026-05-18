@@ -201,6 +201,14 @@ const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
+const FFMPEG_GUIDE_URLS: Record<SupportedLocale, string> = {
+  'zh-TW':
+    'https://github.com/shane-zeng/jable-favourites-exporter/blob/main/docs/README.zh-TW.md#%E4%B8%8B%E8%BC%89%E6%B8%85%E5%96%AE%E8%88%87-ffmpeg',
+  'en-US':
+    'https://github.com/shane-zeng/jable-favourites-exporter/blob/main/docs/README.en-US.md#download-list-and-ffmpeg',
+  'ja-JP':
+    'https://github.com/shane-zeng/jable-favourites-exporter/blob/main/docs/README.ja-JP.md#%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89%E4%B8%80%E8%A6%A7%E3%81%A8-ffmpeg'
+};
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -434,6 +442,17 @@ function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
     return {
       opened: true,
       path: folderPath
+    };
+  });
+}
+
+function openFfmpegGuide(): Promise<{ opened: boolean; url: string }> {
+  const url = FFMPEG_GUIDE_URLS[currentLocale] || FFMPEG_GUIDE_URLS['en-US'];
+
+  return shell.openExternal(url).then(function () {
+    return {
+      opened: true,
+      url: url
     };
   });
 }
@@ -1060,6 +1079,7 @@ function registerIpcHandlers() {
     markActiveSyncMutated: markActiveSyncMutated,
     navigateBrowser: navigateBrowser,
     notifyPendingCollectionOperationsChanged: notifyPendingCollectionOperationsChanged,
+    openFfmpegGuide: openFfmpegGuide,
     openLocalDataFolder: openLocalDataFolder,
     pendingCollectionOperationsState: pendingCollectionOperationsState,
     reloadBrowser: reloadBrowser,

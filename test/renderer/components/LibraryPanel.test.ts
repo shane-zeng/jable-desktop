@@ -424,10 +424,24 @@ describe('LibraryPanel', function () {
     });
 
     expect(setupRequired.text()).toContain('下載清單');
-    expect(setupRequired.get('[data-test="download-list-setup-required"]').text()).toBe('需要安裝 FFmpeg');
+    expect(setupRequired.get('[data-test="download-list-setup-required-title"]').text()).toBe('需要安裝 FFmpeg');
+    expect(setupRequired.get('[data-test="download-list-setup-required"]').text()).toBe(
+      '下載影片前，請先讓 App 偵測到可用的 FFmpeg。'
+    );
+    expect(setupRequired.get('[data-test="download-list-refresh-ffmpeg"]').text()).toBe('重新檢查');
+    expect(setupRequired.get('[data-test="download-list-choose-ffmpeg"]').text()).toBe('選擇 FFmpeg');
+    expect(setupRequired.get('[data-test="download-list-open-ffmpeg-guide"]').text()).toBe('閱讀安裝教學');
     expect(setupRequired.find('[data-test="library-filters"]').exists()).toBe(false);
     expect(setupRequired.text()).not.toContain('快速同步');
     expect(setupRequired.find('[data-test="pagination-page-input"]').exists()).toBe(false);
+
+    await setupRequired.get('[data-test="download-list-refresh-ffmpeg"]').trigger('click');
+    await setupRequired.get('[data-test="download-list-choose-ffmpeg"]').trigger('click');
+    await setupRequired.get('[data-test="download-list-open-ffmpeg-guide"]').trigger('click');
+
+    expect(setupRequired.emitted('refresh-ffmpeg')).toEqual([[]]);
+    expect(setupRequired.emitted('choose-ffmpeg')).toEqual([[]]);
+    expect(setupRequired.emitted('open-ffmpeg-guide')).toEqual([[]]);
 
     const empty = mount(LibraryPanel, {
       props: {

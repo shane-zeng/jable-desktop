@@ -98,6 +98,9 @@ const emit = defineEmits<{
   'cancel-queued-downloads': [];
   'delete-selected-downloads': [];
   'toggle-download-record-selection': [payload: { videoUrl: string; selected: boolean }];
+  'refresh-ffmpeg': [];
+  'choose-ffmpeg': [];
+  'open-ffmpeg-guide': [];
   'download-video': [video: VideoRow];
   'select-downloadable': [videos: VideoRow[]];
   'download-selected': [];
@@ -193,6 +196,9 @@ const emit = defineEmits<{
       @cancel-download="emit('cancel-download', $event)"
       @delete-download="emit('delete-download', $event)"
       @toggle-download-record-selection="emit('toggle-download-record-selection', $event)"
+      @refresh-ffmpeg="emit('refresh-ffmpeg')"
+      @choose-ffmpeg="emit('choose-ffmpeg')"
+      @open-ffmpeg-guide="emit('open-ffmpeg-guide')"
       @download-video="emit('download-video', $event)"
       @toggle-download-selection="emit('toggle-download-selection', $event)"
       @open-video="emit('open-video', $event)"

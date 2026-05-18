@@ -47,6 +47,9 @@ const emit = defineEmits<{
   'cancel-download': [videoUrl: string];
   'delete-download': [videoUrl: string];
   'toggle-download-record-selection': [payload: { videoUrl: string; selected: boolean }];
+  'refresh-ffmpeg': [];
+  'choose-ffmpeg': [];
+  'open-ffmpeg-guide': [];
   'download-video': [video: VideoRow];
   'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
   'open-video': [url: string];
@@ -116,10 +119,44 @@ function isVideoSelectedForDownload(video: VideoRow) {
     </template>
 
     <template v-else-if="activeTab === 'downloads'">
-      <div v-if="!ffmpegReady" class="col-span-full px-3 py-8 text-center text-[var(--muted)]">
-        <p class="m-0 text-sm font-semibold text-[var(--text)]" data-test="download-list-setup-required">
+      <div
+        v-if="!ffmpegReady"
+        class="col-span-full mx-auto grid max-w-xl gap-3 px-3 py-8 text-center text-[var(--muted)]"
+      >
+        <p class="m-0 text-sm font-semibold text-[var(--text)]" data-test="download-list-setup-required-title">
           {{ t('downloadList.setupRequired') }}
         </p>
+        <p class="m-0 text-sm leading-6" data-test="download-list-setup-required">
+          {{ t('downloadList.setupDescription') }}
+        </p>
+        <div class="flex flex-wrap justify-center gap-2">
+          <button
+            type="button"
+            class="primary min-h-9 px-3 py-1.5 text-sm"
+            data-test="download-list-refresh-ffmpeg"
+            :disabled="busy"
+            @click="emit('refresh-ffmpeg')"
+          >
+            {{ t('downloadList.checkFfmpeg') }}
+          </button>
+          <button
+            type="button"
+            class="min-h-9 px-3 py-1.5 text-sm"
+            data-test="download-list-choose-ffmpeg"
+            :disabled="busy"
+            @click="emit('choose-ffmpeg')"
+          >
+            {{ t('downloadList.chooseFfmpeg') }}
+          </button>
+          <button
+            type="button"
+            class="min-h-9 px-3 py-1.5 text-sm"
+            data-test="download-list-open-ffmpeg-guide"
+            @click="emit('open-ffmpeg-guide')"
+          >
+            {{ t('downloadList.readFfmpegGuide') }}
+          </button>
+        </div>
       </div>
       <div
         v-else-if="!downloads.length"

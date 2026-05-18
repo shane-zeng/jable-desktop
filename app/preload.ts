@@ -96,6 +96,9 @@ const jableApp: JableAppApi = {
   localPlaybackSource: function (videoUrl) {
     return ipcRenderer.invoke('download:local-playback-source', videoUrl);
   },
+  openFfmpegGuide: function () {
+    return ipcRenderer.invoke('app:open-ffmpeg-guide');
+  },
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
   },
