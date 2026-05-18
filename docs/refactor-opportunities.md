@@ -35,16 +35,10 @@ Before implementing a candidate:
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, active locks, and DOM replacement side effects.
 - HLS playback helper split.
   Pure proxy URL parsing, request-target parsing, playlist URI rewriting, and capture-plan segment mapping live in `app/main-process/hls-playback-helpers.ts`; `app/main-process/hls-playback-capture.ts` keeps token registration, Electron session fetches, logging, and capture lifecycle side effects.
+- Search count path optimization.
+  Search-backed `countVideos` now streams only `v.search_text` through the existing Rust matcher instead of hydrating and sorting full list rows; `listVideos` search filtering remains Rust-owned to preserve current token and pagination semantics.
 
 ## Remaining Candidates
-
-### Search-path query optimization
-
-Risk: medium to high.
-
-The no-search list/count path has already been optimized. Search still needs stricter care because `listVideos` and `countVideos` must stay perfectly aligned with SQLite FTS5 tokenization, visibility filters, downloadable filters, sorting, limit, and offset semantics.
-
-Only optimize this after adding or strengthening tests that cover search result counts, pagination, collection visibility, fallback-origin canonical URLs, and downloadable-only filters.
 
 ### Userscript pagination/export duplication cleanup
 

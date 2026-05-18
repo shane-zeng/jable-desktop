@@ -470,6 +470,7 @@ test('countVideos uses the same search and visibility filters as listVideos', fu
   assert.equal(db.countVideos('watch_later'), 1);
   assert.equal(db.countVideos('watch_later', { includeHidden: true }), 2);
   assert.equal(db.countVideos('watch_later', { search: 'target' }), 1);
+  assert.equal(db.countVideos('watch_later', { search: 'target', limit: 1, offset: 1 }), 1);
   assert.equal(db.countVideos('watch_later', { search: 'hidden', includeHidden: true }), 1);
   assert.deepEqual(db.listVideos('watch_later', { search: 'hidden' }), []);
   assert.deepEqual(

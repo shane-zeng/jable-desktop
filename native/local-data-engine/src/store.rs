@@ -280,6 +280,41 @@ impl Engine {
             .map_err(to_napi_error)
     }
 
+    fn count_search_rows(&self, collection_key: &str, query: &ListQueryOptions) -> Result<usize> {
+        ensure_collection(collection_key)?;
+        let sql = format!(
+            "SELECT v.search_text
+       FROM collection_items ci
+       JOIN videos v ON v.url = ci.video_url
+       {download_join}
+       WHERE ci.collection_key = ? {visibility} {download_visibility}",
+            download_join = query.download_join,
+            visibility = query.visibility,
+            download_visibility = query.download_visibility,
+        );
+        let conn = self.conn()?;
+        let mut statement = conn.prepare(&sql).map_err(to_napi_error)?;
+        let rows = statement
+            .query_map(params![collection_key], |row| {
+                row.get::<_, Option<String>>(0)
+            })
+            .map_err(to_napi_error)?;
+        let mut count = 0;
+
+        for search_text in rows {
+            let search_text = search_text.map_err(to_napi_error)?;
+            if matches_search(
+                search_text.as_deref().unwrap_or(""),
+                query.search.as_deref(),
+                &query.search_mode,
+            ) {
+                count += 1;
+            }
+        }
+
+        Ok(count)
+    }
+
     pub(crate) fn list_videos(&self, payload: Value) -> Result<Value> {
         let collection_key = value_string(object_field(&payload, "collectionKey"))
             .ok_or_else(|| Error::from_reason("listVideos requires collectionKey".to_string()))?;
@@ -313,9 +348,7 @@ impl Engine {
             .ok_or_else(|| Error::from_reason("countVideos requires collectionKey".to_string()))?;
         let query = ListQueryOptions::from_value(&payload);
         if query.has_search() {
-            return Ok(json!(self
-                .list_rows(&collection_key, &query, None, 0)?
-                .len()));
+            return Ok(json!(self.count_search_rows(&collection_key, &query)?));
         }
 
         Ok(json!(self.count_rows(&collection_key, &query)?))

@@ -542,6 +542,16 @@ fn list_videos_can_filter_to_downloadable_collection_rows() {
         engine
             .count_videos(json!({
                 "collectionKey": "favourites",
+                "downloadFilter": "downloadable",
+                "search": "failed"
+            }))
+            .expect("downloadable search rows should count"),
+        json!(1)
+    );
+    assert_eq!(
+        engine
+            .count_videos(json!({
+                "collectionKey": "favourites",
                 "downloadFilter": "downloadable"
             }))
             .expect("downloadable rows should count"),
