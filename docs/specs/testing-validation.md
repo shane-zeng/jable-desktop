@@ -16,6 +16,8 @@ fnm exec --using 24 npm run check
 
 Targeted gates:
 
+Electron smoke is intentionally excluded from the recommended full gate. Run it only when a change touches the Electron boot path, BrowserWindow/WebContentsView setup, preload bridge exposure, protocol/session setup, or main/preload IPC registration wiring.
+
 ```sh
 fnm exec --using 24 npm run format:check
 fnm exec --using 24 npm run lint
@@ -52,18 +54,18 @@ fnm exec --using 24 npm run test:electron
 | Renderer i18n                                                                                 | `test/renderer/i18n/index.test.ts`          |
 | Renderer components                                                                           | `test/renderer/components/*.test.ts`        |
 | Renderer composables                                                                          | `test/renderer/composables/*.test.ts`       |
-| Electron startup, preload bridge, settings IPC, tab IPC, import/export smoke                  | `test/electron/app-smoke.test.js`           |
+| Electron startup, preload bridge, settings IPC reachability, initial tab state                | `test/electron/app-smoke.test.js`           |
 
 ## Change-Specific Test Selection
 
 - Userscript UI or localization changes: run userscript i18n tests and manually test Tampermonkey pages.
 - Renderer UI changes: run renderer tests, typecheck, and renderer build.
-- Main-process browser/tab changes: run browser tab policy tests, IPC guardrail tests, and Electron smoke tests.
-- IPC payload normalization changes: run IPC normalizer tests, IPC guardrail tests, typecheck, and Electron smoke tests when handler wiring changes.
+- Main-process browser/tab changes: run browser tab policy tests and IPC guardrail tests. Run Electron smoke tests only when startup or tab-manager wiring changes.
+- IPC payload normalization changes: run IPC normalizer tests, IPC guardrail tests, and typecheck. Run Electron smoke tests only when main/preload handler registration wiring changes.
 - Webview preload helper changes: run webview helper tests, IPC guardrail tests, and Node tests covering URL/sync helper behavior.
 - URL policy or release URL changes: run URL policy and update checker tests.
 - Settings changes: run settings tests plus renderer SettingsPanel tests.
-- Download List, FFmpeg, native download engine, speed modes, failure metadata, pause/resume, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests when IPC handler wiring, bulk actions, app-close behavior, or shell/file boundary behavior changes.
+- Download List, FFmpeg, native download engine, speed modes, failure metadata, pause/resume, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests only when the change also touches Electron startup, preload exposure, protocol/session setup, or main/preload IPC registration wiring.
 - Search, migrations, sync visibility, outbox, pending remote, or import/export changes: run Node database tests, data-engine contract tests, and Rust tests.
 - Rust-native data-engine invariant changes: update and run `native/local-data-engine/src/tests.rs` through `fnm exec --using 24 npm run rust:ci`.
 - Documentation-only changes: run `fnm exec --using 24 npm run format:check`.

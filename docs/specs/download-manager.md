@@ -339,7 +339,6 @@ This document specifies the current Download List and local video file managemen
 - `native/download-engine/src/planning.rs`
 - `native/download-engine/src/playlist.rs`
 - `native/local-data-engine/src/tests.rs`
-- `test/electron/app-smoke.test.js`
 - `test/renderer/components/LibraryPanel.test.ts`
 - `test/renderer/components/SettingsPanel.test.ts`
 - `test/renderer/components/VideoCard.test.ts`

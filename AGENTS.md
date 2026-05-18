@@ -22,7 +22,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/node/`: Node test files for database behavior, import/export, sync utilities, download helpers/manager behavior, i18n, userscript i18n, update checks, and browser tab policy.
 - `test/renderer/`: Vitest renderer, component, composable, and renderer i18n tests.
-- `test/electron/`: Playwright Electron smoke tests for app startup, preload IPC, browser tab IPC, and import/export integration.
+- `test/electron/`: Playwright Electron startup smoke test for the real packaged-runtime boot path, the context-isolated preload bridge, and basic settings/tab IPC reachability. Keep this suite intentionally thin; behavior coverage belongs in Node, Rust, or renderer tests.
 - `scripts/update-release-changelog.js`: release automation helper that updates `CHANGELOG.md` for a completed version tag.
 - `docs/`: user guides, implementation-backed specs, development notes, shortcuts, and screenshots. `README.md` is only the short project entrypoint.
 - `docs/refactor-opportunities.md`: no-spec-change optimization backlog and completed refactor batches. Use it as the starting point when continuing maintainability work.
@@ -67,7 +67,7 @@ The userscript has no build step. Edit it directly and validate it in Tampermonk
 - `fnm exec --using 24 npm start`: build the Electron runtime and renderer, then run the desktop app.
 - `fnm exec --using 24 npm run start:dev`: run Electron against the Vite dev server.
 - `fnm exec --using 24 npm test`: run Node tests.
-- `fnm exec --using 24 npm run test:electron`: build the app and run Playwright Electron smoke tests with isolated test user data.
+- `fnm exec --using 24 npm run test:electron`: build the app and run the minimal Playwright Electron startup smoke test with isolated test user data.
 - `git diff`: review local changes before committing.
 
 For userscript validation, install or update `jable-favourites-exporter.user.js` in Tampermonkey, then test:
@@ -146,7 +146,7 @@ If code, assets, or substantial implementation text are copied or adapted from a
 
 ## Testing Guidelines
 
-Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes, shared settings persistence, and Download Manager helpers/orchestration. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine or download-engine changes, especially migrations, search, sync reducers, outbox state, segment planning, retry behavior, and local playlist generation. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` for Electron startup, preload IPC, browser tab IPC, settings IPC, Download Manager IPC, shell/file boundaries, or import/export integration changes. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes, shared settings persistence, and Download Manager helpers/orchestration. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine or download-engine changes, especially migrations, search, sync reducers, outbox state, segment planning, retry behavior, and local playlist generation. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` only when touching Electron startup, BrowserWindow/WebContentsView bootstrapping, preload bridge exposure, protocol/session setup, or main/preload IPC registration wiring. Do not use Electron smoke as routine validation for renderer UI, database/import/export behavior, or download logic when narrower Node, Rust, or renderer tests cover the change. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
 
 GitHub Actions run formatting checks, linting, typechecking, tests, and renderer builds on pushes and pull requests. Release workflows also run formatting checks and the same full quality gate before packaging unsigned artifacts.
 

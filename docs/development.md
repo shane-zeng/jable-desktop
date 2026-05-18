@@ -199,7 +199,7 @@ Desktop app files:
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
 - `test/node/`: Node tests for database behavior, sync utilities, i18n, update checks, and browser tab policy.
 - `test/renderer/`: Vitest renderer/component/composable tests.
-- `test/electron/`: Playwright Electron smoke tests for app startup, preload IPC, tab IPC, and import/export integration.
+- `test/electron/`: Playwright Electron startup smoke test for the real app boot path, preload bridge exposure, and basic settings/tab IPC reachability. Keep this targeted and thin; broader behavior coverage belongs in Node, Rust, or renderer tests.
 - `scripts/check-node-version.js`: local guard that enforces the supported Node.js version range before scripts run.
 
 ### Quality Checks
@@ -225,7 +225,7 @@ Useful commands:
 - `npm run format`: format the repository with Prettier.
 - `npm run format:check`: verify formatting without changing files.
 - `npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
-- `npm run test:electron`: build the Electron runtime and renderer, then run the Playwright Electron smoke test with isolated test user data and a local HTTP page.
+- `npm run test:electron`: build the Electron runtime and renderer, then run the minimal Playwright Electron startup smoke test with isolated test user data and a local HTTP page. This is a targeted Electron boot/preload check, not part of `npm run check`.
 
 TypeScript covers the renderer, shared IPC/wire types, and Electron runtime source. The Tampermonkey userscript remains JavaScript to preserve its no-build, self-contained runtime shape.
 
@@ -246,7 +246,7 @@ Test coverage map:
 - `native/download-engine/src/planning.rs` and `native/download-engine/src/playlist.rs`: Rust-native download engine concurrency planning, CDN rejection handling, and local HLS playlist generation.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state, library pagination/filter state, sync workflow status, pending remote actions, and toast status.
-- `test/electron/app-smoke.test.js`: desktop app startup, `window.jableApp` preload bridge, settings IPC, browser tab create/activate/close IPC, and import/export happy path.
+- `test/electron/app-smoke.test.js`: desktop app startup through Electron, `window.jableApp` preload bridge exposure, `app:info`, settings IPC reachability, and initial browser tab state.
 
 GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
 
@@ -258,7 +258,7 @@ Run the full local quality gate before opening a pull request:
 npm run check
 ```
 
-For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run rust:test` for Rust-native data-engine unit tests, `npm run rust:ci` for Rust formatting/check/clippy/test coverage, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run test:electron` for Electron startup/preload/tab IPC smoke coverage, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
+For targeted checks, use `npm test` for SQLite/import/export/search behavior, `npm run rust:test` for Rust-native data-engine unit tests, `npm run rust:ci` for Rust formatting/check/clippy/test coverage, `npm run typecheck` for renderer and Electron runtime typing, `npm run test:renderer` for renderer unit tests, `npm run test:electron` only for Electron startup, BrowserWindow/WebContentsView bootstrapping, preload bridge exposure, protocol/session setup, or main/preload IPC registration wiring, `npm run build:electron` for Electron runtime output, and `npm run build:renderer` for renderer build validation.
 
 Manual checks:
 
