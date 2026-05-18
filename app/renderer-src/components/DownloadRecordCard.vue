@@ -31,19 +31,19 @@ const emit = defineEmits<{
 const previewVideo = ref<HTMLVideoElement | null>(null);
 
 function stateClass(state: DownloadState) {
-  if (state === 'ready') return 'bg-[#1c4f2a] text-[#9df0a3]';
-  if (state === 'failed' || state === 'missing') return 'bg-[#4f2a1c] text-[#f2b35d]';
-  if (state === 'downloading') return 'bg-[#20395f] text-[#9fc7ff]';
-  if (state === 'paused') return 'bg-[#34333f] text-[#d1c4ff]';
-  return 'bg-[var(--control)] text-[var(--muted)]';
+  if (state === 'ready') return 'download-state-ready';
+  if (state === 'failed' || state === 'missing') return 'download-state-failed';
+  if (state === 'downloading') return 'download-state-downloading';
+  if (state === 'paused') return 'download-state-paused';
+  return 'download-state-muted';
 }
 
 function progressFillClass(state: DownloadState) {
-  if (state === 'ready') return 'bg-[#78d17f]';
-  if (state === 'failed' || state === 'missing') return 'bg-[#f2b35d]';
-  if (state === 'downloading') return 'bg-[var(--accent)]';
-  if (state === 'paused') return 'bg-[#8f7bd8]';
-  return 'bg-[var(--muted)]';
+  if (state === 'ready') return 'download-progress-ready';
+  if (state === 'failed' || state === 'missing') return 'download-progress-failed';
+  if (state === 'downloading') return 'download-progress-downloading';
+  if (state === 'paused') return 'download-progress-paused';
+  return 'download-progress-muted';
 }
 
 function collectionLabel(collectionKey: CollectionKey) {
@@ -51,9 +51,9 @@ function collectionLabel(collectionKey: CollectionKey) {
 }
 
 function collectionClass(collectionKey: CollectionKey) {
-  if (collectionKey === 'favourites') return 'bg-[#303644] text-[#c6cfdd]';
-  if (collectionKey === 'watch_later') return 'bg-[#2b3946] text-[#c5d8ea]';
-  return 'bg-[var(--control)] text-[var(--muted)]';
+  if (collectionKey === 'favourites') return 'download-collection-favourites';
+  if (collectionKey === 'watch_later') return 'download-collection-watch-later';
+  return 'download-state-muted';
 }
 
 function secondaryInfoLabel(record: DownloadRecord) {
@@ -188,7 +188,7 @@ function toggleSelected(event: Event) {
             </div>
             <span
               v-if="record.sourcePageChineseSubtitleNotice"
-              class="w-fit rounded-md border border-[#276f63] bg-[#133832] px-2 py-0.5 text-xs font-semibold text-[#8fe6ce]"
+              class="download-subtitle-badge w-fit rounded-md border px-2 py-0.5 text-xs font-semibold"
             >
               {{ t('downloadList.chineseSubtitle') }}
             </span>
@@ -207,7 +207,7 @@ function toggleSelected(event: Event) {
         <div class="grid min-h-10 gap-0.5 text-xs leading-5 text-[var(--muted)]">
           <span
             class="min-h-5 min-w-0 truncate text-right"
-            :class="record.state === 'failed' || record.state === 'missing' ? 'text-[#f2b35d]' : ''"
+            :class="record.state === 'failed' || record.state === 'missing' ? 'download-secondary-warning' : ''"
           >
             {{ secondaryInfoLabel(record) }}
           </span>

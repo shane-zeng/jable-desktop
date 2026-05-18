@@ -89,7 +89,7 @@ const i18n = useI18n();
 
     <button
       class="topbar-settings-button min-h-[34px] font-bold max-[640px]:min-h-[30px]"
-      :class="{ primary: activeView === 'settings' }"
+      :class="{ 'is-selected': activeView === 'settings' }"
       type="button"
       data-test="settings-view-button"
       :aria-pressed="activeView === 'settings'"

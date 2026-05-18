@@ -101,7 +101,7 @@ const ffmpegSourceLabel = computed(function () {
 });
 
 const ffmpegStatusClass = computed(function () {
-  return props.ffmpegStatus && props.ffmpegStatus.state === 'detected' ? 'text-[#78d17f]' : 'text-[#f2b35d]';
+  return props.ffmpegStatus && props.ffmpegStatus.state === 'detected' ? 'intent-text-success' : 'intent-text-warning';
 });
 
 const downloadRootPath = computed(function () {
@@ -296,7 +296,7 @@ function confirmImport() {
               />
               <p
                 v-if="showMaxTabsWarning"
-                class="m-0 max-w-[680px] text-xs leading-5 text-[#f2b35d]"
+                class="intent-text-warning m-0 max-w-[680px] text-xs leading-5"
                 data-test="settings-max-tabs-warning"
               >
                 {{ t('settings.browser.maxTabsWarning') }}
@@ -381,7 +381,7 @@ function confirmImport() {
               <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
                 {{ t('settings.sync.accelerationDescription') }}
               </p>
-              <p v-if="showFastSyncWarning" class="m-0 max-w-[680px] text-xs leading-5 text-[#f2b35d]">
+              <p v-if="showFastSyncWarning" class="intent-text-warning m-0 max-w-[680px] text-xs leading-5">
                 {{ t('settings.sync.fastWarning') }}
               </p>
             </div>
@@ -433,7 +433,7 @@ function confirmImport() {
               </p>
               <p
                 v-if="ffmpegStatus && ffmpegStatus.error && ffmpegStatus.state !== 'missing'"
-                class="m-0 max-w-[680px] text-xs leading-5 text-[#f2b35d]"
+                class="intent-text-warning m-0 max-w-[680px] text-xs leading-5"
               >
                 {{ ffmpegStatus.error }}
               </p>
@@ -515,7 +515,7 @@ function confirmImport() {
               <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
                 {{ t('settings.downloads.speed.description') }}
               </p>
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[#f2b35d]">
+              <p class="intent-text-warning m-0 max-w-[680px] text-xs leading-5">
                 {{ t('settings.downloads.speed.' + downloadSpeedModeHints[settings.downloadSpeedMode]) }}
               </p>
             </div>
@@ -607,7 +607,7 @@ function confirmImport() {
                 />
               </div>
 
-              <p v-if="importError" class="m-0 text-sm leading-5 text-[#ff8794]">
+              <p v-if="importError" class="intent-text-danger m-0 text-sm leading-5">
                 {{ t('settings.data.importParseFailed', { error: importError }) }}
               </p>
 
