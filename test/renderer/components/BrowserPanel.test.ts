@@ -113,6 +113,25 @@ describe('BrowserPanel', function () {
     ]);
   });
 
+  it('does not show tab audio controls for silent hover preview playback', function () {
+    const tabs = makeTabs();
+    tabs[0].mediaPlaying = true;
+
+    const wrapper = mount(BrowserPanel, {
+      props: {
+        active: true,
+        tabs: tabs,
+        activeTabId: 'tab-1',
+        canCreateTab: true,
+        compact: false,
+        tabWidth: 220
+      }
+    });
+
+    expect(wrapper.find('[aria-label="分頁靜音"]').exists()).toBe(false);
+    expect(wrapper.findAll('[role="tab"]')[0].classes()).not.toContain('has-audio');
+  });
+
   it('auto-hides compact floating tab rail until the left edge is hovered', async function () {
     const wrapper = mount(BrowserPanel, {
       props: {

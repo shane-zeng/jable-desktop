@@ -5,6 +5,7 @@ import type {
   DownloadSortKey,
   DownloadSpeedMode,
   DownloadStateFilter,
+  BrowserTabsMode,
   SearchMode,
   SortDirection,
   SortKey
@@ -77,4 +78,10 @@ export const DOWNLOAD_SPEED_MODE_OPTIONS: ValueOption<DownloadSpeedMode>[] = [
   { value: 'stable' },
   { value: 'balanced' },
   { value: 'fast' }
+];
+
+export const BROWSER_TABS_MODE_OPTIONS: ValueOption<BrowserTabsMode>[] = [
+  { value: 'standard' },
+  { value: 'compact' },
+  { value: 'shared' }
 ];

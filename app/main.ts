@@ -12,6 +12,7 @@ import type {
 } from './main-process/app-menu-manager';
 import type {
   BrowserLoadFailure,
+  BrowserReloadOptions,
   BrowserTab,
   BrowserTabManager,
   BrowserTabManagerContext
@@ -583,7 +584,8 @@ function getBrowserShortcutManager(): BrowserShortcutManager {
         return mainWindow;
       },
       homeUrl: JABLE_HOME_URL,
-      isMacos: IS_MACOS
+      isMacos: IS_MACOS,
+      reloadBrowser: reloadBrowser
     });
   }
 
@@ -736,8 +738,8 @@ function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<strin
   return getBrowserTabManager().navigate(payload);
 }
 
-function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {
-  return getBrowserTabManager().reload(tabId);
+function reloadBrowser(tabId?: string | null, options?: BrowserReloadOptions | null): Promise<BrowserNavigationState> {
+  return getBrowserTabManager().reload(tabId, options);
 }
 
 function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState> {

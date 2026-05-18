@@ -11,6 +11,7 @@ import {
 import type {
   AppSettings,
   AppSettingsPatch,
+  BrowserTabsMode,
   DownloadSpeedMode,
   DownloadStateFilter,
   DownloadStateFilters
@@ -84,6 +85,11 @@ function normalizeDownloadSpeedMode(value: unknown): DownloadSpeedMode {
   return DEFAULT_APP_SETTINGS.downloadSpeedMode;
 }
 
+function normalizeBrowserTabsMode(value: unknown, compactFallback?: boolean): BrowserTabsMode {
+  if (value === 'compact' || value === 'shared') return value;
+  return compactFallback ? 'compact' : DEFAULT_APP_SETTINGS.browserTabsMode;
+}
+
 function cloneAppSettings(settings: AppSettings): AppSettings {
   return Object.assign({}, settings, {
     downloadStateFilters: settings.downloadStateFilters.slice()
@@ -92,6 +98,7 @@ function cloneAppSettings(settings: AppSettings): AppSettings {
 
 export function normalizeAppSettings(value: unknown): AppSettings {
   const record = isRecord(value) ? value : {};
+  const browserTabsMode = normalizeBrowserTabsMode(record.browserTabsMode, Boolean(record.compactBrowserTabs));
 
   return {
     maxBrowserTabs: clampInteger(
@@ -100,7 +107,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       MAX_BROWSER_TABS_LIMITS.min,
       MAX_BROWSER_TABS_LIMITS.max
     ),
-    compactBrowserTabs: Boolean(record.compactBrowserTabs),
+    browserTabsMode: browserTabsMode,
+    compactBrowserTabs: browserTabsMode === 'compact',
     webViewEnhancementMode: Boolean(record.webViewEnhancementMode),
     fullSyncAjaxWindowSize: clampInteger(
       record.fullSyncAjaxWindowSize,
@@ -138,6 +146,11 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   }
   if (Object.prototype.hasOwnProperty.call(value, 'compactBrowserTabs')) {
     patch.compactBrowserTabs = Boolean(value.compactBrowserTabs);
+    patch.browserTabsMode = patch.compactBrowserTabs ? 'compact' : 'standard';
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'browserTabsMode')) {
+    patch.browserTabsMode = normalizeBrowserTabsMode(value.browserTabsMode);
+    patch.compactBrowserTabs = patch.browserTabsMode === 'compact';
   }
   if (Object.prototype.hasOwnProperty.call(value, 'webViewEnhancementMode')) {
     patch.webViewEnhancementMode = Boolean(value.webViewEnhancementMode);

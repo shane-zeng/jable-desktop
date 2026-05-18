@@ -239,8 +239,13 @@
       "title": "Browser",
       "maxTabs": "Maximum Open Tabs",
       "maxTabsWarning": "More tabs preserve more page state, but they also use more memory and can affect video playback or sync speed.",
-      "compactTabs": "Compact Tab Rail",
-      "compactTabsDescription": "Use a narrower tab rail on startup.",
+      "tabsMode": "Tab Rail Display",
+      "tabsModeDescription": "Shared mode shows the same browser tab rail in Browser and Local Data. Selecting a tab returns to Browser.",
+      "tabsModeOptions": {
+        "standard": "Standard",
+        "compact": "Floating",
+        "shared": "Shared"
+      },
       "webViewEnhancementMode": "WebView Enhancement Mode",
       "webViewEnhancementModeDescription": "Applies extra WebView loading and page cleanup rules. Turn it off if a site renders unexpectedly.",
       "tabWidth": "Tab Rail Width",

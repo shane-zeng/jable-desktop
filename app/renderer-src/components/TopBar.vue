@@ -21,11 +21,11 @@ const i18n = useI18n();
 
 <template>
   <header
-    class="grid grid-cols-[minmax(240px,1fr)_auto_minmax(240px,1fr)] items-center gap-4 border-b border-[var(--panel-border)] bg-[var(--panel)] px-3.5 max-[1180px]:grid-cols-[minmax(180px,1fr)_auto]"
+    class="grid h-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--panel-border)] bg-[var(--panel)] px-3.5 max-[640px]:gap-2 max-[640px]:px-2.5"
   >
-    <div class="flex min-w-0 items-center gap-2">
+    <div class="flex min-w-0 items-center gap-2 max-[640px]:gap-1.5">
       <button
-        class="w-[34px] px-0 text-xl leading-none"
+        class="w-[34px] px-0 text-xl leading-none max-[640px]:w-[30px]"
         type="button"
         :title="i18n.t('topBar.back')"
         :aria-label="i18n.t('topBar.back')"
@@ -35,7 +35,7 @@ const i18n = useI18n();
         ‹
       </button>
       <button
-        class="w-[34px] px-0 text-xl leading-none"
+        class="w-[34px] px-0 text-xl leading-none max-[640px]:w-[30px]"
         type="button"
         :title="i18n.t('topBar.next')"
         :aria-label="i18n.t('topBar.next')"
@@ -45,7 +45,7 @@ const i18n = useI18n();
         ›
       </button>
       <button
-        class="w-[34px] px-0 text-xl leading-none"
+        class="w-[34px] px-0 text-xl leading-none max-[640px]:w-[30px]"
         type="button"
         :title="i18n.t('topBar.reload')"
         :aria-label="i18n.t('topBar.reload')"
@@ -57,7 +57,7 @@ const i18n = useI18n();
     </div>
 
     <div
-      class="segmented-tabs flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px] max-[1180px]:justify-self-start"
+      class="segmented-tabs topbar-view-tabs flex min-w-0 items-center justify-self-end rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
       role="tablist"
       :aria-label="i18n.t('topBar.mainViews')"
     >
@@ -87,18 +87,16 @@ const i18n = useI18n();
       </button>
     </div>
 
-    <div class="flex flex-wrap items-center justify-end gap-2 max-[1180px]:col-span-full max-[1180px]:justify-start">
-      <button
-        class="min-h-[34px] min-w-[84px] font-bold"
-        :class="{ primary: activeView === 'settings' }"
-        type="button"
-        data-test="settings-view-button"
-        :aria-pressed="activeView === 'settings'"
-        @click="emit('set-view', 'settings')"
-      >
-        {{ i18n.t('topBar.settings') }}
-      </button>
-      <button type="button" hidden @click="emit('diagnose')">{{ i18n.t('topBar.diagnose') }}</button>
-    </div>
+    <button
+      class="topbar-settings-button min-h-[34px] font-bold max-[640px]:min-h-[30px]"
+      :class="{ primary: activeView === 'settings' }"
+      type="button"
+      data-test="settings-view-button"
+      :aria-pressed="activeView === 'settings'"
+      @click="emit('set-view', 'settings')"
+    >
+      {{ i18n.t('topBar.settings') }}
+    </button>
+    <button type="button" hidden @click="emit('diagnose')">{{ i18n.t('topBar.diagnose') }}</button>
   </header>
 </template>

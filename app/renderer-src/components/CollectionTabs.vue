@@ -30,14 +30,14 @@ const activeTabKey = computed(function () {
 
 <template>
   <div
-    class="segmented-tabs flex items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+    class="segmented-tabs flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
     role="tablist"
     :aria-label="t('library.collections')"
   >
     <button
       v-for="collection in collectionEntries"
       :key="collection.key"
-      class="segmented-tab min-h-8"
+      class="segmented-tab min-h-8 shrink-0"
       :class="{
         'is-active': activeTabKey === collection.key
       }"
@@ -49,7 +49,7 @@ const activeTabKey = computed(function () {
       {{ collection.name }}
     </button>
     <button
-      class="segmented-tab min-h-8"
+      class="segmented-tab min-h-8 shrink-0"
       :class="{ 'is-active': activeTabKey === 'downloads' }"
       type="button"
       role="tab"
@@ -60,7 +60,7 @@ const activeTabKey = computed(function () {
     </button>
     <button
       v-if="props.pendingCount"
-      class="segmented-tab min-h-8"
+      class="segmented-tab min-h-8 shrink-0"
       :class="{ 'is-active': activeTabKey === 'pending_remote' }"
       type="button"
       role="tab"

@@ -32,7 +32,7 @@ Renderer API group:
 Current behavior:
 
 - `getAppInfo()` returns database path, current locale, and system locale.
-- `getSettings()` returns normalized persisted app settings.
+- `getSettings()` returns normalized persisted app settings, including browser tab display mode.
 - `updateSettings()` normalizes and persists supported settings only.
 - `autoDownloadOnPlayback` defaults to `false`; when set to `true`, Jable browser-tab HLS playback may be proxied through app-owned loopback URLs so playback and background completion share one managed segment cache. The download record is created only after webview preload reports actual video playback, not merely when the page preloads a playlist.
 - `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
@@ -144,7 +144,7 @@ Renderer API group:
 Current behavior:
 
 - `listBrowserTabs()` returns active tab ID, max tab limit, and serialized tabs.
-- `createBrowserTab()` normalizes safe URL, kind, activation, title, lock, mute, favicon, and force-reload fields.
+- `createBrowserTab()` normalizes safe URL, kind, activation, title, lock, mute, favicon, force-reload, and opener-tab fields.
 - `activateBrowserTab()` attaches and focuses the selected tab.
 - `closeBrowserTab()` respects locked tabs and close-selection policy.
 - `setBrowserTabLocked()` toggles tab lock state.

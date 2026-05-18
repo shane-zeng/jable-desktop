@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-18
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -25,12 +25,15 @@ This document specifies the current user-facing Electron desktop application beh
 - Browser tabs are shown in a left tab rail.
 - Users can open, activate, close, mute, and reload browser tabs.
 - A new normal tab opens the configured Jable home URL, defaulting to `https://jable.tv/`.
-- The tab rail supports a persisted compact mode through app settings.
+- Newly created browser tabs follow opener-group behavior: repeated tabs opened from the same source tab are kept together below that source tab and before the next unrelated tab.
+- Closing active opener-group child tabs walks through the remaining children first, then returns to the opener tab before moving to unrelated tabs.
+- The tab rail supports persisted standard, compact, and shared display modes through app settings.
 - Tab rail width is a renderer-local `localStorage` preference.
 - Tab width can be reset from Settings.
 - Compact mode reveals a floating tab rail when the pointer enters the compact trigger area.
+- Shared mode shows the same tab rail in Browser and Local Data views; activating a browser tab from Local Data returns to Browser.
 - Locked sync tabs cannot be closed from the tab UI.
-- Browser tabs expose media state indicators for muted, audible, media playing, picture-in-picture, and discarded state.
+- Browser tabs expose media state for muted, audible, media playing, picture-in-picture, and discarded state. The tab rail mute control appears only for muted or audible tabs, so silent hover preview playback does not show an audio control by itself.
 - When a browser tab opens a Jable video page and that video has a ready managed download, the page video source is automatically replaced with the local MP4. Missing or unavailable downloads leave the original Jable player behavior unchanged.
 - When a browser tab opens a Jable video page that already exists in synced local collection data, the app refreshes the local video's title, views, likes, thumbnail, preview, and search metadata without changing collection membership or ordering.
 
@@ -93,7 +96,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Manual update check
 - Browser settings:
   - Maximum browser tabs
-  - Compact browser tabs
+  - Browser tab rail display mode
   - Reset tab rail width
 - Sync settings:
   - Full sync acceleration: safe, standard, fast

@@ -286,6 +286,7 @@ export function normalizeCreateBrowserTabPayload(payload: unknown): CreateBrowse
   const url = optionalStringField(record, 'url', channel);
   const title = optionalStringField(record, 'title', channel);
   const favicon = optionalStringField(record, 'favicon', channel);
+  const openerTabId = optionalStringField(record, 'openerTabId', channel);
   const active = optionalBooleanField(record, 'active', channel);
   const locked = optionalBooleanField(record, 'locked', channel);
   const muted = optionalBooleanField(record, 'muted', channel);
@@ -297,6 +298,7 @@ export function normalizeCreateBrowserTabPayload(payload: unknown): CreateBrowse
   if (typeof url !== 'undefined') normalized.url = url;
   if (typeof title !== 'undefined') normalized.title = title;
   if (typeof favicon !== 'undefined') normalized.favicon = favicon;
+  if (typeof openerTabId !== 'undefined') normalized.openerTabId = openerTabId;
   if (typeof active !== 'undefined') normalized.active = active;
   if (typeof locked !== 'undefined') normalized.locked = locked;
   if (typeof muted !== 'undefined') normalized.muted = muted;

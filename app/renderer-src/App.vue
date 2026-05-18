@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
+import BrowserTabRail from './components/BrowserTabRail.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
 import TopBar from './components/TopBar.vue';
@@ -43,6 +44,7 @@ import type {
   BrowserMessage,
   BrowserNavigationState,
   BrowserTabMenuPayload,
+  BrowserTabsMode,
   BrowserTabsState,
   CollectionKey,
   CollectionToggleResult,
@@ -71,7 +73,7 @@ const toast = toastStatus.toast;
 const setStatus = toastStatus.setStatus;
 const hideToast = toastStatus.hideToast;
 const busy = ref(false);
-const browserTabsCompact = ref(false);
+const browserTabsMode = ref<BrowserTabsMode>(DEFAULT_APP_SETTINGS.browserTabsMode);
 const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
 const appSettings = ref<AppSettings>(
@@ -150,6 +152,24 @@ const libraryBusy = computed(function () {
   return busy.value || syncing.value;
 });
 
+const browserTabsCompact = computed(function () {
+  return browserTabsMode.value === 'compact';
+});
+
+const browserTabsShared = computed(function () {
+  return browserTabsMode.value === 'shared';
+});
+
+const showSharedBrowserTabs = computed(function () {
+  return browserTabsShared.value && activeView.value !== 'settings';
+});
+
+const sharedBrowserLayoutStyle = computed(function () {
+  return {
+    gridTemplateColumns: browserTabsWidth.value + 'px 6px minmax(0, 1fr)'
+  };
+});
+
 function loadLegacyBrowserTabsCompact() {
   const value = localStorage.getItem(BROWSER_TABS_COMPACT_STORAGE_KEY);
   if (value !== null) return value === 'true';
@@ -164,10 +184,10 @@ function clearLegacyBrowserTabsCompact() {
 }
 
 async function setBrowserTabsCompact(value: boolean) {
-  browserTabsCompact.value = Boolean(value);
+  browserTabsMode.value = value ? 'compact' : 'standard';
   browser.scheduleResize();
   try {
-    applyAppSettings(await api.updateSettings({ compactBrowserTabs: browserTabsCompact.value }));
+    applyAppSettings(await api.updateSettings({ compactBrowserTabs: value }));
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
@@ -514,6 +534,16 @@ async function selectLibraryTab(tabKey: string) {
 }
 
 async function newBrowserTab() {
+  if (activeView.value === 'library' && browserTabsShared.value) {
+    try {
+      await browser.createTab(DEFAULT_BROWSER_URL, { active: false });
+    } catch (error) {
+      console.error(error);
+      setStatus(i18n.t('status.newTabFailed', { error: errorMessage(error) }), 'error');
+    }
+    return;
+  }
+
   try {
     setActiveView('browser');
     await browser.createTab(DEFAULT_BROWSER_URL, { active: true });
@@ -575,7 +605,7 @@ async function showLibraryVideoMenu(payload: LibraryVideoMenuPayload) {
 
 function applyAppSettings(settings: AppSettings) {
   appSettings.value = settings;
-  browserTabsCompact.value = Boolean(settings.compactBrowserTabs);
+  browserTabsMode.value = settings.browserTabsMode || (settings.compactBrowserTabs ? 'compact' : 'standard');
   library.downloadStateFilters.value = settings.downloadStateFilters.slice();
   browser.scheduleResize();
 }
@@ -1174,15 +1204,18 @@ onBeforeUnmount(function () {
       </div>
     </Transition>
 
-    <main class="relative block h-full min-h-0 overflow-hidden">
-      <BrowserPanel
-        :active="activeView === 'browser'"
+    <main
+      class="relative h-full min-h-0 overflow-hidden"
+      :class="showSharedBrowserTabs ? 'grid min-w-0' : 'block'"
+      :style="showSharedBrowserTabs ? sharedBrowserLayoutStyle : null"
+    >
+      <BrowserTabRail
+        v-if="showSharedBrowserTabs"
         :tabs="browser.tabs.value"
         :active-tab-id="browser.activeTabId.value"
         :can-create-tab="browser.canCreateTab.value"
-        :compact="browserTabsCompact"
+        :compact="false"
         :tab-width="browserTabsWidth"
-        @host="browser.setHost"
         @new-tab="newBrowserTab"
         @activate-tab="activateBrowserTab"
         @close-tab="closeBrowserTab"
@@ -1192,73 +1225,93 @@ onBeforeUnmount(function () {
         @layout-change="browser.scheduleResize"
       />
 
-      <LibraryPanel
-        :active="activeView === 'library'"
-        :active-collection="library.activeCollection.value"
-        :active-tab="library.activeTab.value"
-        :busy="libraryBusy"
-        :ffmpeg-ready="ffmpegStatus ? ffmpegStatus.state === 'detected' : false"
-        :full-sync-label="library.fullSyncButtonLabel.value"
-        :pending-count="library.pendingCount.value"
-        :pending-groups="library.pendingGroups.value"
-        :search="library.search.value"
-        :search-mode="library.searchMode.value"
-        :collection-download-filter="library.collectionDownloadFilter.value"
-        :sort="library.sort.value"
-        :direction="library.direction.value"
-        :download-search="library.downloadSearch.value"
-        :download-sort="library.downloadSort.value"
-        :download-direction="library.downloadDirection.value"
-        :download-state-filters="library.downloadStateFilters.value"
-        :count-label="library.countLabel.value"
-        :page-label="library.pageLabel.value"
-        :downloads="library.downloads.value"
-        :download-records="library.downloadRecords.value"
-        :batch-download-selection="library.batchDownloadSelection.value"
-        :selected-download-urls="selectedDownloadUrls"
-        :rows="pageRows"
-        :current-page="library.currentPage.value"
-        :total-pages="library.totalPages.value"
-        @select-tab="selectLibraryTab"
-        @quick-sync="sync.syncCollection('quick')"
-        @full-sync="sync.syncCollection('full')"
-        @update:search="library.search.value = $event"
-        @update:search-mode="library.searchMode.value = $event"
-        @update:collection-download-filter="library.collectionDownloadFilter.value = $event"
-        @update:sort="library.sort.value = $event"
-        @update:direction="library.direction.value = $event"
-        @update:download-search="library.downloadSearch.value = $event"
-        @update:download-sort="library.downloadSort.value = $event"
-        @update:download-direction="library.downloadDirection.value = $event"
-        @update:download-state-filters="updateDownloadStateFilters"
-        @prev-page="library.goToPage(library.currentPage.value - 1)"
-        @next-page="library.goToPage(library.currentPage.value + 1)"
-        @go-page="library.goToPage($event)"
-        @open-download="openDownloadFile"
-        @reveal-download="revealDownloadFile"
-        @retry-download="retryDownload"
-        @retry-failed-downloads="retryFailedDownloads"
-        @pause-download="pauseDownload"
-        @pause-all-downloads="pauseAllDownloads"
-        @resume-download="resumeDownload"
-        @resume-paused-downloads="resumePausedDownloads"
-        @cancel-download="cancelDownload"
-        @cancel-queued-downloads="cancelQueuedDownloads"
-        @delete-download="deleteDownload"
-        @delete-selected-downloads="deleteSelectedDownloads"
-        @toggle-download-record-selection="toggleDownloadRecordSelection"
-        @download-video="downloadVideo"
-        @select-downloadable="selectBatchDownloadVideos"
-        @download-selected="downloadSelectedVideos"
-        @clear-download-selection="library.clearBatchDownloadSelection"
-        @toggle-download-selection="library.toggleBatchDownloadSelection($event.video.url, $event.selected)"
-        @add-pending-group="addPendingRemoteOperationGroup"
-        @remove-pending-group="removePendingRemoteOperationGroup"
-        @resolve-pending-group="resolvePendingRemoteOperationGroup"
-        @open-video="openInBrowser"
-        @open-video-new-tab="openInNewBrowserTab"
-        @video-context-menu="showLibraryVideoMenu"
-      />
+      <div :class="showSharedBrowserTabs ? 'relative min-h-0 min-w-0 overflow-hidden' : 'contents'">
+        <BrowserPanel
+          :active="activeView === 'browser'"
+          :tabs="browser.tabs.value"
+          :active-tab-id="browser.activeTabId.value"
+          :can-create-tab="browser.canCreateTab.value"
+          :compact="showSharedBrowserTabs ? false : browserTabsCompact"
+          :external-rail="showSharedBrowserTabs"
+          :tab-width="browserTabsWidth"
+          @host="browser.setHost"
+          @new-tab="newBrowserTab"
+          @activate-tab="activateBrowserTab"
+          @close-tab="closeBrowserTab"
+          @set-tab-muted="setBrowserTabMuted"
+          @tab-context-menu="showBrowserTabMenu"
+          @resize-tabs="setBrowserTabsWidth"
+          @layout-change="browser.scheduleResize"
+        />
+
+        <LibraryPanel
+          :active="activeView === 'library'"
+          :active-collection="library.activeCollection.value"
+          :active-tab="library.activeTab.value"
+          :busy="libraryBusy"
+          :ffmpeg-ready="ffmpegStatus ? ffmpegStatus.state === 'detected' : false"
+          :full-sync-label="library.fullSyncButtonLabel.value"
+          :pending-count="library.pendingCount.value"
+          :pending-groups="library.pendingGroups.value"
+          :search="library.search.value"
+          :search-mode="library.searchMode.value"
+          :collection-download-filter="library.collectionDownloadFilter.value"
+          :sort="library.sort.value"
+          :direction="library.direction.value"
+          :download-search="library.downloadSearch.value"
+          :download-sort="library.downloadSort.value"
+          :download-direction="library.downloadDirection.value"
+          :download-state-filters="library.downloadStateFilters.value"
+          :count-label="library.countLabel.value"
+          :page-label="library.pageLabel.value"
+          :downloads="library.downloads.value"
+          :download-records="library.downloadRecords.value"
+          :batch-download-selection="library.batchDownloadSelection.value"
+          :selected-download-urls="selectedDownloadUrls"
+          :rows="pageRows"
+          :current-page="library.currentPage.value"
+          :total-pages="library.totalPages.value"
+          @select-tab="selectLibraryTab"
+          @quick-sync="sync.syncCollection('quick')"
+          @full-sync="sync.syncCollection('full')"
+          @update:search="library.search.value = $event"
+          @update:search-mode="library.searchMode.value = $event"
+          @update:collection-download-filter="library.collectionDownloadFilter.value = $event"
+          @update:sort="library.sort.value = $event"
+          @update:direction="library.direction.value = $event"
+          @update:download-search="library.downloadSearch.value = $event"
+          @update:download-sort="library.downloadSort.value = $event"
+          @update:download-direction="library.downloadDirection.value = $event"
+          @update:download-state-filters="updateDownloadStateFilters"
+          @prev-page="library.goToPage(library.currentPage.value - 1)"
+          @next-page="library.goToPage(library.currentPage.value + 1)"
+          @go-page="library.goToPage($event)"
+          @open-download="openDownloadFile"
+          @reveal-download="revealDownloadFile"
+          @retry-download="retryDownload"
+          @retry-failed-downloads="retryFailedDownloads"
+          @pause-download="pauseDownload"
+          @pause-all-downloads="pauseAllDownloads"
+          @resume-download="resumeDownload"
+          @resume-paused-downloads="resumePausedDownloads"
+          @cancel-download="cancelDownload"
+          @cancel-queued-downloads="cancelQueuedDownloads"
+          @delete-download="deleteDownload"
+          @delete-selected-downloads="deleteSelectedDownloads"
+          @toggle-download-record-selection="toggleDownloadRecordSelection"
+          @download-video="downloadVideo"
+          @select-downloadable="selectBatchDownloadVideos"
+          @download-selected="downloadSelectedVideos"
+          @clear-download-selection="library.clearBatchDownloadSelection"
+          @toggle-download-selection="library.toggleBatchDownloadSelection($event.video.url, $event.selected)"
+          @add-pending-group="addPendingRemoteOperationGroup"
+          @remove-pending-group="removePendingRemoteOperationGroup"
+          @resolve-pending-group="resolvePendingRemoteOperationGroup"
+          @open-video="openInBrowser"
+          @open-video-new-tab="openInNewBrowserTab"
+          @video-context-menu="showLibraryVideoMenu"
+        />
+      </div>
 
       <SettingsPanel
         :active="activeView === 'settings'"

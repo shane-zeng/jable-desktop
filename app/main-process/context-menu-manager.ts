@@ -161,7 +161,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
     items.push({
       label: t('context.openLinkInBackground'),
       click: function () {
-        safeCreateBrowserTab({ url: linkUrl, active: false });
+        safeCreateBrowserTab({ url: linkUrl, active: false, openerTabId: tab.id });
       }
     });
     items.push({
@@ -179,7 +179,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
     items.push({
       label: t('context.openMediaInBackground', { media: mediaLabel }),
       click: function () {
-        safeCreateBrowserTab({ url: srcUrl, active: false });
+        safeCreateBrowserTab({ url: srcUrl, active: false, openerTabId: tab.id });
       }
     });
     items.push({
@@ -230,7 +230,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
     label: t('context.newTab'),
     enabled: canCreateBrowserTab(),
     click: function () {
-      safeCreateBrowserTab({ url: homeUrl, active: true });
+      safeCreateBrowserTab({ url: homeUrl, active: true, openerTabId: tab.id });
     }
   });
   items.push({
@@ -257,7 +257,7 @@ function showBrowserTabMenu(payload?: BrowserTabMenuPayload | null): { shown: bo
       label: t('context.newTab'),
       enabled: canCreateBrowserTab(),
       click: function () {
-        safeCreateBrowserTab({ url: homeUrl, active: true });
+        safeCreateBrowserTab({ url: homeUrl, active: true, openerTabId: tab.id });
       }
     },
     {

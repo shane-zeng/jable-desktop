@@ -4,13 +4,15 @@ This document inventories the application-specific keyboard shortcuts, mouse sho
 
 ## Browser Tab Keyboard Shortcuts
 
-| Action                  | macOS                                                         | Windows/Linux                   | Behavior                                                                                              |
-| ----------------------- | ------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Open a new browser tab  | `Command+T`                                                   | `Ctrl+T`                        | Creates a new Jable home tab and activates it.                                                        |
-| Close the current tab   | `Command+W`                                                   | `Ctrl+W`                        | Closes the current browser tab instead of closing the app window; locked sync tabs cannot be closed.  |
-| Next browser tab        | `Control+Tab`, `Command+Option+Right`, `Shift+Command+]`      | `Ctrl+Tab`, `Ctrl+PageDown`     | Moves to the next tab on the right in tab rail order, wrapping from the last tab to the first tab.    |
-| Previous browser tab    | `Control+Shift+Tab`, `Command+Option+Left`, `Shift+Command+[` | `Ctrl+Shift+Tab`, `Ctrl+PageUp` | Moves to the previous tab on the left in tab rail order, wrapping from the first tab to the last tab. |
-| Toggle compact tab mode | `Command+S`                                                   | `Ctrl+S`                        | Toggles tab rail compact mode only when the current top-level view is Browser.                        |
+| Action                  | macOS                                                         | Windows/Linux                         | Behavior                                                                                              |
+| ----------------------- | ------------------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Open a new browser tab  | `Command+T`                                                   | `Ctrl+T`                              | Creates a new Jable home tab and activates it.                                                        |
+| Close the current tab   | `Command+W`                                                   | `Ctrl+W`                              | Closes the current browser tab instead of closing the app window; locked sync tabs cannot be closed.  |
+| Reload current tab      | `Command+R`, `F5`                                             | `Ctrl+R`, `F5`                        | Reloads the active browser tab.                                                                       |
+| Hard reload current tab | `Command+Shift+R`, `Command+Option+R`, `Shift+F5`             | `Ctrl+Shift+R`, `Ctrl+F5`, `Shift+F5` | Reloads the active browser tab while bypassing cache.                                                 |
+| Next browser tab        | `Control+Tab`, `Command+Option+Right`, `Shift+Command+]`      | `Ctrl+Tab`, `Ctrl+PageDown`           | Moves to the next tab on the right in tab rail order, wrapping from the last tab to the first tab.    |
+| Previous browser tab    | `Control+Shift+Tab`, `Command+Option+Left`, `Shift+Command+[` | `Ctrl+Shift+Tab`, `Ctrl+PageUp`       | Moves to the previous tab on the left in tab rail order, wrapping from the first tab to the last tab. |
+| Toggle compact tab mode | `Command+S`                                                   | `Ctrl+S`                              | Toggles tab rail compact mode only when the current top-level view is Browser.                        |
 
 ## Mouse Shortcuts
 
@@ -57,6 +59,6 @@ These items are provided through Electron menu `role` entries. Labels and accele
 - Browser tab keyboard shortcuts are registered through Electron `before-input-event` on each relevant `webContents`, including the renderer and every BrowserView.
 - The shortcut handler ignores auto-repeat and uses a short debounce to avoid handling the same keypress from multiple `webContents`.
 - After a successful tab switch, focus is moved to the new active BrowserView so repeated tab-switching shortcuts continue to work.
-- Tab-switching helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser-shortcut-manager.ts`.
+- Tab-switching, opener-group new-tab placement, close activation, and reload shortcut helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser-shortcut-manager.ts`.
 - Embedded browser middle-click new-tab behavior lives in `app/webview-preload.ts`; Local Data video-card new-tab behavior lives in `app/renderer-src/components/VideoCard.vue`.
 - Electron menu role defaults follow the Electron documentation: <https://www.electronjs.org/docs/latest/tutorial/menus>.

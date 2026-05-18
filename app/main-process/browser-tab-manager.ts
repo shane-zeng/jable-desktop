@@ -15,9 +15,11 @@ import type {
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 export type BrowserBoundsState = { visible: boolean; x: number; y: number; width: number; height: number };
 export type BrowserLoadFailure = { url: string; errorCode: number };
+export type BrowserReloadOptions = { ignoreCache?: boolean };
 export type BrowserTab = {
   id: string;
   kind: BrowserTabKind;
+  openerTabId: string | null;
   view: Electron.WebContentsView;
   attached: boolean;
   locked: boolean;
@@ -43,6 +45,7 @@ type SerializedMediaState = {
   discarded: boolean;
 };
 type BrowserTabPolicyModule = {
+  browserTabInsertionIndex(tabs: BrowserTab[], anchorTabId: string | null, openerTabId?: string | null): number;
   browserTabWebPreferences(kind: BrowserTabKind, preloadPath: string, partition: string): Electron.WebPreferences;
   nextActiveTabIdByOffset(tabs: BrowserTab[], activeTabId: string | null, offset: number): string | null;
   nextActiveTabIdAfterClose(tabs: BrowserTab[], activeTabId: string | null, closingTabId: string): string | null;
@@ -85,7 +88,7 @@ export type BrowserTabManager = {
   navigate(payload?: BrowserNavigatePayload | null): Promise<string>;
   navigationState(tabId?: string | null): BrowserNavigationState;
   notifyChanged(): void;
-  reload(tabId?: string | null): Promise<BrowserNavigationState>;
+  reload(tabId?: string | null, options?: BrowserReloadOptions | null): Promise<BrowserNavigationState>;
   safeCreateTab(options?: CreateBrowserTabPayload | null): BrowserTabsState;
   scheduleHtmlFullScreenResize(): void;
   sendToAllTabs(channel: string, payload: unknown): void;
@@ -98,6 +101,7 @@ export type BrowserTabManager = {
 
 const browserTabPolicy = require('../browser/browser-tab-policy') as BrowserTabPolicyModule;
 
+const browserTabInsertionIndex = browserTabPolicy.browserTabInsertionIndex;
 const browserTabWebPreferences = browserTabPolicy.browserTabWebPreferences;
 const nextActiveTabIdByOffset = browserTabPolicy.nextActiveTabIdByOffset;
 const nextActiveTabIdAfterClose = browserTabPolicy.nextActiveTabIdAfterClose;
@@ -125,7 +129,7 @@ const browserTabsById: Record<string, BrowserTab> = {};
 const webContentsTabIds: Record<string, string> = {};
 let activeBrowserTabId: string | null = null;
 let nextBrowserTabId = 1;
-let browserBounds: BrowserBoundsState = { visible: true, x: 0, y: 52, width: 900, height: 600 };
+let browserBounds: BrowserBoundsState = { visible: false, x: 0, y: 52, width: 900, height: 600 };
 let browserHtmlFullScreenTabId: string | null = null;
 
 function t(key: string, params?: TranslationParams | null): string {
@@ -150,6 +154,11 @@ function autoFallbackBrowserTab(tab: BrowserTab, failure: BrowserLoadFailure | n
   return true;
 }
 
+function openerTabForCreate(options: CreateBrowserTabPayload): BrowserTab | null {
+  const requestedOpenerTabId = options.openerTabId;
+  return requestedOpenerTabId ? browserTabsById[requestedOpenerTabId] || null : null;
+}
+
 function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
   const normalizedOptions = options || {};
   const targetUrl = normalizeNavigationUrl(normalizedOptions.url);
@@ -161,10 +170,12 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
 
   const kind: BrowserTabKind = normalizedOptions.kind === 'sync' ? 'sync' : 'normal';
   const id = 'tab-' + nextBrowserTabId++;
+  const openerTab = kind === 'normal' ? openerTabForCreate(normalizedOptions) : null;
   const preloadPath = webviewPreloadPath;
   const tab: BrowserTab = {
     id: id,
     kind: kind,
+    openerTabId: openerTab ? openerTab.id : null,
     view: new WebContentsView({
       webPreferences: browserTabWebPreferences(kind, preloadPath, sessionPartition)
     }),
@@ -185,7 +196,11 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
     lastMainFrameLoadFailure: null
   };
 
-  browserTabs.push(tab);
+  browserTabs.splice(
+    browserTabInsertionIndex(browserTabs, openerTab ? openerTab.id : activeBrowserTabId, tab.openerTabId),
+    0,
+    tab
+  );
   browserTabsById[id] = tab;
   webContentsTabIds[String(tab.view.webContents.id)] = id;
   wireBrowserTab(tab);
@@ -217,7 +232,8 @@ function wireBrowserTab(tab: BrowserTab) {
       try {
         createBrowserTab({
           url: details.url,
-          active: shouldActivateWindowOpen(details)
+          active: shouldActivateWindowOpen(details),
+          openerTabId: tab.id
         });
       } catch (error) {
         forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
@@ -706,11 +722,16 @@ async function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise
   }
 }
 
-async function reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState> {
+async function reloadBrowser(
+  tabId?: string | null,
+  options?: BrowserReloadOptions | null
+): Promise<BrowserNavigationState> {
   const tab = getBrowserTab(tabId);
   if (tab.locked) throw new Error(t('errors.lockedReload'));
 
-  tab.view.webContents.reload();
+  if (options && options.ignoreCache) tab.view.webContents.reloadIgnoringCache();
+  else tab.view.webContents.reload();
+
   updateTabNavigationState(tab);
   notifyBrowserTabsChanged();
   return Object.assign({ reloaded: true }, browserNavigationState(tab.id));

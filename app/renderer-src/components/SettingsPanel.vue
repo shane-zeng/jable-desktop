@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import {
+  BROWSER_TABS_MODE_OPTIONS,
   DOWNLOAD_SPEED_MODE_OPTIONS,
   MAX_BROWSER_TABS_WARNING_THRESHOLD,
   MAX_CONCURRENT_DOWNLOADS_LIMITS
@@ -9,6 +10,7 @@ import { t, useI18n } from '../i18n';
 import type {
   AppSettings,
   AppSettingsPatch,
+  BrowserTabsMode,
   CollectionKey,
   DownloadRootInfo,
   DownloadSpeedMode,
@@ -123,6 +125,10 @@ function eventChecked(event: Event) {
 
 function updateSettings(patch: AppSettingsPatch) {
   emit('update-settings', patch);
+}
+
+function updateBrowserTabsMode(mode: BrowserTabsMode) {
+  updateSettings({ browserTabsMode: mode });
 }
 
 function updateMaxBrowserTabs(event: Event) {
@@ -298,20 +304,30 @@ function confirmImport() {
             </div>
           </div>
 
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <span class="text-sm font-semibold">{{ t('settings.browser.compactTabs') }}</span>
-            <label class="flex min-h-[34px] items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                data-test="settings-compact-tabs"
-                :checked="settings.compactBrowserTabs"
-                :disabled="busy"
-                @change="updateSettings({ compactBrowserTabs: eventChecked($event) })"
-              />
-              <span>{{ t('settings.browser.compactTabsDescription') }}</span>
-            </label>
+          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
+            <span class="pt-1 text-sm font-semibold">{{ t('settings.browser.tabsMode') }}</span>
+            <div class="grid gap-2">
+              <div
+                class="segmented-tabs flex w-fit flex-wrap items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+              >
+                <button
+                  v-for="option in BROWSER_TABS_MODE_OPTIONS"
+                  :key="option.value"
+                  class="segmented-tab min-h-[30px]"
+                  :class="{ 'is-active': settings.browserTabsMode === option.value }"
+                  type="button"
+                  :data-test="'settings-browser-tabs-mode-' + option.value"
+                  :aria-pressed="settings.browserTabsMode === option.value"
+                  :disabled="busy"
+                  @click="updateBrowserTabsMode(option.value)"
+                >
+                  {{ t('settings.browser.tabsModeOptions.' + option.value) }}
+                </button>
+              </div>
+              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+                {{ t('settings.browser.tabsModeDescription') }}
+              </p>
+            </div>
           </div>
 
           <div

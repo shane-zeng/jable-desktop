@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import App from '@/App.vue';
-import { DEFAULT_APP_SETTINGS } from '@/constants';
+import { DEFAULT_APP_SETTINGS, DEFAULT_BROWSER_URL } from '@/constants';
 import type { AppSettings, BrowserTabsState, DownloadRecord, JableAppApi } from '../../../app/types/jable';
 
 function makeDownloadRecord(index: number): DownloadRecord {
@@ -33,10 +33,15 @@ function makeDownloadRecord(index: number): DownloadRecord {
   };
 }
 
-function createApi(downloads: DownloadRecord[]): JableAppApi {
-  const settings: AppSettings = Object.assign({}, DEFAULT_APP_SETTINGS, {
-    downloadStateFilters: DEFAULT_APP_SETTINGS.downloadStateFilters.slice()
-  });
+function createApi(downloads: DownloadRecord[], settingsOverrides?: Partial<AppSettings>): JableAppApi {
+  const settings: AppSettings = Object.assign(
+    {},
+    DEFAULT_APP_SETTINGS,
+    {
+      downloadStateFilters: DEFAULT_APP_SETTINGS.downloadStateFilters.slice()
+    },
+    settingsOverrides || {}
+  );
   const tabs: BrowserTabsState = {
     activeTabId: 'tab-1',
     maxTabs: 14,
@@ -257,6 +262,42 @@ describe('App Download Error Log diagnostics shortcut', function () {
 
     expect(wrapper.find('[data-test="download-error-log-modal"]').exists()).toBe(true);
     expect(wrapper.findAll('[data-test="download-error-log-row"]')).toHaveLength(1);
+
+    wrapper.unmount();
+  });
+
+  it('keeps Local Data active when creating a tab from the shared rail', async function () {
+    const api = createApi([], {
+      browserTabsMode: 'shared',
+      compactBrowserTabs: false
+    });
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          SettingsPanel: true
+        }
+      }
+    });
+    await settle();
+
+    const localDataButton = wrapper.findAll('button').find(function (button) {
+      return button.text().trim() === '本機資料';
+    });
+    expect(localDataButton).toBeTruthy();
+    await localDataButton!.trigger('click');
+    await settle();
+
+    await wrapper.get('[aria-label="新增分頁"]').trigger('click');
+    await settle();
+
+    expect(api.createBrowserTab).toHaveBeenCalledWith({
+      url: DEFAULT_BROWSER_URL,
+      active: false
+    });
+    expect(wrapper.find('[aria-label="本機資料庫"]').isVisible()).toBe(true);
 
     wrapper.unmount();
   });

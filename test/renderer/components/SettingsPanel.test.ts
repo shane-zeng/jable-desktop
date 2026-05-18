@@ -6,6 +6,7 @@ import type { AppSettings, ExportResource } from '../../../app/types/jable';
 
 const settings: AppSettings = {
   maxBrowserTabs: 22,
+  browserTabsMode: 'compact',
   compactBrowserTabs: true,
   webViewEnhancementMode: false,
   fullSyncAjaxWindowSize: 5,
@@ -64,6 +65,7 @@ describe('SettingsPanel', function () {
 
     expect(wrapper.text()).toContain('一般');
     expect(wrapper.text()).toContain('瀏覽器');
+    expect(wrapper.text()).toContain('分頁列顯示方式');
     expect(wrapper.text()).toContain('WebView 增強模式');
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('下載');
@@ -75,6 +77,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
     expect(wrapper.get('[data-test="settings-speed-fast"]').classes()).toContain('is-active');
+    expect(wrapper.get('[data-test="settings-browser-tabs-mode-compact"]').classes()).toContain('is-active');
     expect(wrapper.text()).toContain('403、429');
 
     await wrapper.get('[data-test="settings-check-updates"]').trigger('click');
@@ -91,6 +94,9 @@ describe('SettingsPanel', function () {
     );
     await wrapper.get('[data-test="settings-webview-enhancement-mode"]').setValue(true);
     expect(wrapper.emitted('update-settings')).toContainEqual([{ webViewEnhancementMode: true }]);
+
+    await wrapper.get('[data-test="settings-browser-tabs-mode-shared"]').trigger('click');
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ browserTabsMode: 'shared' }]);
 
     await wrapper.get('[data-test="settings-ffmpeg-refresh"]').trigger('click');
     expect(wrapper.emitted('refresh-ffmpeg')).toEqual([[]]);

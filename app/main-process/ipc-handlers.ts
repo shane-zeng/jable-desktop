@@ -450,7 +450,7 @@ function registerBrowserHandlers(context: IpcHandlersContext) {
     payload = payload || {};
     if (!payload.url) return;
 
-    context.safeCreateBrowserTab({ url: payload.url, active: false });
+    context.safeCreateBrowserTab({ url: payload.url, active: false, openerTabId: tab.id });
   });
 }
 

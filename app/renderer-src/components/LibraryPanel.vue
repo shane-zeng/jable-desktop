@@ -315,7 +315,7 @@ onBeforeUnmount(function () {
     :aria-label="t('library.aria')"
   >
     <div
-      class="flex items-center justify-between gap-3 border-b border-[var(--panel-border)] px-3.5 py-2.5 max-[1180px]:flex-wrap"
+      class="flex items-start justify-between gap-3 border-b border-[var(--panel-border)] px-3.5 py-2.5 max-[900px]:flex-col max-[900px]:items-stretch"
     >
       <CollectionTabs
         :active-collection="activeCollection"
@@ -324,7 +324,10 @@ onBeforeUnmount(function () {
         @select="emit('select-tab', $event)"
       />
 
-      <div v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'" class="flex flex-wrap justify-end gap-2">
+      <div
+        v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'"
+        class="flex min-w-0 flex-wrap justify-end gap-2 max-[900px]:justify-start"
+      >
         <button
           type="button"
           :disabled="busy || selectableBatchDownloadCount === 0 || allSelectableBatchDownloadsSelected"
@@ -358,7 +361,10 @@ onBeforeUnmount(function () {
           {{ fullSyncLabel }}
         </button>
       </div>
-      <div v-else-if="activeTab === 'downloads' && ffmpegReady" class="flex flex-wrap justify-end gap-2">
+      <div
+        v-else-if="activeTab === 'downloads' && ffmpegReady"
+        class="flex min-w-0 flex-wrap justify-end gap-2 max-[900px]:justify-start"
+      >
         <button
           type="button"
           :disabled="busy || retryFailedDownloadCount === 0"
@@ -435,11 +441,11 @@ onBeforeUnmount(function () {
 
     <div
       v-if="activeTab !== 'pending_remote' && activeTab !== 'downloads'"
-      class="grid grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_minmax(132px,max-content)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[minmax(132px,180px)_minmax(220px,1fr)_minmax(132px,180px)_minmax(140px,160px)_minmax(110px,120px)] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[980px]:grid-cols-[repeat(2,minmax(0,1fr))] max-[620px]:grid-cols-1"
       data-test="library-filters"
     >
       <select
-        class="w-auto min-w-[132px] max-w-[220px]"
+        class="w-full min-w-0"
         :aria-label="t('library.searchMode')"
         :value="searchMode"
         @change="updateSearchMode"
@@ -449,13 +455,14 @@ onBeforeUnmount(function () {
         </option>
       </select>
       <input
+        class="w-full min-w-0"
         type="search"
         :placeholder="t('library.searchPlaceholder')"
         :value="search"
         @input="emit('update:search', inputValue($event))"
       />
       <select
-        class="w-auto min-w-[132px] max-w-[220px]"
+        class="w-full min-w-0"
         :aria-label="t('library.downloadFilter')"
         :value="collectionDownloadFilter"
         @change="updateCollectionDownloadFilter"
@@ -464,12 +471,17 @@ onBeforeUnmount(function () {
           {{ t('options.collectionDownloadFilter.' + option.value) }}
         </option>
       </select>
-      <select :aria-label="t('library.sort')" :value="sort" @change="updateSort">
+      <select class="w-full min-w-0" :aria-label="t('library.sort')" :value="sort" @change="updateSort">
         <option v-for="option in SORT_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.sort.' + option.value) }}
         </option>
       </select>
-      <select :aria-label="t('library.sortDirection')" :value="direction" @change="updateDirection">
+      <select
+        class="w-full min-w-0"
+        :aria-label="t('library.sortDirection')"
+        :value="direction"
+        @change="updateDirection"
+      >
         <option v-for="option in DIRECTION_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.direction.' + option.value) }}
         </option>
@@ -478,16 +490,17 @@ onBeforeUnmount(function () {
 
     <div
       v-if="activeTab === 'downloads' && ffmpegReady"
-      class="grid grid-cols-[minmax(220px,1fr)_minmax(190px,max-content)_160px_120px] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[1180px]:grid-cols-1"
+      class="grid grid-cols-[minmax(220px,1fr)_minmax(190px,220px)_minmax(140px,160px)_minmax(110px,120px)] gap-2 border-b border-[var(--panel-border)] px-3.5 py-3 max-[980px]:grid-cols-[repeat(2,minmax(0,1fr))] max-[620px]:grid-cols-1"
       data-test="download-filters"
     >
       <input
+        class="w-full min-w-0"
         type="search"
         :placeholder="t('downloadList.searchPlaceholder')"
         :value="downloadSearch"
         @input="emit('update:download-search', inputValue($event))"
       />
-      <details ref="downloadStateFiltersRef" class="relative min-w-[190px]" data-test="download-state-filters">
+      <details ref="downloadStateFiltersRef" class="relative min-w-0" data-test="download-state-filters">
         <summary
           class="flex min-h-[42px] cursor-pointer list-none items-center justify-between rounded-md border border-[var(--control-border)] bg-[var(--control)] px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm outline-none hover:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden"
           :aria-label="t('downloadList.stateFilter')"
@@ -527,12 +540,18 @@ onBeforeUnmount(function () {
           </button>
         </div>
       </details>
-      <select :aria-label="t('downloadList.sort')" :value="downloadSort" @change="updateDownloadSort">
+      <select
+        class="w-full min-w-0"
+        :aria-label="t('downloadList.sort')"
+        :value="downloadSort"
+        @change="updateDownloadSort"
+      >
         <option v-for="option in DOWNLOAD_SORT_OPTIONS" :key="option.value" :value="option.value">
           {{ t('options.downloadSort.' + option.value) }}
         </option>
       </select>
       <select
+        class="w-full min-w-0"
         :aria-label="t('downloadList.sortDirection')"
         :value="downloadDirection"
         @change="updateDownloadDirection"

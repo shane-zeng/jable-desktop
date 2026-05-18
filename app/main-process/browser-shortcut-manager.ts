@@ -1,7 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type { BrowserTabsState, CreateBrowserTabPayload } from '../types/jable';
+import type { BrowserNavigationState, BrowserTabsState, CreateBrowserTabPayload } from '../types/jable';
 
 type BrowserTabShortcutInput = Electron.Input & {
   control?: boolean;
@@ -9,7 +9,12 @@ type BrowserTabShortcutInput = Electron.Input & {
   alt?: boolean;
   shift?: boolean;
 };
+type BrowserReloadOptions = { ignoreCache?: boolean };
 type BrowserTabPolicyModule = {
+  browserTabReloadShortcut(
+    input: BrowserTabShortcutInput | null | undefined,
+    isMacos: boolean
+  ): 'normal' | 'hard' | null;
   browserTabShortcutOffset(input: BrowserTabShortcutInput | null | undefined, isMacos: boolean): number;
 };
 
@@ -22,6 +27,7 @@ export type BrowserShortcutManagerContext = {
   getMainWindow(): Electron.BrowserWindow | null;
   homeUrl: string;
   isMacos: boolean;
+  reloadBrowser(tabId?: string | null, options?: BrowserReloadOptions | null): Promise<BrowserNavigationState>;
 };
 
 export type BrowserShortcutManager = {
@@ -29,10 +35,12 @@ export type BrowserShortcutManager = {
   closeActiveTabFromShortcut(): void;
   openHomeTabFromShortcut(): void;
   registerAppShortcuts(webContents: Electron.WebContents): void;
+  reloadActiveTabFromShortcut(ignoreCache?: boolean): void;
   toggleCompactTabsFromShortcut(): void;
 };
 
 const browserTabPolicy = require('../browser/browser-tab-policy') as BrowserTabPolicyModule;
+const browserTabReloadShortcut = browserTabPolicy.browserTabReloadShortcut;
 const browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
 
 let activateRelativeBrowserTab: (offset: number) => BrowserTabsState;
@@ -44,6 +52,7 @@ let getMainWindow: () => Electron.BrowserWindow | null;
 let homeUrl = '';
 let isMacos = false;
 let lastShortcutAction = { name: '', at: 0 };
+let reloadBrowser: (tabId?: string | null, options?: BrowserReloadOptions | null) => Promise<BrowserNavigationState>;
 
 function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -126,6 +135,20 @@ function activateRelativeBrowserTabFromShortcut(offset: number) {
   });
 }
 
+function reloadActiveTabFromShortcut(ignoreCache?: boolean) {
+  runShortcutAction('reload-tab', function () {
+    if (!currentMainWindow()) return;
+
+    void reloadBrowser(null, { ignoreCache: Boolean(ignoreCache) })
+      .then(function () {
+        forwardBrowserMessage('browser-tab-shortcut', {});
+      })
+      .catch(function (error) {
+        forwardBrowserMessage('browser-error', { message: mainErrorMessage(error) });
+      });
+  });
+}
+
 function toggleCompactTabsFromShortcut() {
   runShortcutAction('toggle-compact-tabs', function () {
     forwardBrowserMessage('browser-tabs-compact-toggle-shortcut', {});
@@ -143,6 +166,13 @@ function registerAppShortcuts(webContents: Electron.WebContents) {
     if (isCloseTabShortcut(input)) {
       event.preventDefault();
       closeActiveTabFromShortcut();
+      return;
+    }
+
+    const reloadShortcut = browserTabReloadShortcut(input, isMacos);
+    if (reloadShortcut) {
+      event.preventDefault();
+      reloadActiveTabFromShortcut(reloadShortcut === 'hard');
       return;
     }
 
@@ -169,12 +199,14 @@ export function createBrowserShortcutManager(context: BrowserShortcutManagerCont
   getMainWindow = context.getMainWindow;
   homeUrl = context.homeUrl;
   isMacos = context.isMacos;
+  reloadBrowser = context.reloadBrowser;
 
   return {
     activateRelativeBrowserTabFromShortcut: activateRelativeBrowserTabFromShortcut,
     closeActiveTabFromShortcut: closeActiveTabFromShortcut,
     openHomeTabFromShortcut: openHomeTabFromShortcut,
     registerAppShortcuts: registerAppShortcuts,
+    reloadActiveTabFromShortcut: reloadActiveTabFromShortcut,
     toggleCompactTabsFromShortcut: toggleCompactTabsFromShortcut
   };
 }

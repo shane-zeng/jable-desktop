@@ -1,6 +1,6 @@
 # Browser Runtime Specification
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-18
 
 This document specifies the embedded browser runtime owned by the Electron main process and webview preload.
 
@@ -36,9 +36,11 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Normal tabs use background throttling.
 - Sync tabs disable background throttling.
 - `window.open` and `target=_blank` create app browser tabs.
+- New tabs keep an opener group. A tab opened from another tab is inserted after the last tab in that opener group, before the next unrelated top-level tab.
 - Background tab dispositions stay in the background; other dispositions activate the new tab.
 - Closing the active tab activates the tab to the right when possible.
 - Closing the last active tab falls back to the previous tab.
+- Closing an active opener-group child activates the next child in that group first. After the group children are closed, focus returns to the opener/root tab before moving to unrelated tabs.
 - Closing an inactive tab does not change the active tab.
 - If all normal tabs are closed, the app creates a new home tab.
 - Active-tab changes focus the new active `WebContentsView` so repeated shortcuts continue to work.
@@ -49,9 +51,11 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Browser shortcut detection is centralized in `app/browser/browser-tab-policy.ts`.
 - Shortcut handling ignores auto-repeat.
 - A short debounce prevents duplicate shortcut handling across multiple `webContents`.
+- Reload shortcuts include browser-standard normal reload keys and hard-reload variants, including `F5`, `Command/Ctrl+R`, `Command/Ctrl+Shift+R`, `Ctrl+F5`, `Shift+F5`, and macOS `Command+Option+R`.
 - macOS horizontal trackpad gestures inside embedded browser content map to browser back/forward when the target cannot continue horizontal scrolling.
 - macOS window swipe gestures also map to browser back/forward.
 - Embedded browser middle-click on links opens a new background browser tab.
+- The tab rail shows the mute control only when the tab is muted or currently audible. Silent media playback, such as Jable hover previews, does not show the control by itself.
 
 ## Context Menus
 

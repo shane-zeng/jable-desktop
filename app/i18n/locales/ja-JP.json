@@ -239,8 +239,13 @@
       "title": "ブラウザー",
       "maxTabs": "最大タブ数",
       "maxTabsWarning": "タブが多いほどページ状態を保持できますが、メモリ使用量が増え、動画再生や同期速度に影響する場合があります。",
-      "compactTabs": "コンパクトなタブレール",
-      "compactTabsDescription": "起動時に幅の狭いタブレールを使います。",
+      "tabsMode": "タブレール表示",
+      "tabsModeDescription": "共有モードでは、ブラウザーとローカルデータの両方に同じブラウザータブレールを表示します。タブを選ぶとブラウザーに戻ります。",
+      "tabsModeOptions": {
+        "standard": "標準",
+        "compact": "フローティング",
+        "shared": "共有"
+      },
       "webViewEnhancementMode": "WebView 拡張モード",
       "webViewEnhancementModeDescription": "追加の WebView 読み込みと画面整理ルールを適用します。表示が不安定な場合はオフにしてください。",
       "tabWidth": "タブレール幅",

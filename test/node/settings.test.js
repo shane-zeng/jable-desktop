@@ -18,6 +18,7 @@ test('app settings store returns defaults and persists updates', function () {
 
   assert.deepEqual(store.get(), {
     maxBrowserTabs: 14,
+    browserTabsMode: 'standard',
     compactBrowserTabs: false,
     webViewEnhancementMode: false,
     fullSyncAjaxWindowSize: 3,
@@ -33,7 +34,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.deepEqual(
     store.update({
       maxBrowserTabs: 22,
-      compactBrowserTabs: true,
+      browserTabsMode: 'shared',
       webViewEnhancementMode: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
@@ -46,7 +47,8 @@ test('app settings store returns defaults and persists updates', function () {
     }),
     {
       maxBrowserTabs: 22,
-      compactBrowserTabs: true,
+      browserTabsMode: 'shared',
+      compactBrowserTabs: false,
       webViewEnhancementMode: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
@@ -61,7 +63,8 @@ test('app settings store returns defaults and persists updates', function () {
 
   const secondStore = new settings.AppSettingsStore(filePath);
   assert.equal(secondStore.get().maxBrowserTabs, 22);
-  assert.equal(secondStore.get().compactBrowserTabs, true);
+  assert.equal(secondStore.get().browserTabsMode, 'shared');
+  assert.equal(secondStore.get().compactBrowserTabs, false);
   assert.equal(secondStore.get().webViewEnhancementMode, true);
   assert.equal(secondStore.get().fullSyncAjaxWindowSize, 5);
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
@@ -108,6 +111,18 @@ test('app settings patch normalizes WebView enhancement mode', function () {
 
   assert.deepEqual(settings.normalizeAppSettingsPatch({ webViewEnhancementMode: 0 }), {
     webViewEnhancementMode: false
+  });
+});
+
+test('app settings patch normalizes browser tab display mode', function () {
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ compactBrowserTabs: true }), {
+    browserTabsMode: 'compact',
+    compactBrowserTabs: true
+  });
+
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ browserTabsMode: 'shared', compactBrowserTabs: true }), {
+    browserTabsMode: 'shared',
+    compactBrowserTabs: false
   });
 });
 

@@ -239,8 +239,13 @@
       "title": "瀏覽器",
       "maxTabs": "最多開啟分頁數",
       "maxTabsWarning": "分頁越多會保留更多頁面狀態，但也會使用更多記憶體，可能影響影片播放與同步速度。",
-      "compactTabs": "緊湊分頁列",
-      "compactTabsDescription": "啟動時使用較窄的分頁列。",
+      "tabsMode": "分頁列顯示方式",
+      "tabsModeDescription": "跨頁模式會在瀏覽器與本機資料都顯示同一組瀏覽器分頁；點選分頁會切回瀏覽器。",
+      "tabsModeOptions": {
+        "standard": "標準",
+        "compact": "浮動",
+        "shared": "跨頁"
+      },
       "webViewEnhancementMode": "WebView 增強模式",
       "webViewEnhancementModeDescription": "啟用額外的 WebView 載入與畫面整理規則；若網站顯示異常，請關閉後重試。",
       "tabWidth": "分頁列寬度",

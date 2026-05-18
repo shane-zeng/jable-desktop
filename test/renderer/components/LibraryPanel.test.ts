@@ -115,11 +115,9 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('/ 1');
     expect((wrapper.get('[data-test="pagination-page-input"]').element as HTMLInputElement).value).toBe('1');
     expect(wrapper.find('[data-test="library-filters"]').classes()).toContain(
-      'grid-cols-[minmax(132px,max-content)_minmax(220px,1fr)_minmax(132px,max-content)_160px_120px]'
+      'grid-cols-[minmax(132px,180px)_minmax(220px,1fr)_minmax(132px,180px)_minmax(140px,160px)_minmax(110px,120px)]'
     );
-    expect(wrapper.find('[aria-label="検索モード"]').classes()).toEqual(
-      expect.arrayContaining(['w-auto', 'min-w-[132px]', 'max-w-[220px]'])
-    );
+    expect(wrapper.find('[aria-label="検索モード"]').classes()).toEqual(expect.arrayContaining(['w-full', 'min-w-0']));
     expect(wrapper.find('input[type="search"]').attributes('placeholder')).toBe('タイトルまたは URL を検索');
     expect(wrapper.find('[aria-label="検索モード"]').text()).toContain('いずれかの語');
     expect(wrapper.find('[aria-label="並び替え"]').text()).toContain('サイト順');

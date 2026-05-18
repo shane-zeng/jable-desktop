@@ -138,6 +138,7 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     expect(defaultSettings.autoDownloadOnPlayback).toBe(false);
     expect(defaultSettings.webViewEnhancementMode).toBe(false);
     expect(defaultSettings.maxBrowserTabs).toBe(14);
+    expect(defaultSettings.browserTabsMode).toBe('standard');
     expect(defaultSettings.maxConcurrentDownloads).toBe(1);
 
     const initialDownloads = await window.evaluate(function () {
@@ -198,12 +199,14 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     const updatedSettings = await window.evaluate(function () {
       return globalThis.jableApp.updateSettings({
         maxBrowserTabs: 6,
+        browserTabsMode: 'shared',
         webViewEnhancementMode: true,
         fullSyncAjaxWindowSize: 5,
         maxConcurrentDownloads: 3
       });
     });
     expect(updatedSettings.maxBrowserTabs).toBe(6);
+    expect(updatedSettings.browserTabsMode).toBe('shared');
     expect(updatedSettings.webViewEnhancementMode).toBe(true);
     expect(updatedSettings.fullSyncAjaxWindowSize).toBe(5);
     expect(updatedSettings.maxConcurrentDownloads).toBe(3);

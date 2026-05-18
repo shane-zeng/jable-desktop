@@ -5,6 +5,7 @@ export type SearchMode = 'any' | 'all' | 'phrase';
 export type CollectionDownloadFilter = 'all' | 'downloadable';
 export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
+export type BrowserTabsMode = 'standard' | 'compact' | 'shared';
 export type AppView = 'browser' | 'library' | 'settings';
 export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 export type LibraryTabKey = CollectionKey | 'downloads' | 'pending_remote';
@@ -136,6 +137,7 @@ export interface BrowserTabsState {
 
 export interface AppSettings {
   maxBrowserTabs: number;
+  browserTabsMode: BrowserTabsMode;
   compactBrowserTabs: boolean;
   webViewEnhancementMode: boolean;
   fullSyncAjaxWindowSize: number;
@@ -301,6 +303,7 @@ export interface CreateBrowserTabPayload {
   muted?: boolean;
   favicon?: string;
   forceReload?: boolean;
+  openerTabId?: string | null;
 }
 
 export interface BrowserTabPayload {
