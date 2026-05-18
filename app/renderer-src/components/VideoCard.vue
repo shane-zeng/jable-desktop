@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from '../i18n';
 import type { DownloadRecord, LibraryVideoMenuPayload, VideoRow } from '../../types/jable';
+import VideoPreviewThumb from './VideoPreviewThumb.vue';
 
 const props = defineProps<{
   video: VideoRow;
@@ -20,7 +21,6 @@ const emit = defineEmits<{
   'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 const i18n = useI18n();
-const previewVideo = ref<HTMLVideoElement | null>(null);
 
 const downloadButtonLabel = computed(function () {
   const state = props.downloadRecord && props.downloadRecord.state;
@@ -54,32 +54,6 @@ function formatDate(value: string | null | undefined) {
   } catch (error) {
     return value;
   }
-}
-
-function startPreview() {
-  if (!props.video.preview || !previewVideo.value) return;
-
-  if (!previewVideo.value.getAttribute('src')) {
-    previewVideo.value.setAttribute('src', props.video.preview);
-  }
-
-  previewVideo.value.classList.add('active');
-
-  const play = previewVideo.value.play();
-  if (play && typeof play.catch === 'function') {
-    play.catch(function () {});
-  }
-}
-
-function stopPreview() {
-  if (!previewVideo.value) return;
-
-  previewVideo.value.classList.remove('active');
-  previewVideo.value.pause();
-
-  try {
-    previewVideo.value.currentTime = 0;
-  } catch (error) {}
 }
 
 function isMacPlatform() {
@@ -163,35 +137,15 @@ function toggleDownloadSelection(event: Event) {
       />
     </label>
 
-    <a
-      class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+    <VideoPreviewThumb
       :href="video.url"
-      :aria-label="i18n.t('video.open', { target: video.title || video.url })"
+      :title="video.title || video.url"
+      :img="video.img"
+      :preview="video.preview"
       data-test="video-thumb-link"
-      @click="openVideo"
-      @auxclick="openVideoAux"
-      @pointerenter="startPreview"
-      @pointerleave="stopPreview"
-    >
-      <img
-        v-if="video.img"
-        class="absolute inset-0 h-full w-full object-cover"
-        :src="video.img"
-        alt=""
-        draggable="false"
-      />
-      <div v-else class="absolute inset-0 bg-[var(--thumb-bg)]"></div>
-      <video
-        v-if="video.preview"
-        ref="previewVideo"
-        class="thumb-preview absolute inset-0 h-full w-full bg-[var(--thumb-bg)] object-cover"
-        muted
-        loop
-        playsinline
-        preload="none"
-        aria-hidden="true"
-      ></video>
-    </a>
+      @open="emit('open', $event)"
+      @open-new="emit('open-new', $event)"
+    />
 
     <div class="flex min-h-[124px] min-w-0 flex-col gap-2">
       <div class="video-title-wrap">

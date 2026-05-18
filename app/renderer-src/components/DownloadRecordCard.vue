@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue';
 import {
   collectionList,
   isIndeterminateProgress,
@@ -9,6 +8,7 @@ import {
 } from '../download-display';
 import { t } from '../i18n';
 import type { CollectionKey, DownloadRecord, DownloadState } from '../../types/jable';
+import VideoPreviewThumb from './VideoPreviewThumb.vue';
 
 const props = defineProps<{
   record: DownloadRecord;
@@ -27,8 +27,6 @@ const emit = defineEmits<{
   delete: [videoUrl: string];
   'toggle-select': [payload: { videoUrl: string; selected: boolean }];
 }>();
-
-const previewVideo = ref<HTMLVideoElement | null>(null);
 
 function stateClass(state: DownloadState) {
   if (state === 'ready') return 'download-state-ready';
@@ -66,32 +64,6 @@ function openCardTarget(event: MouseEvent, record: DownloadRecord) {
   emit('open', record.videoUrl);
 }
 
-function startPreview(record: DownloadRecord) {
-  if (!record.preview || !previewVideo.value) return;
-
-  if (!previewVideo.value.getAttribute('src')) {
-    previewVideo.value.setAttribute('src', record.preview);
-  }
-
-  previewVideo.value.classList.add('active');
-
-  const play = previewVideo.value.play();
-  if (play && typeof play.catch === 'function') {
-    play.catch(function () {});
-  }
-}
-
-function stopPreview() {
-  if (!previewVideo.value) return;
-
-  previewVideo.value.classList.remove('active');
-  previewVideo.value.pause();
-
-  try {
-    previewVideo.value.currentTime = 0;
-  } catch (error) {}
-}
-
 function toggleSelected(event: Event) {
   emit('toggle-select', {
     videoUrl: props.record.videoUrl,
@@ -119,34 +91,15 @@ function toggleSelected(event: Event) {
         @change="toggleSelected"
       />
     </label>
-    <a
-      class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-      :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
+    <VideoPreviewThumb
       :href="record.videoUrl"
-      :aria-disabled="record.state !== 'ready'"
-      @click="openCardTarget($event, record)"
-      @pointerenter="startPreview(record)"
-      @pointerleave="stopPreview"
-    >
-      <img
-        v-if="record.img"
-        class="absolute inset-0 h-full w-full object-cover"
-        :src="record.img"
-        alt=""
-        draggable="false"
-      />
-      <div v-else class="absolute inset-0 bg-[var(--thumb-bg)]"></div>
-      <video
-        v-if="record.preview"
-        ref="previewVideo"
-        class="thumb-preview absolute inset-0 h-full w-full bg-[var(--thumb-bg)] object-cover"
-        muted
-        loop
-        playsinline
-        preload="none"
-        aria-hidden="true"
-      ></video>
-    </a>
+      :title="record.title || record.videoUrl"
+      :img="record.img"
+      :preview="record.preview"
+      :disabled="record.state !== 'ready'"
+      :open-new-gestures="false"
+      @open="emit('open', $event)"
+    />
 
     <div class="grid min-w-0 gap-2">
       <a

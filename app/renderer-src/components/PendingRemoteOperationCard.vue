@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from '../i18n';
 import type { PendingRemoteOperationGroup } from '../../types/jable';
+import VideoPreviewThumb from './VideoPreviewThumb.vue';
 
 const props = defineProps<{
   group: PendingRemoteOperationGroup;
@@ -16,7 +17,6 @@ const emit = defineEmits<{
   'open-new': [url: string];
 }>();
 const i18n = useI18n();
-const previewVideo = ref<HTMLVideoElement | null>(null);
 
 const stateLabel = computed(function () {
   return i18n.t('pendingRemote.state.' + props.group.state);
@@ -100,29 +100,6 @@ function openVideoAux(event: MouseEvent) {
   event.preventDefault();
   emit('open-new', props.group.videoUrl);
 }
-
-function startPreview() {
-  if (!props.group.preview || !previewVideo.value) return;
-
-  if (!previewVideo.value.getAttribute('src')) {
-    previewVideo.value.setAttribute('src', props.group.preview);
-  }
-
-  previewVideo.value.classList.add('active');
-  const play = previewVideo.value.play();
-  if (play && typeof play.catch === 'function') play.catch(function () {});
-}
-
-function stopPreview() {
-  if (!previewVideo.value) return;
-
-  previewVideo.value.classList.remove('active');
-  previewVideo.value.pause();
-
-  try {
-    previewVideo.value.currentTime = 0;
-  } catch (error) {}
-}
 </script>
 
 <template>
@@ -130,28 +107,14 @@ function stopPreview() {
     class="grid grid-cols-[132px_minmax(0,1fr)_max-content] gap-3 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-3 shadow-[var(--shadow)] max-[760px]:grid-cols-1"
     data-test="pending-remote-card"
   >
-    <a
-      class="relative aspect-[16/10] w-full overflow-hidden rounded-md bg-[var(--thumb-bg)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+    <VideoPreviewThumb
       :href="group.videoUrl"
-      :aria-label="i18n.t('video.open', { target: group.title || group.videoUrl })"
-      @click="openVideo"
-      @auxclick="openVideoAux"
-      @pointerenter="startPreview"
-      @pointerleave="stopPreview"
-    >
-      <img v-if="group.img" class="absolute inset-0 h-full w-full object-cover" :src="group.img" alt="" />
-      <div v-else class="absolute inset-0 bg-[var(--thumb-bg)]"></div>
-      <video
-        v-if="group.preview"
-        ref="previewVideo"
-        class="thumb-preview absolute inset-0 h-full w-full bg-[var(--thumb-bg)] object-cover"
-        muted
-        loop
-        playsinline
-        preload="none"
-        aria-hidden="true"
-      ></video>
-    </a>
+      :title="group.title || group.videoUrl"
+      :img="group.img"
+      :preview="group.preview"
+      @open="emit('open', $event)"
+      @open-new="emit('open-new', $event)"
+    />
 
     <div class="min-w-0 space-y-3">
       <a
