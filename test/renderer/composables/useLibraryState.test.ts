@@ -32,6 +32,7 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord 
       localPath: '/tmp/default.mp4',
       state: 'ready',
       progress: null,
+      playbackAutoResumeBlocked: false,
       fileSizeBytes: null,
       error: null,
       failurePhase: null,

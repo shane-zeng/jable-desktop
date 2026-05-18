@@ -93,6 +93,7 @@ Verify these behaviors when touching related desktop areas:
 - Settings can switch download speed mode between Stable, Balanced, and Fast without changing the maximum active video downloads value.
 - Settings can toggle playback-triggered auto-download; it defaults off, and only actual video playback should create a Download List record and write managed segment files. Page preload of a playlist before playback must not start a persisted download.
 - Active playback-triggered downloads can be paused, canceled, or deleted from the Download List. Pause preserves reusable segments and stops further capture writes; cancel removes working segment files and leaves a failed canceled record; delete removes the record/files and prevents the still-open playback token from recreating them.
+- A simple playback-triggered pause can auto-download again after page refresh and playback. Once the user resumes that paused capture into the normal downloader and pauses it again, refreshed playback must not restart auto-download until the user explicitly resumes, retries, or enqueues it.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
 - Download List renders queued, downloading, paused, failed, ready, and missing rows.
 - Download List multi-select filters can show or combine All, Ready, Downloading, Queued, Paused, Failed, and Missing states, and the selection survives app restart.

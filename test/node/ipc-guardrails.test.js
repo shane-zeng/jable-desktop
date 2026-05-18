@@ -9,9 +9,12 @@ const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
+const TYPES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'types', 'jable.ts');
 const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
 const HLS_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-helpers.ts');
 const HLS_RESEARCH_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-research.ts');
+const NATIVE_DOWNLOADS_SOURCE_PATH = path.join(ROOT_DIR, 'native', 'local-data-engine', 'src', 'downloads.rs');
+const NATIVE_SCHEMA_SOURCE_PATH = path.join(ROOT_DIR, 'native', 'local-data-engine', 'src', 'schema.rs');
 const SYNC_WORKER_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'sync-worker-manager.ts');
 const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
 const IPC_NORMALIZERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-normalizers.ts');
@@ -244,7 +247,7 @@ test('local playback uses managed download records and browser-tab preload updat
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
   const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
-  const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
+  const types = readSource(TYPES_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
 
@@ -269,6 +272,26 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(webviewPreload, /video\.currentTime = duration/);
   assert.match(webviewPreload, /function reloadAfterActiveLocalPlaybackRemoved/);
   assert.match(webviewPreload, /window\.location\.reload\(\)/);
+});
+
+test('download records persist playback auto-resume block guard', function () {
+  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const types = readSource(TYPES_SOURCE_PATH);
+  const nativeDownloads = readSource(NATIVE_DOWNLOADS_SOURCE_PATH);
+  const nativeSchema = readSource(NATIVE_SCHEMA_SOURCE_PATH);
+
+  assert.match(types, /playbackAutoResumeBlocked: boolean/);
+  assert.match(nativeSchema, /playback_auto_resume_blocked INTEGER NOT NULL DEFAULT 0/);
+  assert.match(nativeDownloads, /"playbackAutoResumeBlocked"/);
+  assert.match(nativeDownloads, /"playback_auto_resume_blocked"/);
+  assert.match(source, /function isPlaybackAutoResumeBlockedRecord/);
+  assert.match(source, /function playbackAutoResumeBlockedAfterPause/);
+  assert.match(source, /if \(isPlaybackAutoResumeBlockedRecord\(existingRecord\)\) return null/);
+  assert.match(source, /if \(isPlaybackAutoResumeBlockedRecord\(record\)\) return false/);
+  assert.match(source, /if \(isNormalDownloaderActive \|\| isQueued\) return true/);
+  assert.match(source, /if \(isPlaybackCaptureActive\) return false/);
+  assert.match(source, /playbackAutoResumeBlocked: false/);
+  assert.match(source, /playbackAutoResumeBlocked: true/);
 });
 
 test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function () {

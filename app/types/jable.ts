@@ -185,6 +185,7 @@ export interface DownloadRecord {
   localPath: string | null;
   state: DownloadState;
   progress: number | null;
+  playbackAutoResumeBlocked: boolean;
   fileSizeBytes: number | null;
   downloadedBytes?: number | null;
   downloadSpeedBytesPerSecond?: number | null;

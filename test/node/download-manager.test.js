@@ -21,6 +21,7 @@ function downloadRecord(patch) {
       localPath: null,
       state: 'ready',
       progress: null,
+      playbackAutoResumeBlocked: false,
       fileSizeBytes: null,
       error: null,
       failurePhase: null,
@@ -298,6 +299,7 @@ test('download manager can pause, cancel, and delete active playback captures', 
     );
     const paused = harness.manager.pauseDownload(pausedUrl);
     assert.equal(paused.record.state, 'paused');
+    assert.equal(paused.record.playbackAutoResumeBlocked, false);
     assert.equal(
       harness.manager.shouldContinueHlsPlaybackCapture({ videoUrl: pausedUrl, pageLoadId: 'pause-load-1' }),
       false
@@ -394,6 +396,109 @@ test('download manager can pause, cancel, and delete active playback captures', 
   }
 });
 
+test('download manager blocks playback auto-resume after paused capture is resumed into the normal queue', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-hls-capture-manual-pause-'));
+  try {
+    const fakeFfmpeg = createFakeFfmpeg(userDataDir);
+    const playlistUrl = 'https://cdn.example.test/hls/manual-pause/index.m3u8';
+    const playlistText = [
+      '#EXTM3U',
+      '#EXT-X-TARGETDURATION:10',
+      '#EXTINF:10,',
+      'segment-001.ts',
+      '#EXT-X-ENDLIST',
+      ''
+    ].join('\n');
+    const harness = createHarness([], userDataDir, {
+      autoDownloadOnPlayback: true,
+      ffmpegPath: fakeFfmpeg,
+      maxConcurrentDownloads: 0
+    });
+    const videoUrl = 'https://jable.tv/videos/capture-manual-pause/';
+
+    const plan = harness.manager.prepareHlsPlaybackCapture({
+      videoUrl: videoUrl,
+      pageLoadId: 'load-1',
+      title: 'Capture Manual Pause',
+      playlistUrl: playlistUrl,
+      playlistText: playlistText
+    });
+    assert.notEqual(plan, null);
+    const playbackPause = harness.manager.pauseDownload(videoUrl);
+    assert.equal(playbackPause.record.state, 'paused');
+    assert.equal(playbackPause.record.playbackAutoResumeBlocked, false);
+    assert.equal(harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: videoUrl, pageLoadId: 'load-2' }), true);
+
+    const resumed = await harness.manager.resumeDownload(videoUrl);
+    assert.equal(resumed.queued, true);
+    assert.equal(resumed.record.state, 'queued');
+    assert.equal(resumed.record.playbackAutoResumeBlocked, false);
+
+    const normalPause = harness.manager.pauseDownload(videoUrl);
+    assert.equal(normalPause.record.state, 'paused');
+    assert.equal(normalPause.record.playbackAutoResumeBlocked, true);
+    assert.equal(harness.manager.shouldProxyHlsPlaybackCapture({ videoUrl: videoUrl, pageLoadId: 'load-2' }), false);
+    fs.writeFileSync(plan.segments[0].filePath, 'segment-one');
+    harness.manager.recordHlsPlaybackCaptureSegment({
+      videoUrl: videoUrl,
+      pageLoadId: 'load-2',
+      filePath: plan.segments[0].filePath
+    });
+    assert.equal(harness.records.get(videoUrl).playbackAutoResumeBlocked, true);
+    assert.equal(
+      harness.manager.prepareHlsPlaybackCapture({
+        videoUrl: videoUrl,
+        pageLoadId: 'load-2',
+        title: 'Capture Manual Pause',
+        playlistUrl: playlistUrl,
+        playlistText: playlistText
+      }),
+      null
+    );
+
+    const resumedAgain = await harness.manager.resumeDownload(videoUrl);
+    assert.equal(resumedAgain.record.playbackAutoResumeBlocked, false);
+
+    const retryUrl = 'https://jable.tv/videos/capture-manual-pause-retry/';
+    harness.records.set(
+      retryUrl,
+      downloadRecord({
+        videoUrl: retryUrl,
+        localPath: 'capture-manual-pause-retry.mp4',
+        state: 'failed',
+        playbackAutoResumeBlocked: true
+      })
+    );
+    const retried = await harness.manager.retryDownload(retryUrl);
+    assert.equal(retried.record.playbackAutoResumeBlocked, false);
+
+    const enqueueUrl = 'https://jable.tv/videos/capture-manual-pause-enqueue/';
+    harness.records.set(
+      enqueueUrl,
+      downloadRecord({
+        videoUrl: enqueueUrl,
+        localPath: 'capture-manual-pause-enqueue.mp4',
+        state: 'paused',
+        playbackAutoResumeBlocked: true
+      })
+    );
+    const enqueued = await harness.manager.enqueueDownload({
+      collectionKey: 'favourites',
+      video: {
+        title: 'Capture Manual Pause Enqueue',
+        url: enqueueUrl,
+        views: null,
+        likes: null,
+        img: null,
+        preview: null
+      }
+    });
+    assert.equal(enqueued.record.playbackAutoResumeBlocked, false);
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
 test('download manager applies bulk retry, resume, pause, and cancel actions', async function () {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-bulk-downloads-'));
   try {
@@ -439,7 +544,9 @@ test('download manager applies bulk retry, resume, pause, and cancel actions', a
       failed: 0
     });
     for (const slug of ['paused', 'failed', 'missing']) {
-      assert.equal(harness.records.get('https://jable.tv/videos/' + slug + '/').state, 'paused');
+      const record = harness.records.get('https://jable.tv/videos/' + slug + '/');
+      assert.equal(record.state, 'paused');
+      assert.equal(record.playbackAutoResumeBlocked, true);
     }
     assert.equal(harness.records.get('https://jable.tv/videos/ready/').state, 'ready');
   } finally {

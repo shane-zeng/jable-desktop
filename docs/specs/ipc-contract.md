@@ -82,6 +82,7 @@ Current behavior:
 - Browser-tab preload may invoke the internal `hls:playlist-proxy-url` IPC from a trusted Jable video page with the playlist URL and current page metadata. It also sends the internal `hls:playback-started` notification when the page `<video>` actually starts playing. Main returns unavailable while `autoDownloadOnPlayback` is off, unless a development HLS proxy/capture environment flag explicitly enables diagnostics.
 - Main forwards `downloads-changed` browser messages with the current download list after download state changes, and also sends the same direct message to browser-tab preloads so open video pages can re-check local playback.
 - Active `downloads-changed` records may include runtime-only `downloadedBytes`, `downloadSpeedBytesPerSecond`, or playback-capture `progress` fields while work is running. Download speed and active playback-capture progress are sampled from completed reusable segment bytes and are not persisted.
+- Download records include the internal persisted `playbackAutoResumeBlocked` boolean. Renderer UI does not expose it, but main uses it to keep a user-paused normal downloader from being silently restarted by later playback-triggered capture.
 - The renderer uses `downloads-changed` to refresh Download List/source-card state and to show completion/failure toasts.
 
 ## Local Data API

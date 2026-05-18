@@ -14,6 +14,7 @@ function downloadRecord(patch: Partial<DownloadRecord>): DownloadRecord {
     localPath: null,
     state: 'paused',
     progress: null,
+    playbackAutoResumeBlocked: false,
     fileSizeBytes: null,
     error: null,
     failurePhase: null,

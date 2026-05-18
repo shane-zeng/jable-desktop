@@ -94,6 +94,7 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
            size_bytes INTEGER,
            duration_seconds REAL,
            progress REAL,
+           playback_auto_resume_blocked INTEGER NOT NULL DEFAULT 0,
            error TEXT,
            failure_phase TEXT,
            failure_code TEXT,
@@ -170,6 +171,12 @@ pub(crate) fn migrate(conn: &Connection) -> Result<()> {
     )?;
     ensure_column(conn, "download_assets", "last_started_at", "TEXT")?;
     ensure_column(conn, "download_assets", "last_error_at", "TEXT")?;
+    ensure_column(
+        conn,
+        "download_assets",
+        "playback_auto_resume_blocked",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
     ensure_download_assets_paused_state(conn)?;
 
     backfill_remote_apply_state(conn)?;
@@ -209,6 +216,7 @@ fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
            size_bytes INTEGER,
            duration_seconds REAL,
            progress REAL,
+           playback_auto_resume_blocked INTEGER NOT NULL DEFAULT 0,
            error TEXT,
            failure_phase TEXT,
            failure_code TEXT,
@@ -223,13 +231,13 @@ fn ensure_download_assets_paused_state(conn: &Connection) -> Result<()> {
          INSERT INTO download_assets_new (
            video_url, status, file_relative_path, format, title, img, preview,
            source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
-           size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
+           size_bytes, duration_seconds, progress, playback_auto_resume_blocked, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
          SELECT
            video_url, status, file_relative_path, format, title, img, preview,
            source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
-           size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
+           size_bytes, duration_seconds, progress, playback_auto_resume_blocked, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          FROM download_assets;
          DROP TABLE download_assets;

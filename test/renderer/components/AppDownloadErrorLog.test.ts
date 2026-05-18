@@ -19,6 +19,7 @@ function makeDownloadRecord(index: number): DownloadRecord {
     localPath: null,
     state: 'failed',
     progress: null,
+    playbackAutoResumeBlocked: false,
     fileSizeBytes: null,
     error: 'Segment request rejected',
     failurePhase: 'segments',

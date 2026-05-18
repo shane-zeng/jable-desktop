@@ -146,6 +146,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     );
     assert_eq!(ready.get("state"), Some(&json!("ready")));
     assert_eq!(ready.get("progress"), Some(&json!(1.0)));
+    assert_eq!(ready.get("playbackAutoResumeBlocked"), Some(&json!(false)));
     assert_eq!(ready.get("fileSizeBytes"), Some(&json!(2048)));
     assert_eq!(
         ready.get("sourcePageChineseSubtitleNotice"),
@@ -193,10 +194,12 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
                 "localPath": "Jable Downloads/paused-download.mp4",
                 "state": "paused",
                 "progress": null,
+                "playbackAutoResumeBlocked": true,
                 "error": "Paused"
         }))
         .expect("paused download asset should upsert");
     assert_eq!(paused.get("state"), Some(&json!("paused")));
+    assert_eq!(paused.get("playbackAutoResumeBlocked"), Some(&json!(true)));
     engine
         .remove_download_asset(json!("https://jable.tv/videos/paused-download/"))
         .expect("paused download asset should remove");
@@ -441,6 +444,7 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         "last_error_at",
         "source_page_chinese_subtitle_notice",
         "source_page_subtitle_notice_text",
+        "playback_auto_resume_blocked",
     ] {
         let exists: i64 = connection
             .query_row(
@@ -470,10 +474,20 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         .expect("legacy source page notice should query");
     assert_eq!(source_page_chinese_subtitle_notice, 0);
 
+    let playback_auto_resume_blocked: i64 = connection
+        .query_row(
+            "SELECT playback_auto_resume_blocked FROM download_assets WHERE video_url = ?",
+            params!["https://jable.tv/videos/legacy-download/"],
+            |row| row.get(0),
+        )
+        .expect("legacy playback auto-resume block should query");
+    assert_eq!(playback_auto_resume_blocked, 0);
+
     let legacy = engine
         .get_download_asset(json!("https://jable.tv/videos/legacy-download/"))
         .expect("legacy download asset should load");
     assert_eq!(legacy.get("attemptCount"), Some(&json!(0)));
+    assert_eq!(legacy.get("playbackAutoResumeBlocked"), Some(&json!(false)));
     assert_eq!(
         legacy.get("sourcePageChineseSubtitleNotice"),
         Some(&json!(false))

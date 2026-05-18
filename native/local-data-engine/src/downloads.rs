@@ -26,6 +26,7 @@ struct DownloadAssetRow {
     local_path: Option<String>,
     state: String,
     progress: Option<f64>,
+    playback_auto_resume_blocked: bool,
     file_size_bytes: Option<i64>,
     error: Option<String>,
     failure_phase: Option<String>,
@@ -191,16 +192,17 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> 
         local_path: row.get(6)?,
         state: row.get(7)?,
         progress: row.get(8)?,
-        file_size_bytes: row.get(9)?,
-        error: row.get(10)?,
-        failure_phase: row.get(11)?,
-        failure_code: row.get(12)?,
-        attempt_count: row.get(13)?,
-        last_started_at: row.get(14)?,
-        last_error_at: row.get(15)?,
-        created_at: row.get(16)?,
-        updated_at: row.get(17)?,
-        completed_at: row.get(18)?,
+        playback_auto_resume_blocked: row.get(9)?,
+        file_size_bytes: row.get(10)?,
+        error: row.get(11)?,
+        failure_phase: row.get(12)?,
+        failure_code: row.get(13)?,
+        attempt_count: row.get(14)?,
+        last_started_at: row.get(15)?,
+        last_error_at: row.get(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
+        completed_at: row.get(19)?,
     })
 }
 
@@ -216,6 +218,7 @@ fn record_json(record: DownloadAssetRow) -> Value {
       "localPath": record.local_path,
       "state": record.state,
       "progress": record.progress,
+      "playbackAutoResumeBlocked": record.playback_auto_resume_blocked,
       "fileSizeBytes": record.file_size_bytes,
       "error": record.error,
       "failurePhase": record.failure_phase,
@@ -290,8 +293,9 @@ impl Engine {
             .query_row(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
            da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text,
-           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.failure_phase, da.failure_code,
-           da.attempt_count, da.last_started_at, da.last_error_at, da.created_at, da.updated_at, da.downloaded_at
+           da.file_relative_path, da.status, da.progress, da.playback_auto_resume_blocked,
+           da.size_bytes, da.error, da.failure_phase, da.failure_code, da.attempt_count, da.last_started_at, da.last_error_at,
+           da.created_at, da.updated_at, da.downloaded_at
          FROM download_assets da
          LEFT JOIN videos v ON v.url = da.video_url
          WHERE da.video_url = ?",
@@ -314,8 +318,9 @@ impl Engine {
             .prepare(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
            da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text,
-           da.file_relative_path, da.status, da.progress, da.size_bytes, da.error, da.failure_phase, da.failure_code,
-           da.attempt_count, da.last_started_at, da.last_error_at, da.created_at, da.updated_at, da.downloaded_at
+           da.file_relative_path, da.status, da.progress, da.playback_auto_resume_blocked,
+           da.size_bytes, da.error, da.failure_phase, da.failure_code, da.attempt_count, da.last_started_at, da.last_error_at,
+           da.created_at, da.updated_at, da.downloaded_at
          FROM download_assets da
          LEFT JOIN videos v ON v.url = da.video_url
          ORDER BY da.updated_at DESC, da.video_url ASC",
@@ -410,6 +415,13 @@ impl Engine {
             &["progress"],
             existing.as_ref().and_then(|record| record.progress),
         );
+        let playback_auto_resume_blocked = patch_bool(
+            &payload,
+            &["playbackAutoResumeBlocked", "playback_auto_resume_blocked"],
+            existing
+                .as_ref()
+                .map(|record| record.playback_auto_resume_blocked),
+        );
         let file_size_bytes = patch_i64(
             &payload,
             &[
@@ -478,10 +490,10 @@ impl Engine {
                 "INSERT INTO download_assets (
            video_url, status, file_relative_path, format, title, img, preview,
            source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
-           size_bytes, duration_seconds, progress, error, failure_phase, failure_code, attempt_count,
+           size_bytes, duration_seconds, progress, playback_auto_resume_blocked, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
-         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(video_url) DO UPDATE SET
            status = excluded.status,
            file_relative_path = excluded.file_relative_path,
@@ -492,6 +504,7 @@ impl Engine {
            source_page_subtitle_notice_text = excluded.source_page_subtitle_notice_text,
            size_bytes = excluded.size_bytes,
            progress = excluded.progress,
+           playback_auto_resume_blocked = excluded.playback_auto_resume_blocked,
            error = excluded.error,
            failure_phase = excluded.failure_phase,
            failure_code = excluded.failure_code,
@@ -512,6 +525,7 @@ impl Engine {
                     source_page_subtitle_notice_text,
                     file_size_bytes,
                     progress,
+                    playback_auto_resume_blocked,
                     error,
                     failure_phase,
                     failure_code,

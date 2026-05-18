@@ -1755,6 +1755,21 @@ function allowHlsPlaybackCapture(videoUrl: string) {
   hlsPlaybackCaptureSuppressedPageLoadIds.delete(videoUrl);
 }
 
+function isPlaybackAutoResumeBlockedRecord(record: DownloadRecord | null): boolean {
+  return Boolean(record && record.state === 'paused' && record.playbackAutoResumeBlocked);
+}
+
+function playbackAutoResumeBlockedAfterPause(
+  record: DownloadRecord,
+  isNormalDownloaderActive: boolean,
+  isQueued: boolean,
+  isPlaybackCaptureActive: boolean
+): boolean {
+  if (isNormalDownloaderActive || isQueued) return true;
+  if (isPlaybackCaptureActive) return false;
+  return record.playbackAutoResumeBlocked;
+}
+
 function hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl: string, pageLoadId: string | null): boolean {
   if (!hlsPlaybackCaptureSuppressedPageLoadIds.has(videoUrl)) return false;
 
@@ -1789,6 +1804,7 @@ function prepareHlsPlaybackCapture(value: HlsPlaybackCapturePreparePayload): Hls
 
   const existing = getPersistedDownload(videoUrl);
   const existingRecord = existing ? downloadRecordWithRuntimeState(existing) : null;
+  if (isPlaybackAutoResumeBlockedRecord(existingRecord)) return null;
   if (
     existingRecord &&
     (existingRecord.state === 'queued' || existingRecord.state === 'downloading' || existingRecord.state === 'ready')
@@ -1831,6 +1847,7 @@ function prepareHlsPlaybackCapture(value: HlsPlaybackCapturePreparePayload): Hls
     localPath: localPath,
     state: activePlaybackDownload ? 'downloading' : 'paused',
     progress: existingRecord && typeof existingRecord.progress === 'number' ? existingRecord.progress : 0,
+    playbackAutoResumeBlocked: false,
     error: null,
     failurePhase: null,
     failureCode: null,
@@ -1916,6 +1933,7 @@ function queueCompletedHlsPlaybackCapture(record: DownloadRecord, captured: numb
     videoUrl: record.videoUrl,
     state: 'queued',
     progress: null,
+    playbackAutoResumeBlocked: false,
     error: null,
     failurePhase: null,
     failureCode: null,
@@ -1933,6 +1951,7 @@ function recordHlsPlaybackCaptureSegment(value: HlsPlaybackCaptureSegmentPayload
 
   const record = getPersistedDownload(videoUrl);
   if (!record || !record.localPath) return;
+  if (isPlaybackAutoResumeBlockedRecord(record)) return;
 
   const outputPath = resolveManagedDownloadPath(record.localPath);
   if (!outputPath) return;
@@ -1956,6 +1975,7 @@ function recordHlsPlaybackCaptureSegment(value: HlsPlaybackCaptureSegmentPayload
     videoUrl: videoUrl,
     state: record.state === 'failed' || record.state === 'missing' ? 'paused' : record.state,
     progress: progress,
+    playbackAutoResumeBlocked: false,
     error: null,
     failurePhase: null,
     failureCode: null
@@ -1977,6 +1997,7 @@ function completeHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload) {
 
   const record = getPersistedDownload(videoUrl);
   if (!record || !record.localPath) return;
+  if (isPlaybackAutoResumeBlockedRecord(record)) return;
 
   const outputPath = resolveManagedDownloadPath(record.localPath);
   if (!outputPath) return;
@@ -1998,6 +2019,7 @@ function completeHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload) {
     videoUrl: videoUrl,
     state: 'paused',
     progress: progress,
+    playbackAutoResumeBlocked: false,
     error: null,
     failurePhase: null,
     failureCode: null
@@ -2019,6 +2041,8 @@ function shouldProxyHlsPlaybackCapture(value: HlsPlaybackCaptureCompletePayload)
   const videoUrl = urlPolicy.canonicalJableVideoUrl(value && value.videoUrl);
   const pageLoadId = playbackCapturePageLoadId(value && value.pageLoadId);
   if (!videoUrl) return false;
+  const record = getPersistedDownload(videoUrl);
+  if (isPlaybackAutoResumeBlockedRecord(record)) return false;
   return !hlsPlaybackCaptureIsSuppressedForPageLoad(videoUrl, pageLoadId);
 }
 
@@ -2604,6 +2628,7 @@ async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
     localPath: downloadOutputRelativePath(payload),
     state: 'queued',
     progress: null,
+    playbackAutoResumeBlocked: false,
     error: null,
     completedAt: null
   });
@@ -2639,6 +2664,7 @@ async function retryDownload(value: unknown): Promise<EnqueueDownloadResult> {
     videoUrl: existing.videoUrl,
     state: 'queued',
     progress: null,
+    playbackAutoResumeBlocked: false,
     error: null,
     completedAt: null
   });
@@ -2694,6 +2720,7 @@ async function resumeDownload(value: unknown): Promise<EnqueueDownloadResult> {
     videoUrl: existingRecord.videoUrl,
     state: 'queued',
     progress: null,
+    playbackAutoResumeBlocked: false,
     error: null,
     completedAt: null
   });
@@ -2732,11 +2759,18 @@ function pauseDownload(value: unknown): PauseDownloadResult {
   canceledDownloadUrls.delete(videoUrl);
   pausedDownloadUrls.add(videoUrl);
   suppressHlsPlaybackCapture(videoUrl);
+  const playbackAutoResumeBlocked = playbackAutoResumeBlockedAfterPause(
+    currentRecord,
+    isActive,
+    isQueued,
+    isPlaybackCaptureActive
+  );
 
   const record = upsertPersistedDownload({
     videoUrl: videoUrl,
     state: 'paused',
     progress: null,
+    playbackAutoResumeBlocked: playbackAutoResumeBlocked,
     error: t('status.downloadPaused'),
     failurePhase: null,
     failureCode: null,
@@ -3070,6 +3104,7 @@ function pauseDownloadsForShutdown(): Promise<void> {
       videoUrl: videoUrl,
       state: 'paused',
       progress: null,
+      playbackAutoResumeBlocked: true,
       error: t('status.downloadPaused'),
       failurePhase: null,
       failureCode: null,
@@ -3084,6 +3119,7 @@ function pauseDownloadsForShutdown(): Promise<void> {
       videoUrl: videoUrl,
       state: 'paused',
       progress: null,
+      playbackAutoResumeBlocked: true,
       error: t('status.downloadPaused'),
       failurePhase: null,
       failureCode: null,

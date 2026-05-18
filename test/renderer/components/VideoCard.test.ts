@@ -34,6 +34,7 @@ function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>
       localPath: '/tmp/sample.mp4',
       state: 'ready',
       progress: null,
+      playbackAutoResumeBlocked: false,
       fileSizeBytes: 1024,
       error: null,
       failurePhase: null,
