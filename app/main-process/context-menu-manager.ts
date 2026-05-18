@@ -13,6 +13,7 @@ import type {
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 type ClipboardWriter = { writeText(text: string): void };
+type ExternalOpener = { openExternal(url: string): Promise<void> };
 type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 
 export type ContextMenuManagerContext = {
@@ -31,6 +32,7 @@ export type ContextMenuManagerContext = {
   reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState>;
   safeCreateBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState;
   setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState;
+  shell: ExternalOpener;
   syncBrowserTabMediaState(tab: BrowserTab | null | undefined): void;
   t(key: string, params?: TranslationParams | null): string;
 };
@@ -56,6 +58,7 @@ let Menu: typeof Electron.Menu;
 let reloadBrowser: (tabId?: string | null) => Promise<BrowserNavigationState>;
 let safeCreateBrowserTab: (options?: CreateBrowserTabPayload | null) => BrowserTabsState;
 let setBrowserTabMuted: (payload?: BrowserTabMutedPayload | null) => BrowserTabsState;
+let shell: ExternalOpener;
 let syncBrowserTabMediaState: (tab: BrowserTab | null | undefined) => void;
 let translate: (key: string, params?: TranslationParams | null) => string;
 
@@ -80,9 +83,26 @@ function contextMediaLabel(mediaType: string): string {
   return t('media.media');
 }
 
+function googleSearchUrl(selectionText: string): string {
+  const url = new URL('https://www.google.com/search');
+  url.searchParams.set('q', selectionText);
+  return url.toString();
+}
+
 function pushSeparator(items: Electron.MenuItemConstructorOptions[]) {
   if (!items.length || items[items.length - 1].type === 'separator') return;
   items.push({ type: 'separator' });
+}
+
+function pushGoogleSearchSelectionItem(items: Electron.MenuItemConstructorOptions[], selectionText: string) {
+  if (!selectionText) return;
+
+  items.push({
+    label: t('context.searchSelectionWithGoogle'),
+    click: function () {
+      void shell.openExternal(googleSearchUrl(selectionText)).catch(function () {});
+    }
+  });
 }
 
 function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuParams) {
@@ -91,6 +111,7 @@ function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuPa
 
   const contextParams = params || ({} as Electron.ContextMenuParams);
   const editFlags = contextParams.editFlags || {};
+  const selectionText = String(contextParams.selectionText || '').trim();
   const items: Electron.MenuItemConstructorOptions[] = [
     {
       label: t('context.undo'),
@@ -137,6 +158,11 @@ function showEditableContextMenu(tab: BrowserTab, params: Electron.ContextMenuPa
       }
     }
   ];
+
+  if (selectionText) {
+    pushSeparator(items);
+    pushGoogleSearchSelectionItem(items, selectionText);
+  }
 
   Menu.buildFromTemplate(items).popup({ window: mainWindow });
 }
@@ -198,6 +224,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
         copyText(selectionText);
       }
     });
+    pushGoogleSearchSelectionItem(items, selectionText);
   }
 
   if (items.length) pushSeparator(items);
@@ -389,6 +416,7 @@ export function createContextMenuManager(context: ContextMenuManagerContext): Co
   reloadBrowser = context.reloadBrowser;
   safeCreateBrowserTab = context.safeCreateBrowserTab;
   setBrowserTabMuted = context.setBrowserTabMuted;
+  shell = context.shell;
   syncBrowserTabMediaState = context.syncBrowserTabMediaState;
   translate = context.t;
 

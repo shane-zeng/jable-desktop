@@ -955,6 +955,7 @@ function getContextMenuManager(): ContextMenuManager {
       reloadBrowser: reloadBrowser,
       safeCreateBrowserTab: safeCreateBrowserTab,
       setBrowserTabMuted: setBrowserTabMuted,
+      shell: shell,
       syncBrowserTabMediaState: syncBrowserTabMediaState,
       t: t
     });

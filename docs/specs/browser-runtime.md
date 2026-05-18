@@ -60,13 +60,14 @@ This document specifies the embedded browser runtime owned by the Electron main 
 ## Context Menus
 
 - Embedded page context menus are native Electron menus.
-- Editable contexts show edit actions such as undo, redo, cut, copy, paste, and select all.
+- Editable contexts show edit actions such as undo, redo, cut, copy, paste, and select all, plus Google search when text is selected.
 - Non-editable contexts can include:
   - Open link in background
   - Copy link URL
   - Open media in background
   - Copy media URL
   - Copy selection
+  - Search selected text with Google in the system default browser
   - Back
   - Forward
   - Reload

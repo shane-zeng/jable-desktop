@@ -478,6 +478,7 @@
     "openMediaInBackground": "{media} をバックグラウンドタブで開く",
     "copyMediaUrl": "{media} URL をコピー",
     "copySelection": "選択テキストをコピー",
+    "searchSelectionWithGoogle": "選択テキストを Google で検索",
     "back": "戻る",
     "forward": "進む",
     "reload": "再読み込み",

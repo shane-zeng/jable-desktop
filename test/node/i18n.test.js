@@ -44,6 +44,7 @@ test('translates native menu and dialog labels by locale', function () {
   assert.equal(i18n.t('en-US', 'dialog.exportJson'), 'Export JSON');
   assert.equal(i18n.t('ja-JP', 'dialog.exportJson'), 'Export JSON');
   assert.equal(i18n.t('en-US', 'context.openLinkInBackground'), 'Open Link in Background Tab');
+  assert.equal(i18n.t('zh-TW', 'context.searchSelectionWithGoogle'), '用 Google 搜尋選取文字');
   assert.equal(i18n.t('ja-JP', 'context.openLinkInBackground'), 'リンクをバックグラウンドタブで開く');
 });
 

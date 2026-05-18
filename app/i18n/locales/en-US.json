@@ -478,6 +478,7 @@
     "openMediaInBackground": "Open {media} in Background Tab",
     "copyMediaUrl": "Copy {media} URL",
     "copySelection": "Copy Selected Text",
+    "searchSelectionWithGoogle": "Search Selection with Google",
     "back": "Back",
     "forward": "Forward",
     "reload": "Reload",

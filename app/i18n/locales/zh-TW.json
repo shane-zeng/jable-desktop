@@ -478,6 +478,7 @@
     "openMediaInBackground": "在背景新分頁開啟{media}",
     "copyMediaUrl": "複製{media}網址",
     "copySelection": "複製選取文字",
+    "searchSelectionWithGoogle": "用 Google 搜尋選取文字",
     "back": "上一頁",
     "forward": "下一頁",
     "reload": "重新整理",
