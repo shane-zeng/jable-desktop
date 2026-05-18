@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
 import BrowserTabRail from './components/BrowserTabRail.vue';
+import DownloadErrorLogModal from './components/DownloadErrorLogModal.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
 import TopBar from './components/TopBar.vue';
@@ -15,24 +16,16 @@ import {
   DEFAULT_BROWSER_URL
 } from './constants';
 import { useBrowserBounds } from './composables/useBrowserBounds';
+import { useDownloadErrorLog } from './composables/useDownloadErrorLog';
+import { useDownloadWorkflow } from './composables/useDownloadWorkflow';
 import { useJableApi } from './composables/useJableApi';
 import { useLibraryState } from './composables/useLibraryState';
 import { usePendingRemoteActions } from './composables/usePendingRemoteActions';
 import { useSyncWorkflow } from './composables/useSyncWorkflow';
 import { errorMessage, useToastStatus } from './composables/useToastStatus';
 import {
-  batchDownloadQueueTone,
-  bulkDeleteActionTone,
-  bulkDownloadActionTone,
-  queuedDownloadUrls,
-  selectedVisibleDownloadUrls as selectedVisibleDownloadUrlsForRecords
-} from './download-actions';
-import {
   downloadErrorSummaryLabel as displayDownloadErrorSummaryLabel,
   downloadFailurePhaseLabel as displayDownloadFailurePhaseLabel,
-  downloadNotificationTitle,
-  downloadRequestVideo as buildDownloadRequestVideo,
-  isDownloadDeleteSelectable,
   optionalDownloadDetail as displayOptionalDownloadDetail
 } from './download-display';
 import { useI18n } from './i18n';
@@ -50,7 +43,6 @@ import type {
   CollectionToggleResult,
   DownloadRecord,
   DownloadRootInfo,
-  DownloadState,
   DownloadStateFilters,
   ExportResource,
   FfmpegStatus,
@@ -64,9 +56,6 @@ import type {
 
 const api = useJableApi();
 const i18n = useI18n();
-const DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT = 100;
-const DOWNLOAD_ERROR_LOG_SEQUENCE = ['d', 'l', 'e'];
-const DOWNLOAD_ERROR_LOG_SEQUENCE_TIMEOUT_MS = 2000;
 const activeView = ref<AppView>('browser');
 const toastStatus = useToastStatus();
 const toast = toastStatus.toast;
@@ -83,16 +72,9 @@ const appSettings = ref<AppSettings>(
 );
 const ffmpegStatus = ref<FfmpegStatus | null>(null);
 const downloadRoot = ref<DownloadRootInfo | null>(null);
-const selectedDownloadUrls = ref<string[]>([]);
-const showDownloadErrorLog = ref(false);
-const showAllDownloadErrorLog = ref(false);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
-let downloadNotificationStates = new Map<string, DownloadState>();
-const suppressedDownloadFailureUrls = new Set<string>();
-let downloadErrorLogSequence: string[] = [];
-let downloadErrorLogSequenceTimer: ReturnType<typeof window.setTimeout> | null = null;
 const sync = useSyncWorkflow({
   api: api,
   busy: busy,
@@ -115,37 +97,48 @@ const { addPendingRemoteOperationGroup, removePendingRemoteOperationGroup, resol
     setStatus: setStatus,
     t: i18n.t
   });
+const downloadWorkflow = useDownloadWorkflow({
+  api: api,
+  busy: busy,
+  syncing: syncing,
+  errorMessage: errorMessage,
+  library: library,
+  setStatus: setStatus,
+  t: i18n.t
+});
+const selectedDownloadUrls = downloadWorkflow.selectedDownloadUrls;
+const openDownloadFile = downloadWorkflow.openDownloadFile;
+const revealDownloadFile = downloadWorkflow.revealDownloadFile;
+const retryDownload = downloadWorkflow.retryDownload;
+const retryFailedDownloads = downloadWorkflow.retryFailedDownloads;
+const pauseDownload = downloadWorkflow.pauseDownload;
+const pauseAllDownloads = downloadWorkflow.pauseAllDownloads;
+const resumeDownload = downloadWorkflow.resumeDownload;
+const resumePausedDownloads = downloadWorkflow.resumePausedDownloads;
+const cancelDownload = downloadWorkflow.cancelDownload;
+const cancelQueuedDownloads = downloadWorkflow.cancelQueuedDownloads;
+const deleteDownload = downloadWorkflow.deleteDownload;
+const deleteSelectedDownloads = downloadWorkflow.deleteSelectedDownloads;
+const toggleDownloadRecordSelection = downloadWorkflow.toggleDownloadRecordSelection;
+const downloadVideo = downloadWorkflow.downloadVideo;
+const selectBatchDownloadVideos = downloadWorkflow.selectBatchDownloadVideos;
+const downloadSelectedVideos = downloadWorkflow.downloadSelectedVideos;
+const downloadErrorLog = useDownloadErrorLog({
+  records: library.downloadRecords,
+  isAvailable: isDownloadErrorLogAvailable
+});
+const showDownloadErrorLog = downloadErrorLog.show;
+const showAllDownloadErrorLog = downloadErrorLog.showAll;
+const downloadErrorLogRecords = downloadErrorLog.records;
+const downloadErrorLogTotal = downloadErrorLog.total;
+const downloadErrorLogShown = downloadErrorLog.shown;
+const downloadErrorLogCanShowAll = downloadErrorLog.canShowAll;
+const downloadErrorLogPreviewLimit = downloadErrorLog.previewLimit;
+const closeDownloadErrorLog = downloadErrorLog.close;
+const toggleDownloadErrorLogShowAll = downloadErrorLog.toggleShowAll;
 
 const pageRows = computed<VideoRow[]>(function () {
   return library.pageRows.value;
-});
-
-const allDownloadErrorLogRecords = computed<DownloadRecord[]>(function () {
-  return library.downloadRecords.value
-    .filter(function (record) {
-      return record.state === 'failed' || record.state === 'missing';
-    })
-    .slice()
-    .sort(function (left, right) {
-      return downloadErrorLogSortTime(right).localeCompare(downloadErrorLogSortTime(left));
-    });
-});
-
-const downloadErrorLogRecords = computed<DownloadRecord[]>(function () {
-  if (showAllDownloadErrorLog.value) return allDownloadErrorLogRecords.value;
-  return allDownloadErrorLogRecords.value.slice(0, DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT);
-});
-
-const downloadErrorLogTotal = computed(function () {
-  return allDownloadErrorLogRecords.value.length;
-});
-
-const downloadErrorLogShown = computed(function () {
-  return downloadErrorLogRecords.value.length;
-});
-
-const downloadErrorLogCanShowAll = computed(function () {
-  return downloadErrorLogTotal.value > DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT;
 });
 
 const libraryBusy = computed(function () {
@@ -216,91 +209,8 @@ function setActiveView(view: AppView) {
   if (view === 'library') library.refreshVideos();
 }
 
-function downloadErrorLogSortTime(record: DownloadRecord) {
-  return record.lastErrorAt || record.updatedAt || record.createdAt || '';
-}
-
 function isDownloadErrorLogAvailable() {
   return activeView.value === 'library' && library.activeTab.value === 'downloads';
-}
-
-function openDownloadErrorLog() {
-  if (!isDownloadErrorLogAvailable()) return;
-  showAllDownloadErrorLog.value = false;
-  showDownloadErrorLog.value = true;
-}
-
-function closeDownloadErrorLog() {
-  showDownloadErrorLog.value = false;
-  showAllDownloadErrorLog.value = false;
-}
-
-function clearDownloadErrorLogSequenceTimer() {
-  if (!downloadErrorLogSequenceTimer) return;
-  window.clearTimeout(downloadErrorLogSequenceTimer);
-  downloadErrorLogSequenceTimer = null;
-}
-
-function resetDownloadErrorLogSequence() {
-  downloadErrorLogSequence = [];
-  clearDownloadErrorLogSequenceTimer();
-}
-
-function startDownloadErrorLogSequenceTimer() {
-  clearDownloadErrorLogSequenceTimer();
-  downloadErrorLogSequenceTimer = window.setTimeout(
-    resetDownloadErrorLogSequence,
-    DOWNLOAD_ERROR_LOG_SEQUENCE_TIMEOUT_MS
-  );
-}
-
-function isEditableKeyboardTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  const tagName = target.tagName.toLowerCase();
-  return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable;
-}
-
-function handleDownloadErrorLogShortcut(event: KeyboardEvent) {
-  if (event.defaultPrevented) return;
-
-  if (showDownloadErrorLog.value && event.key === 'Escape') {
-    closeDownloadErrorLog();
-    return;
-  }
-
-  if (!isDownloadErrorLogAvailable() || isEditableKeyboardTarget(event.target)) {
-    resetDownloadErrorLogSequence();
-    return;
-  }
-
-  const key = event.key.toLowerCase();
-  const hasCommandModifier = event.ctrlKey || event.metaKey;
-  if (hasCommandModifier && event.shiftKey && key === 'e') {
-    event.preventDefault();
-    resetDownloadErrorLogSequence();
-    openDownloadErrorLog();
-    return;
-  }
-
-  if (hasCommandModifier || event.altKey || key.length !== 1) return;
-
-  const expectedKey = DOWNLOAD_ERROR_LOG_SEQUENCE[downloadErrorLogSequence.length];
-  if (key === expectedKey) {
-    downloadErrorLogSequence.push(key);
-    if (downloadErrorLogSequence.length === 1) startDownloadErrorLogSequenceTimer();
-    if (downloadErrorLogSequence.length === DOWNLOAD_ERROR_LOG_SEQUENCE.length) {
-      event.preventDefault();
-      resetDownloadErrorLogSequence();
-      openDownloadErrorLog();
-    }
-    return;
-  }
-
-  resetDownloadErrorLogSequence();
-  if (key === DOWNLOAD_ERROR_LOG_SEQUENCE[0]) {
-    downloadErrorLogSequence = [key];
-    startDownloadErrorLogSequenceTimer();
-  }
 }
 
 function collectionName(collectionKey: CollectionKey) {
@@ -421,7 +331,7 @@ function handleBrowserMessage(message: BrowserMessage) {
 
   if (message.channel === 'downloads-changed') {
     const records = Array.isArray(message.args[0]) ? (message.args[0] as DownloadRecord[]) : null;
-    if (records) applyDownloadNotifications(records);
+    if (records) downloadWorkflow.applyDownloadNotifications(records);
     library.refreshDownloads().catch(function (error) {
       console.error(error);
     });
@@ -444,36 +354,6 @@ function handleBrowserMessage(message: BrowserMessage) {
     const payload = (message.args[0] || {}) as { origin?: string };
     setStatus(i18n.t('status.jableFallback', { origin: payload.origin || 'https://fs1.app' }), 'warning');
   }
-}
-
-function applyDownloadNotifications(records: DownloadRecord[]) {
-  const nextStates = new Map<string, DownloadState>();
-
-  for (const record of records) {
-    const previousState = downloadNotificationStates.get(record.videoUrl) || null;
-    nextStates.set(record.videoUrl, record.state);
-    if (record.state !== 'failed' && previousState === 'failed') suppressedDownloadFailureUrls.delete(record.videoUrl);
-
-    if (!previousState || previousState === record.state) continue;
-
-    if (record.state === 'ready') {
-      setStatus(i18n.t('status.downloadCompleted', { title: downloadNotificationTitle(record) }), 'success');
-    } else if (record.state === 'failed') {
-      if (suppressedDownloadFailureUrls.has(record.videoUrl)) {
-        suppressedDownloadFailureUrls.delete(record.videoUrl);
-      } else {
-        setStatus(
-          i18n.t('status.downloadFailed', {
-            title: downloadNotificationTitle(record),
-            error: record.error || i18n.t('status.unknownError')
-          }),
-          'error'
-        );
-      }
-    }
-  }
-
-  downloadNotificationStates = nextStates;
 }
 
 async function exportCollection(collectionKey: CollectionKey) {
@@ -734,67 +614,6 @@ async function openDownloadRoot() {
   }
 }
 
-async function openDownloadFile(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  try {
-    await api.openDownloadFile(videoUrl);
-    setStatus(i18n.t('status.downloadFileOpened'), 'success');
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadFileOpenFailed', { error: errorMessage(error) }), 'error');
-    library.refreshDownloads().catch(function (refreshError) {
-      console.error(refreshError);
-    });
-  }
-}
-
-async function revealDownloadFile(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  try {
-    await api.revealDownloadFile(videoUrl);
-    setStatus(i18n.t('status.downloadFileRevealed'), 'success');
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadFileRevealFailed', { error: errorMessage(error) }), 'error');
-    library.refreshDownloads().catch(function (refreshError) {
-      console.error(refreshError);
-    });
-  }
-}
-
-function downloadRecordForVideoUrl(videoUrl: string) {
-  return (
-    library.downloadRecords.value.find(function (record) {
-      return record.videoUrl === videoUrl;
-    }) || null
-  );
-}
-
-function downloadRequestVideo(video: VideoRow) {
-  return buildDownloadRequestVideo(video);
-}
-
-function selectBatchDownloadVideos(videos: VideoRow[]) {
-  library.selectBatchDownloadVideos(
-    videos.map(function (video) {
-      return video.url;
-    })
-  );
-}
-
-function toggleDownloadRecordSelection(payload: { videoUrl: string; selected: boolean }) {
-  const next = new Set(selectedDownloadUrls.value);
-  if (payload.selected) next.add(payload.videoUrl);
-  else next.delete(payload.videoUrl);
-  selectedDownloadUrls.value = Array.from(next);
-}
-
-function selectedVisibleDownloadUrls() {
-  return selectedVisibleDownloadUrlsForRecords(library.downloads.value, selectedDownloadUrls.value);
-}
-
 function downloadFailurePhaseLabel(record: DownloadRecord) {
   return displayDownloadFailurePhaseLabel(record, i18n.t);
 }
@@ -805,280 +624,6 @@ function downloadErrorSummaryLabel(record: DownloadRecord) {
 
 function optionalDownloadDetail(value: string | number | null | undefined) {
   return displayOptionalDownloadDetail(value, i18n.t);
-}
-
-async function downloadVideo(video: VideoRow) {
-  if (!video || !video.url || busy.value || syncing.value) return;
-
-  try {
-    const result = await api.enqueueDownload({
-      collectionKey: library.activeCollection.value,
-      video: downloadRequestVideo(video)
-    });
-    setStatus(
-      result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
-      result.queued ? 'success' : 'info'
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadStartFailed', { error: errorMessage(error) }), 'error');
-  }
-}
-
-async function downloadSelectedVideos() {
-  if (busy.value || syncing.value) return;
-
-  const videos = library.selectedBatchDownloadVideos.value.slice();
-  if (!videos.length) {
-    setStatus(i18n.t('status.downloadBatchNoSelection'), 'info');
-    return;
-  }
-
-  busy.value = true;
-  let queued = 0;
-  let skipped = 0;
-  let failed = 0;
-
-  try {
-    for (const video of videos) {
-      try {
-        const record = downloadRecordForVideoUrl(video.url);
-        const result =
-          record && record.state === 'paused'
-            ? await api.resumeDownload(record.videoUrl)
-            : record && (record.state === 'failed' || record.state === 'missing')
-              ? await api.retryDownload(record.videoUrl)
-              : await api.enqueueDownload({
-                  collectionKey: library.activeCollection.value,
-                  video: downloadRequestVideo(video)
-                });
-
-        if (result.queued) queued += 1;
-        else skipped += 1;
-      } catch (error) {
-        failed += 1;
-        console.error(error);
-      }
-    }
-
-    library.clearBatchDownloadSelection();
-    await library.refreshDownloads();
-    setStatus(
-      i18n.t('status.downloadBatchQueued', {
-        queued: queued,
-        skipped: skipped,
-        failed: failed
-      }),
-      batchDownloadQueueTone({ queued: queued, failed: failed })
-    );
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function retryDownload(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  try {
-    const result = await api.retryDownload(videoUrl);
-    setStatus(
-      result.queued ? i18n.t('status.downloadQueued') : i18n.t('status.downloadAlreadyQueued'),
-      result.queued ? 'success' : 'info'
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadRetryFailed', { error: errorMessage(error) }), 'error');
-  }
-}
-
-async function retryFailedDownloads() {
-  if (busy.value || syncing.value) return;
-
-  busy.value = true;
-  try {
-    const result = await api.retryFailedDownloads();
-    setStatus(
-      i18n.t('status.downloadBulkActionComplete', {
-        affected: result.affected,
-        skipped: result.skipped,
-        failed: result.failed
-      }),
-      bulkDownloadActionTone(result)
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadRetryFailed', { error: errorMessage(error) }), 'error');
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function resumeDownload(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  try {
-    const result = await api.resumeDownload(videoUrl);
-    setStatus(
-      result.queued ? i18n.t('status.downloadResumed') : i18n.t('status.downloadAlreadyQueued'),
-      result.queued ? 'success' : 'info'
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadResumeFailed', { error: errorMessage(error) }), 'error');
-  }
-}
-
-async function pauseDownload(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  try {
-    await api.pauseDownload(videoUrl);
-    setStatus(i18n.t('status.downloadPaused'), 'success');
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadPauseFailed', { error: errorMessage(error) }), 'error');
-  }
-}
-
-async function pauseAllDownloads() {
-  if (busy.value || syncing.value) return;
-
-  busy.value = true;
-  try {
-    const result = await api.pauseAllDownloads();
-    setStatus(
-      i18n.t('status.downloadBulkActionComplete', {
-        affected: result.affected,
-        skipped: result.skipped,
-        failed: result.failed
-      }),
-      bulkDownloadActionTone(result)
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadPauseFailed', { error: errorMessage(error) }), 'error');
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function resumePausedDownloads() {
-  if (busy.value || syncing.value) return;
-
-  busy.value = true;
-  try {
-    const result = await api.resumePausedDownloads();
-    setStatus(
-      i18n.t('status.downloadBulkActionComplete', {
-        affected: result.affected,
-        skipped: result.skipped,
-        failed: result.failed
-      }),
-      bulkDownloadActionTone(result)
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadResumeFailed', { error: errorMessage(error) }), 'error');
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function cancelDownload(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  suppressedDownloadFailureUrls.add(videoUrl);
-  try {
-    await api.cancelDownload(videoUrl);
-    setStatus(i18n.t('status.downloadCanceled'), 'success');
-    await library.refreshDownloads();
-  } catch (error) {
-    suppressedDownloadFailureUrls.delete(videoUrl);
-    console.error(error);
-    setStatus(i18n.t('status.downloadCancelFailed', { error: errorMessage(error) }), 'error');
-  }
-}
-
-async function cancelQueuedDownloads() {
-  if (busy.value || syncing.value) return;
-
-  busy.value = true;
-  try {
-    const queuedUrls = queuedDownloadUrls(library.downloadRecords.value);
-    queuedUrls.forEach(function (videoUrl) {
-      suppressedDownloadFailureUrls.add(videoUrl);
-    });
-    const result = await api.cancelQueuedDownloads();
-    setStatus(
-      i18n.t('status.downloadBulkActionComplete', {
-        affected: result.affected,
-        skipped: result.skipped,
-        failed: result.failed
-      }),
-      bulkDownloadActionTone(result)
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadCancelFailed', { error: errorMessage(error) }), 'error');
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function deleteDownload(videoUrl: string) {
-  if (!videoUrl || busy.value || syncing.value) return;
-
-  try {
-    const result = await api.deleteDownload(videoUrl);
-    if (result.canceled) return;
-    setStatus(i18n.t('status.downloadDeleted'), 'success');
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadDeleteFailed', { error: errorMessage(error) }), 'error');
-  }
-}
-
-async function deleteSelectedDownloads() {
-  if (busy.value || syncing.value) return;
-
-  const videoUrls = selectedVisibleDownloadUrls();
-  if (!videoUrls.length) {
-    setStatus(i18n.t('status.downloadBulkNoSelection'), 'info');
-    return;
-  }
-
-  busy.value = true;
-  try {
-    const result = await api.deleteDownloads(videoUrls);
-    if (result.canceled) return;
-    selectedDownloadUrls.value = selectedDownloadUrls.value.filter(function (videoUrl) {
-      return videoUrls.indexOf(videoUrl) === -1;
-    });
-    setStatus(
-      i18n.t('status.downloadBulkDeleteComplete', {
-        deletedFiles: result.deletedFiles,
-        removedRecords: result.removedRecords,
-        skipped: result.skipped,
-        failed: result.failed
-      }),
-      bulkDeleteActionTone(result)
-    );
-    await library.refreshDownloads();
-  } catch (error) {
-    console.error(error);
-    setStatus(i18n.t('status.downloadDeleteFailed', { error: errorMessage(error) }), 'error');
-  } finally {
-    busy.value = false;
-  }
 }
 
 async function openLocalDataFolder() {
@@ -1127,19 +672,8 @@ watch(i18n.locale, function (locale) {
   syncMainLocale(locale);
 });
 
-watch(library.downloadRecords, function (records) {
-  const selectable = new Set(
-    records.filter(isDownloadDeleteSelectable).map(function (record) {
-      return record.videoUrl;
-    })
-  );
-  selectedDownloadUrls.value = selectedDownloadUrls.value.filter(function (videoUrl) {
-    return selectable.has(videoUrl);
-  });
-});
-
 onMounted(async function () {
-  window.addEventListener('keydown', handleDownloadErrorLogShortcut);
+  downloadErrorLog.registerShortcut();
   browserTabsWidth.value = loadBrowserTabsWidth();
   appInfo.value = await api.getAppInfo();
   applyAppSettings(await api.getSettings());
@@ -1164,8 +698,7 @@ onMounted(async function () {
 });
 
 onBeforeUnmount(function () {
-  window.removeEventListener('keydown', handleDownloadErrorLogShortcut);
-  resetDownloadErrorLogSequence();
+  downloadErrorLog.unregisterShortcut();
 });
 </script>
 
@@ -1339,93 +872,20 @@ onBeforeUnmount(function () {
       />
 
       <Transition name="app-modal">
-        <div
+        <DownloadErrorLogModal
           v-if="showDownloadErrorLog"
-          class="app-modal-backdrop"
-          role="presentation"
-          @click.self="closeDownloadErrorLog"
-        >
-          <section
-            class="app-modal"
-            role="dialog"
-            aria-modal="true"
-            :aria-label="i18n.t('downloadList.errorLogTitle')"
-            data-test="download-error-log-modal"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <h2 class="text-base font-bold">{{ i18n.t('downloadList.errorLogTitle') }}</h2>
-              <button
-                type="button"
-                class="app-toast-close"
-                :aria-label="i18n.t('downloadList.errorLogClose')"
-                @click="closeDownloadErrorLog"
-              >
-                ×
-              </button>
-            </div>
-            <div v-if="!downloadErrorLogRecords.length" class="text-sm text-[var(--muted)]">
-              {{ i18n.t('downloadList.errorLogEmpty') }}
-            </div>
-            <div v-else class="grid gap-3">
-              <div
-                class="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--muted)]"
-                data-test="download-error-log-summary"
-              >
-                <span>
-                  {{
-                    i18n.t('downloadList.errorLogShowing', {
-                      shown: downloadErrorLogShown,
-                      total: downloadErrorLogTotal
-                    })
-                  }}
-                </span>
-                <button
-                  v-if="downloadErrorLogCanShowAll"
-                  type="button"
-                  class="min-h-0 px-2 py-1 text-xs"
-                  data-test="download-error-log-show-all"
-                  @click="showAllDownloadErrorLog = !showAllDownloadErrorLog"
-                >
-                  {{
-                    showAllDownloadErrorLog
-                      ? i18n.t('downloadList.errorLogShowRecent', { count: DOWNLOAD_ERROR_LOG_PREVIEW_LIMIT })
-                      : i18n.t('downloadList.errorLogShowAll')
-                  }}
-                </button>
-              </div>
-              <div class="grid max-h-[520px] gap-3 overflow-auto pr-1">
-                <article
-                  v-for="record in downloadErrorLogRecords"
-                  :key="record.videoUrl"
-                  class="grid gap-1 rounded-md border border-[var(--panel-border)] bg-[var(--card)] p-3 text-xs leading-5"
-                  data-test="download-error-log-row"
-                >
-                  <h3 class="text-sm font-semibold text-[var(--text)]">{{ record.title || record.videoUrl }}</h3>
-                  <p class="m-0 break-all text-[var(--muted)]">{{ record.videoUrl }}</p>
-                  <p class="m-0 text-[var(--muted)]">
-                    {{ i18n.t('downloadList.errorLogState', { state: i18n.t('downloadList.state.' + record.state) }) }}
-                  </p>
-                  <p class="m-0 text-[#f2b35d]">{{ downloadErrorSummaryLabel(record) }}</p>
-                  <p class="m-0 text-[var(--muted)]">
-                    {{ i18n.t('downloadList.failurePhase', { phase: downloadFailurePhaseLabel(record) }) }}
-                  </p>
-                  <p class="m-0 text-[var(--muted)]">
-                    {{ i18n.t('downloadList.failureCode', { code: optionalDownloadDetail(record.failureCode) }) }}
-                  </p>
-                  <p class="m-0 text-[var(--muted)]">
-                    {{ i18n.t('downloadList.attemptCount', { count: record.attemptCount || 0 }) }}
-                  </p>
-                  <p class="m-0 text-[var(--muted)]">
-                    {{ i18n.t('downloadList.lastStartedAt', { time: optionalDownloadDetail(record.lastStartedAt) }) }}
-                  </p>
-                  <p class="m-0 text-[var(--muted)]">
-                    {{ i18n.t('downloadList.lastErrorAt', { time: optionalDownloadDetail(record.lastErrorAt) }) }}
-                  </p>
-                </article>
-              </div>
-            </div>
-          </section>
-        </div>
+          :records="downloadErrorLogRecords"
+          :shown="downloadErrorLogShown"
+          :total="downloadErrorLogTotal"
+          :can-show-all="downloadErrorLogCanShowAll"
+          :show-all="showAllDownloadErrorLog"
+          :preview-limit="downloadErrorLogPreviewLimit"
+          :error-summary-label="downloadErrorSummaryLabel"
+          :failure-phase-label="downloadFailurePhaseLabel"
+          :optional-detail="optionalDownloadDetail"
+          @close="closeDownloadErrorLog"
+          @toggle-show-all="toggleDownloadErrorLogShowAll"
+        />
       </Transition>
     </main>
   </div>
