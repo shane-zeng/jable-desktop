@@ -48,6 +48,9 @@
   --floating-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
   --tab-active: #3f4b55;
   --tab-hover: rgba(255, 255, 255, 0.07);
+  --rail-affordance: rgba(112, 167, 255, 0.58);
+  --rail-affordance-hover: var(--focus);
+  --rail-grip: rgba(237, 241, 247, 0.42);
 }
 
 * {
@@ -520,6 +523,98 @@ button:focus {
 .status-toast-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.browser-compact-tab-trigger {
+  cursor: pointer;
+}
+
+.browser-compact-tab-trigger::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--rail-affordance);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--rail-affordance) 40%, transparent);
+  content: '';
+  opacity: 0.78;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    width 120ms ease;
+}
+
+.browser-compact-tab-trigger:hover::before {
+  width: 4px;
+  background: var(--rail-affordance-hover);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--rail-affordance-hover) 55%, transparent),
+    0 0 14px color-mix(in srgb, var(--rail-affordance-hover) 36%, transparent);
+  opacity: 1;
+}
+
+.browser-tab-resize-handle {
+  border: 0;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.browser-tab-resize-handle::before,
+.browser-tab-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+  content: '';
+  transform: translate(-50%, -50%);
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    opacity 120ms ease,
+    width 120ms ease;
+}
+
+.browser-tab-resize-handle::before {
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  border-radius: 999px;
+  background: var(--rail-affordance);
+  transform: translateX(-50%);
+}
+
+.browser-tab-resize-handle::after {
+  width: 2px;
+  height: 22px;
+  border-radius: 999px;
+  box-shadow:
+    -3px 0 0 var(--rail-grip),
+    3px 0 0 var(--rail-grip);
+  opacity: 0.58;
+}
+
+.browser-tab-resize-handle:hover {
+  background: color-mix(in srgb, var(--segmented) 72%, transparent);
+}
+
+.browser-tab-resize-handle:hover::before {
+  width: 2px;
+  background: var(--rail-affordance-hover);
+}
+
+.browser-tab-resize-handle:hover::after {
+  box-shadow:
+    -3px 0 0 var(--text),
+    3px 0 0 var(--text);
+  opacity: 0.92;
+}
+
+.browser-tab-resize-handle-standard {
+  border-right: 1px solid var(--panel-border);
+  background: var(--browser-bg);
 }
 
 .browser-tab-row {

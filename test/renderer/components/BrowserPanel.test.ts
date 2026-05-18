@@ -148,12 +148,15 @@ describe('BrowserPanel', function () {
     expect(wrapper.find('aside').classes()).toContain('inset-y-0');
     expect(wrapper.find('aside').classes()).not.toContain('relative');
     expect(wrapper.find('aside').attributes('style')).toContain('display: none');
+    expect(wrapper.find('[data-test="compact-tab-trigger"]').classes()).toContain('browser-compact-tab-trigger');
 
     await wrapper.find('[data-test="compact-tab-trigger"]').trigger('pointerenter');
 
     expect(wrapper.emitted('layout-change')).toHaveLength(1);
     expect(wrapper.find('aside').attributes('style') || '').not.toContain('display: none');
     expect(wrapper.text()).not.toContain('jable.tv/my/favourites');
+    expect(wrapper.find('[role="separator"]').attributes('aria-label')).toBe('拖曳調整分頁列寬度');
+    expect(wrapper.find('[role="separator"]').classes()).toContain('browser-tab-resize-handle-compact');
 
     await wrapper.find('aside').trigger('mouseleave');
 
@@ -229,7 +232,11 @@ describe('BrowserPanel', function () {
       }
     });
 
-    await wrapper.find('[role="separator"]').trigger('pointerdown', {
+    const resizeHandle = wrapper.find('[role="separator"]');
+    expect(resizeHandle.attributes('aria-label')).toBe('拖曳調整分頁列寬度');
+    expect(resizeHandle.classes()).toContain('browser-tab-resize-handle-standard');
+
+    await resizeHandle.trigger('pointerdown', {
       clientX: 220
     });
     window.dispatchEvent(new PointerEvent('pointermove', { clientX: 280 }));

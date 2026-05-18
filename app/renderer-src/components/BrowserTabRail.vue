@@ -155,7 +155,7 @@ onBeforeUnmount(function () {
 <template>
   <div
     v-if="compact"
-    class="absolute inset-y-0 left-0 z-30"
+    class="browser-compact-tab-trigger absolute inset-y-0 left-0 z-30"
     :style="{ width: COMPACT_TRIGGER_WIDTH + 'px' }"
     data-test="compact-tab-trigger"
     @pointerenter="showCompactTabs"
@@ -265,9 +265,10 @@ onBeforeUnmount(function () {
 
     <div
       v-if="compact"
-      class="absolute bottom-0 right-[-6px] top-0 z-50 w-3 cursor-col-resize rounded-full bg-transparent hover:bg-[var(--segmented)]"
+      class="browser-tab-resize-handle browser-tab-resize-handle-compact absolute bottom-0 right-[-6px] top-0 z-50 w-3 cursor-col-resize"
       role="separator"
       aria-orientation="vertical"
+      :aria-label="t('browser.resizeTabs')"
       :title="t('browser.resizeTabs')"
       @pointerdown="startResize"
       @dblclick="resetWidth"
@@ -285,9 +286,10 @@ onBeforeUnmount(function () {
 
   <div
     v-if="!compact"
-    class="relative cursor-col-resize border-r border-[var(--panel-border)] bg-[var(--browser-bg)] hover:bg-[var(--segmented)]"
+    class="browser-tab-resize-handle browser-tab-resize-handle-standard relative cursor-col-resize"
     role="separator"
     aria-orientation="vertical"
+    :aria-label="t('browser.resizeTabs')"
     :title="t('browser.resizeTabs')"
     @pointerdown="startResize"
     @dblclick="resetWidth"
