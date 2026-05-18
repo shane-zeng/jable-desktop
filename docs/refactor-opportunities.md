@@ -31,6 +31,8 @@ Before implementing a candidate:
   Pending remote group parsing, latest operation lookup, group resolution, and sync-owned visible/hidden collection item upserts are centralized in `native/local-data-engine/src/sync.rs`.
 - Download Manager bulk queue action cleanup.
   Bulk retry, resume, pause, and cancel flows share focused result accounting helpers while preserving action-specific single-record behavior in `app/main-process/download-manager.ts`.
+- WebView preload DOM scraping cleanup.
+  Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, active locks, and DOM replacement side effects.
 
 ## Remaining Candidates
 
@@ -49,14 +51,6 @@ Risk: low, priority low.
 `jable-favourites-exporter.user.js` remains intentionally self-contained. Pagination and export paths contain some repeated logic, but duplication is acceptable unless the extracted helper has clear browser/export domain meaning and reduces branching complexity.
 
 Manual Tampermonkey validation is required on favourites and watch-later pages for both supported origins.
-
-### WebView preload DOM scraping cleanup
-
-Risk: medium.
-
-The AJAX sync helpers are extracted, but `app/webview-preload.ts` still owns a large DOM scraping and collection action observer surface. Further cleanup should only move pure selector, pager, or parsing logic into `app/browser/webview-preload-helpers.ts` when it stays testable without Electron or live Jable pages.
-
-Keep IPC progress reporting, active sync locks, deferred operation replay, and DOM mutation side effects in preload unless there is a stronger ownership boundary.
 
 ## How to Continue
 

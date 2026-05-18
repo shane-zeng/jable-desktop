@@ -5,6 +5,13 @@ const test = require('node:test');
 
 const helpers = require('../../app/runtime-dist/browser/webview-preload-helpers.js');
 
+async function createDocument(html, url = 'https://jable.tv/my/favourites/videos/') {
+  const happyDom = await import('happy-dom');
+  const window = new happyDom.Window({ url: url });
+  window.document.body.innerHTML = html;
+  return window.document;
+}
+
 test('webview helper constants stay aligned with app contract limits', function () {
   assert.equal(helpers.SITE_PAGE_SIZE, 24);
   assert.equal(helpers.DEFAULT_FULL_SYNC_AJAX_WINDOW_SIZE, 3);
@@ -23,6 +30,78 @@ test('webview helper parses metrics, pages, and video path keys', function () {
   assert.equal(helpers.readPageNumber('next'), null);
   assert.equal(helpers.videoPathKey('https://fs1.app/videos/sample', 'https://jable.tv/'), '/videos/sample/');
   assert.equal(helpers.videoPathKey('https://jable.tv/categories/', 'https://jable.tv/'), '');
+});
+
+test('webview helper scrapes video rows from Jable list markup', async function () {
+  const document = await createDocument(`
+    <div id="list_videos_my_favourite_videos">
+      <div class="video-img-box">
+        <div class="img-box">
+          <a href="/videos/canonical-one/">
+            <img data-src="/contents/videos_screenshots/123/456/320x180/1.jpg?cache=1">
+          </a>
+        </div>
+        <div class="detail">
+          <h6 class="title"><a href="/videos/detail-one/"> Sample One </a></h6>
+          <p class="sub-title"> 1,234 <span>views</span> 98 <span>likes</span></p>
+        </div>
+      </div>
+      <div class="video-img-box">
+        <div class="img-box">
+          <a href="/not-a-video/"><img src="thumb.jpg" data-preview="/preview.mp4"></a>
+        </div>
+        <div class="detail">
+          <h6 class="title"><a href="/videos/detail-two/">Sample Two</a></h6>
+          <p class="sub-title"> 5 <span>views</span> 0 <span>likes</span></p>
+        </div>
+      </div>
+    </div>
+  `);
+
+  assert.deepEqual(helpers.scrapeRowsFrom(document, 'https://jable.tv/my/favourites/videos/'), [
+    {
+      title: 'Sample One',
+      url: 'https://jable.tv/videos/canonical-one/',
+      views: 1234,
+      likes: 98,
+      img: 'https://jable.tv/contents/videos_screenshots/123/456/320x180/1.jpg?cache=1',
+      preview: 'https://jable.tv/contents/videos_screenshots/123/456/456_preview.mp4'
+    },
+    {
+      title: 'Sample Two',
+      url: 'https://jable.tv/videos/detail-two/',
+      views: 5,
+      likes: null,
+      img: 'https://jable.tv/my/favourites/videos/thumb.jpg',
+      preview: 'https://jable.tv/preview.mp4'
+    }
+  ]);
+});
+
+test('webview helper reads pager state and page signatures from DOM', async function () {
+  const document = await createDocument(`
+    <ul class="pagination">
+      <li><a class="page-link" href="/my/favourites/videos/" data-parameters="from:0001">1</a></li>
+      <li class="page-item active"><span class="page-link">2</span></li>
+      <li><a class="page-link" href="/my/favourites/videos/3/" data-parameters="from:0003">3</a></li>
+      <li><a class="page-link" href="/my/favourites/videos/4/" data-parameters="from_my_fav_videos:0004">Last</a></li>
+    </ul>
+    <div class="video-img-box"><div class="detail"><h6 class="title"><a href="/videos/one/">One</a></h6></div></div>
+    <div class="video-img-box"><div class="detail"><h6 class="title"><a href="/videos/two/">Two</a></h6></div></div>
+    <div class="video-img-box"><div class="detail"><h6 class="title"><a href="/videos/three/">Three</a></h6></div></div>
+    <div class="video-img-box"><div class="detail"><h6 class="title"><a href="/videos/four/">Four</a></h6></div></div>
+  `);
+  const links = document.querySelectorAll('ul.pagination .page-link');
+
+  assert.equal(helpers.activePageNumberFrom(document), 2);
+  assert.deepEqual(helpers.pagerPageParameter(links[3]), {
+    name: 'from_my_fav_videos',
+    value: '0004',
+    width: 4
+  });
+  assert.equal(helpers.pagerPageNumberFromElement(links[3]), 4);
+  assert.equal(helpers.lastPagerPageNumberFrom(document), 4);
+  assert.equal(helpers.signatureFrom(document), '4|/videos/one/|/videos/two/|/videos/three/|/videos/four/');
 });
 
 test('webview helper builds ajax URLs from pager parameters', function () {

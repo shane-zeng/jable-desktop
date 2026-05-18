@@ -18,6 +18,11 @@ export type AjaxPagerTemplate = {
   pageParamName: string | null;
   pageParamWidth: number;
 };
+export type PagerPageParameter = {
+  name: string;
+  value: string;
+  width: number;
+};
 export type AjaxSyncPage = {
   pageNumber: number;
   rows: ScrapedVideoRow[];
@@ -138,6 +143,153 @@ export function samePageUrl(left: unknown, right: unknown, baseHref: string) {
   const rightUrl = absoluteUrl(String(right || ''), baseHref);
 
   return leftUrl.replace(/\/?$/, '/') === rightUrl.replace(/\/?$/, '/');
+}
+
+export function inferPreviewFromImageUrl(value: string | null | undefined, baseHref: string) {
+  if (!value) return null;
+
+  const url = absoluteUrl(value, baseHref);
+  const match = url.match(
+    /^(https?:\/\/[^?#]+\/contents\/videos_screenshots\/\d+\/(\d+)\/)(?:preview\.jpg|320x180\/1\.jpg|[^?#]+)(?:[?#].*)?$/
+  );
+
+  return match ? match[1] + match[2] + '_preview.mp4' : null;
+}
+
+export function canonicalVideoHrefFromBox(
+  box: Element | null,
+  fallbackAnchor: HTMLAnchorElement | null,
+  baseHref: string
+) {
+  const anchors = box
+    ? box.querySelectorAll<HTMLAnchorElement>('div.img-box a[href], div.detail h6.title a[href]')
+    : [];
+
+  for (let i = 0; i < anchors.length; i++) {
+    const href = anchors[i].getAttribute('href') || '';
+
+    try {
+      const parsed = new URL(href, anchors[i].baseURI || baseHref);
+      if (/^\/videos\/[^/]+\/?$/.test(parsed.pathname)) return parsed.href;
+    } catch (error) {}
+  }
+
+  return fallbackAnchor
+    ? absoluteUrl(fallbackAnchor.getAttribute('href') || '', fallbackAnchor.baseURI || baseHref)
+    : '';
+}
+
+export function scrapeVideoBox(box: Element | null, baseHref: string): ScrapedVideoRow | null {
+  if (!box) return null;
+
+  const anchor = box.querySelector<HTMLAnchorElement>('div.detail h6.title a');
+  if (!anchor) return null;
+
+  const title = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+  const href = canonicalVideoHrefFromBox(box, anchor, baseHref);
+  const image = box.querySelector<HTMLImageElement>('div.img-box img');
+  const imageSrc = image ? image.getAttribute('data-src') || image.getAttribute('src') || '' : '';
+  const previewSrc = image ? image.getAttribute('data-preview') || '' : '';
+  const subtitle = box.querySelector('div.detail p.sub-title');
+  let views: number | null = null;
+  let likes: number | null = null;
+
+  if (subtitle) {
+    const texts: string[] = [];
+    for (let index = 0; index < subtitle.childNodes.length; index++) {
+      const node = subtitle.childNodes[index];
+      if (node.nodeType !== 3) continue;
+
+      const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+      if (text) texts.push(text);
+    }
+
+    if (texts.length >= 1) views = parseMetricNumber(texts[0]);
+    if (texts.length >= 2) likes = parseMetricNumber(texts[1]);
+  }
+
+  if (!href) return null;
+
+  return {
+    title: title,
+    url: absoluteUrl(href, baseHref),
+    views: views,
+    likes: likes,
+    img: imageSrc ? absoluteUrl(imageSrc, baseHref) : null,
+    preview: previewSrc ? absoluteUrl(previewSrc, baseHref) : inferPreviewFromImageUrl(imageSrc, baseHref)
+  };
+}
+
+export function scrapeRowsFrom(root: Document | Element, baseHref: string) {
+  const out: ScrapedVideoRow[] = [];
+  const boxes = root.querySelectorAll('div.video-img-box');
+
+  for (let i = 0; i < boxes.length; i++) {
+    const row = scrapeVideoBox(boxes[i], baseHref);
+    if (row) out.push(row);
+  }
+
+  return out;
+}
+
+export function activePageNumberFrom(root: Document | Element): number | null {
+  const active = root.querySelector<Element>(
+    [
+      'ul.pagination span.page-link.active',
+      'ul.pagination a.page-link.active',
+      'ul.pagination .page-item.active .page-link',
+      'ul.pagination [aria-current="page"]'
+    ].join(', ')
+  );
+  return active ? readPageNumber(active.textContent) : null;
+}
+
+export function pagerPageParameter(el: Element): PagerPageParameter | null {
+  const params = el.getAttribute('data-parameters') || '';
+  const match = params.match(/(?:^|;)(from(?:_my_fav_videos)?)\s*:\s*(\d+)/);
+
+  return match
+    ? {
+        name: match[1],
+        value: match[2],
+        width: match[2].length
+      }
+    : null;
+}
+
+export function pagerPageNumberFromElement(el: Element) {
+  const textPageNumber = readPageNumber(el.textContent);
+  if (textPageNumber) return textPageNumber;
+
+  const pageParameter = pagerPageParameter(el);
+  return pageParameter ? normalizePageNumber(pageParameter.value) : null;
+}
+
+export function lastPagerPageNumberFrom(root: Document | Element) {
+  const links = root.querySelectorAll<Element>('ul.pagination .page-link');
+  let lastPage: number | null = null;
+
+  for (let i = 0; i < links.length; i++) {
+    const pageNumber = pagerPageNumberFromElement(links[i]);
+    if (pageNumber && (!lastPage || pageNumber > lastPage)) lastPage = pageNumber;
+  }
+
+  return lastPage;
+}
+
+export function signatureFrom(root: Document | Element) {
+  const list = root.querySelectorAll<HTMLAnchorElement>('div.detail h6.title a');
+  const count = list.length;
+  const urls: string[] = [];
+  const sampleCount = Math.min(3, count);
+
+  for (let i = 0; i < sampleCount; i++) {
+    urls.push(list[i].getAttribute('href') || '');
+  }
+
+  if (count > sampleCount) urls.push(list[count - 1].getAttribute('href') || '');
+
+  return count + '|' + urls.join('|');
 }
 
 export function parseBlockParameters(value: string) {
@@ -464,7 +616,7 @@ export async function fetchAjaxPagesWithWindow<T>(options: AjaxPageWindowOptions
   return pages;
 }
 
-function absoluteUrl(href: string, baseHref: string) {
+export function absoluteUrl(href: string, baseHref: string) {
   try {
     return new URL(href, baseHref).href;
   } catch (error) {

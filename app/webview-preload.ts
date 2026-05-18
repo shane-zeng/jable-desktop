@@ -15,16 +15,24 @@ import {
   AjaxSyncError,
   FULL_SYNC_AJAX_FETCH_TIMEOUT_MS,
   SITE_PAGE_SIZE,
+  absoluteUrl,
+  activePageNumberFrom,
   ajaxFailureDetail,
+  ajaxUrlForPagerLink,
   fetchAjaxPagesWithWindow,
   fetchAjaxSyncPage,
   fetchTextWithTimeout,
-  ajaxUrlForPagerLink,
+  inferPreviewFromImageUrl as inferPreviewFromImageUrlForBase,
+  lastPagerPageNumberFrom,
   normalizeAjaxWindowSize,
   normalizePageNumber,
+  pagerPageNumberFromElement,
+  pagerPageParameter,
   parseMetricNumber,
-  readPageNumber,
   samePageUrl,
+  scrapeRowsFrom as scrapeRowsFromRoot,
+  scrapeVideoBox as scrapeVideoBoxFromElement,
+  signatureFrom,
   validateAjaxFirstPage,
   validateAjaxPages,
   videoPathKey
@@ -132,7 +140,6 @@ const urlPolicy = require('./browser/url-policy') as UrlPolicyModule;
 
 const IS_MACOS = process.platform === 'darwin';
 const SEL_LIST_CONTAINER = '#list_videos_my_favourite_videos';
-const SEL_TITLES = 'div.detail h6.title a';
 const SEL_PAGER = 'ul.pagination';
 const SEL_PAGER_LINKS = 'ul.pagination a.page-link';
 const TRACKPAD_HISTORY_THRESHOLD = 180;
@@ -186,11 +193,7 @@ function elementFromTarget(target: EventTarget | null): Element | null {
 }
 
 function absUrl(href: string, base?: string) {
-  try {
-    return new URL(href, base || location.href).href;
-  } catch (error) {
-    return href;
-  }
+  return absoluteUrl(href, base || location.href);
 }
 
 function uniqByUrl(rows: ScrapedVideoRow[]) {
@@ -256,86 +259,15 @@ function installWebViewContentRules() {
 }
 
 function inferPreviewFromImageUrl(value: string | null | undefined) {
-  if (!value) return null;
-
-  const url = absUrl(value);
-  const match = url.match(
-    /^(https?:\/\/[^?#]+\/contents\/videos_screenshots\/\d+\/(\d+)\/)(?:preview\.jpg|320x180\/1\.jpg|[^?#]+)(?:[?#].*)?$/
-  );
-
-  return match ? match[1] + match[2] + '_preview.mp4' : null;
-}
-
-function canonicalVideoHrefFromBox(box: Element | null, fallbackAnchor: HTMLAnchorElement | null) {
-  const anchors = box
-    ? box.querySelectorAll<HTMLAnchorElement>('div.img-box a[href], div.detail h6.title a[href]')
-    : [];
-
-  for (let i = 0; i < anchors.length; i++) {
-    const href = anchors[i].getAttribute('href') || '';
-
-    try {
-      const parsed = new URL(href, anchors[i].baseURI || location.href);
-      if (/^\/videos\/[^/]+\/?$/.test(parsed.pathname)) return parsed.href;
-    } catch (error) {}
-  }
-
-  return fallbackAnchor
-    ? absUrl(fallbackAnchor.getAttribute('href') || '', fallbackAnchor.baseURI || location.href)
-    : '';
+  return inferPreviewFromImageUrlForBase(value, location.href);
 }
 
 function scrapeVideoBox(box: Element | null): ScrapedVideoRow | null {
-  if (!box) return null;
-
-  const a = box.querySelector<HTMLAnchorElement>('div.detail h6.title a');
-  if (!a) return null;
-
-  const title = (a.textContent || '').replace(/\s+/g, ' ').trim();
-  const href = canonicalVideoHrefFromBox(box, a);
-  const img = box.querySelector<HTMLImageElement>('div.img-box img');
-  const imgSrc = img ? img.getAttribute('data-src') || img.getAttribute('src') || '' : '';
-  const previewSrc = img ? img.getAttribute('data-preview') || '' : '';
-  let views: number | null = null;
-  let likes: number | null = null;
-  const sub = box.querySelector('div.detail p.sub-title');
-
-  if (sub) {
-    const texts: string[] = [];
-    for (let n = 0; n < sub.childNodes.length; n++) {
-      const node = sub.childNodes[n];
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
-        if (text) texts.push(text);
-      }
-    }
-
-    if (texts.length >= 1) views = parseMetricNumber(texts[0]);
-    if (texts.length >= 2) likes = parseMetricNumber(texts[1]);
-  }
-
-  if (!href) return null;
-
-  return {
-    title: title,
-    url: absUrl(href),
-    views: views,
-    likes: likes,
-    img: imgSrc ? absUrl(imgSrc) : null,
-    preview: previewSrc ? absUrl(previewSrc) : inferPreviewFromImageUrl(imgSrc)
-  };
+  return scrapeVideoBoxFromElement(box, location.href);
 }
 
 function scrapeRowsFrom(root: Document | Element) {
-  const out: ScrapedVideoRow[] = [];
-  const boxes = root.querySelectorAll('div.video-img-box');
-
-  for (let i = 0; i < boxes.length; i++) {
-    const row = scrapeVideoBox(boxes[i]);
-    if (row) out.push(row);
-  }
-
-  return out;
+  return scrapeRowsFromRoot(root, location.href);
 }
 
 function scrapeCurrentPage() {
@@ -372,54 +304,6 @@ function hasVisibleActiveBackground(el: Element | null) {
   }
 }
 
-function activePageNumberFrom(root: Document | Element): number | null {
-  const active = root.querySelector<Element>(
-    [
-      'ul.pagination span.page-link.active',
-      'ul.pagination a.page-link.active',
-      'ul.pagination .page-item.active .page-link',
-      'ul.pagination [aria-current="page"]'
-    ].join(', ')
-  );
-  const activePageNumber = active ? readPageNumber(active.textContent) : null;
-  if (activePageNumber) return activePageNumber;
-
-  return null;
-}
-
-function pagerPageParameter(el: Element) {
-  const params = el.getAttribute('data-parameters') || '';
-  const match = params.match(/(?:^|;)(from(?:_my_fav_videos)?)\s*:\s*(\d+)/);
-
-  return match
-    ? {
-        name: match[1],
-        value: match[2],
-        width: match[2].length
-      }
-    : null;
-}
-
-function pagerPageNumberFromElement(el: Element) {
-  const textPageNumber = readPageNumber(el.textContent);
-  if (textPageNumber) return textPageNumber;
-
-  const pageParameter = pagerPageParameter(el);
-  return pageParameter ? normalizePageNumber(pageParameter.value) : null;
-}
-
-function lastPagerPageNumberFrom(root: Document | Element) {
-  const links = root.querySelectorAll<Element>('ul.pagination .page-link');
-  let lastPage: number | null = null;
-
-  for (let i = 0; i < links.length; i++) {
-    const pageNumber = pagerPageNumberFromElement(links[i]);
-    if (pageNumber && (!lastPage || pageNumber > lastPage)) lastPage = pageNumber;
-  }
-
-  return lastPage;
-}
-
 function currentPageNumber(): number | null {
   const activePageNumber = activePageNumberFrom(document);
   if (activePageNumber) return activePageNumber;
@@ -440,21 +324,6 @@ function currentPageNumber(): number | null {
   }
 
   return null;
-}
-
-function signatureFrom(root: Document | Element) {
-  const list = root.querySelectorAll<HTMLAnchorElement>(SEL_TITLES);
-  const count = list.length;
-  const urls: string[] = [];
-  const sampleCount = Math.min(3, count);
-
-  for (let i = 0; i < sampleCount; i++) {
-    urls.push(list[i].getAttribute('href') || '');
-  }
-
-  if (count > sampleCount) urls.push(list[count - 1].getAttribute('href') || '');
-
-  return count + '|' + urls.join('|');
 }
 
 function signature() {
