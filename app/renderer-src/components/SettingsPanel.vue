@@ -235,18 +235,16 @@ function confirmImport() {
     data-test="settings-panel"
   >
     <div class="h-full overflow-auto">
-      <div class="mx-auto grid max-w-[980px] gap-5 px-4 py-5">
+      <div class="settings-page">
         <header class="grid gap-1">
           <h1 class="text-xl font-bold">{{ t('settings.title') }}</h1>
           <p class="m-0 text-sm leading-6 text-[var(--muted)]">{{ t('settings.subtitle') }}</p>
         </header>
 
-        <section class="grid gap-3 border-t border-[var(--panel-border)] pt-4">
+        <section class="settings-section">
           <h2 class="text-base font-bold">{{ t('settings.general.title') }}</h2>
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <label for="settings-locale" class="text-sm font-semibold">{{ t('locale.label') }}</label>
+          <div class="settings-row settings-row-center">
+            <label for="settings-locale" class="settings-label">{{ t('locale.label') }}</label>
             <select
               id="settings-locale"
               class="w-full max-w-[260px]"
@@ -259,10 +257,8 @@ function confirmImport() {
               </option>
             </select>
           </div>
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <span class="text-sm font-semibold">{{ t('settings.general.updates') }}</span>
+          <div class="settings-row settings-row-center">
+            <span class="settings-label">{{ t('settings.general.updates') }}</span>
             <button
               type="button"
               class="w-fit"
@@ -275,10 +271,10 @@ function confirmImport() {
           </div>
         </section>
 
-        <section class="grid gap-3 border-t border-[var(--panel-border)] pt-4">
+        <section class="settings-section">
           <h2 class="text-base font-bold">{{ t('settings.browser.title') }}</h2>
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <label for="settings-max-tabs" class="pt-1 text-sm font-semibold">
+          <div class="settings-row">
+            <label for="settings-max-tabs" class="settings-label">
               {{ t('settings.browser.maxTabs') }}
             </label>
             <div class="grid gap-2">
@@ -294,18 +290,14 @@ function confirmImport() {
                 :disabled="busy"
                 @change="updateMaxBrowserTabs"
               />
-              <p
-                v-if="showMaxTabsWarning"
-                class="intent-text-warning m-0 max-w-[680px] text-xs leading-5"
-                data-test="settings-max-tabs-warning"
-              >
+              <p v-if="showMaxTabsWarning" class="settings-warning" data-test="settings-max-tabs-warning">
                 {{ t('settings.browser.maxTabsWarning') }}
               </p>
             </div>
           </div>
 
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.browser.tabsMode') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.browser.tabsMode') }}</span>
             <div class="grid gap-2">
               <div
                 class="segmented-tabs flex w-fit flex-wrap items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
@@ -324,16 +316,14 @@ function confirmImport() {
                   {{ t('settings.browser.tabsModeOptions.' + option.value) }}
                 </button>
               </div>
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+              <p class="settings-help">
                 {{ t('settings.browser.tabsModeDescription') }}
               </p>
             </div>
           </div>
 
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <span class="text-sm font-semibold">{{ t('settings.browser.webViewEnhancementMode') }}</span>
+          <div class="settings-row settings-row-center">
+            <span class="settings-label">{{ t('settings.browser.webViewEnhancementMode') }}</span>
             <label class="flex min-h-[34px] items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -346,20 +336,18 @@ function confirmImport() {
             </label>
           </div>
 
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <span class="text-sm font-semibold">{{ t('settings.browser.tabWidth') }}</span>
+          <div class="settings-row settings-row-center">
+            <span class="settings-label">{{ t('settings.browser.tabWidth') }}</span>
             <button type="button" class="w-fit" :disabled="busy" @click="emit('reset-tabs-width')">
               {{ t('settings.browser.resetTabWidth') }}
             </button>
           </div>
         </section>
 
-        <section class="grid gap-3 border-t border-[var(--panel-border)] pt-4">
+        <section class="settings-section">
           <h2 class="text-base font-bold">{{ t('settings.sync.title') }}</h2>
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.sync.acceleration') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.sync.acceleration') }}</span>
             <div class="grid gap-2">
               <div
                 class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
@@ -378,19 +366,17 @@ function confirmImport() {
                   {{ t('settings.sync.speed.' + option.key) }}
                 </button>
               </div>
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+              <p class="settings-help">
                 {{ t('settings.sync.accelerationDescription') }}
               </p>
-              <p v-if="showFastSyncWarning" class="intent-text-warning m-0 max-w-[680px] text-xs leading-5">
+              <p v-if="showFastSyncWarning" class="settings-warning">
                 {{ t('settings.sync.fastWarning') }}
               </p>
             </div>
           </div>
 
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <span class="text-sm font-semibold">{{ t('settings.sync.autoReplay') }}</span>
+          <div class="settings-row settings-row-center">
+            <span class="settings-label">{{ t('settings.sync.autoReplay') }}</span>
             <label class="flex min-h-[34px] items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -404,10 +390,10 @@ function confirmImport() {
           </div>
         </section>
 
-        <section class="grid gap-3 border-t border-[var(--panel-border)] pt-4">
+        <section class="settings-section">
           <h2 class="text-base font-bold">{{ t('settings.downloads.title') }}</h2>
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.ffmpeg.label') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.downloads.ffmpeg.label') }}</span>
             <div class="grid gap-2">
               <div class="flex flex-wrap items-center gap-2 text-sm">
                 <span class="font-semibold" :class="ffmpegStatusClass" data-test="settings-ffmpeg-state">
@@ -415,32 +401,23 @@ function confirmImport() {
                 </span>
                 <span class="text-[var(--muted)]">{{ ffmpegSourceLabel }}</span>
               </div>
-              <code
-                class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]"
-                data-test="settings-ffmpeg-path"
-              >
+              <code class="settings-code" data-test="settings-ffmpeg-path">
                 {{
                   (ffmpegStatus && ffmpegStatus.path) ||
                   settings.ffmpegPath ||
                   t('settings.downloads.ffmpeg.pathUnavailable')
                 }}
               </code>
-              <p
-                v-if="ffmpegStatus && ffmpegStatus.version"
-                class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]"
-              >
+              <p v-if="ffmpegStatus && ffmpegStatus.version" class="settings-help">
                 {{ ffmpegStatus.version }}
               </p>
-              <p
-                v-if="ffmpegStatus && ffmpegStatus.error && ffmpegStatus.state !== 'missing'"
-                class="intent-text-warning m-0 max-w-[680px] text-xs leading-5"
-              >
+              <p v-if="ffmpegStatus && ffmpegStatus.error && ffmpegStatus.state !== 'missing'" class="settings-warning">
                 {{ ffmpegStatus.error }}
               </p>
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+              <p class="settings-help">
                 {{ t('settings.downloads.ffmpeg.description') }}
               </p>
-              <div class="flex flex-wrap items-center gap-2">
+              <div class="settings-actions">
                 <button
                   type="button"
                   data-test="settings-ffmpeg-refresh"
@@ -469,8 +446,8 @@ function confirmImport() {
             </div>
           </div>
 
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <label for="settings-max-concurrent-downloads" class="pt-1 text-sm font-semibold">
+          <div class="settings-row">
+            <label for="settings-max-concurrent-downloads" class="settings-label">
               {{ t('settings.downloads.concurrent.label') }}
             </label>
             <div class="grid gap-2">
@@ -486,14 +463,14 @@ function confirmImport() {
                 :disabled="busy"
                 @change="updateMaxConcurrentDownloads"
               />
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+              <p class="settings-help">
                 {{ t('settings.downloads.concurrent.description') }}
               </p>
             </div>
           </div>
 
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.speed.label') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.downloads.speed.label') }}</span>
             <div class="grid gap-2">
               <div
                 class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
@@ -512,17 +489,17 @@ function confirmImport() {
                   {{ t('options.downloadSpeedMode.' + option.value) }}
                 </button>
               </div>
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+              <p class="settings-help">
                 {{ t('settings.downloads.speed.description') }}
               </p>
-              <p class="intent-text-warning m-0 max-w-[680px] text-xs leading-5">
+              <p class="settings-warning">
                 {{ t('settings.downloads.speed.' + downloadSpeedModeHints[settings.downloadSpeedMode]) }}
               </p>
             </div>
           </div>
 
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.playback.label') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.downloads.playback.label') }}</span>
             <label class="flex max-w-[680px] items-start gap-3 text-sm leading-6 text-[var(--muted)]">
               <input
                 class="mt-1"
@@ -536,28 +513,22 @@ function confirmImport() {
             </label>
           </div>
 
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.downloads.root.label') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.downloads.root.label') }}</span>
             <div class="grid gap-2">
               <div class="flex flex-wrap items-center gap-2 text-sm">
                 <span class="font-semibold text-[var(--text)]">{{ downloadRootSourceLabel }}</span>
               </div>
-              <code
-                class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]"
-                data-test="settings-download-root-path"
-              >
+              <code class="settings-code" data-test="settings-download-root-path">
                 {{ downloadRootPath }}
               </code>
-              <p class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]">
+              <p class="settings-help">
                 {{ t('settings.downloads.root.description') }}
               </p>
-              <p
-                v-if="downloadRoot && !downloadRoot.exists"
-                class="m-0 max-w-[680px] text-xs leading-5 text-[var(--muted)]"
-              >
+              <p v-if="downloadRoot && !downloadRoot.exists" class="settings-help">
                 {{ t('settings.downloads.root.missingHint') }}
               </p>
-              <div class="flex flex-wrap items-center gap-2">
+              <div class="settings-actions">
                 <button
                   type="button"
                   data-test="settings-download-root-choose"
@@ -587,12 +558,12 @@ function confirmImport() {
           </div>
         </section>
 
-        <section class="grid gap-3 border-t border-[var(--panel-border)] pt-4">
+        <section class="settings-section">
           <h2 class="text-base font-bold">{{ t('settings.data.title') }}</h2>
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="pt-1 text-sm font-semibold">{{ t('settings.data.importJson') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.data.importJson') }}</span>
             <div class="grid gap-3">
-              <div class="flex flex-wrap items-center gap-2">
+              <div class="settings-actions">
                 <button type="button" :disabled="busy" @click="chooseImportFile">
                   {{ t('settings.data.chooseJson') }}
                 </button>
@@ -618,7 +589,7 @@ function confirmImport() {
                     · {{ t('settings.data.importRows', { count: importTotal }) }}
                   </span>
                 </p>
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="settings-actions">
                   <label for="settings-import-target" class="text-sm font-semibold">
                     {{ t('settings.data.importTarget') }}
                   </label>
@@ -647,11 +618,9 @@ function confirmImport() {
             </div>
           </div>
 
-          <div
-            class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] items-center gap-3 max-[760px]:grid-cols-1"
-          >
-            <span class="text-sm font-semibold">{{ t('settings.data.exportJson') }}</span>
-            <div class="flex flex-wrap items-center gap-2">
+          <div class="settings-row settings-row-center">
+            <span class="settings-label">{{ t('settings.data.exportJson') }}</span>
+            <div class="settings-actions">
               <select v-model="exportCollection" :disabled="busy" :aria-label="t('settings.data.exportTarget')">
                 <option value="favourites">{{ t('collections.favourites') }}</option>
                 <option value="watch_later">{{ t('collections.watch_later') }}</option>
@@ -667,10 +636,10 @@ function confirmImport() {
             </div>
           </div>
 
-          <div class="grid grid-cols-[minmax(190px,260px)_minmax(220px,1fr)] gap-3 max-[760px]:grid-cols-1">
-            <span class="text-sm font-semibold">{{ t('settings.data.databasePath') }}</span>
+          <div class="settings-row">
+            <span class="settings-label">{{ t('settings.data.databasePath') }}</span>
             <div class="grid gap-2">
-              <code class="min-w-0 break-all rounded-md bg-[var(--control)] px-2 py-1 text-xs text-[var(--muted)]">
+              <code class="settings-code">
                 {{ databasePath || t('settings.data.databasePathUnavailable') }}
               </code>
               <button

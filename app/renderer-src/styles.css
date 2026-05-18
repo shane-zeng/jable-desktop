@@ -234,6 +234,74 @@ button:focus {
   background: var(--selection-active-hover);
 }
 
+.settings-page {
+  display: grid;
+  max-width: 980px;
+  margin: 0 auto;
+  gap: 20px;
+  padding: 20px 16px;
+}
+
+.settings-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 260px) minmax(220px, 1fr);
+  gap: 12px;
+}
+
+.settings-row-center {
+  align-items: center;
+}
+
+.settings-label {
+  padding-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-row-center > .settings-label {
+  padding-top: 0;
+}
+
+.settings-help,
+.settings-warning {
+  margin: 0;
+  max-width: 680px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.settings-help {
+  color: var(--muted);
+}
+
+.settings-warning {
+  color: var(--intent-warning-text);
+}
+
+.settings-code {
+  min-width: 0;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .pending-summary-chip {
   display: inline-grid;
   grid-template-columns: max-content max-content;
@@ -697,5 +765,11 @@ button:focus {
   .topbar-settings-button {
     min-width: 64px;
     padding: 0 8px;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-row {
+    grid-template-columns: 1fr;
   }
 }
