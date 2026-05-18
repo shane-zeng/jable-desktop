@@ -10,6 +10,7 @@ const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
 const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
+const HLS_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-helpers.ts');
 const HLS_RESEARCH_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-research.ts');
 const SYNC_WORKER_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'sync-worker-manager.ts');
 const APP_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'App.vue');
@@ -68,7 +69,7 @@ test('webview pager fallback uses Jable get_block requests and page-number from 
   assert.match(helperSource, /url\.searchParams\.set\('function', 'get_block'\)/);
   assert.match(source, /function loadPagerLinkByFetch/);
   assert.match(source, /new DOMParser\(\)\.parseFromString\(html, 'text\/html'\)/);
-  assert.match(source, /function pagerPageParameter/);
+  assert.match(helperSource, /function pagerPageParameter/);
   assert.match(source, /pageNumber = normalizePageNumber\(pageParameter\.value\)/);
   assert.equal(source.includes('Math.floor(parseInt(match[1], 10) / SITE_PAGE_SIZE) + 1'), false);
 });
@@ -274,6 +275,7 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   const mainSource = readSource(MAIN_SOURCE_PATH);
   const downloadManagerSource = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
   const hlsCaptureSource = readSource(HLS_CAPTURE_SOURCE_PATH);
+  const hlsHelperSource = readSource(HLS_HELPERS_SOURCE_PATH);
   const hlsResearchSource = readSource(HLS_RESEARCH_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
 
@@ -292,12 +294,14 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsCaptureSource, /ipcMain\.handle\('hls:playlist-proxy-url'/);
   assert.match(hlsCaptureSource, /\[hls-proxy\] token/);
   assert.match(hlsCaptureSource, /\/playlist\/' \+ token \+ '\.m3u8'/);
-  assert.equal(hlsCaptureSource.includes('parsed.pathname.match(/^\\/playlist\\/([A-Za-z0-9_-]+)\\.m3u8$/)'), true);
+  assert.match(hlsHelperSource, /function hlsPlaylistProxyRequestTargetFromUrl/);
+  assert.equal(hlsHelperSource.includes('parsed.pathname.match(/^\\/playlist\\/([A-Za-z0-9_-]+)\\.m3u8$/)'), true);
   assert.match(hlsCaptureSource, /webRequest\.onBeforeSendHeaders/);
   assert.match(hlsCaptureSource, /webRequest\.onCompleted/);
   assert.equal(hlsCaptureSource.includes('webRequest.onBeforeRequest'), false);
   assert.match(hlsCaptureSource, /hlsProbePathHash/);
   assert.match(hlsCaptureSource, /hlsPlaylistProxyRewritePlaylist/);
+  assert.match(hlsHelperSource, /function hlsPlaylistProxyRewritePlaylistContent/);
   assert.match(hlsCaptureSource, /hlsPlaylistProxyAssetUrl/);
   assert.match(hlsCaptureSource, /prepareHlsPlaybackCapture/);
   assert.match(hlsCaptureSource, /recordHlsPlaybackCaptureSegment/);

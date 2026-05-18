@@ -33,6 +33,8 @@ Before implementing a candidate:
   Bulk retry, resume, pause, and cancel flows share focused result accounting helpers while preserving action-specific single-record behavior in `app/main-process/download-manager.ts`.
 - WebView preload DOM scraping cleanup.
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, active locks, and DOM replacement side effects.
+- HLS playback helper split.
+  Pure proxy URL parsing, request-target parsing, playlist URI rewriting, and capture-plan segment mapping live in `app/main-process/hls-playback-helpers.ts`; `app/main-process/hls-playback-capture.ts` keeps token registration, Electron session fetches, logging, and capture lifecycle side effects.
 
 ## Remaining Candidates
 

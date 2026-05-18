@@ -6,6 +6,20 @@ import type * as NodeFs from 'node:fs';
 import type * as NodeHttp from 'node:http';
 import type * as NodePath from 'node:path';
 import type * as NodeStream from 'node:stream';
+import type {
+  HlsPlaybackCapturePlan,
+  HlsPlaylistProxyRequestTarget,
+  HlsPlaylistProxyRewriteState
+} from './hls-playback-helpers';
+import {
+  hlsPlaylistProxyAbsoluteUri,
+  hlsPlaylistProxyAssetExtension,
+  hlsPlaylistProxyCaptureFileForSourceUrl,
+  hlsPlaylistProxyRemotePlaylistUrl,
+  hlsPlaylistProxyRequestTargetFromUrl as hlsPlaylistProxyRequestTargetFromUrlHelper,
+  hlsPlaylistProxyRewritePlaylistContent,
+  isHlsPlaylistProxyLoopbackUrl as isHlsPlaylistProxyLoopbackUrlHelper
+} from './hls-playback-helpers';
 
 type HlsProbeKind = 'playlist' | 'segment';
 type HlsProbeTabContext = {
@@ -45,29 +59,6 @@ type HlsPlaylistProxyAsset = {
   host: string;
   pathHash: string;
 };
-type HlsPlaybackCapturePlan = {
-  videoUrl: string;
-  playlistUrl: string;
-  segmentCount: number;
-  segments: Array<{
-    url: string;
-    filePath: string;
-  }>;
-};
-type HlsPlaylistProxyRewriteState = {
-  captureIndexes: Record<string, number>;
-  capturePlan: HlsPlaybackCapturePlan | null;
-};
-type HlsPlaylistProxyRequestTarget =
-  | {
-      type: 'playlist';
-      token: string;
-    }
-  | {
-      assetId: string;
-      type: 'asset';
-      token: string;
-    };
 type HlsPlaylistProxyUnavailableReason = 'disabled' | 'not_video' | 'not_playlist' | 'unavailable';
 type HlsPlaylistProxyAbort = {
   cleanup(): void;
@@ -424,26 +415,6 @@ function installHlsPlaybackProbe(context: HlsPlaybackCaptureContext) {
   logger(context).info('[hls-probe] installed for Jable session; full HLS URLs are not logged');
 }
 
-function hlsPlaylistProxyRemotePlaylistUrl(value: unknown): string | null {
-  try {
-    const parsed = new URL(String(value || ''));
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    if (parsed.hostname === HLS_PLAYLIST_PROXY_HOST || parsed.hostname === 'localhost') return null;
-    return parsed.pathname.toLowerCase().indexOf('.m3u8') !== -1 ? parsed.toString() : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-function isHlsPlaylistProxyLoopbackUrl(value: unknown): boolean {
-  try {
-    const parsed = new URL(String(value || ''));
-    return parsed.protocol === 'http:' && parsed.hostname === HLS_PLAYLIST_PROXY_HOST;
-  } catch (error) {
-    return false;
-  }
-}
-
 function purgeExpiredHlsPlaylistProxyTokens(now = Date.now()) {
   for (const entry of hlsPlaylistProxyTokens) {
     if (entry[1].expiresAt <= now) hlsPlaylistProxyTokens.delete(entry[0]);
@@ -453,16 +424,6 @@ function purgeExpiredHlsPlaylistProxyTokens(now = Date.now()) {
 function hlsPlaylistProxyTokenUrl(token: string): string {
   if (!hlsPlaylistProxyPort) return '';
   return 'http://' + HLS_PLAYLIST_PROXY_HOST + ':' + hlsPlaylistProxyPort + '/playlist/' + token + '.m3u8';
-}
-
-function hlsPlaylistProxyAssetExtension(value: string): string {
-  try {
-    const parsed = new URL(value);
-    const match = parsed.pathname.match(/\.([A-Za-z0-9]{1,8})$/);
-    return match ? '.' + match[1].toLowerCase() : '';
-  } catch (error) {
-    return '';
-  }
 }
 
 function hlsPlaylistProxyAssetUrl(token: string, assetId: string, sourceUrl: string): string {
@@ -481,28 +442,11 @@ function hlsPlaylistProxyAssetUrl(token: string, assetId: string, sourceUrl: str
 }
 
 function hlsPlaylistProxyRequestTargetFromUrl(value: unknown): HlsPlaylistProxyRequestTarget | null {
-  try {
-    const parsed = new URL(String(value || ''));
-    if (parsed.protocol !== 'http:' || parsed.hostname !== HLS_PLAYLIST_PROXY_HOST) return null;
-    let match = parsed.pathname.match(/^\/playlist\/([A-Za-z0-9_-]+)\.m3u8$/);
-    if (match) {
-      return {
-        type: 'playlist',
-        token: match[1]
-      };
-    }
+  return hlsPlaylistProxyRequestTargetFromUrlHelper(value, HLS_PLAYLIST_PROXY_HOST);
+}
 
-    match = parsed.pathname.match(/^\/asset\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)(?:\.[A-Za-z0-9]{1,8})?$/);
-    return match
-      ? {
-          assetId: match[2],
-          type: 'asset',
-          token: match[1]
-        }
-      : null;
-  } catch (error) {
-    return null;
-  }
+function isHlsPlaylistProxyLoopbackUrl(value: unknown): boolean {
+  return isHlsPlaylistProxyLoopbackUrlHelper(value, HLS_PLAYLIST_PROXY_HOST);
 }
 
 function hlsPlaylistProxyOrigin(context: HlsPlaybackCaptureContext, videoUrl: string): string {
@@ -611,33 +555,8 @@ function hlsPlaylistProxyFallbackHeaders(): Headers {
   return headers;
 }
 
-function hlsPlaylistProxyAbsoluteUri(value: string, playlistUrl: string): string {
-  try {
-    return new URL(value.replace(/&amp;/g, '&').trim(), playlistUrl).toString();
-  } catch (error) {
-    return value;
-  }
-}
-
 function hlsPlaylistProxyRemoteUrlIsPlaylist(value: string): boolean {
-  return Boolean(hlsPlaylistProxyRemotePlaylistUrl(value));
-}
-
-function hlsPlaylistProxyCaptureFileForSourceUrl(
-  state: HlsPlaylistProxyRewriteState,
-  sourceUrl: string
-): string | null {
-  if (!state.capturePlan) return null;
-
-  const startIndex = state.captureIndexes[sourceUrl] || 0;
-  for (let index = startIndex; index < state.capturePlan.segments.length; index++) {
-    const segment = state.capturePlan.segments[index];
-    if (!segment || segment.url !== sourceUrl) continue;
-    state.captureIndexes[sourceUrl] = index + 1;
-    return segment.filePath;
-  }
-
-  return null;
+  return Boolean(hlsPlaylistProxyRemotePlaylistUrl(value, HLS_PLAYLIST_PROXY_HOST));
 }
 
 function hlsPlaylistProxyRewriteUri(
@@ -677,19 +596,6 @@ function hlsPlaylistProxyRewriteUri(
   return hlsPlaylistProxyAssetUrl(token, assetId, sourceUrl) || sourceUrl;
 }
 
-function hlsPlaylistProxyRewriteUriAttributes(
-  context: HlsPlaybackCaptureContext,
-  token: string,
-  entry: HlsPlaylistProxyToken,
-  line: string,
-  playlistUrl: string,
-  state: HlsPlaylistProxyRewriteState
-): string {
-  return line.replace(/URI="([^"]+)"/g, function (_match, uri: string) {
-    return 'URI="' + hlsPlaylistProxyRewriteUri(context, token, entry, uri, playlistUrl, state) + '"';
-  });
-}
-
 function hlsPlaylistProxyRewritePlaylist(
   context: HlsPlaybackCaptureContext,
   token: string,
@@ -703,16 +609,9 @@ function hlsPlaylistProxyRewritePlaylist(
     capturePlan: capturePlan
   };
 
-  return content
-    .split(/\r?\n/)
-    .map(function (line) {
-      const trimmed = line.trim();
-      if (!trimmed) return line;
-      if (trimmed.startsWith('#'))
-        return hlsPlaylistProxyRewriteUriAttributes(context, token, entry, line, playlistUrl, state);
-      return hlsPlaylistProxyRewriteUri(context, token, entry, trimmed, playlistUrl, state);
-    })
-    .join('\n');
+  return hlsPlaylistProxyRewritePlaylistContent(content, function (value) {
+    return hlsPlaylistProxyRewriteUri(context, token, entry, value, playlistUrl, state);
+  });
 }
 
 function hlsPlaylistProxyFallbackRedirect(context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken): Response {
@@ -1601,7 +1500,10 @@ function hlsPlaylistProxyUrlForRenderer(
     return unavailableHlsPlaylistProxyUrl('not_video');
   }
 
-  const playlistUrl = hlsPlaylistProxyRemotePlaylistUrl(hlsPlaylistProxyPayloadString(payload, 'playlistUrl'));
+  const playlistUrl = hlsPlaylistProxyRemotePlaylistUrl(
+    hlsPlaylistProxyPayloadString(payload, 'playlistUrl'),
+    HLS_PLAYLIST_PROXY_HOST
+  );
   if (!playlistUrl) return unavailableHlsPlaylistProxyUrl('not_playlist');
   const metadata = hlsPlaylistProxyPayloadMetadata(payload);
   const pageLoadId = hlsPlaylistProxyPayloadPageLoadId(payload);
