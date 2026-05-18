@@ -112,6 +112,17 @@ function createHarness(initialRecords, userDataDir, settingsOverrides = {}) {
   };
 }
 
+function createFakeFfmpeg(userDataDir) {
+  const filePath = path.join(userDataDir, process.platform === 'win32' ? 'fake-ffmpeg.cmd' : 'fake-ffmpeg');
+  const script =
+    process.platform === 'win32'
+      ? '@echo off\r\necho ffmpeg version test\r\n'
+      : '#!/bin/sh\necho "ffmpeg version test"\n';
+  fs.writeFileSync(filePath, script);
+  fs.chmodSync(filePath, 0o755);
+  return filePath;
+}
+
 test('download manager maps speed modes to segment concurrency limits', function () {
   assert.deepEqual(downloadManager.downloadSegmentConcurrencyForSpeedMode('stable'), { min: 4, max: 8 });
   assert.deepEqual(downloadManager.downloadSegmentConcurrencyForSpeedMode('balanced'), { min: 8, max: 32 });
@@ -378,6 +389,140 @@ test('download manager can pause, cancel, and delete active playback captures', 
       }),
       null
     );
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager applies bulk retry, resume, pause, and cancel actions', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-bulk-downloads-'));
+  try {
+    fs.mkdirSync(path.join(userDataDir, 'downloads'), { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, 'downloads', 'ready.mp4'), 'ready');
+
+    const fakeFfmpeg = createFakeFfmpeg(userDataDir);
+    const harness = createHarness(
+      [
+        { videoUrl: 'https://jable.tv/videos/paused/', localPath: 'paused.mp4', state: 'paused' },
+        { videoUrl: 'https://jable.tv/videos/failed/', localPath: 'failed.mp4', state: 'failed' },
+        { videoUrl: 'https://jable.tv/videos/missing/', localPath: 'missing.mp4', state: 'missing' },
+        { videoUrl: 'https://jable.tv/videos/ready/', localPath: 'ready.mp4', state: 'ready' }
+      ],
+      userDataDir,
+      {
+        ffmpegPath: fakeFfmpeg,
+        maxConcurrentDownloads: 0
+      }
+    );
+
+    assert.deepEqual(await harness.manager.retryFailedDownloads(), {
+      requested: 2,
+      affected: 2,
+      skipped: 0,
+      failed: 0
+    });
+    assert.equal(harness.records.get('https://jable.tv/videos/failed/').state, 'queued');
+    assert.equal(harness.records.get('https://jable.tv/videos/missing/').state, 'queued');
+
+    assert.deepEqual(await harness.manager.resumePausedDownloads(), {
+      requested: 1,
+      affected: 1,
+      skipped: 0,
+      failed: 0
+    });
+    assert.equal(harness.records.get('https://jable.tv/videos/paused/').state, 'queued');
+
+    assert.deepEqual(harness.manager.pauseAllDownloads(), {
+      requested: 3,
+      affected: 3,
+      skipped: 0,
+      failed: 0
+    });
+    for (const slug of ['paused', 'failed', 'missing']) {
+      assert.equal(harness.records.get('https://jable.tv/videos/' + slug + '/').state, 'paused');
+    }
+    assert.equal(harness.records.get('https://jable.tv/videos/ready/').state, 'ready');
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager bulk cancel only affects queued records', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-bulk-cancel-'));
+  try {
+    fs.mkdirSync(path.join(userDataDir, 'downloads'), { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, 'downloads', 'ready.mp4'), 'ready');
+
+    const fakeFfmpeg = createFakeFfmpeg(userDataDir);
+    const harness = createHarness(
+      [
+        { videoUrl: 'https://jable.tv/videos/queued/', localPath: 'queued.mp4', state: 'failed' },
+        { videoUrl: 'https://jable.tv/videos/paused/', localPath: 'paused.mp4', state: 'paused' },
+        { videoUrl: 'https://jable.tv/videos/ready/', localPath: 'ready.mp4', state: 'ready' }
+      ],
+      userDataDir,
+      {
+        ffmpegPath: fakeFfmpeg,
+        maxConcurrentDownloads: 0
+      }
+    );
+
+    await harness.manager.retryDownload('https://jable.tv/videos/queued/');
+    assert.deepEqual(harness.manager.cancelQueuedDownloads(), {
+      requested: 1,
+      affected: 1,
+      skipped: 0,
+      failed: 0
+    });
+    assert.equal(harness.records.get('https://jable.tv/videos/queued/').state, 'failed');
+    assert.equal(harness.records.get('https://jable.tv/videos/queued/').failureCode, 'download_canceled');
+    assert.equal(harness.records.get('https://jable.tv/videos/paused/').state, 'paused');
+    assert.equal(harness.records.get('https://jable.tv/videos/ready/').state, 'ready');
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager bulk cancel ignores non-queued records', function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-bulk-cancel-empty-'));
+  try {
+    const harness = createHarness(
+      [
+        { videoUrl: 'https://jable.tv/videos/paused/', localPath: 'paused.mp4', state: 'paused' },
+        { videoUrl: 'https://jable.tv/videos/failed/', localPath: 'failed.mp4', state: 'failed' }
+      ],
+      userDataDir
+    );
+
+    assert.deepEqual(harness.manager.cancelQueuedDownloads(), {
+      requested: 0,
+      affected: 0,
+      skipped: 0,
+      failed: 0
+    });
+    assert.equal(harness.records.get('https://jable.tv/videos/paused/').state, 'paused');
+    assert.equal(harness.records.get('https://jable.tv/videos/failed/').state, 'failed');
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager bulk cancel reports empty queue after runtime recovery', function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-bulk-cancel-recovered-'));
+  try {
+    const harness = createHarness(
+      [{ videoUrl: 'https://jable.tv/videos/queued/', localPath: 'queued.mp4', state: 'queued' }],
+      userDataDir,
+      { maxConcurrentDownloads: 0 }
+    );
+
+    assert.deepEqual(harness.manager.cancelQueuedDownloads(), {
+      requested: 0,
+      affected: 0,
+      skipped: 0,
+      failed: 0
+    });
+    assert.equal(harness.records.get('https://jable.tv/videos/queued/').state, 'paused');
   } finally {
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }

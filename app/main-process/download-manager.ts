@@ -2524,6 +2524,59 @@ function queueDownloadRecord(record: DownloadRecord) {
   processDownloadQueue();
 }
 
+function emptyBulkDownloadActionResult(requested: number): BulkDownloadActionResult {
+  return {
+    requested: requested,
+    affected: 0,
+    skipped: 0,
+    failed: 0
+  };
+}
+
+function recordBulkDownloadActionOutcome(result: BulkDownloadActionResult, affected: boolean) {
+  if (affected) result.affected += 1;
+  else result.skipped += 1;
+}
+
+function recordBulkDownloadActionFailure(result: BulkDownloadActionResult, error: unknown) {
+  result.failed += 1;
+  console.error(error);
+}
+
+async function runAsyncBulkDownloadAction(
+  records: DownloadRecord[],
+  action: (record: DownloadRecord) => Promise<boolean>
+): Promise<BulkDownloadActionResult> {
+  const result = emptyBulkDownloadActionResult(records.length);
+
+  for (const record of records) {
+    try {
+      recordBulkDownloadActionOutcome(result, await action(record));
+    } catch (error) {
+      recordBulkDownloadActionFailure(result, error);
+    }
+  }
+
+  return result;
+}
+
+function runSyncBulkDownloadAction(
+  records: DownloadRecord[],
+  action: (record: DownloadRecord) => boolean
+): BulkDownloadActionResult {
+  const result = emptyBulkDownloadActionResult(records.length);
+
+  for (const record of records) {
+    try {
+      recordBulkDownloadActionOutcome(result, action(record));
+    } catch (error) {
+      recordBulkDownloadActionFailure(result, error);
+    }
+  }
+
+  return result;
+}
+
 async function enqueueDownload(value: unknown): Promise<EnqueueDownloadResult> {
   const payload = normalizeDownloadRequestPayload(value);
   allowHlsPlaybackCapture(payload.video.url);
@@ -2601,25 +2654,10 @@ async function retryFailedDownloads(): Promise<BulkDownloadActionResult> {
   const records = listDownloads().filter(function (record) {
     return record.state === 'failed' || record.state === 'missing';
   });
-  const result: BulkDownloadActionResult = {
-    requested: records.length,
-    affected: 0,
-    skipped: 0,
-    failed: 0
-  };
-
-  for (const record of records) {
-    try {
-      const queued = await retryDownload(record.videoUrl);
-      if (queued.queued) result.affected += 1;
-      else result.skipped += 1;
-    } catch (error) {
-      result.failed += 1;
-      console.error(error);
-    }
-  }
-
-  return result;
+  return runAsyncBulkDownloadAction(records, async function (record) {
+    const queued = await retryDownload(record.videoUrl);
+    return queued.queued;
+  });
 }
 
 function removeQueuedDownload(videoUrl: string): boolean {
@@ -2671,25 +2709,10 @@ async function resumePausedDownloads(): Promise<BulkDownloadActionResult> {
   const records = listDownloads().filter(function (record) {
     return record.state === 'paused';
   });
-  const result: BulkDownloadActionResult = {
-    requested: records.length,
-    affected: 0,
-    skipped: 0,
-    failed: 0
-  };
-
-  for (const record of records) {
-    try {
-      const resumed = await resumeDownload(record.videoUrl);
-      if (resumed.queued) result.affected += 1;
-      else result.skipped += 1;
-    } catch (error) {
-      result.failed += 1;
-      console.error(error);
-    }
-  }
-
-  return result;
+  return runAsyncBulkDownloadAction(records, async function (record) {
+    const resumed = await resumeDownload(record.videoUrl);
+    return resumed.queued;
+  });
 }
 
 function pauseDownload(value: unknown): PauseDownloadResult {
@@ -2743,25 +2766,10 @@ function pauseAllDownloads(): BulkDownloadActionResult {
   const records = listDownloads().filter(function (record) {
     return record.state === 'queued' || record.state === 'downloading';
   });
-  const result: BulkDownloadActionResult = {
-    requested: records.length,
-    affected: 0,
-    skipped: 0,
-    failed: 0
-  };
-
-  for (const record of records) {
-    try {
-      const paused = pauseDownload(record.videoUrl);
-      if (paused.paused) result.affected += 1;
-      else result.skipped += 1;
-    } catch (error) {
-      result.failed += 1;
-      console.error(error);
-    }
-  }
-
-  return result;
+  return runSyncBulkDownloadAction(records, function (record) {
+    const paused = pauseDownload(record.videoUrl);
+    return paused.paused;
+  });
 }
 
 function cancelDownload(value: unknown): CancelDownloadResult {
@@ -2815,24 +2823,10 @@ function cancelQueuedDownloads(): BulkDownloadActionResult {
   const records = listDownloads().filter(function (record) {
     return record.state === 'queued';
   });
-  const result: BulkDownloadActionResult = {
-    requested: records.length,
-    affected: 0,
-    skipped: 0,
-    failed: 0
-  };
-
-  for (const record of records) {
-    try {
-      cancelDownload(record.videoUrl);
-      result.affected += 1;
-    } catch (error) {
-      result.failed += 1;
-      console.error(error);
-    }
-  }
-
-  return result;
+  return runSyncBulkDownloadAction(records, function (record) {
+    cancelDownload(record.videoUrl);
+    return true;
+  });
 }
 
 function isPathInsideDirectory(filePath: string, directoryPath: string): boolean {

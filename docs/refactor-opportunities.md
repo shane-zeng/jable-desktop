@@ -29,16 +29,10 @@ Before implementing a candidate:
   AJAX fetch timeout handling, retry/backoff, page validation, and bounded concurrent prefetch execution live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps DOM scraping, IPC progress reporting, and fallback orchestration.
 - Rust sync pending-remote cleanup.
   Pending remote group parsing, latest operation lookup, group resolution, and sync-owned visible/hidden collection item upserts are centralized in `native/local-data-engine/src/sync.rs`.
+- Download Manager bulk queue action cleanup.
+  Bulk retry, resume, pause, and cancel flows share focused result accounting helpers while preserving action-specific single-record behavior in `app/main-process/download-manager.ts`.
 
 ## Remaining Candidates
-
-### Download Manager bulk queue action cleanup
-
-Risk: low to medium.
-
-`app/main-process/download-manager.ts` still has repeated bulk action result setup and queue iteration patterns around retry, resume, pause, and cancel flows. A helper is only worthwhile if it preserves readable action-specific branches and does not introduce mode flags that obscure behavior.
-
-Validation should include Node tests for bulk download list actions and Download Manager orchestration.
 
 ### Search-path query optimization
 
