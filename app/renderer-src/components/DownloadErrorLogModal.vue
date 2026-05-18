@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { t } from '../i18n';
 import type { DownloadRecord } from '../../types/jable';
 
@@ -18,23 +19,85 @@ const emit = defineEmits<{
   close: [];
   'toggle-show-all': [];
 }>();
+
+const modalRef = ref<HTMLElement | null>(null);
+const closeButtonRef = ref<HTMLButtonElement | null>(null);
+let previouslyFocusedElement: HTMLElement | null = null;
+
+function focusableElements() {
+  if (!modalRef.value) return [];
+
+  return Array.from(
+    modalRef.value.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter(function (element) {
+    return element.tabIndex >= 0;
+  });
+}
+
+function focusInitialElement() {
+  const target = closeButtonRef.value || focusableElements()[0] || modalRef.value;
+  target?.focus();
+}
+
+function handleModalKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Tab') return;
+
+  const focusable = focusableElements();
+  if (!focusable.length) {
+    event.preventDefault();
+    modalRef.value?.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+onMounted(function () {
+  previouslyFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  void nextTick(focusInitialElement);
+});
+
+onBeforeUnmount(function () {
+  if (previouslyFocusedElement?.isConnected) {
+    previouslyFocusedElement.focus();
+  }
+});
 </script>
 
 <template>
   <div class="app-modal-backdrop" role="presentation" @click.self="emit('close')">
     <section
+      ref="modalRef"
       class="app-modal"
       role="dialog"
       aria-modal="true"
       :aria-label="t('downloadList.errorLogTitle')"
+      tabindex="-1"
       data-test="download-error-log-modal"
+      @keydown="handleModalKeydown"
     >
       <div class="flex items-center justify-between gap-3">
         <h2 class="text-base font-bold">{{ t('downloadList.errorLogTitle') }}</h2>
         <button
+          ref="closeButtonRef"
           type="button"
           class="app-toast-close"
           :aria-label="t('downloadList.errorLogClose')"
+          data-test="download-error-log-close"
           @click="emit('close')"
         >
           ×

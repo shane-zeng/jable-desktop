@@ -118,12 +118,14 @@ function toggleSelected(event: Event) {
             v-if="isIndeterminateProgress(record)"
             class="download-progress-indeterminate h-full rounded-full"
             :class="progressFillClass(record.state)"
+            data-test="download-record-progress-fill"
           ></div>
           <div
             v-else
             class="h-full rounded-full transition-[width] duration-300"
             :class="progressFillClass(record.state)"
             :style="progressStyle(record)"
+            data-test="download-record-progress-fill"
           ></div>
         </div>
 
@@ -151,6 +153,7 @@ function toggleSelected(event: Event) {
             <span
               class="shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold"
               :class="stateClass(record.state)"
+              data-test="download-record-state"
             >
               {{ t('downloadList.state.' + record.state) }}
             </span>
