@@ -88,7 +88,7 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+button:not(:disabled):hover {
   border-color: var(--control-border-hover);
   background: var(--control-hover);
 }
@@ -104,7 +104,7 @@ button.primary {
   color: #fff;
 }
 
-button.primary:hover {
+button.primary:not(:disabled):hover {
   border-color: var(--intent-primary-hover);
   background: var(--intent-primary-hover);
 }
@@ -115,7 +115,7 @@ button.success {
   color: #fff;
 }
 
-button.success:hover {
+button.success:not(:disabled):hover {
   border-color: var(--intent-success-hover);
   background: var(--intent-success-hover);
 }
@@ -126,7 +126,7 @@ button.danger {
   color: #fff;
 }
 
-button.danger:hover {
+button.danger:not(:disabled):hover {
   border-color: var(--intent-danger-hover);
   background: var(--intent-danger-hover);
 }

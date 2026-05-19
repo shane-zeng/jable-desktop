@@ -131,7 +131,7 @@ const allSelectableBatchDownloadsSelected = computed(function () {
       >
         {{ t('library.clearSelection') }}
       </button>
-      <button class="primary" type="button" :disabled="busy" @click="emit('quick-sync')">
+      <button type="button" :disabled="busy" @click="emit('quick-sync')">
         {{ t('library.quickSync') }}
       </button>
       <button type="button" :disabled="busy" @click="emit('full-sync')">
