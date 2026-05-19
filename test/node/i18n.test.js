@@ -46,6 +46,9 @@ test('translates native menu and dialog labels by locale', function () {
   assert.equal(i18n.t('en-US', 'context.openLinkInBackground'), 'Open Link in Background Tab');
   assert.equal(i18n.t('zh-TW', 'context.searchSelectionWithGoogle'), '用 Google 搜尋選取文字');
   assert.equal(i18n.t('ja-JP', 'context.openLinkInBackground'), 'リンクをバックグラウンドタブで開く');
+  assert.equal(i18n.t('zh-TW', 'context.theaterMode'), '劇院模式');
+  assert.equal(i18n.t('en-US', 'context.theaterMode'), 'Theater Mode');
+  assert.equal(i18n.t('ja-JP', 'context.theaterMode'), 'シアターモード');
 });
 
 test('interpolates translated messages', function () {

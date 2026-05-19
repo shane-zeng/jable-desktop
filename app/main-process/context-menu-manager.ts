@@ -19,6 +19,7 @@ type PopupOptions = Parameters<Electron.Menu['popup']>[0];
 export type ContextMenuManagerContext = {
   activateBrowserTab(tabId: string | null): BrowserTabsState;
   canCreateBrowserTab(): boolean;
+  canonicalJableVideoUrl(value: unknown): string | null;
   clipboard: ClipboardWriter;
   closeBrowserTab(tabId: string | null): BrowserTabsState;
   forwardBrowserMessage(channel: string, payload: unknown): void;
@@ -31,6 +32,7 @@ export type ContextMenuManagerContext = {
   Menu: typeof Electron.Menu;
   reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState>;
   safeCreateBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState;
+  setBrowserTabTheaterMode(tab: BrowserTab, enabled: boolean): Promise<unknown>;
   setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState;
   shell: ExternalOpener;
   syncBrowserTabMediaState(tab: BrowserTab | null | undefined): void;
@@ -45,6 +47,7 @@ export type ContextMenuManager = {
 
 let activateBrowserTab: (tabId: string | null) => BrowserTabsState;
 let canCreateBrowserTab: () => boolean;
+let canonicalJableVideoUrl: (value: unknown) => string | null;
 let clipboard: ClipboardWriter;
 let closeBrowserTab: (tabId: string | null) => BrowserTabsState;
 let forwardBrowserMessage: (channel: string, payload: unknown) => void;
@@ -57,6 +60,7 @@ let homeUrl = '';
 let Menu: typeof Electron.Menu;
 let reloadBrowser: (tabId?: string | null) => Promise<BrowserNavigationState>;
 let safeCreateBrowserTab: (options?: CreateBrowserTabPayload | null) => BrowserTabsState;
+let setBrowserTabTheaterMode: (tab: BrowserTab, enabled: boolean) => Promise<unknown>;
 let setBrowserTabMuted: (payload?: BrowserTabMutedPayload | null) => BrowserTabsState;
 let shell: ExternalOpener;
 let syncBrowserTabMediaState: (tab: BrowserTab | null | undefined) => void;
@@ -74,6 +78,10 @@ function currentMainWindow(): Electron.BrowserWindow | null {
 function copyText(value: unknown) {
   if (!value) return;
   clipboard.writeText(String(value));
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function contextMediaLabel(mediaType: string): string {
@@ -101,6 +109,30 @@ function pushGoogleSearchSelectionItem(items: Electron.MenuItemConstructorOption
     label: t('context.searchSelectionWithGoogle'),
     click: function () {
       void shell.openExternal(googleSearchUrl(selectionText)).catch(function () {});
+    }
+  });
+}
+
+function isJableVideoContext(tab: BrowserTab, contextParams: Electron.ContextMenuParams) {
+  return Boolean(canonicalJableVideoUrl(tab.url) || canonicalJableVideoUrl(contextParams.pageURL || ''));
+}
+
+function pushTheaterModeItem(
+  items: Electron.MenuItemConstructorOptions[],
+  tab: BrowserTab,
+  contextParams: Electron.ContextMenuParams
+) {
+  if (!isJableVideoContext(tab, contextParams)) return;
+
+  pushSeparator(items);
+  items.push({
+    label: t('context.theaterMode'),
+    type: 'checkbox',
+    checked: Boolean(tab.theaterMode),
+    click: function (menuItem: Electron.MenuItem) {
+      void setBrowserTabTheaterMode(tab, Boolean(menuItem.checked)).catch(function (error) {
+        forwardBrowserMessage('browser-error', { message: errorMessage(error) });
+      });
     }
   });
 }
@@ -251,6 +283,7 @@ function showBrowserContextMenu(tab: BrowserTab, params: Electron.ContextMenuPar
     }
   });
 
+  pushTheaterModeItem(items, tab, contextParams);
   pushSeparator(items);
 
   items.push({
@@ -403,6 +436,7 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
 export function createContextMenuManager(context: ContextMenuManagerContext): ContextMenuManager {
   activateBrowserTab = context.activateBrowserTab;
   canCreateBrowserTab = context.canCreateBrowserTab;
+  canonicalJableVideoUrl = context.canonicalJableVideoUrl;
   clipboard = context.clipboard;
   closeBrowserTab = context.closeBrowserTab;
   forwardBrowserMessage = context.forwardBrowserMessage;
@@ -415,6 +449,7 @@ export function createContextMenuManager(context: ContextMenuManagerContext): Co
   Menu = context.Menu;
   reloadBrowser = context.reloadBrowser;
   safeCreateBrowserTab = context.safeCreateBrowserTab;
+  setBrowserTabTheaterMode = context.setBrowserTabTheaterMode;
   setBrowserTabMuted = context.setBrowserTabMuted;
   shell = context.shell;
   syncBrowserTabMediaState = context.syncBrowserTabMediaState;

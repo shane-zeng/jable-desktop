@@ -139,6 +139,7 @@ Browser and tab behavior:
 - Sync tabs use `kind: 'sync'`, stay locked while syncing, and keep background throttling disabled through `browserTabWebPreferences`.
 - Main-process browser sync and diagnosis requests are sent to `app/webview-preload.ts` through request/response IPC channels. Pure webview preload helper behavior for pager/AJAX URL parsing, retry/backoff, metric parsing, page numbers, and video path keys lives in `app/browser/webview-preload-helpers.ts`. Do not call embedded page functions through injected JavaScript strings.
 - HTML fullscreen from embedded pages only expands within the current `WebContentsView` bounds. `app/main.ts` handles `enter-html-full-screen` and `leave-html-full-screen` by temporarily stretching the active BrowserView over the app chrome, then restoring the renderer-provided bounds when fullscreen exits.
+- Theater mode is tab-scoped runtime state for trusted Jable video pages. It is toggled through the embedded page context menu, applied by `app/webview-preload.ts` with page CSS inside the current `WebContentsView`, preserved across tab switches/reloads/Jable video-to-video navigation, and not included in startup session restore.
 - Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser/browser-tab-policy.ts`, `app/main-process/browser-shortcut-manager.ts`, `app/webview-preload.ts`, and renderer link handlers.
 
 Renderer behavior:
@@ -266,6 +267,7 @@ Manual checks:
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
 - Open, switch, close, right-click, toggle tab rail display modes, hover to reveal close buttons, and drag-resize browser tabs. In shared mode, confirm Local Data shows the same tab rail and its new-tab actions create background tabs without switching away from Local Data. Confirm Jable `target=_blank` links open a new app tab.
 - Enter and leave fullscreen from a Jable video player. Confirm fullscreen covers the tab rail and top bar, then restores the normal browser layout after exit.
+- Toggle theater mode from a Jable video page context menu and with plain `T`. Confirm it fills only the browser content area, preserves the top bar and tab rail, exits with `Esc`, leaves `Command+T` / `Ctrl+T` as new-tab shortcuts, survives tab switches/reload/video-to-video navigation, and is absent from non-video pages.
 - Verify keyboard tab switching shortcuts from [`docs/shortcuts.md`](shortcuts.md), including repeated previous/next switching without clicking the page between keystrokes.
 - Right-click Jable page content and verify link, media, selection, navigation, and page URL menu actions appear in the expected contexts.
 - Toggle Jable favourite/watch-later buttons in the embedded page and confirm the local list updates after the site-side action succeeds.

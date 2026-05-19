@@ -93,6 +93,11 @@ type BrowserPreloadResponse = {
   result?: unknown;
   error?: string;
 };
+type BrowserTheaterModeResult = {
+  enabled: boolean;
+  applied: boolean;
+  videoUrl: string | null;
+};
 type I18nModule = {
   DEFAULT_LOCALE: SupportedLocale;
   normalizeLocale(value: unknown): SupportedLocale;
@@ -208,6 +213,7 @@ const JABLE_HOME_URL = configuredHomeUrl();
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
+const BROWSER_THEATER_MODE_REQUEST_TIMEOUT_MS = 5000;
 const BROWSER_SESSION_SAVE_DELAY_MS = 400;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
@@ -905,6 +911,38 @@ function syncBrowserTabMediaState(tab: BrowserTab | null | undefined) {
   getBrowserTabManager().syncTabMediaState(tab);
 }
 
+function normalizeBrowserTheaterModeResult(value: unknown, fallbackEnabled: boolean): BrowserTheaterModeResult {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : fallbackEnabled,
+    applied: Boolean(record.applied),
+    videoUrl: typeof record.videoUrl === 'string' && record.videoUrl ? record.videoUrl : null
+  };
+}
+
+async function setBrowserTabTheaterMode(tab: BrowserTab, enabled: boolean): Promise<BrowserTheaterModeResult> {
+  const result = normalizeBrowserTheaterModeResult(
+    await requestBrowserPreload<BrowserTheaterModeResult>(
+      tab,
+      'browser:set-theater-mode-request',
+      { enabled: enabled },
+      BROWSER_THEATER_MODE_REQUEST_TIMEOUT_MS
+    ),
+    enabled
+  );
+
+  tab.theaterMode = result.enabled;
+  return result;
+}
+
+function syncBrowserTheaterModeFromEvent(event: Electron.IpcMainEvent, payload: unknown) {
+  const tab = getBrowserTabByWebContents(event.sender);
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+
+  if (!tab || typeof record.enabled !== 'boolean') return;
+  tab.theaterMode = record.enabled;
+}
+
 function normalizeBrowserPreloadResponse(payload: unknown): BrowserPreloadResponse {
   const channel = 'browser:preload-response';
   const record = requiredRecord(payload, channel);
@@ -1085,6 +1123,7 @@ function getContextMenuManager(): ContextMenuManager {
       canCreateBrowserTab: function () {
         return getBrowserTabManager().canCreateTab();
       },
+      canonicalJableVideoUrl: urlPolicy.canonicalJableVideoUrl,
       clipboard: electron.clipboard,
       closeBrowserTab: closeBrowserTab,
       forwardBrowserMessage: forwardBrowserMessage,
@@ -1101,6 +1140,7 @@ function getContextMenuManager(): ContextMenuManager {
       Menu: Menu,
       reloadBrowser: reloadBrowser,
       safeCreateBrowserTab: safeCreateBrowserTab,
+      setBrowserTabTheaterMode: setBrowserTabTheaterMode,
       setBrowserTabMuted: setBrowserTabMuted,
       shell: shell,
       syncBrowserTabMediaState: syncBrowserTabMediaState,
@@ -1223,6 +1263,7 @@ function registerIpcHandlers() {
     showBrowserTabMenu: showBrowserTabMenu,
     showLibraryVideoMenu: showLibraryVideoMenu,
     syncBrowserCollectionInWorker: syncBrowserCollectionInWorker,
+    syncBrowserTheaterModeFromEvent: syncBrowserTheaterModeFromEvent,
     syncPayloadForEvent: syncPayloadForEvent,
     syncRunForCollection: syncRunForCollection,
     updateAppSettings: updateAppSettings

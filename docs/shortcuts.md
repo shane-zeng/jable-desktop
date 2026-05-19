@@ -13,6 +13,8 @@ This document inventories the application-specific keyboard shortcuts, mouse sho
 | Next browser tab        | `Control+Tab`, `Command+Option+Right`, `Shift+Command+]`      | `Ctrl+Tab`, `Ctrl+PageDown`           | Moves to the next tab on the right in tab rail order, wrapping from the last tab to the first tab.    |
 | Previous browser tab    | `Control+Shift+Tab`, `Command+Option+Left`, `Shift+Command+[` | `Ctrl+Shift+Tab`, `Ctrl+PageUp`       | Moves to the previous tab on the left in tab rail order, wrapping from the first tab to the last tab. |
 | Toggle compact tab mode | `Command+S`                                                   | `Ctrl+S`                              | Toggles tab rail compact mode only when the current top-level view is Browser.                        |
+| Toggle Theater Mode     | `T`                                                           | `T`                                   | Toggles theater mode on trusted Jable video pages when focus is not in an editable field.             |
+| Exit Theater Mode       | `Esc`                                                         | `Esc`                                 | Leaves theater mode for the current browser tab without changing HTML fullscreen behavior.            |
 
 ## Mouse Shortcuts
 
@@ -23,6 +25,12 @@ This document inventories the application-specific keyboard shortcuts, mouse sho
 | Local Data video cards      | Middle-click the thumbnail or title               | Opens the video page in a new background browser tab and keeps Local Data active. |
 | Local Data video cards      | macOS `Command+Click` the thumbnail or title      | Opens the video page in a new background browser tab and keeps Local Data active. |
 | Local Data video cards      | Windows/Linux `Ctrl+Click` the thumbnail or title | Opens the video page in a new background browser tab and keeps Local Data active. |
+
+## Context Menu Quick Actions
+
+| Location                  | Action       | Behavior                                                                                                                                    |
+| ------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Jable video browser pages | Theater Mode | Toggles a tab-scoped large player inside the current browser content area without entering fullscreen or covering the app top bar/tab rail. |
 
 ## Browser Gestures
 
@@ -61,5 +69,6 @@ These items are provided through Electron menu `role` entries. Labels and accele
 - The shortcut handler ignores auto-repeat and uses a short debounce to avoid handling the same keypress from multiple `webContents`.
 - After a successful tab switch, focus is moved to the new active BrowserView so repeated tab-switching shortcuts continue to work.
 - Tab-switching, opener-group new-tab placement, close activation, and reload shortcut helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser-shortcut-manager.ts`.
+- Theater mode can be toggled from the context menu or with plain `T` on trusted Jable video pages. `Command+T` / `Ctrl+T` still opens a new browser tab, and editable fields keep normal text input.
 - Embedded browser middle-click new-tab behavior lives in `app/webview-preload.ts`; Local Data video-card new-tab gestures originate in `app/renderer-src/components/VideoCard.vue`, and `app/renderer-src/App.vue` decides whether the created browser tab is activated.
 - Electron menu role defaults follow the Electron documentation: <https://www.electronjs.org/docs/latest/tutorial/menus>.

@@ -37,6 +37,7 @@ export type BrowserTab = {
   canGoForward: boolean;
   controlledLoad: boolean;
   lastMainFrameLoadFailure: BrowserLoadFailure | null;
+  theaterMode: boolean;
 };
 type SerializedMediaState = {
   muted: boolean;
@@ -198,7 +199,8 @@ function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabs
     canGoBack: false,
     canGoForward: false,
     controlledLoad: false,
-    lastMainFrameLoadFailure: null
+    lastMainFrameLoadFailure: null,
+    theaterMode: false
   };
 
   browserTabs.splice(
@@ -275,12 +277,14 @@ function wireBrowserTab(tab: BrowserTab) {
   tab.view.webContents.on('did-stop-loading', function () {
     tab.loading = false;
     updateTabNavigationState(tab);
+    scheduleBrowserTheaterModeApply(tab);
     notifyBrowserTabsChanged();
   });
 
   tab.view.webContents.on('did-finish-load', function () {
     tab.loading = false;
     updateTabNavigationState(tab);
+    scheduleBrowserTheaterModeApply(tab);
     notifyBrowserTabsChanged();
   });
 
@@ -318,12 +322,14 @@ function wireBrowserTab(tab: BrowserTab) {
   tab.view.webContents.on('did-navigate', function (_event: Electron.Event, url: string) {
     tab.url = url || tab.view.webContents.getURL() || tab.url;
     updateTabNavigationState(tab);
+    scheduleBrowserTheaterModeApply(tab);
     notifyBrowserTabsChanged();
   });
 
   tab.view.webContents.on('did-navigate-in-page', function (_event: Electron.Event, url: string) {
     tab.url = url || tab.view.webContents.getURL() || tab.url;
     updateTabNavigationState(tab);
+    scheduleBrowserTheaterModeApply(tab);
     notifyBrowserTabsChanged();
   });
 
@@ -557,6 +563,26 @@ function attachActiveBrowserTab() {
     width: bounds.width,
     height: bounds.height
   });
+  scheduleBrowserTheaterModeApply(activeTab);
+}
+
+function sendBrowserTheaterModeMessage(tab: BrowserTab | null | undefined, channel: string) {
+  if (!tab || !tab.theaterMode || tab.view.webContents.isDestroyed()) return;
+
+  try {
+    tab.view.webContents.send(channel, { enabled: true });
+  } catch (error) {}
+}
+
+function scheduleBrowserTheaterModeApply(tab: BrowserTab | null | undefined) {
+  if (!tab || !tab.theaterMode) return;
+
+  setImmediate(function () {
+    sendBrowserTheaterModeMessage(tab, 'browser:apply-theater-mode');
+  });
+  setTimeout(function () {
+    sendBrowserTheaterModeMessage(tab, 'browser:apply-theater-mode');
+  }, 250);
 }
 
 function browserTabBounds(tab: BrowserTab): BrowserBoundsState {
@@ -602,6 +628,7 @@ function leaveBrowserHtmlFullScreen(tab: BrowserTab | null | undefined) {
   browserHtmlFullScreenTabId = null;
   attachActiveBrowserTab();
   focusBrowserTab(tab);
+  scheduleBrowserTheaterModeApply(tab);
 }
 
 function setBrowserBounds(bounds: BrowserBounds | null | undefined): BrowserBounds | null {

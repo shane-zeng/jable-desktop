@@ -7,6 +7,8 @@ const test = require('node:test');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
+const BROWSER_TAB_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser-tab-manager.ts');
+const CONTEXT_MENU_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'context-menu-manager.ts');
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
 const TYPES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'types', 'jable.ts');
@@ -288,6 +290,47 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(webviewPreload, /video\.currentTime = duration/);
   assert.match(webviewPreload, /function reloadAfterActiveLocalPlaybackRemoved/);
   assert.match(webviewPreload, /window\.location\.reload\(\)/);
+});
+
+test('browser theater mode uses preload IPC and tab-scoped state', function () {
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const browserTabManagerSource = readSource(BROWSER_TAB_MANAGER_SOURCE_PATH);
+  const contextMenuSource = readSource(CONTEXT_MENU_MANAGER_SOURCE_PATH);
+  const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+  const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const sessionSnapshotSource = browserTabManagerSource.slice(
+    browserTabManagerSource.indexOf('function browserSessionSnapshot'),
+    browserTabManagerSource.indexOf('export function createBrowserTabManager')
+  );
+  const forbiddenMethod = 'execute' + 'JavaScript';
+
+  assert.equal(mainSource.includes('.' + forbiddenMethod + '('), false);
+  assert.match(browserTabManagerSource, /theaterMode: boolean/);
+  assert.match(browserTabManagerSource, /scheduleBrowserTheaterModeApply/);
+  assert.match(browserTabManagerSource, /browser:apply-theater-mode/);
+  assert.equal(sessionSnapshotSource.includes('theaterMode'), false);
+  assert.match(contextMenuSource, /context\.theaterMode/);
+  assert.match(
+    contextMenuSource,
+    /canonicalJableVideoUrl\(tab\.url\) \|\| canonicalJableVideoUrl\(contextParams\.pageURL/
+  );
+  assert.match(mainSource, /function setBrowserTabTheaterMode/);
+  assert.match(mainSource, /browser:set-theater-mode-request/);
+  assert.match(ipcHandlersSource, /browser:theater-mode-changed/);
+  assert.match(webviewPreload, /function installTheaterModeController/);
+  assert.match(webviewPreload, /browser:set-theater-mode-request/);
+  assert.match(webviewPreload, /browser:get-theater-mode-request/);
+  assert.match(webviewPreload, /browser:apply-theater-mode/);
+  assert.match(webviewPreload, /browser:leave-theater-mode/);
+  assert.match(webviewPreload, /function theaterModeTargetForVideo/);
+  assert.match(webviewPreload, /THEATER_MODE_CONTROL_SELECTOR/);
+  assert.match(webviewPreload, /vjs-control-bar/);
+  assert.match(webviewPreload, /event\.key !== 'Escape'/);
+  assert.match(webviewPreload, /function toggleTheaterModeFromShortcut/);
+  assert.match(webviewPreload, /event\.key\.toLowerCase\(\) === 't'/);
+  assert.match(webviewPreload, /THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR/);
+  assert.match(webviewPreload, /!event\.metaKey/);
+  assert.match(webviewPreload, /sendTheaterModeChanged\(result\)/);
 });
 
 test('download records persist playback auto-resume block guard', function () {

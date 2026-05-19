@@ -80,6 +80,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
   - Back
   - Forward
   - Reload
+  - Theater mode on Jable video pages
   - New tab
   - Copy current page URL
 - Browser tab context menus can include:
@@ -101,6 +102,16 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Entering fullscreen stretches the active `WebContentsView` over the app chrome.
 - Leaving fullscreen restores the renderer-provided browser bounds.
 - Fullscreen applies to the active BrowserView, not a separate native app window.
+
+## Theater Mode
+
+- Theater mode is available from the embedded page context menu on trusted Jable video pages only.
+- Theater mode enlarges the detected player and its playback controls inside the current `WebContentsView` viewport without entering fullscreen, resizing the app window, or covering the top bar or tab rail.
+- Theater mode preference is stored per browser tab for the current app session only. Switching tabs, hiding the browser view, reloading, or navigating between Jable video pages preserves it; app restart does not.
+- When a tab with theater mode enabled returns to a Jable video page, the webview preload reapplies the theater layout after the player appears.
+- Pressing plain `T` on a trusted Jable video page toggles theater mode when focus is not in an editable field. `Command+T` / `Ctrl+T` keeps its existing new-tab behavior.
+- Pressing `Esc` while theater mode is active disables theater mode for that tab.
+- HTML fullscreen remains separate and takes priority over theater layout while fullscreen is active.
 
 ## WebView Enhancement Mode
 

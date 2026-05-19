@@ -101,6 +101,7 @@ export type IpcHandlersContext = {
     tabId: string | null;
     options: SyncBrowserCollectionOptions;
   }): Promise<SyncResult>;
+  syncBrowserTheaterModeFromEvent(event: Electron.IpcMainEvent, payload: unknown): void;
   syncPayloadForEvent(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent, payload: unknown): unknown;
   syncRunForCollection(collectionKey: CollectionKey): ActiveSyncRun | null;
   updateAppSettings(patch: unknown): AppSettings;
@@ -431,6 +432,10 @@ function registerBrowserHandlers(context: IpcHandlersContext) {
   });
 
   context.ipcMain.on('browser:preload-response', context.resolveBrowserPreloadResponse);
+
+  context.ipcMain.on('browser:theater-mode-changed', function (event, payload) {
+    context.syncBrowserTheaterModeFromEvent(event, payload);
+  });
 
   context.ipcMain.on('browser:sync-page', function (event, payload) {
     context.forwardBrowserMessage('sync-page', context.syncPayloadForEvent(event, payload));
