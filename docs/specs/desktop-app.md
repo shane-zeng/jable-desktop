@@ -49,7 +49,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Select All for visible downloadable video cards only
   - Search text
   - Search mode: `any`, `all`, `phrase`
-  - Download state filter: all collection rows or not downloaded rows
+  - Download state filter: all collection rows, downloadable rows, or downloaded rows
   - Sort key: `site_order`, `title`, `views`, `likes`
   - Sort direction: `asc`, `desc`
   - Pagination
@@ -57,7 +57,8 @@ This document specifies the current user-facing Electron desktop application beh
 - Video cards show thumbnail, optional hover preview, title, views, likes, and last synced time.
 - Video cards show a compact download button and a checkbox for selected batch download. Download controls reflect the global download state for that video URL and avoid showing detailed progress or error text on source collection cards.
 - Select All does not select `queued`, `downloading`, or `ready` cards.
-- The not downloaded collection filter shows rows with no download record plus `paused`, `failed`, or `missing` records. It excludes `queued`, `downloading`, and `ready` records.
+- The downloadable collection filter shows rows with no download record plus `paused`, `failed`, or `missing` records. It excludes `queued`, `downloading`, and `ready` records.
+- The downloaded collection filter shows only rows with a `ready` download record.
 - Clicking a local video opens it in the current browser tab.
 - Middle-click or platform new-tab click opens a local video in a background browser tab and keeps Local Data active.
 - Right-clicking a local video opens a native context menu with open/copy actions.

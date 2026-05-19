@@ -41,7 +41,8 @@
     },
     "collectionDownloadFilter": {
       "all": "すべて",
-      "downloadable": "未ダウンロード"
+      "downloadable": "ダウンロード可能",
+      "downloaded": "ダウンロード済み"
     },
     "searchMode": {
       "any": "いずれかの語",

@@ -135,7 +135,7 @@ export function normalizeCollectionDownloadFilter(
   channel: string
 ): CollectionDownloadFilter | undefined {
   if (value === null || typeof value === 'undefined') return undefined;
-  if (value === 'all' || value === 'downloadable') return value;
+  if (value === 'all' || value === 'downloadable' || value === 'downloaded') return value;
   throw ipcPayloadError(channel, 'downloadFilter');
 }
 

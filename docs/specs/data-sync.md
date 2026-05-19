@@ -1,6 +1,6 @@
 # Data And Sync Specification
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-20
 
 This document specifies local data, search, sync, outbox, and JSON import/export behavior.
 
@@ -83,6 +83,7 @@ Important outbox fields:
 - Default local sort is `site_order` ascending.
 - Rows with no `site_order` sort after ordered rows for site-order sorting.
 - `downloadFilter: downloadable` keeps rows with no download record plus `paused`, `failed`, or `missing` download records, and excludes `queued`, `downloading`, and `ready` records.
+- `downloadFilter: downloaded` keeps only rows with a `ready` download record.
 
 ## Search
 

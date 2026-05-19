@@ -549,14 +549,19 @@ test('listVideos can filter collection rows to downloadable videos', function (t
   const urls = db.listVideos('favourites', { downloadFilter: 'downloadable' }).map(function (row) {
     return row.url;
   });
+  const downloadedUrls = db.listVideos('favourites', { downloadFilter: 'downloaded' }).map(function (row) {
+    return row.url;
+  });
 
   assert.equal(db.countVideos('favourites', { downloadFilter: 'downloadable' }), 4);
+  assert.equal(db.countVideos('favourites', { downloadFilter: 'downloaded' }), 1);
   assert.deepEqual(urls, [
     'https://jable.tv/videos/no-record/',
     'https://jable.tv/videos/failed-record/',
     'https://jable.tv/videos/paused-record/',
     'https://jable.tv/videos/missing-record/'
   ]);
+  assert.deepEqual(downloadedUrls, ['https://jable.tv/videos/ready-record/']);
 });
 
 test('applyCollectionToggle adds, hides, and restores a local collection item', function (t) {

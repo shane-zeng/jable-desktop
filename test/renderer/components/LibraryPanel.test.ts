@@ -68,18 +68,21 @@ describe('LibraryPanel', function () {
     expect(wrapper.text()).toContain('Full Sync');
     expect(wrapper.text()).toContain('Select All');
     expect(wrapper.text()).toContain('Download Selected (0)');
-    expect(wrapper.text()).toContain('Not Downloaded');
+    expect(wrapper.text()).toContain('Downloadable');
+    expect(wrapper.text()).toContain('Downloaded');
     expect(wrapper.text()).not.toContain('Import JSON');
     expect(wrapper.text()).toContain('No local data yet');
     expect(wrapper.find('input[type="search"]').attributes('placeholder')).toBe('Search title or URL');
     expect(wrapper.find('[aria-label="Search Mode"]').text()).toContain('Any Word');
     expect(wrapper.find('[aria-label="Download State Filter"]').text()).toContain('All');
-    expect(wrapper.find('[aria-label="Download State Filter"]').text()).toContain('Not Downloaded');
+    expect(wrapper.find('[aria-label="Download State Filter"]').text()).toContain('Downloadable');
+    expect(wrapper.find('[aria-label="Download State Filter"]').text()).toContain('Downloaded');
     expect(wrapper.find('[aria-label="Sort"]').text()).toContain('Site Order');
     expect(wrapper.find('[aria-label="Sort Direction"]').text()).toContain('Ascending');
 
     await wrapper.get('select[aria-label="Download State Filter"]').setValue('downloadable');
-    expect(wrapper.emitted('update:collection-download-filter')).toEqual([['downloadable']]);
+    await wrapper.get('select[aria-label="Download State Filter"]').setValue('downloaded');
+    expect(wrapper.emitted('update:collection-download-filter')).toEqual([['downloadable'], ['downloaded']]);
   });
 
   it('renders Japanese controls, placeholders, empty state, and option labels', function () {

@@ -55,15 +55,17 @@ impl ListQueryOptions {
         };
         let download_filter = value_string(object_field(options, "downloadFilter"))
             .unwrap_or_else(|| "all".to_string());
-        let download_join = if download_filter == "downloadable" {
-            "LEFT JOIN download_assets da ON da.video_url = v.url"
-        } else {
-            ""
+        let download_join = match download_filter.as_str() {
+            "downloadable" => "LEFT JOIN download_assets da ON da.video_url = v.url",
+            "downloaded" => "JOIN download_assets da ON da.video_url = v.url",
+            _ => "",
         };
-        let download_visibility = if download_filter == "downloadable" {
-            "AND (da.video_url IS NULL OR da.status IN ('paused', 'failed', 'missing'))"
-        } else {
-            ""
+        let download_visibility = match download_filter.as_str() {
+            "downloadable" => {
+                "AND (da.video_url IS NULL OR da.status IN ('paused', 'failed', 'missing'))"
+            }
+            "downloaded" => "AND da.status = 'ready'",
+            _ => "",
         };
 
         Self {

@@ -41,7 +41,8 @@
     },
     "collectionDownloadFilter": {
       "all": "All",
-      "downloadable": "Not Downloaded"
+      "downloadable": "Downloadable",
+      "downloaded": "Downloaded"
     },
     "searchMode": {
       "any": "Any Word",

@@ -447,6 +447,28 @@ describe('useLibraryState', function () {
         limit: PAGE_SIZE,
         offset: 0
       });
+
+      setup.state.collectionDownloadFilter.value = 'downloaded';
+      await settleWatchers();
+
+      expect(api.countVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        searchMode: 'any',
+        downloadFilter: 'downloaded',
+        sort: 'site_order',
+        direction: 'asc'
+      });
+      expect(api.listVideos).toHaveBeenLastCalledWith({
+        collectionKey: 'favourites',
+        search: '',
+        searchMode: 'any',
+        downloadFilter: 'downloaded',
+        sort: 'site_order',
+        direction: 'asc',
+        limit: PAGE_SIZE,
+        offset: 0
+      });
     } finally {
       setup.stop();
     }

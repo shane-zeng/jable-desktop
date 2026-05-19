@@ -41,7 +41,8 @@
     },
     "collectionDownloadFilter": {
       "all": "全部",
-      "downloadable": "未下載"
+      "downloadable": "可下載",
+      "downloaded": "已下載"
     },
     "searchMode": {
       "any": "任一詞",

@@ -561,9 +561,21 @@ fn list_videos_can_filter_to_downloadable_collection_rows() {
             "downloadFilter": "downloadable"
         }))
         .expect("downloadable rows should list");
+    let downloaded_rows = engine
+        .list_videos(json!({
+            "collectionKey": "favourites",
+            "downloadFilter": "downloaded"
+        }))
+        .expect("downloaded rows should list");
     let urls: Vec<&str> = rows
         .as_array()
         .expect("rows should be an array")
+        .iter()
+        .filter_map(|row| row.get("url").and_then(Value::as_str))
+        .collect();
+    let downloaded_urls: Vec<&str> = downloaded_rows
+        .as_array()
+        .expect("downloaded rows should be an array")
         .iter()
         .filter_map(|row| row.get("url").and_then(Value::as_str))
         .collect();
@@ -588,6 +600,15 @@ fn list_videos_can_filter_to_downloadable_collection_rows() {
         json!(4)
     );
     assert_eq!(
+        engine
+            .count_videos(json!({
+                "collectionKey": "favourites",
+                "downloadFilter": "downloaded"
+            }))
+            .expect("downloaded rows should count"),
+        json!(1)
+    );
+    assert_eq!(
         urls,
         vec![
             "https://jable.tv/videos/no-record/",
@@ -595,6 +616,10 @@ fn list_videos_can_filter_to_downloadable_collection_rows() {
             "https://jable.tv/videos/paused-record/",
             "https://jable.tv/videos/missing-record/"
         ]
+    );
+    assert_eq!(
+        downloaded_urls,
+        vec!["https://jable.tv/videos/ready-record/"]
     );
 
     remove_temp_database(&mut engine);

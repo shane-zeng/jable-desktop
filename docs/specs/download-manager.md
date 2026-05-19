@@ -143,7 +143,8 @@ This document specifies the current Download List and local video file managemen
 - Batch download is based on explicit user selection, not the whole current page or the Download List contents.
 - The Select All action applies only to visible source cards that can start, resume, or retry a download.
 - Select All excludes `queued`, `downloading`, and `ready` source cards.
-- Collection tabs can filter to not downloaded rows. This filter includes rows with no download record, `paused`, `failed`, and `missing` records, and excludes `queued`, `downloading`, and `ready` records.
+- Collection tabs can filter to downloadable rows. This filter includes rows with no download record, `paused`, `failed`, and `missing` records, and excludes `queued`, `downloading`, and `ready` records.
+- Collection tabs can filter to downloaded rows. This filter includes only rows with a `ready` download record.
 - Selected batch download can enqueue normal downloads and retry selected failed or missing downloads.
 - Selected batch download resumes selected paused downloads.
 - Selection is cleared when the user changes collection, tab, page, search, sort, or search mode.

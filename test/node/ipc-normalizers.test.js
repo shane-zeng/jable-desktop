@@ -33,6 +33,16 @@ test('IPC normalizers preserve valid list options and reject invalid enums', fun
       offset: 20
     }
   );
+  assert.equal(
+    normalizers.normalizeListVideosOptions(
+      {
+        collectionKey: 'watch_later',
+        downloadFilter: 'downloaded'
+      },
+      'db:list-videos'
+    ).downloadFilter,
+    'downloaded'
+  );
 
   assert.throws(function () {
     normalizers.normalizeListVideosOptions({ collectionKey: 'favourites', sort: 'updated_at' }, 'db:list-videos');

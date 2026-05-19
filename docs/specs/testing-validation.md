@@ -90,7 +90,7 @@ Verify these behaviors when touching related desktop areas:
 - Local video cards show compact download states and do not expose detailed progress or error text.
 - Local video cards can be explicitly selected and the selected set can be queued for download without downloading the whole current page.
 - Local video card Select All selects only visible downloadable cards and skips already downloaded, queued, or active downloads.
-- Local video card download-state filtering can show not downloaded rows without including queued, active, or ready downloads.
+- Local video card download-state filtering can show downloadable rows without including queued, active, or ready downloads, and can show only ready downloaded rows.
 - Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
 - Settings can change the maximum active video downloads value and the queue starts additional active downloads up to that limit.
 - Settings can switch download speed mode between Stable, Balanced, and Fast without changing the maximum active video downloads value.
