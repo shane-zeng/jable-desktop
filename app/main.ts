@@ -445,8 +445,12 @@ function flushBrowserSession() {
   clearBrowserSessionSaveTimer();
 
   try {
-    if (getAppSettings().restoreBrowserTabsOnStartup) saveBrowserSessionNow();
-    else getBrowserSessionStore().clear();
+    if (!getAppSettings().restoreBrowserTabsOnStartup) {
+      getBrowserSessionStore().clear();
+      return;
+    }
+
+    if (browserTabManager && browserTabManager.tabCount() > 0) saveBrowserSessionNow();
   } catch (error) {
     console.error(error);
   }
@@ -645,14 +649,19 @@ function createWindow() {
   mainWindow.on('close', function (event: Electron.Event) {
     if (allowDownloadWindowClose) {
       allowDownloadWindowClose = false;
+      flushBrowserSession();
       return;
     }
-    if (!hasQueuedOrActiveDownloads()) return;
+    if (!hasQueuedOrActiveDownloads()) {
+      flushBrowserSession();
+      return;
+    }
 
     event.preventDefault();
     promptPauseDownloadsAndClose(mainWindow as Electron.BrowserWindow);
   });
   mainWindow.on('closed', function () {
+    if (browserTabManager) browserTabManager.closeAllTabs();
     mainWindow = null;
     closeAllSyncWorkers();
   });
@@ -685,7 +694,7 @@ function createInitialBrowserTabs() {
     for (let i = 0; i < snapshot.tabs.length; i++) {
       createBrowserTab({
         url: snapshot.tabs[i].url,
-        active: false,
+        active: true,
         locked: snapshot.tabs[i].locked,
         muted: snapshot.tabs[i].muted
       });

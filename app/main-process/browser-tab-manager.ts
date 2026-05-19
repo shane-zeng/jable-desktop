@@ -79,6 +79,7 @@ export type BrowserTabManager = {
   activateTab(tabId: string | null): BrowserTabsState;
   canCreateTab(): boolean;
   closeTab(tabId: string | null): BrowserTabsState;
+  closeAllTabs(): void;
   createTab(options?: CreateBrowserTabPayload | null): BrowserTabsState;
   detachAllTabs(): void;
   getTab(tabId?: string | null): BrowserTab;
@@ -492,6 +493,27 @@ function detachAllBrowserTabs() {
   }
 }
 
+function closeAllBrowserTabs() {
+  const tabs = browserTabs.slice();
+
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    rejectPreloadRequestsForWebContents(tab.view.webContents.id, t('errors.tabNotFound'));
+    detachBrowserTab(tab);
+    delete browserTabsById[tab.id];
+    delete webContentsTabIds[String(tab.view.webContents.id)];
+
+    try {
+      tab.view.webContents.close({ waitForBeforeUnload: false });
+    } catch (error) {}
+  }
+
+  browserTabs.splice(0, browserTabs.length);
+  activeBrowserTabId = null;
+  browserHtmlFullScreenTabId = null;
+  nextBrowserTabId = 1;
+}
+
 function focusBrowserTab(tab: BrowserTab | null | undefined) {
   if (!tab || !browserBounds.visible || !currentMainWindow()) return;
 
@@ -882,6 +904,7 @@ export function createBrowserTabManager(context: BrowserTabManagerContext): Brow
     activateRelativeTab: activateRelativeBrowserTab,
     activateTab: activateBrowserTab,
     canCreateTab: canCreateBrowserTab,
+    closeAllTabs: closeAllBrowserTabs,
     closeTab: closeBrowserTab,
     createTab: createBrowserTab,
     detachAllTabs: detachAllBrowserTabs,

@@ -74,6 +74,25 @@ async function findPreloadBridgeWindow(electronApp) {
   throw new Error('Timed out waiting for the renderer window preload IPC bridge.');
 }
 
+async function waitForWindowCount(electronApp, count) {
+  const startedAt = Date.now();
+  const timeoutMs = 10000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const actual = await electronApp.evaluate(function ({ BrowserWindow }) {
+      return BrowserWindow.getAllWindows().length;
+    });
+
+    if (actual === count) return;
+
+    await new Promise(function (resolve) {
+      setTimeout(resolve, 100);
+    });
+  }
+
+  throw new Error('Timed out waiting for Electron window count: ' + count);
+}
+
 test('desktop app starts and exposes the preload IPC bridge', async function () {
   const userDataDir = createTempUserDataDir();
   const smokeServer = await startSmokeServer();
@@ -134,6 +153,8 @@ test('desktop app restores previous browser tabs when enabled', async function (
   const smokeServer = await startSmokeServer();
   const firstUrl = smokeServer.url + '?tab=one';
   const secondUrl = smokeServer.url + '?tab=two';
+  const thirdUrl = smokeServer.url + '?tab=three';
+  const fourthUrl = smokeServer.url + '?tab=four';
   let electronApp = null;
 
   try {
@@ -143,10 +164,12 @@ test('desktop app restores previous browser tabs when enabled', async function (
     writeJson(path.join(userDataDir, 'browser-session.json'), {
       version: 1,
       updatedAt: '2026-05-19T00:00:00.000Z',
-      activeTabIndex: 1,
+      activeTabIndex: 2,
       tabs: [
         { url: firstUrl, locked: false, muted: false },
-        { url: secondUrl, locked: true, muted: true }
+        { url: secondUrl, locked: true, muted: true },
+        { url: thirdUrl, locked: false, muted: false },
+        { url: fourthUrl, locked: false, muted: false }
       ]
     });
 
@@ -167,12 +190,35 @@ test('desktop app restores previous browser tabs when enabled', async function (
       return globalThis.jableApp.listBrowserTabs();
     });
 
-    expect(restoredTabs.tabs.length).toBe(2);
+    expect(restoredTabs.tabs.length).toBe(4);
     expect(restoredTabs.tabs[0].url).toBe(firstUrl);
     expect(restoredTabs.tabs[1].url).toBe(secondUrl);
-    expect(restoredTabs.activeTabId).toBe(restoredTabs.tabs[1].id);
+    expect(restoredTabs.tabs[2].url).toBe(thirdUrl);
+    expect(restoredTabs.tabs[3].url).toBe(fourthUrl);
+    expect(restoredTabs.activeTabId).toBe(restoredTabs.tabs[2].id);
     expect(restoredTabs.tabs[1].locked).toBe(true);
     expect(restoredTabs.tabs[1].muted).toBe(true);
+
+    await electronApp.evaluate(function ({ BrowserWindow }) {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows[0]) windows[0].close();
+    });
+    await waitForWindowCount(electronApp, 0);
+    await electronApp.evaluate(function ({ app }) {
+      app.emit('activate');
+    });
+
+    const reopenedWindow = await findPreloadBridgeWindow(electronApp);
+    const reopenedTabs = await reopenedWindow.evaluate(function () {
+      return globalThis.jableApp.listBrowserTabs();
+    });
+
+    expect(reopenedTabs.tabs.length).toBe(4);
+    expect(reopenedTabs.tabs[0].url).toBe(firstUrl);
+    expect(reopenedTabs.tabs[1].url).toBe(secondUrl);
+    expect(reopenedTabs.tabs[2].url).toBe(thirdUrl);
+    expect(reopenedTabs.tabs[3].url).toBe(fourthUrl);
+    expect(reopenedTabs.activeTabId).toBe(reopenedTabs.tabs[2].id);
   } finally {
     if (electronApp) await electronApp.close();
     await smokeServer.close();
