@@ -30,6 +30,7 @@ const emit = defineEmits<{
 }>();
 
 const downloadQueueActionsRef = ref<HTMLDetailsElement | null>(null);
+const downloadQueueActionsSummaryRef = ref<HTMLElement | null>(null);
 
 const selectedDownloadUrlSet = computed(function () {
   return new Set(props.selectedDownloadUrls);
@@ -73,6 +74,14 @@ function closeDownloadQueueActions() {
   if (downloadQueueActionsRef.value) downloadQueueActionsRef.value.open = false;
 }
 
+function closeDownloadQueueActionsWithFocus() {
+  const queueActions = downloadQueueActionsRef.value;
+  if (!queueActions || !queueActions.open) return;
+
+  queueActions.open = false;
+  downloadQueueActionsSummaryRef.value?.focus();
+}
+
 function closeDropdownOnOutsideClick(event: MouseEvent) {
   const target = event.target;
   if (!(target instanceof Node)) return;
@@ -100,8 +109,14 @@ onBeforeUnmount(function () {
     >
       {{ t('downloadList.retryFailed') }}
     </button>
-    <details ref="downloadQueueActionsRef" class="relative" data-test="download-queue-actions">
+    <details
+      ref="downloadQueueActionsRef"
+      class="relative"
+      data-test="download-queue-actions"
+      @keydown.esc.prevent.stop="closeDownloadQueueActionsWithFocus"
+    >
       <summary
+        ref="downloadQueueActionsSummaryRef"
         class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md border border-[var(--control-border)] bg-[var(--control)] px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm outline-none hover:border-[var(--accent)] hover:bg-[var(--control-hover)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden"
       >
         <span>{{ t('downloadList.queueActions') }}</span>

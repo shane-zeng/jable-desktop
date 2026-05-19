@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LibraryPanel from '@/components/LibraryPanel.vue';
 import { setLocale } from '@/i18n';
 import type { DownloadRecord } from '../../../app/types/jable';
@@ -499,10 +499,24 @@ describe('LibraryPanel', function () {
     document.body.click();
     expect(stateFilterMenu.open).toBe(false);
 
+    const stateFilterSummary = empty.get('[data-test="download-state-filters"] summary').element as HTMLElement;
+    const stateFilterFocus = vi.spyOn(stateFilterSummary, 'focus');
+    stateFilterMenu.open = true;
+    await empty.get('[data-test="download-state-filter-ready"]').trigger('keydown', { key: 'Escape' });
+    expect(stateFilterMenu.open).toBe(false);
+    expect(stateFilterFocus).toHaveBeenCalledOnce();
+
     const queueActionsMenu = empty.get('[data-test="download-queue-actions"]').element as HTMLDetailsElement;
     queueActionsMenu.open = true;
     document.body.click();
     expect(queueActionsMenu.open).toBe(false);
+
+    const queueActionsSummary = empty.get('[data-test="download-queue-actions"] summary').element as HTMLElement;
+    const queueActionsFocus = vi.spyOn(queueActionsSummary, 'focus');
+    queueActionsMenu.open = true;
+    await empty.get('[data-test="download-queue-actions"]').trigger('keydown', { key: 'Escape' });
+    expect(queueActionsMenu.open).toBe(false);
+    expect(queueActionsFocus).toHaveBeenCalledOnce();
   });
 
   it('renders download records and emits ready file open actions', async function () {

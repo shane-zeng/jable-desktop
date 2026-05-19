@@ -26,6 +26,7 @@ const emit = defineEmits<{
 }>();
 
 const downloadStateFiltersRef = ref<HTMLDetailsElement | null>(null);
+const downloadStateFiltersSummaryRef = ref<HTMLElement | null>(null);
 
 const selectedDownloadStateFilters = computed(function () {
   return new Set(props.downloadStateFilters);
@@ -80,6 +81,14 @@ function closeDropdownOnOutsideClick(event: MouseEvent) {
   if (stateFilters && stateFilters.open && !stateFilters.contains(target)) stateFilters.open = false;
 }
 
+function closeDownloadStateFiltersWithFocus() {
+  const stateFilters = downloadStateFiltersRef.value;
+  if (!stateFilters || !stateFilters.open) return;
+
+  stateFilters.open = false;
+  downloadStateFiltersSummaryRef.value?.focus();
+}
+
 onMounted(function () {
   document.addEventListener('click', closeDropdownOnOutsideClick);
 });
@@ -101,8 +110,14 @@ onBeforeUnmount(function () {
       :value="downloadSearch"
       @input="emit('update:download-search', inputValue($event))"
     />
-    <details ref="downloadStateFiltersRef" class="relative min-w-0" data-test="download-state-filters">
+    <details
+      ref="downloadStateFiltersRef"
+      class="relative min-w-0"
+      data-test="download-state-filters"
+      @keydown.esc.prevent.stop="closeDownloadStateFiltersWithFocus"
+    >
       <summary
+        ref="downloadStateFiltersSummaryRef"
         class="flex min-h-[42px] cursor-pointer list-none items-center justify-between rounded-md border border-[var(--control-border)] bg-[var(--control)] px-3 py-2 text-sm font-semibold text-[var(--text)] shadow-sm outline-none hover:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] [&::-webkit-details-marker]:hidden"
         :aria-label="t('downloadList.stateFilter')"
       >
