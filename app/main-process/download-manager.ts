@@ -2,10 +2,8 @@
 
 import type * as Electron from 'electron';
 import type * as NodeChildProcess from 'node:child_process';
-import type * as NodeCrypto from 'node:crypto';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
-import type * as NodeStream from 'node:stream';
 import type { NativeDownloadEngineModule } from '../download/native-download-engine';
 import type {
   AppSettings,
@@ -24,7 +22,6 @@ import type {
   FfmpegPathSelectionResult,
   FfmpegStatus,
   LocalPlaybackSourceResult,
-  LocalPlaybackUnavailableReason,
   OpenDownloadFileResult,
   PauseDownloadResult,
   RevealDownloadFileResult,
@@ -47,8 +44,8 @@ import {
   sanitizeDownloadErrorDetail
 } from './download-errors';
 import { normalizeCollectionKey, requiredRecord, requiredStringValue } from './ipc-normalizers';
-import { parseLocalPlaybackRangeHeader } from './local-playback';
 import { createLocalPlaybackPreviewController, type LocalPlaybackFile } from './local-playback-preview';
+import { createLocalPlaybackServer } from './local-playback-server';
 
 export {
   downloadFailureCode,
@@ -148,30 +145,10 @@ type DownloadDataStore = {
   upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord;
   removeDownloadAsset(videoUrl: string): boolean;
 };
-type LocalPlaybackSourceRequest = {
-  videoUrl: string | null;
-  sourcePageChineseSubtitleNotice: boolean | null;
-};
 type SourcePageChineseSubtitleNotice = {
   sourcePageChineseSubtitleNotice: boolean;
   sourcePageSubtitleNoticeText: string | null;
 };
-type LocalPlaybackRequestTarget =
-  | {
-      type: 'video';
-      token: string;
-    }
-  | {
-      type: 'preview-vtt';
-      token: string;
-    }
-  | {
-      type: 'preview-image';
-      token: string;
-      fileName: string;
-    };
-type LocalPlaybackResponseBody = ConstructorParameters<typeof Response>[0];
-type LocalPlaybackResponseHeaders = NonNullable<ConstructorParameters<typeof Response>[1]>['headers'];
 
 export type DownloadManagerContext = {
   app: Electron.App;
@@ -228,10 +205,8 @@ export type DownloadManager = {
 };
 
 const childProcess: typeof NodeChildProcess = require('node:child_process');
-const nodeCrypto: typeof NodeCrypto = require('node:crypto');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
-const stream: typeof NodeStream = require('node:stream');
 const downloadHelpers = require('../download/download-helpers') as DownloadHelpersModule;
 const nativeDownloadEngineModule = require('../download/native-download-engine') as {
   loadNativeDownloadEngine(): NativeDownloadEngineModule;
@@ -247,7 +222,6 @@ const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
 const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
 const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
-const LOCAL_PLAYBACK_TOKEN_TTL_MS = 30 * 60 * 1000;
 const CHINESE_SUBTITLE_NOTICE_TOKEN = '中文字幕版';
 const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY: Record<DownloadSpeedMode, { min: number; max: number }> = {
   stable: { min: 4, max: 8 },
@@ -277,7 +251,6 @@ const resumedDownloadUrls = new Set<string>();
 const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
 const activeDownloadTasks = new Map<string, Promise<void>>();
-const localPlaybackTokens = new Map<string, { videoUrl: string; expiresAt: number }>();
 const hlsPlaybackCaptureProgressNotifications = new Map<
   string,
   { captured: number; notifiedAt: number; total: number }
@@ -293,6 +266,14 @@ const localPlaybackPreviewController = createLocalPlaybackPreviewController({
   localPlaybackScheme: LOCAL_PLAYBACK_SCHEME,
   notifyDownloadsChanged: notifyDownloadsChanged,
   resolveManagedDownloadPath: resolveManagedDownloadPath
+});
+const localPlaybackServer = createLocalPlaybackServer({
+  canonicalVideoUrl: urlPolicy.canonicalJableVideoUrl,
+  getPersistedDownload: getPersistedDownload,
+  localPlaybackScheme: LOCAL_PLAYBACK_SCHEME,
+  previewController: localPlaybackPreviewController,
+  readyFile: localPlaybackReadyFile,
+  reconcileDownloadRecordFileState: reconcileDownloadRecordFileState
 });
 
 function t(key: string, params?: TranslationParams | null): string {
@@ -899,89 +880,6 @@ function resolveManagedDownloadPath(fileRelativePath: string | null): string | n
   return filePath;
 }
 
-function localPlaybackUnavailable(
-  videoUrl: string | null,
-  reason: LocalPlaybackUnavailableReason
-): LocalPlaybackSourceResult {
-  return {
-    available: false,
-    videoUrl: videoUrl,
-    reason: reason
-  };
-}
-
-function localPlaybackTokenUrl(token: string): string {
-  return LOCAL_PLAYBACK_SCHEME + '://play/' + token + '.mp4';
-}
-
-function purgeExpiredLocalPlaybackTokens(now = Date.now()) {
-  for (const entry of localPlaybackTokens) {
-    if (entry[1].expiresAt <= now) localPlaybackTokens.delete(entry[0]);
-  }
-}
-
-function createLocalPlaybackToken(videoUrl: string): string {
-  purgeExpiredLocalPlaybackTokens();
-  const token = nodeCrypto.randomBytes(18).toString('base64url');
-  localPlaybackTokens.set(token, {
-    videoUrl: videoUrl,
-    expiresAt: Date.now() + LOCAL_PLAYBACK_TOKEN_TTL_MS
-  });
-  return token;
-}
-
-function localPlaybackRequestTargetFromUrl(value: unknown): LocalPlaybackRequestTarget | null {
-  try {
-    const parsed = new URL(String(value || ''));
-    if (parsed.protocol !== LOCAL_PLAYBACK_SCHEME + ':') return null;
-
-    if (parsed.hostname === 'play') {
-      const match = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\.mp4$/);
-      return match
-        ? {
-            type: 'video',
-            token: match[1]
-          }
-        : null;
-    }
-
-    if (parsed.hostname === 'thumb') {
-      const vttMatch = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/thumb\.vtt$/);
-      if (vttMatch) {
-        return {
-          type: 'preview-vtt',
-          token: vttMatch[1]
-        };
-      }
-
-      const imageMatch = parsed.pathname.match(/^\/([A-Za-z0-9_-]+)\/(thumb-\d{6}\.jpg)$/);
-      return imageMatch
-        ? {
-            type: 'preview-image',
-            token: imageMatch[1],
-            fileName: imageMatch[2]
-          }
-        : null;
-    }
-
-    return null;
-  } catch (error) {
-    return null;
-  }
-}
-
-function videoUrlForLocalPlaybackToken(token: string): string | null {
-  const entry = localPlaybackTokens.get(token);
-  const now = Date.now();
-  if (!entry || entry.expiresAt <= now) {
-    localPlaybackTokens.delete(token);
-    return null;
-  }
-
-  entry.expiresAt = now + LOCAL_PLAYBACK_TOKEN_TTL_MS;
-  return entry.videoUrl;
-}
-
 function localPlaybackReadyFile(videoUrl: string): LocalPlaybackFile | null {
   const record = getPersistedDownload(videoUrl);
   const readyRecord = record ? reconcileDownloadRecordFileState(record) : null;
@@ -1003,174 +901,12 @@ function localPlaybackReadyFile(videoUrl: string): LocalPlaybackFile | null {
   }
 }
 
-function normalizeLocalPlaybackSourceRequest(value: unknown): LocalPlaybackSourceRequest {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const record = value as {
-      videoUrl?: unknown;
-      sourcePageChineseSubtitleNotice?: unknown;
-    };
-    const notice =
-      typeof record.sourcePageChineseSubtitleNotice === 'boolean' ? record.sourcePageChineseSubtitleNotice : null;
-    return {
-      videoUrl: urlPolicy.canonicalJableVideoUrl(record.videoUrl),
-      sourcePageChineseSubtitleNotice: notice
-    };
-  }
-
-  return {
-    videoUrl: urlPolicy.canonicalJableVideoUrl(value),
-    sourcePageChineseSubtitleNotice: null
-  };
-}
-
 function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
-  const request = normalizeLocalPlaybackSourceRequest(value);
-  const videoUrl = request.videoUrl;
-  if (!videoUrl) return localPlaybackUnavailable(null, 'not_video');
-
-  const record = getPersistedDownload(videoUrl);
-  if (!record) return localPlaybackUnavailable(videoUrl, 'not_ready');
-
-  const readyRecord = reconcileDownloadRecordFileState(record);
-  if (readyRecord.state === 'missing') return localPlaybackUnavailable(videoUrl, 'missing');
-  if (readyRecord.state !== 'ready') return localPlaybackUnavailable(videoUrl, 'not_ready');
-  if (
-    request.sourcePageChineseSubtitleNotice !== null &&
-    readyRecord.sourcePageChineseSubtitleNotice !== request.sourcePageChineseSubtitleNotice
-  ) {
-    return localPlaybackUnavailable(videoUrl, 'source_page_changed');
-  }
-
-  const readyFile = localPlaybackReadyFile(videoUrl);
-  if (!readyFile) return localPlaybackUnavailable(videoUrl, 'unavailable');
-
-  const token = createLocalPlaybackToken(readyFile.record.videoUrl);
-  const previewMetadata = localPlaybackPreviewController.readMetadata(readyFile);
-  if (!previewMetadata) localPlaybackPreviewController.scheduleGeneration(readyFile);
-
-  return {
-    available: true,
-    videoUrl: readyFile.record.videoUrl,
-    sourceUrl: localPlaybackTokenUrl(token),
-    thumbnailVttUrl: previewMetadata ? localPlaybackPreviewController.vttUrl(token) : null,
-    title: readyFile.record.title,
-    fileSizeBytes: readyFile.stats.size
-  };
-}
-
-function localPlaybackResponse(
-  status: number,
-  body: LocalPlaybackResponseBody,
-  headers?: LocalPlaybackResponseHeaders
-): Response {
-  return new Response(body, {
-    status: status,
-    headers: headers
-  });
-}
-
-function localPlaybackErrorResponse(status: number, message: string): Response {
-  return localPlaybackResponse(status, message, {
-    'cache-control': 'no-store',
-    'content-type': 'text/plain; charset=utf-8'
-  });
-}
-
-function localPlaybackFileResponse(file: LocalPlaybackFile, request: Request): Response {
-  const method = request.method.toUpperCase();
-  const size = file.stats.size;
-  const range = parseLocalPlaybackRangeHeader(request.headers.get('range'), size);
-  const headers: Record<string, string> = {
-    'accept-ranges': 'bytes',
-    'cache-control': 'no-store',
-    'content-type': 'video/mp4'
-  };
-
-  if (!range.satisfiable) {
-    return localPlaybackResponse(416, null, Object.assign(headers, { 'content-range': 'bytes */' + size }));
-  }
-
-  const contentLength = size === 0 ? 0 : range.end - range.start + 1;
-  headers['content-length'] = String(contentLength);
-  if (range.status === 206) headers['content-range'] = 'bytes ' + range.start + '-' + range.end + '/' + size;
-
-  if (method === 'HEAD' || contentLength === 0) {
-    return localPlaybackResponse(range.status, null, headers);
-  }
-
-  const fileStream = fs.createReadStream(file.filePath, {
-    start: range.start,
-    end: range.end
-  });
-  const body = stream.Readable.toWeb(fileStream) as unknown as LocalPlaybackResponseBody;
-  return localPlaybackResponse(range.status, body, headers);
-}
-
-function localPlaybackPreviewVttResponse(file: LocalPlaybackFile, request: Request): Response {
-  const metadata = localPlaybackPreviewController.readMetadata(file);
-  if (!metadata) return localPlaybackErrorResponse(404, 'Not Found');
-
-  const body = request.method.toUpperCase() === 'HEAD' ? null : localPlaybackPreviewController.vttText(metadata);
-  return localPlaybackResponse(200, body, {
-    'cache-control': 'private, max-age=1800',
-    'content-type': 'text/vtt; charset=utf-8'
-  });
-}
-
-function localPlaybackPreviewImageResponse(
-  file: LocalPlaybackFile,
-  target: Extract<LocalPlaybackRequestTarget, { type: 'preview-image' }>,
-  request: Request
-): Response {
-  const metadata = localPlaybackPreviewController.readMetadata(file);
-  if (
-    !metadata ||
-    !metadata.cues.some(function (cue) {
-      return cue.fileName === target.fileName;
-    })
-  ) {
-    return localPlaybackErrorResponse(404, 'Not Found');
-  }
-
-  const filePath = localPlaybackPreviewController.imageFilePath(file, target.fileName);
-  let stats: NodeFs.Stats;
-  try {
-    stats = fs.statSync(filePath);
-    if (!stats.isFile()) return localPlaybackErrorResponse(404, 'Not Found');
-  } catch (error) {
-    return localPlaybackErrorResponse(404, 'Not Found');
-  }
-
-  const headers = {
-    'cache-control': 'private, max-age=1800',
-    'content-length': String(stats.size),
-    'content-type': 'image/jpeg'
-  };
-  if (request.method.toUpperCase() === 'HEAD') return localPlaybackResponse(200, null, headers);
-
-  const fileStream = fs.createReadStream(filePath);
-  const body = stream.Readable.toWeb(fileStream) as unknown as LocalPlaybackResponseBody;
-  return localPlaybackResponse(200, body, headers);
+  return localPlaybackServer.source(value);
 }
 
 async function handleLocalPlaybackRequest(request: Request): Promise<Response> {
-  const method = request.method.toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD') {
-    return localPlaybackErrorResponse(405, 'Method Not Allowed');
-  }
-
-  const target = localPlaybackRequestTargetFromUrl(request.url);
-  if (!target) return localPlaybackErrorResponse(404, 'Not Found');
-
-  const videoUrl = videoUrlForLocalPlaybackToken(target.token);
-  if (!videoUrl) return localPlaybackErrorResponse(404, 'Not Found');
-
-  const readyFile = localPlaybackReadyFile(videoUrl);
-  if (!readyFile) return localPlaybackErrorResponse(404, 'Not Found');
-
-  if (target.type === 'preview-vtt') return localPlaybackPreviewVttResponse(readyFile, request);
-  if (target.type === 'preview-image') return localPlaybackPreviewImageResponse(readyFile, target, request);
-  return localPlaybackFileResponse(readyFile, request);
+  return localPlaybackServer.handleRequest(request);
 }
 
 async function cookieHeaderForUrl(targetUrl: string): Promise<string> {

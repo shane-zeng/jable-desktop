@@ -56,6 +56,7 @@ const WEBVIEW_VIDEO_METADATA_SOURCE_PATH = path.join(
   'webview-preload',
   'video-metadata.ts'
 );
+const LOCAL_PLAYBACK_SERVER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback-server.ts');
 const LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback-preview.ts');
 
 function readSource(filePath) {
@@ -307,6 +308,7 @@ test('local playback uses managed download records and browser-tab preload updat
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
   const localPlaybackSource = readSource(WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH);
+  const localPlaybackServerSource = readSource(LOCAL_PLAYBACK_SERVER_SOURCE_PATH);
   const localPlaybackPreviewSource = readSource(LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH);
 
   assert.match(mainSource, /registerSchemesAsPrivileged/);
@@ -316,8 +318,13 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(source, /function localPlaybackSource/);
   assert.match(source, /function handleLocalPlaybackRequest/);
   assert.match(source, /function localPlaybackReadyFile/);
+  assert.match(source, /createLocalPlaybackServer/);
+  assert.match(source, /localPlaybackServer\.source\(value\)/);
+  assert.match(localPlaybackServerSource, /function source/);
+  assert.match(localPlaybackServerSource, /function handleRequest/);
+  assert.match(localPlaybackServerSource, /options\.previewController\.readMetadata/);
+  assert.match(localPlaybackServerSource, /parseLocalPlaybackRangeHeader/);
   assert.match(source, /createLocalPlaybackPreviewController/);
-  assert.match(source, /localPlaybackPreviewController\.readMetadata/);
   assert.match(localPlaybackPreviewSource, /function scheduleGeneration/);
   assert.match(localPlaybackPreviewSource, /function vttText/);
   assert.match(localPlaybackPreviewSource, /function imageFilePath/);

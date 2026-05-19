@@ -40,7 +40,7 @@ type LocalPlaybackPreviewControllerOptions = {
   resolveManagedDownloadPath(fileRelativePath: string | null): string | null;
 };
 
-type LocalPlaybackPreviewController = {
+export type LocalPlaybackPreviewController = {
   imageFilePath(file: LocalPlaybackFile, fileName: string): string;
   readMetadata(file: LocalPlaybackFile): LocalPlaybackPreviewMetadata | null;
   removeFiles(record: DownloadRecord): void;

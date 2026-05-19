@@ -199,7 +199,7 @@ Desktop app files:
 
 - `app/app-contract.ts`: shared user-facing contract constants such as page size, app settings defaults, and settings limit ranges.
 - `app/main.ts`: Electron main-process entrypoint and composition root for app lifecycle, window creation, shared services, and manager registration.
-- `app/main-process/`: main-process domain modules for BrowserView tabs, keyboard shortcuts, app/native menus and update dialogs, context menus, download orchestration, local playback range and preview helpers, sync workers, IPC registration, IPC payload normalizers, settings persistence, and release update fetching.
+- `app/main-process/`: main-process domain modules for BrowserView tabs, keyboard shortcuts, app/native menus and update dialogs, context menus, download orchestration, local playback range/server/preview helpers, sync workers, IPC registration, IPC payload normalizers, settings persistence, and release update fetching.
 - `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
 - `app/webview-preload.ts`: preload composition root and scraper/pager DOM runtime injected into each embedded Jable `WebContentsView`.
 - `app/browser/`: browser/runtime policy modules: pure BrowserView tab policy, trusted URL policy, optional WebView loading and page cleanup rules, pure webview preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys, plus focused preload runtime modules under `app/browser/webview-preload/`.

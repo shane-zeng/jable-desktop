@@ -33,6 +33,8 @@ Before implementing a candidate:
   Bulk retry, resume, pause, and cancel flows share focused result accounting helpers while preserving action-specific single-record behavior in `app/main-process/download-manager.ts`.
 - Download Manager local playback preview split.
   Thumbnail preview metadata validation, VTT formatting, FFmpeg thumbnail generation, preview cache cleanup, and preview generation queue state now live in `app/main-process/local-playback-preview.ts`; `app/main-process/download-manager.ts` keeps local playback token routing, response streaming, download records, and manager IPC surface.
+- Download Manager local playback server split.
+  Local playback token TTL, custom-protocol request parsing, local video response streaming, thumbnail VTT/image responses, and `download:local-playback-source` shaping now live in `app/main-process/local-playback-server.ts`; `app/main-process/download-manager.ts` keeps ready-file lookup, download records, and manager API forwarding.
 - WebView preload DOM scraping cleanup.
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, and DOM replacement side effects.
 - HLS playback helper split.
