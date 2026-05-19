@@ -29,6 +29,7 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord 
       preview: null,
       sourcePageChineseSubtitleNotice: false,
       sourcePageSubtitleNoticeText: null,
+      downloadSource: 'normal',
       localPath: '/tmp/default.mp4',
       state: 'ready',
       progress: null,

@@ -14,6 +14,7 @@ function makeDownloadRecord(index: number, state: DownloadRecord['state'] = 'fai
     preview: null,
     sourcePageChineseSubtitleNotice: false,
     sourcePageSubtitleNoticeText: null,
+    downloadSource: 'normal',
     localPath: null,
     state: state,
     progress: null,

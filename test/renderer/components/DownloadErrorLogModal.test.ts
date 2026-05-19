@@ -16,6 +16,7 @@ function makeDownloadRecord(index: number): DownloadRecord {
     preview: null,
     sourcePageChineseSubtitleNotice: false,
     sourcePageSubtitleNoticeText: null,
+    downloadSource: 'normal',
     localPath: null,
     state: 'failed',
     progress: null,

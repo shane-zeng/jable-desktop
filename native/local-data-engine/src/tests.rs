@@ -125,6 +125,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
             "error": null,
             "sourcePageChineseSubtitleNotice": true,
             "sourcePageSubtitleNoticeText": "此作品曾在本站上傳，現已更新至中文字幕版。",
+            "downloadSource": "playback_auto",
             "completedAt": "2026-05-17T00:00:00.000Z"
         }))
         .expect("download asset should upsert");
@@ -156,6 +157,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         ready.get("sourcePageSubtitleNoticeText"),
         Some(&json!("此作品曾在本站上傳，現已更新至中文字幕版。"))
     );
+    assert_eq!(ready.get("downloadSource"), Some(&json!("playback_auto")));
     assert_eq!(ready.get("failurePhase"), Some(&Value::Null));
     assert_eq!(ready.get("failureCode"), Some(&Value::Null));
     assert_eq!(ready.get("attemptCount"), Some(&json!(0)));
@@ -215,6 +217,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         "attemptCount": 2,
         "sourcePageChineseSubtitleNotice": false,
         "sourcePageSubtitleNoticeText": null,
+        "downloadSource": "normal",
         "lastStartedAt": "2026-05-17T01:00:00.000Z",
             "lastErrorAt": "2026-05-17T01:01:00.000Z",
             "completedAt": null
@@ -240,6 +243,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         failed.get("sourcePageSubtitleNoticeText"),
         Some(&Value::Null)
     );
+    assert_eq!(failed.get("downloadSource"), Some(&json!("normal")));
     assert_eq!(
         failed.get("lastStartedAt"),
         Some(&json!("2026-05-17T01:00:00.000Z"))
@@ -284,6 +288,7 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
         fallback.get("preview"),
         Some(&json!("https://example.test/fallback-preview.mp4"))
     );
+    assert_eq!(fallback.get("downloadSource"), Some(&json!("normal")));
     engine
         .remove_download_asset(json!("https://jable.tv/videos/fallback-download/"))
         .expect("fallback download asset should remove");
@@ -444,6 +449,7 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         "last_error_at",
         "source_page_chinese_subtitle_notice",
         "source_page_subtitle_notice_text",
+        "download_source",
         "playback_auto_resume_blocked",
     ] {
         let exists: i64 = connection
@@ -474,6 +480,15 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         .expect("legacy source page notice should query");
     assert_eq!(source_page_chinese_subtitle_notice, 0);
 
+    let download_source: String = connection
+        .query_row(
+            "SELECT download_source FROM download_assets WHERE video_url = ?",
+            params!["https://jable.tv/videos/legacy-download/"],
+            |row| row.get(0),
+        )
+        .expect("legacy download source should query");
+    assert_eq!(download_source, "normal");
+
     let playback_auto_resume_blocked: i64 = connection
         .query_row(
             "SELECT playback_auto_resume_blocked FROM download_assets WHERE video_url = ?",
@@ -487,6 +502,7 @@ fn download_asset_failure_metadata_columns_migrate_existing_database() {
         .get_download_asset(json!("https://jable.tv/videos/legacy-download/"))
         .expect("legacy download asset should load");
     assert_eq!(legacy.get("attemptCount"), Some(&json!(0)));
+    assert_eq!(legacy.get("downloadSource"), Some(&json!("normal")));
     assert_eq!(legacy.get("playbackAutoResumeBlocked"), Some(&json!(false)));
     assert_eq!(
         legacy.get("sourcePageChineseSubtitleNotice"),

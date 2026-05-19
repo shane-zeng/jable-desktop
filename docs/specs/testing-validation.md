@@ -94,9 +94,11 @@ Verify these behaviors when touching related desktop areas:
 - Missing FFmpeg blocks download start/retry and Download List shows setup-required state.
 - Settings can change the maximum active video downloads value and the queue starts additional active downloads up to that limit.
 - Settings can switch download speed mode between Stable, Balanced, and Fast without changing the maximum active video downloads value.
-- Settings can toggle playback-triggered auto-download; it defaults off, and only actual video playback should create a Download List record and write managed segment files. Page preload of a playlist before playback must not start a persisted download.
+- Settings can toggle playback-triggered auto-download; it defaults off, and only user-initiated video playback should create a Download List record and write managed segment files. Page preload of a playlist, restored-tab autoplay, reload autoplay, or script-started playback must not start a persisted download.
+- Turning playback-triggered auto-download off pauses existing `playback_auto` queued/background/capture work without affecting formal `normal` downloads, and stale playback-background queue items must not start later while the setting is off.
 - Active playback-triggered downloads can be paused, canceled, or deleted from the Download List. Pause preserves reusable segments and stops further capture writes; cancel removes working segment files and leaves a failed canceled record; delete removes the record/files and prevents the still-open playback token from recreating them.
 - A simple playback-triggered pause can auto-download again after page refresh and playback. Once the user resumes that paused capture into the normal downloader and pauses it again, refreshed playback must not restart auto-download until the user explicitly resumes, retries, or enqueues it.
+- Formal `normal` download records that are paused, failed, missing, or canceled must not be restarted by video-page playback. They restart only through explicit Resume, Retry, or Download actions.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
 - Download List renders queued, downloading, paused, failed, ready, and missing rows.
 - Download List multi-select filters can show or combine All, Ready, Downloading, Queued, Paused, Failed, and Missing states, and the selection survives app restart.

@@ -14,6 +14,7 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord 
       preview: null,
       sourcePageChineseSubtitleNotice: false,
       sourcePageSubtitleNoticeText: null,
+      downloadSource: 'normal',
       localPath: '/tmp/default.mp4',
       state: 'ready',
       progress: null,
@@ -718,6 +719,8 @@ describe('LibraryPanel', function () {
     expect((wrapper.get('[data-test="download-pause-all"]').element as HTMLButtonElement).disabled).toBe(false);
     expect((wrapper.get('[data-test="download-resume-paused"]').element as HTMLButtonElement).disabled).toBe(true);
     expect((wrapper.get('[data-test="download-cancel-queued"]').element as HTMLButtonElement).disabled).toBe(false);
+    expect(cards[0].get('[data-test="download-record-cancel"]').classes()).toContain('danger-secondary');
+    expect(cards[0].get('[data-test="download-record-cancel"]').classes()).not.toContain('danger');
 
     await cards[0].get('[data-test="download-record-pause"]').trigger('click');
     await cards[1].get('[data-test="download-record-pause"]').trigger('click');

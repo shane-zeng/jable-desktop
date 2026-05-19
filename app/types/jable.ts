@@ -19,6 +19,7 @@ export type FfmpegStatusState = 'detected' | 'missing' | 'invalid_path' | 'unsup
 export type FfmpegStatusSource = 'path' | 'manual' | null;
 export type DownloadRootSource = 'default' | 'manual';
 export type DownloadState = 'queued' | 'downloading' | 'paused' | 'failed' | 'ready' | 'missing';
+export type DownloadSource = 'normal' | 'playback_auto';
 
 export interface CollectionDefinition {
   url: string;
@@ -185,6 +186,7 @@ export interface DownloadRecord {
   preview: string | null;
   sourcePageChineseSubtitleNotice: boolean;
   sourcePageSubtitleNoticeText: string | null;
+  downloadSource: DownloadSource;
   localPath: string | null;
   state: DownloadState;
   progress: number | null;

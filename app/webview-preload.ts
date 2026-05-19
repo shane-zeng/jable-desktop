@@ -163,6 +163,7 @@ const HLS_PROXY_MESSAGE_SOURCE = 'jable-desktop-hls-proxy';
 const HLS_PROXY_REQUEST_MESSAGE = 'jable-hls-proxy-url-request';
 const HLS_PROXY_RESPONSE_MESSAGE = 'jable-hls-proxy-url-response';
 const HLS_PROXY_PAGE_REQUEST_TIMEOUT_MS = 1500;
+const HLS_PLAYBACK_USER_GESTURE_TTL_MS = 8000;
 const THEATER_MODE_STYLE_ID = 'jable-desktop-theater-style';
 const THEATER_MODE_ROOT_CLASS = 'jable-desktop-theater-active';
 const THEATER_MODE_TARGET_CLASS = 'jable-desktop-theater-target';
@@ -218,6 +219,8 @@ let theaterModeApplyTimer: ReturnType<typeof setTimeout> | null = null;
 let theaterModeObserver: MutationObserver | null = null;
 let lastVideoMetadataRefreshSignature = '';
 let lastHlsPlaybackStartedVideoUrl = '';
+let lastHlsPlaybackStartedUserInitiated = false;
+let lastHlsPlaybackUserGestureAt = 0;
 const hlsPlaybackPageLoadId =
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
@@ -2094,6 +2097,7 @@ function installHlsPlaylistProxyBridge() {
     const requestId = typeof data.requestId === 'string' ? data.requestId : '';
     const playlistUrl = typeof data.playlistUrl === 'string' ? data.playlistUrl : '';
     const currentVideo = readCurrentVideoDetails();
+    const sourcePageNotice = readCurrentLocalPlaybackSourcePageNotice();
     const title = (currentVideo && currentVideo.title) || cleanVideoTitle(data.title) || '';
     const videoUrl = typeof data.videoUrl === 'string' ? data.videoUrl : '';
     if (!requestId || !playlistUrl || !videoUrl) return;
@@ -2107,6 +2111,8 @@ function installHlsPlaylistProxyBridge() {
         likes: currentVideo ? currentVideo.likes : null,
         img: currentVideo ? currentVideo.img : null,
         preview: currentVideo ? currentVideo.preview : null,
+        sourcePageChineseSubtitleNotice: sourcePageNotice.sourcePageChineseSubtitleNotice,
+        sourcePageSubtitleNoticeText: sourcePageNotice.sourcePageSubtitleNoticeText,
         videoUrl: videoUrl
       })
       .then(function (result: HlsPlaylistProxyUrlResult) {
@@ -2367,24 +2373,49 @@ function installHlsPlaylistProxyInterception() {
   injectHlsPlaylistProxyPageScript();
 }
 
+function markHlsPlaybackUserGesture(event: Event) {
+  const target = event.target;
+  if (target instanceof HTMLElement && target.matches(THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR)) return;
+  lastHlsPlaybackUserGestureAt = Date.now();
+}
+
+function hlsPlaybackWasUserInitiated() {
+  return Date.now() - lastHlsPlaybackUserGestureAt <= HLS_PLAYBACK_USER_GESTURE_TTL_MS;
+}
+
 function notifyHlsPlaybackStarted() {
   const videoUrl = currentVideoUrl();
-  if (!videoUrl || videoUrl === lastHlsPlaybackStartedVideoUrl) return;
+  const userInitiatedPlayback = hlsPlaybackWasUserInitiated();
+  if (
+    !videoUrl ||
+    (videoUrl === lastHlsPlaybackStartedVideoUrl && (!userInitiatedPlayback || lastHlsPlaybackStartedUserInitiated))
+  ) {
+    return;
+  }
 
   lastHlsPlaybackStartedVideoUrl = videoUrl;
+  lastHlsPlaybackStartedUserInitiated = userInitiatedPlayback;
   const currentVideo = readCurrentVideoDetails();
+  const sourcePageNotice = readCurrentLocalPlaybackSourcePageNotice();
   ipcRenderer.send('hls:playback-started', {
     videoUrl: videoUrl,
     pageLoadId: hlsPlaybackPageLoadId,
+    userInitiatedPlayback: userInitiatedPlayback,
     title: currentVideo ? currentVideo.title : null,
     views: currentVideo ? currentVideo.views : null,
     likes: currentVideo ? currentVideo.likes : null,
     img: currentVideo ? currentVideo.img : null,
-    preview: currentVideo ? currentVideo.preview : null
+    preview: currentVideo ? currentVideo.preview : null,
+    sourcePageChineseSubtitleNotice: sourcePageNotice.sourcePageChineseSubtitleNotice,
+    sourcePageSubtitleNoticeText: sourcePageNotice.sourcePageSubtitleNoticeText
   });
 }
 
 function installHlsPlaybackStartedObserver() {
+  document.addEventListener('pointerdown', markHlsPlaybackUserGesture, true);
+  document.addEventListener('click', markHlsPlaybackUserGesture, true);
+  document.addEventListener('touchstart', markHlsPlaybackUserGesture, true);
+  document.addEventListener('keydown', markHlsPlaybackUserGesture, true);
   document.addEventListener(
     'play',
     function (event) {

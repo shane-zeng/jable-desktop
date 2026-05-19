@@ -1,6 +1,6 @@
 # Download Manager Specification
 
-Last verified against implementation: 2026-05-18
+Last verified against implementation: 2026-05-19
 
 This document specifies the current Download List and local video file management behavior.
 
@@ -86,6 +86,7 @@ This document specifies the current Download List and local video file managemen
   - `preview`
   - `sourcePageChineseSubtitleNotice`
   - `sourcePageSubtitleNoticeText`
+  - `downloadSource`, either `normal` for user-formalized downloads or `playback_auto` for playback-triggered records not yet explicitly resumed, retried, or enqueued by the user
   - `localPath` as a managed-root-relative file path
   - `state`
   - `progress`
@@ -107,7 +108,7 @@ This document specifies the current Download List and local video file managemen
   - `failed`
   - `ready`
   - `missing`
-- Persisted `progress` is coarse-grained. It is normally `null` for queued/downloading/paused records and `1` for completed records. Playback-triggered capture may persist a reusable-segment completion fraction while it is filling the shared cache.
+- Persisted `progress` is coarse-grained. It is normally `null` for queued/downloading/paused records and `1` for completed records. Playback-triggered foreground capture also keeps persisted progress `null`; active capture/background completion progress is runtime-only so segment progress does not continually rewrite the download row timestamp.
 - While a download is active, the main process may add runtime-only `downloadedBytes` and `downloadSpeedBytesPerSecond` fields to `downloads-changed` payloads. These values are not persisted and are cleared when the active worker finishes.
 - Runtime speed is sampled at most once per second from completed downloaded segment bytes. It is a smoothed recent-throughput indicator, not a per-segment instantaneous peak.
 - Runtime downloaded bytes count only complete segment files that can be reused by resume. Partial `.part` files, local playlists, resume manifests, and key/control files are excluded from the user-facing downloaded-size number.
@@ -122,14 +123,18 @@ This document specifies the current Download List and local video file managemen
 ## Playback-Triggered Download
 
 - Settings > Downloads > Auto-download while playing is off by default.
-- With the setting on, the webview preload may proxy Jable page `.m3u8` requests through app-owned loopback token URLs. The proxy is allowed to serve page preload traffic before playback starts, but it must not create a download record or write segment files until the preload observes a real `<video>` `play` or `playing` event for the current trusted Jable video URL.
-- When playback starts, main prepares a managed capture plan from the playlist, writes or refreshes the `videos` row first, then writes the `download_assets` row. The capture metadata includes the current page title, thumbnail/preview URLs, views, and likes when the preload can read them.
-- While background completion is filling the shared segment cache, the Download List state is `downloading`. Player segment requests and background prefetch share the same in-flight fetch/file; the same media segment must not be fetched twice by playback capture and background completion. Active capture progress is reported to the renderer as runtime-only state so segment progress does not continually rewrite the download row timestamp.
-- Pause stops playback-capture background completion and stops future capture writes for the current page load. It keeps already captured reusable segments and leaves the record `paused`; in-flight segment streams are allowed to settle without crashing the main process. Continued page playback may still use Jable remote media without being saved. Reloading the video page starts a new page-load token, so playback can create a fresh capture again. Resume moves the record through the normal queued resume/remux path and clears the internal playback auto-resume block guard.
-- If a playback-triggered record is paused, then resumed from the Download List, ownership moves to the normal queued downloader. A later video-page refresh and playback does not create another playback-capture job while that record is `queued`, `downloading`, or `ready`; the page may continue normal Jable playback while the app-owned downloader finishes in the background. If the user pauses that normal queued or active downloader, the record stays `paused` with playback auto-resume blocked across app restarts, so refreshed playback uses normal Jable HLS until the user explicitly resumes, retries, or enqueues the download again.
+- Turning the setting off stops automatic playback ownership only. Existing `playback_auto` records are kept, but queued playback-background jobs, active playback-background workers, and foreground capture writes are paused without setting `playbackAutoResumeBlocked`; already saved reusable segments are preserved. Existing `normal` downloads are not affected by this setting change.
+- After the setting is turned off, stale playback-background queue entries must not start later when a download slot opens. Re-enabling the setting does not automatically resume old `playback_auto` cards; they resume only after a fresh user-initiated video-page playback trigger, or after the user explicitly starts the formal Resume, Retry, or Download path.
+- With the setting on, the webview preload may proxy Jable page `.m3u8` requests through app-owned loopback token URLs. The proxy is allowed to serve page preload traffic before playback starts, but it must not create a download record or write segment files until the preload observes a real `<video>` `play` or `playing` event for the current trusted Jable video URL after a recent user gesture in that page load. Restored tabs, page reloads, and site/script autoplay must not start or resume playback-triggered downloads by themselves.
+- When playback starts, main prepares a managed capture plan from the playlist, writes or refreshes the `videos` row first, then writes the `download_assets` row with `downloadSource = playback_auto`. The capture metadata includes the current page title, thumbnail/preview URLs, views, likes, and source-page Chinese subtitle notice when the preload can read them.
+- With auto-download enabled, playback capture creates the Download List record as `queued`. Foreground player segment requests may save reusable segment files while the record is queued, but they do not persist per-segment progress. Background completion is queued behind the same maximum active video download setting as normal downloads.
+- When a video download slot opens, the active playback-background worker marks the record `downloading`, resolves the current source page, records the source-page Chinese subtitle notice, runs the existing Node HLS proxy prefetch to fill missing media segment files, then continues through Rust resume/download and FFmpeg remux under the same active slot. Player segment requests and background prefetch share the same in-flight fetch/file; the same media segment must not be fetched twice by playback capture and background completion.
+- Pause stops queued or active playback-capture background completion and stops future capture writes for the current page load. It keeps already captured reusable segments and leaves the record `paused`; in-flight segment streams are allowed to settle without crashing the main process. Continued page playback may still use Jable remote media without being saved. Reloading the video page starts a new page-load token, but a fresh capture is created only after the user explicitly starts playback again in that reloaded page. This playback-background pause does not set `playbackAutoResumeBlocked`; only pausing the normal downloader after an explicit resume/retry/enqueue handoff sets that guard. Resume moves the record through the normal queued resume/remux path and clears the internal playback auto-resume block guard.
+- If a playback-triggered record is paused, then resumed/retried/enqueued from the Download List or a video card, ownership moves to the normal queued downloader and `downloadSource` becomes `normal`. A later video-page refresh and playback does not create another playback-capture job while that record is `queued`, `downloading`, or `ready`; the page may continue normal Jable playback while the app-owned downloader finishes in the background. If the user pauses that normal queued or active downloader, the record stays `paused` with playback auto-resume blocked across app restarts, so refreshed playback uses normal Jable HLS until the user explicitly resumes, retries, or enqueues the download again.
+- Any existing `normal` download record is treated as user-formalized ownership. Playback-triggered capture must not retry, replace, or restart it while it is `paused`, `failed`, `missing`, or canceled; the user must use Resume, Retry, or Download actions to start that formal download path again.
 - Cancel stops playback-capture background completion, stops future capture writes for the current page load, removes working segment files where possible, and leaves the record `failed` with the localized canceled message. Reloading the video page starts a new page-load token, so playback can create a fresh capture again. Retry clears suppression and uses the normal queued download path.
 - Delete stops playback-capture background completion, stops future capture writes for the current page load, removes managed media/working files and the download record, and suppresses recreating that record from the still-open playback token. Reloading the video page starts a new page-load token, so playback can create a fresh capture again.
-- When all media segments are present in the shared cache, the app queues the normal resume/remux worker. That worker reuses compatible local segments and produces the final MP4 without re-fetching those media segments.
+- After playback-background prefetch or foreground playback has filled reusable media segment files, the same active worker reuses compatible local segments and produces the final MP4 without re-fetching those media segments. Rust may still fetch missing keys or missing/incompatible segments before writing the local playlist used by FFmpeg.
 
 ## Local Data Cards
 
@@ -215,6 +220,7 @@ This document specifies the current Download List and local video file managemen
 - Resume All is global to `paused` records and reuses the same segment-level resume path as single-card Resume.
 - Cancel Queued is global to `queued` records and uses the same semantics as single queued cancel: the record becomes `failed` with the localized canceled message and ready MP4 files are not deleted.
 - Download List cards show selection checkboxes only for `ready`, `paused`, `failed`, and `missing` records.
+- Download List cards may render `playback_auto` records with a distinct border treatment. When a user action changes a card from `playback_auto` to `normal`, the card plays a short transition animation and then returns to the normal card treatment.
 - Delete Selected applies only to the currently visible selected eligible records. It asks for confirmation once, deletes managed files when present, removes records, and cleans safe working files. It does not modify Favourites, Watch Later, or Jable remote state.
 - Error Log is a hidden diagnostics modal for `failed` and `missing` records. It is intentionally not shown as a toolbar button; it opens only from the Download List with `Ctrl/Cmd+Shift+E` or the `D`, `L`, `E` key sequence within 2 seconds.
 - Error Log defaults to the most recent 100 records sorted by `lastErrorAt`, then `updatedAt`, then `createdAt`, with an explicit Show All control when more records exist.
@@ -240,6 +246,7 @@ This document specifies the current Download List and local video file managemen
 - Each active video download still uses Rust segment-level adaptive concurrency within the selected speed-mode envelope, so increasing active video downloads multiplies network and CPU usage.
 - Starting a download creates or updates a persisted record as `queued`.
 - The active worker marks the record `downloading`.
+- Playback-triggered background completion uses the same video queue and active slot limit as normal downloads; after the source page and subtitle notice are resolved, it gates the existing Node HLS proxy prefetch before the Rust resume/remux phase so playback capture and background completion can share already fetched media segment files.
 - The worker fetches the Jable video page using the isolated Jable session cookies.
 - The worker records whether the source page contains `<h5 class="desc h6-md">` text with `中文字幕版`; this is stored as `sourcePageChineseSubtitleNotice` plus the exact normalized notice text.
 - HLS playlist extraction is implemented in `app/download/download-helpers.ts`.

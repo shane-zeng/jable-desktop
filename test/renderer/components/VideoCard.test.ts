@@ -31,6 +31,7 @@ function makeDownloadRecord(video: VideoRow, overrides?: Partial<DownloadRecord>
       preview: video.preview,
       sourcePageChineseSubtitleNotice: false,
       sourcePageSubtitleNoticeText: null,
+      downloadSource: 'normal',
       localPath: '/tmp/sample.mp4',
       state: 'ready',
       progress: null,

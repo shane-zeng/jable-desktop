@@ -24,6 +24,7 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord 
       preview: null,
       sourcePageChineseSubtitleNotice: false,
       sourcePageSubtitleNoticeText: null,
+      downloadSource: 'normal',
       localPath: null,
       state: 'ready',
       progress: null,

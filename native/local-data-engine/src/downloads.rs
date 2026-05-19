@@ -14,6 +14,7 @@ const DOWNLOAD_STATES: [&str; 6] = [
     "ready",
     "missing",
 ];
+const DOWNLOAD_SOURCES: [&str; 2] = ["normal", "playback_auto"];
 
 struct DownloadAssetRow {
     video_url: String,
@@ -23,6 +24,7 @@ struct DownloadAssetRow {
     preview: Option<String>,
     source_page_chinese_subtitle_notice: bool,
     source_page_subtitle_notice_text: Option<String>,
+    download_source: String,
     local_path: Option<String>,
     state: String,
     progress: Option<f64>,
@@ -170,6 +172,22 @@ fn patch_state(value: &Value, existing: Option<String>) -> String {
     existing.unwrap_or_else(|| "queued".to_string())
 }
 
+fn patch_download_source(value: &Value, existing: Option<String>) -> String {
+    if has_field(value, &["downloadSource", "download_source"]) {
+        if let Some(source) = value_string(field(value, &["downloadSource", "download_source"])) {
+            if DOWNLOAD_SOURCES
+                .iter()
+                .any(|candidate| candidate == &source)
+            {
+                return source;
+            }
+        }
+        return "normal".to_string();
+    }
+
+    existing.unwrap_or_else(|| "normal".to_string())
+}
+
 fn asset_video_url(value: &Value, method: &str) -> Result<String> {
     let url = if value.is_string() {
         normalize_video_url(Some(value))
@@ -189,20 +207,21 @@ fn row_to_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<DownloadAssetRow> 
         preview: row.get(3)?,
         source_page_chinese_subtitle_notice: row.get(4)?,
         source_page_subtitle_notice_text: row.get(5)?,
-        local_path: row.get(6)?,
-        state: row.get(7)?,
-        progress: row.get(8)?,
-        playback_auto_resume_blocked: row.get(9)?,
-        file_size_bytes: row.get(10)?,
-        error: row.get(11)?,
-        failure_phase: row.get(12)?,
-        failure_code: row.get(13)?,
-        attempt_count: row.get(14)?,
-        last_started_at: row.get(15)?,
-        last_error_at: row.get(16)?,
-        created_at: row.get(17)?,
-        updated_at: row.get(18)?,
-        completed_at: row.get(19)?,
+        download_source: row.get(6)?,
+        local_path: row.get(7)?,
+        state: row.get(8)?,
+        progress: row.get(9)?,
+        playback_auto_resume_blocked: row.get(10)?,
+        file_size_bytes: row.get(11)?,
+        error: row.get(12)?,
+        failure_phase: row.get(13)?,
+        failure_code: row.get(14)?,
+        attempt_count: row.get(15)?,
+        last_started_at: row.get(16)?,
+        last_error_at: row.get(17)?,
+        created_at: row.get(18)?,
+        updated_at: row.get(19)?,
+        completed_at: row.get(20)?,
     })
 }
 
@@ -215,6 +234,7 @@ fn record_json(record: DownloadAssetRow) -> Value {
       "preview": record.preview,
       "sourcePageChineseSubtitleNotice": record.source_page_chinese_subtitle_notice,
       "sourcePageSubtitleNoticeText": record.source_page_subtitle_notice_text,
+      "downloadSource": record.download_source,
       "localPath": record.local_path,
       "state": record.state,
       "progress": record.progress,
@@ -292,7 +312,7 @@ impl Engine {
             .conn()?
             .query_row(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
-           da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text,
+           da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text, da.download_source,
            da.file_relative_path, da.status, da.progress, da.playback_auto_resume_blocked,
            da.size_bytes, da.error, da.failure_phase, da.failure_code, da.attempt_count, da.last_started_at, da.last_error_at,
            da.created_at, da.updated_at, da.downloaded_at
@@ -317,7 +337,7 @@ impl Engine {
             .conn()?
             .prepare(
                 "SELECT da.video_url, COALESCE(da.title, v.title), COALESCE(da.img, v.img), COALESCE(da.preview, v.preview),
-           da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text,
+           da.source_page_chinese_subtitle_notice, da.source_page_subtitle_notice_text, da.download_source,
            da.file_relative_path, da.status, da.progress, da.playback_auto_resume_blocked,
            da.size_bytes, da.error, da.failure_phase, da.failure_code, da.attempt_count, da.last_started_at, da.last_error_at,
            da.created_at, da.updated_at, da.downloaded_at
@@ -393,6 +413,12 @@ impl Engine {
             existing
                 .as_ref()
                 .and_then(|record| record.source_page_subtitle_notice_text.clone()),
+        );
+        let download_source = patch_download_source(
+            &payload,
+            existing
+                .as_ref()
+                .map(|record| record.download_source.clone()),
         );
         let local_path = normalize_file_relative_path(patch_string(
             &payload,
@@ -489,11 +515,11 @@ impl Engine {
             .execute(
                 "INSERT INTO download_assets (
            video_url, status, file_relative_path, format, title, img, preview,
-           source_page_chinese_subtitle_notice, source_page_subtitle_notice_text,
+           source_page_chinese_subtitle_notice, source_page_subtitle_notice_text, download_source,
            size_bytes, duration_seconds, progress, playback_auto_resume_blocked, error, failure_phase, failure_code, attempt_count,
            last_started_at, last_error_at, downloaded_at, last_checked_at, created_at, updated_at
          )
-         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, 'mp4', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(video_url) DO UPDATE SET
            status = excluded.status,
            file_relative_path = excluded.file_relative_path,
@@ -502,6 +528,7 @@ impl Engine {
            preview = excluded.preview,
            source_page_chinese_subtitle_notice = excluded.source_page_chinese_subtitle_notice,
            source_page_subtitle_notice_text = excluded.source_page_subtitle_notice_text,
+           download_source = excluded.download_source,
            size_bytes = excluded.size_bytes,
            progress = excluded.progress,
            playback_auto_resume_blocked = excluded.playback_auto_resume_blocked,
@@ -523,6 +550,7 @@ impl Engine {
                     preview,
                     source_page_chinese_subtitle_notice,
                     source_page_subtitle_notice_text,
+                    download_source,
                     file_size_bytes,
                     progress,
                     playback_auto_resume_blocked,

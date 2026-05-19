@@ -39,6 +39,8 @@ type HlsPlaybackCaptureMetadata = {
   likes: number | null;
   img: string | null;
   preview: string | null;
+  sourcePageChineseSubtitleNotice: boolean | null;
+  sourcePageSubtitleNoticeText: string | null;
 };
 type HlsPlaylistProxyToken = HlsProbeTabContext & {
   assets: Record<string, HlsPlaylistProxyAsset>;
@@ -65,7 +67,12 @@ type HlsPlaylistProxyAbort = {
   clientAborted(): boolean;
   signal: AbortSignal;
 };
+type HlsPlaybackBackgroundCompletionWorker = (signal: AbortSignal) => Promise<void>;
 type HlsPlaylistProxyResponseBody = ConstructorParameters<typeof Response>[0];
+type HlsPlaybackCaptureActivePage = {
+  expiresAt: number;
+  userInitiatedPlayback: boolean;
+};
 type HlsPlaybackCaptureContext = {
   canonicalJableVideoUrl(value: unknown): string | null;
   env?: Record<string, string | undefined> | null;
@@ -77,16 +84,24 @@ type HlsPlaybackCaptureContext = {
   logger?: { info(message?: unknown, ...optionalParams: unknown[]): void } | null;
   isAutoDownloadOnPlaybackEnabled?(): boolean;
   completeHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): void;
+  queueHlsPlaybackBackgroundCompletion?(value: {
+    videoUrl: string;
+    pageLoadId?: string | null;
+    run: HlsPlaybackBackgroundCompletionWorker;
+  }): void;
   shouldContinueHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): boolean;
   shouldProxyHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): boolean;
   prepareHlsPlaybackCapture?(value: {
     videoUrl: string;
     pageLoadId?: string | null;
+    userInitiatedPlayback?: boolean | null;
     title: string | null;
     views: number | null;
     likes: number | null;
     img: string | null;
     preview: string | null;
+    sourcePageChineseSubtitleNotice?: boolean | null;
+    sourcePageSubtitleNoticeText?: string | null;
     playlistUrl: string;
     playlistText: string;
   }): HlsPlaybackCapturePlan | null;
@@ -124,7 +139,7 @@ let hlsProbeSegmentLimitReported = false;
 const hlsProbeRequests = new Map<number, HlsProbeRecord>();
 const hlsPlaylistProxyTokens = new Map<string, HlsPlaylistProxyToken>();
 const hlsPlaybackCaptureActiveFiles = new Map<string, Promise<boolean>>();
-const hlsPlaybackCaptureActivePages = new Map<string, number>();
+const hlsPlaybackCaptureActivePages = new Map<string, HlsPlaybackCaptureActivePage>();
 const hlsPlaybackCapturePrefetches = new Set<string>();
 let hlsPlaylistProxyServer: NodeHttp.Server | null = null;
 let hlsPlaylistProxyPort: number | null = null;
@@ -188,22 +203,35 @@ function hlsPlaybackCaptureActivePageKey(webContentsId: number, videoUrl: string
 function purgeExpiredHlsPlaybackCaptureActivePages() {
   const now = Date.now();
   for (const entry of hlsPlaybackCaptureActivePages) {
-    if (entry[1] <= now) hlsPlaybackCaptureActivePages.delete(entry[0]);
+    if (entry[1].expiresAt <= now) hlsPlaybackCaptureActivePages.delete(entry[0]);
   }
 }
 
-function hlsPlaybackCapturePageIsActive(context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken): boolean {
-  if (isHlsPlaybackCaptureEnabledByEnv(context.env)) return true;
-  if (!isAutoDownloadOnPlaybackSettingEnabled(context) || !entry.videoUrl) return false;
+function hlsPlaybackCaptureActivePage(
+  context: HlsPlaybackCaptureContext,
+  entry: HlsPlaylistProxyToken
+): HlsPlaybackCaptureActivePage | null {
+  if (isHlsPlaybackCaptureEnabledByEnv(context.env)) {
+    return {
+      expiresAt: Date.now() + HLS_PLAYBACK_CAPTURE_ACTIVITY_TTL_MS,
+      userInitiatedPlayback: true
+    };
+  }
+  if (!isAutoDownloadOnPlaybackSettingEnabled(context) || !entry.videoUrl) return null;
 
   purgeExpiredHlsPlaybackCaptureActivePages();
-  const expiresAt = hlsPlaybackCaptureActivePages.get(
+  const activePage = hlsPlaybackCaptureActivePages.get(
     hlsPlaybackCaptureActivePageKey(entry.webContentsId, entry.videoUrl, entry.pageLoadId)
   );
-  return typeof expiresAt === 'number' && expiresAt > Date.now();
+  return activePage && activePage.expiresAt > Date.now() ? activePage : null;
 }
 
-function hlsPlaybackCaptureCanContinue(context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken): boolean {
+function hlsPlaybackCaptureCanContinue(
+  context: HlsPlaybackCaptureContext,
+  entry: HlsPlaylistProxyToken,
+  signal?: AbortSignal | null
+): boolean {
+  if (signal && signal.aborted) return false;
   if (!entry.videoUrl) return false;
   if (!context.shouldContinueHlsPlaybackCapture) return true;
   return context.shouldContinueHlsPlaybackCapture({
@@ -635,18 +663,22 @@ function hlsPlaylistProxyPrepareCapture(
   entry: HlsPlaylistProxyToken,
   playlistText: string
 ): HlsPlaybackCapturePlan | null {
-  if (!hlsPlaybackCapturePageIsActive(context, entry)) return null;
+  const activePage = hlsPlaybackCaptureActivePage(context, entry);
+  if (!activePage) return null;
   if (!context.prepareHlsPlaybackCapture || !entry.videoUrl) return null;
 
   try {
     const plan = context.prepareHlsPlaybackCapture({
       videoUrl: entry.videoUrl,
       pageLoadId: entry.pageLoadId,
+      userInitiatedPlayback: activePage.userInitiatedPlayback,
       title: entry.metadata.title,
       views: entry.metadata.views,
       likes: entry.metadata.likes,
       img: entry.metadata.img,
       preview: entry.metadata.preview,
+      sourcePageChineseSubtitleNotice: entry.metadata.sourcePageChineseSubtitleNotice,
+      sourcePageSubtitleNoticeText: entry.metadata.sourcePageSubtitleNoticeText,
       playlistUrl: entry.playlistUrl,
       playlistText: playlistText
     });
@@ -806,11 +838,12 @@ async function hlsPlaybackCaptureWriteStreamToFile(
   entry: HlsPlaylistProxyToken,
   asset: HlsPlaylistProxyAsset,
   body: ReadableStream<Uint8Array>,
-  stopSource?: () => void
+  stopSource?: () => void,
+  signal?: AbortSignal | null
 ): Promise<boolean> {
   if (!asset.captureFilePath) return false;
   if (hlsPlaybackCaptureFileExists(asset.captureFilePath)) return false;
-  if (!hlsPlaybackCaptureCanContinue(context, entry)) return false;
+  if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) return false;
 
   const tempPath = hlsPlaybackCaptureTempPath(asset.captureFilePath);
   let handle: NodeFs.promises.FileHandle | null = null;
@@ -825,14 +858,14 @@ async function hlsPlaybackCaptureWriteStreamToFile(
       const chunk = await reader.read();
       if (chunk.done) break;
       if (!chunk.value) continue;
-      if (!hlsPlaybackCaptureCanContinue(context, entry)) {
+      if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) {
         if (stopSource) stopSource();
         throw new HlsPlaybackCaptureStoppedError();
       }
       await handle.write(Buffer.from(chunk.value));
     }
 
-    if (!hlsPlaybackCaptureCanContinue(context, entry)) {
+    if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) {
       if (stopSource) stopSource();
       throw new HlsPlaybackCaptureStoppedError();
     }
@@ -907,28 +940,43 @@ function writeHlsPlaybackCaptureStream(
 async function hlsPlaybackCaptureFetchAsset(
   context: HlsPlaybackCaptureContext,
   entry: HlsPlaylistProxyToken,
-  asset: HlsPlaylistProxyAsset
+  asset: HlsPlaylistProxyAsset,
+  signal?: AbortSignal | null
 ): Promise<boolean> {
   if (!asset.captureFilePath) return false;
   if (hlsPlaybackCaptureFileExists(asset.captureFilePath)) return false;
-  if (!hlsPlaybackCaptureCanContinue(context, entry)) return false;
+  if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) return false;
 
   const active = hlsPlaybackCaptureActiveFiles.get(asset.captureFilePath);
   if (active) return active;
 
   const promise = (async function () {
     const abortController = new AbortController();
+    const abortFromSignal = function () {
+      abortController.abort();
+    };
+    if (signal) {
+      if (signal.aborted) abortController.abort();
+      else signal.addEventListener('abort', abortFromSignal, { once: true });
+    }
     try {
       const upstream = await context.jableSession.fetch(asset.sourceUrl, {
         method: 'GET',
         headers: hlsPlaylistProxyAssetFetchHeaders(entry, new Request(asset.sourceUrl)),
         signal: abortController.signal
       });
-      if (!hlsPlaybackCaptureCanContinue(context, entry)) return false;
+      if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) return false;
       if (!upstream.ok || !upstream.body) return false;
-      return hlsPlaybackCaptureWriteStreamToFile(context, entry, asset, upstream.body, function () {
-        abortController.abort();
-      });
+      return hlsPlaybackCaptureWriteStreamToFile(
+        context,
+        entry,
+        asset,
+        upstream.body,
+        function () {
+          abortController.abort();
+        },
+        signal
+      );
     } catch (error) {
       if (isHlsPlaybackCaptureStoppedError(error) || abortController.signal.aborted) {
         logger(context).info(
@@ -947,6 +995,8 @@ async function hlsPlaybackCaptureFetchAsset(
         'error=' + mainErrorMessage(error)
       );
       return false;
+    } finally {
+      if (signal) signal.removeEventListener('abort', abortFromSignal);
     }
   })();
 
@@ -1007,16 +1057,17 @@ function hlsPlaylistProxyAssetBody(
 async function runHlsPlaybackCapturePrefetch(
   context: HlsPlaybackCaptureContext,
   entry: HlsPlaylistProxyToken,
-  assets: HlsPlaylistProxyAsset[]
+  assets: HlsPlaylistProxyAsset[],
+  signal?: AbortSignal | null
 ) {
   let nextIndex = 0;
 
   async function worker() {
     while (nextIndex < assets.length) {
       const asset = assets[nextIndex++];
-      if (!hlsPlaybackCaptureCanContinue(context, entry)) return;
+      if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) return;
       if (!asset || !asset.captureFilePath) continue;
-      await hlsPlaybackCaptureFetchAsset(context, entry, asset);
+      await hlsPlaybackCaptureFetchAsset(context, entry, asset, signal);
     }
   }
 
@@ -1026,6 +1077,34 @@ async function runHlsPlaybackCapturePrefetch(
       return worker();
     })
   );
+}
+
+async function runHlsPlaybackCapturePrefetchWithCompletion(
+  context: HlsPlaybackCaptureContext,
+  entry: HlsPlaylistProxyToken,
+  assets: HlsPlaylistProxyAsset[],
+  signal?: AbortSignal | null
+) {
+  const key = String(entry.videoUrl || '') + '\n' + entry.playlistUrl;
+  if (hlsPlaybackCapturePrefetches.has(key)) return;
+
+  hlsPlaybackCapturePrefetches.add(key);
+  try {
+    await runHlsPlaybackCapturePrefetch(context, entry, assets, signal);
+  } catch (error) {
+    logger(context).info(
+      '[hls-capture] prefetch failed',
+      'host=' + entry.host,
+      'pathHash=' + entry.pathHash,
+      'tabId=' + String(entry.tabId),
+      'error=' + mainErrorMessage(error)
+    );
+  } finally {
+    hlsPlaybackCapturePrefetches.delete(key);
+    if (entry.videoUrl && context.completeHlsPlaybackCapture) {
+      context.completeHlsPlaybackCapture({ videoUrl: entry.videoUrl, pageLoadId: entry.pageLoadId });
+    }
+  }
 }
 
 function startHlsPlaybackCapturePrefetch(context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken) {
@@ -1041,26 +1120,26 @@ function startHlsPlaybackCapturePrefetch(context: HlsPlaybackCaptureContext, ent
     });
   if (!assets.length) return;
 
-  const key = entry.videoUrl + '\n' + entry.playlistUrl;
-  if (hlsPlaybackCapturePrefetches.has(key)) return;
-
-  hlsPlaybackCapturePrefetches.add(key);
-  runHlsPlaybackCapturePrefetch(context, entry, assets)
-    .catch(function (error) {
-      logger(context).info(
-        '[hls-capture] prefetch failed',
-        'host=' + entry.host,
-        'pathHash=' + entry.pathHash,
-        'tabId=' + String(entry.tabId),
-        'error=' + mainErrorMessage(error)
-      );
-    })
-    .finally(function () {
-      hlsPlaybackCapturePrefetches.delete(key);
-      if (entry.videoUrl && context.completeHlsPlaybackCapture) {
-        context.completeHlsPlaybackCapture({ videoUrl: entry.videoUrl, pageLoadId: entry.pageLoadId });
+  if (context.queueHlsPlaybackBackgroundCompletion) {
+    context.queueHlsPlaybackBackgroundCompletion({
+      videoUrl: entry.videoUrl,
+      pageLoadId: entry.pageLoadId,
+      run: function (signal) {
+        return runHlsPlaybackCapturePrefetchWithCompletion(context, entry, assets, signal);
       }
     });
+    return;
+  }
+
+  runHlsPlaybackCapturePrefetchWithCompletion(context, entry, assets).catch(function (error) {
+    logger(context).info(
+      '[hls-capture] prefetch failed',
+      'host=' + entry.host,
+      'pathHash=' + entry.pathHash,
+      'tabId=' + String(entry.tabId),
+      'error=' + mainErrorMessage(error)
+    );
+  });
 }
 
 async function handleHlsPlaylistProxyAssetRequest(
@@ -1427,12 +1506,24 @@ function hlsPlaylistProxyPayloadNumber(payload: unknown, key: string): number | 
 }
 
 function hlsPlaylistProxyPayloadMetadata(payload: unknown): HlsPlaybackCaptureMetadata {
+  const sourcePageChineseSubtitleNotice =
+    payload &&
+    typeof payload === 'object' &&
+    typeof (payload as Record<string, unknown>).sourcePageChineseSubtitleNotice === 'boolean'
+      ? ((payload as Record<string, unknown>).sourcePageChineseSubtitleNotice as boolean)
+      : null;
+
   return {
     title: hlsPlaylistProxyPayloadString(payload, 'title').trim() || null,
     views: hlsPlaylistProxyPayloadNumber(payload, 'views'),
     likes: hlsPlaylistProxyPayloadNumber(payload, 'likes'),
     img: hlsPlaylistProxyPayloadString(payload, 'img').trim() || null,
-    preview: hlsPlaylistProxyPayloadString(payload, 'preview').trim() || null
+    preview: hlsPlaylistProxyPayloadString(payload, 'preview').trim() || null,
+    sourcePageChineseSubtitleNotice: sourcePageChineseSubtitleNotice,
+    sourcePageSubtitleNoticeText:
+      sourcePageChineseSubtitleNotice === true
+        ? hlsPlaylistProxyPayloadString(payload, 'sourcePageSubtitleNoticeText').trim() || null
+        : null
   };
 }
 
@@ -1445,7 +1536,15 @@ function mergeHlsPlaybackCaptureMetadata(
     views: next.views === null ? current.views : next.views,
     likes: next.likes === null ? current.likes : next.likes,
     img: next.img || current.img,
-    preview: next.preview || current.preview
+    preview: next.preview || current.preview,
+    sourcePageChineseSubtitleNotice:
+      next.sourcePageChineseSubtitleNotice === null
+        ? current.sourcePageChineseSubtitleNotice
+        : next.sourcePageChineseSubtitleNotice,
+    sourcePageSubtitleNoticeText:
+      next.sourcePageChineseSubtitleNotice === null
+        ? current.sourcePageSubtitleNoticeText
+        : next.sourcePageSubtitleNoticeText
   };
 }
 
@@ -1461,11 +1560,14 @@ function hlsPlaybackCaptureStartedForRenderer(
   if (!senderVideoUrl || (payloadVideoUrl && payloadVideoUrl !== senderVideoUrl)) return;
   const metadata = hlsPlaylistProxyPayloadMetadata(payload);
   const pageLoadId = hlsPlaylistProxyPayloadPageLoadId(payload);
-
-  hlsPlaybackCaptureActivePages.set(
-    hlsPlaybackCaptureActivePageKey(event.sender.id, senderVideoUrl, pageLoadId),
-    Date.now() + HLS_PLAYBACK_CAPTURE_ACTIVITY_TTL_MS
+  const userInitiatedPlayback = Boolean(
+    payload && typeof payload === 'object' && (payload as Record<string, unknown>).userInitiatedPlayback === true
   );
+
+  hlsPlaybackCaptureActivePages.set(hlsPlaybackCaptureActivePageKey(event.sender.id, senderVideoUrl, pageLoadId), {
+    expiresAt: Date.now() + HLS_PLAYBACK_CAPTURE_ACTIVITY_TTL_MS,
+    userInitiatedPlayback: userInitiatedPlayback
+  });
 
   let prepared = 0;
   for (const tokenEntry of hlsPlaylistProxyTokens) {
@@ -1482,6 +1584,7 @@ function hlsPlaybackCaptureStartedForRenderer(
     '[hls-capture] playback started',
     'webContentsId=' + event.sender.id,
     'prepared=' + prepared,
+    'userInitiated=' + String(userInitiatedPlayback),
     'videoUrl=' + senderVideoUrl
   );
 }

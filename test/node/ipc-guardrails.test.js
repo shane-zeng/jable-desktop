@@ -340,17 +340,27 @@ test('download records persist playback auto-resume block guard', function () {
   const nativeSchema = readSource(NATIVE_SCHEMA_SOURCE_PATH);
 
   assert.match(types, /playbackAutoResumeBlocked: boolean/);
+  assert.match(types, /export type DownloadSource = 'normal' \| 'playback_auto'/);
+  assert.match(types, /downloadSource: DownloadSource/);
   assert.match(nativeSchema, /playback_auto_resume_blocked INTEGER NOT NULL DEFAULT 0/);
+  assert.match(nativeSchema, /download_source TEXT NOT NULL DEFAULT 'normal'/);
   assert.match(nativeDownloads, /"playbackAutoResumeBlocked"/);
   assert.match(nativeDownloads, /"playback_auto_resume_blocked"/);
+  assert.match(nativeDownloads, /"downloadSource"/);
+  assert.match(nativeDownloads, /"download_source"/);
   assert.match(source, /function isPlaybackAutoResumeBlockedRecord/);
   assert.match(source, /function playbackAutoResumeBlockedAfterPause/);
   assert.match(source, /if \(isPlaybackAutoResumeBlockedRecord\(existingRecord\)\) return null/);
   assert.match(source, /if \(isPlaybackAutoResumeBlockedRecord\(record\)\) return false/);
-  assert.match(source, /if \(isNormalDownloaderActive \|\| isQueued\) return true/);
-  assert.match(source, /if \(isPlaybackCaptureActive\) return false/);
+  assert.match(source, /if \(isNormalDownloaderActive \|\| isNormalDownloaderQueued\) return true/);
+  assert.match(source, /if \(isPlaybackCaptureOwned\) return false/);
+  assert.match(source, /queuedItem\.source === 'normal'/);
+  assert.match(source, /queuedItem\.source === 'playback_background'/);
+  assert.match(source, /downloadSource: 'playback_auto'/);
+  assert.match(source, /downloadSource: 'normal'/);
   assert.match(source, /playbackAutoResumeBlocked: false/);
-  assert.match(source, /playbackAutoResumeBlocked: true/);
+  assert.match(source, /playbackAutoResumeBlocked: item\.source === 'normal' \? true/);
+  assert.match(source, /playbackAutoResumeBlocked: runtime\.source === 'normal' \? true/);
 });
 
 test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function () {
@@ -390,6 +400,7 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsCaptureSource, /hls:playback-started/);
   assert.match(hlsCaptureSource, /hlsPlaylistProxyPayloadMetadata/);
   assert.match(hlsCaptureSource, /hlsPlaylistProxyPayloadPageLoadId/);
+  assert.match(hlsCaptureSource, /userInitiatedPlayback/);
   assert.match(hlsCaptureSource, /shouldProxyHlsPlaybackCapture/);
   assert.match(
     hlsCaptureSource,
@@ -402,15 +413,24 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsCaptureSource, /hlsPlaybackCaptureActivePageKey\(event\.sender\.id, senderVideoUrl, pageLoadId\)/);
   assert.match(hlsCaptureSource, /class HlsPlaybackCaptureStoppedError/);
   assert.equal(hlsCaptureSource.includes("stopped ? '[hls-capture] segment stopped'"), true);
-  assert.match(hlsCaptureSource, /hlsPlaybackCapturePageIsActive/);
+  assert.match(hlsCaptureSource, /hlsPlaybackCaptureActivePage/);
   assert.match(hlsCaptureSource, /shouldContinueHlsPlaybackCapture/);
   assert.match(hlsCaptureSource, /isAutoDownloadOnPlaybackEnabled/);
   assert.match(hlsCaptureSource, /startHlsPlaybackCapturePrefetch/);
+  assert.match(hlsCaptureSource, /queueHlsPlaybackBackgroundCompletion/);
+  assert.match(hlsCaptureSource, /runHlsPlaybackCapturePrefetchWithCompletion/);
   assert.match(hlsCaptureSource, /hlsPlaylistProxyCapturedAssetResponse/);
   assert.match(mainSource, /getAppSettings\(\)\.autoDownloadOnPlayback/);
+  assert.match(mainSource, /queueHlsPlaybackBackgroundCompletion: function/);
   assert.match(hlsCaptureSource, /\[hls-capture\] prepared/);
   assert.match(hlsCaptureSource, /\[hls-capture\] segment saved/);
+  assert.match(downloadManagerSource, /type DownloadQueueSource = 'normal' \| 'playback_background'/);
+  assert.match(downloadManagerSource, /type HlsPlaybackBackgroundCompletionWorker/);
+  assert.match(downloadManagerSource, /const downloadQueue: DownloadQueueItem\[\] = \[\]/);
   assert.match(downloadManagerSource, /prepareHlsPlaybackCapture/);
+  assert.match(downloadManagerSource, /playbackCaptureUserInitiated/);
+  assert.match(downloadManagerSource, /queueHlsPlaybackBackgroundCompletion/);
+  assert.match(downloadManagerSource, /runQueuedPlaybackBackgroundDownload/);
   assert.match(downloadManagerSource, /recordHlsPlaybackCaptureSegment/);
   assert.match(downloadManagerSource, /completeHlsPlaybackCapture/);
   assert.match(downloadManagerSource, /hlsPlaybackCaptureRuntimeProgress/);
@@ -433,8 +453,12 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(webviewPreload, /invoke\('hls:playlist-proxy-url'/);
   assert.match(webviewPreload, /send\('hls:playback-started'/);
   assert.match(webviewPreload, /pageLoadId: hlsPlaybackPageLoadId/);
+  assert.match(webviewPreload, /HLS_PLAYBACK_USER_GESTURE_TTL_MS/);
+  assert.match(webviewPreload, /userInitiatedPlayback: userInitiatedPlayback/);
   assert.match(webviewPreload, /views: currentVideo \? currentVideo\.views : null/);
   assert.match(webviewPreload, /preview: currentVideo \? currentVideo\.preview : null/);
+  assert.match(webviewPreload, /sourcePageChineseSubtitleNotice: sourcePageNotice\.sourcePageChineseSubtitleNotice/);
+  assert.match(webviewPreload, /sourcePageSubtitleNoticeText: sourcePageNotice\.sourcePageSubtitleNoticeText/);
   assert.match(webviewPreload, /installHlsPlaybackStartedObserver/);
   assert.match(webviewPreload, /XMLHttpRequest\.prototype\.open/);
   assert.match(webviewPreload, /XMLHttpRequest\.prototype\.send/);
@@ -513,7 +537,7 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /state: 'paused'/);
   assert.match(source, /resumeManifestMatches\(outputPath, playlist\)/);
   assert.match(source, /downloadHlsSegmentsWithPlaylistRefresh/);
-  assert.match(source, /resolveDownloadHlsSource\(videoUrl, signal\)/);
+  assert.match(source, /resolveDownloadHlsSource\(\n\s*record\.videoUrl,\n\s*runtime\.abortController\.signal/);
   assert.match(source, /isSegmentRefreshCandidate\(error\)/);
   assert.match(source, /function shouldReuseDownloadSegmentTempDirectory/);
   assert.match(source, /function reusableSegmentFileCount/);

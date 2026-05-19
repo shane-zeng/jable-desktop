@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import {
   collectionList,
   isIndeterminateProgress,
@@ -27,6 +28,39 @@ const emit = defineEmits<{
   delete: [videoUrl: string];
   'toggle-select': [payload: { videoUrl: string; selected: boolean }];
 }>();
+
+const collectionKeys = computed(function () {
+  return collectionList(props.record);
+});
+const isPlaybackAutoDownload = computed(function () {
+  return props.record.downloadSource === 'playback_auto';
+});
+const formalizing = ref(false);
+let formalizingTimer: ReturnType<typeof setTimeout> | null = null;
+
+function triggerFormalizingTransition() {
+  formalizing.value = true;
+  if (formalizingTimer) clearTimeout(formalizingTimer);
+  formalizingTimer = setTimeout(function () {
+    formalizing.value = false;
+    formalizingTimer = null;
+  }, 900);
+}
+
+watch(
+  function () {
+    return props.record.downloadSource;
+  },
+  function (nextSource, previousSource) {
+    if (previousSource === 'playback_auto' && nextSource === 'normal') {
+      triggerFormalizingTransition();
+    }
+  }
+);
+
+onBeforeUnmount(function () {
+  if (formalizingTimer) clearTimeout(formalizingTimer);
+});
 
 function stateClass(state: DownloadState) {
   if (state === 'ready') return 'download-state-ready';
@@ -74,7 +108,11 @@ function toggleSelected(event: Event) {
 
 <template>
   <article
-    class="relative grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
+    class="download-record-card relative grid h-full grid-rows-[auto_minmax(0,1fr)] gap-2 rounded-lg border border-[var(--panel-border)] bg-[var(--card)] p-2.5 shadow-[var(--shadow)]"
+    :class="{
+      'download-card-playback-auto': isPlaybackAutoDownload,
+      'download-card-formalizing': formalizing
+    }"
     data-test="download-record-card"
   >
     <label
@@ -101,9 +139,9 @@ function toggleSelected(event: Event) {
       @open="emit('open', $event)"
     />
 
-    <div class="grid min-w-0 gap-2">
+    <div class="flex min-h-[178px] min-w-0 flex-col gap-2">
       <a
-        class="h-[4.5rem] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left text-lg font-bold leading-[1.3] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
+        class="min-h-[4.05em] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left font-bold leading-[1.35] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
         :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
         :href="record.videoUrl"
         :aria-disabled="record.state !== 'ready'"
@@ -131,9 +169,13 @@ function toggleSelected(event: Event) {
 
         <div class="grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
           <div class="grid min-w-0 content-start gap-1">
-            <div class="flex min-w-0 flex-wrap gap-1.5 overflow-hidden">
+            <div
+              v-if="collectionKeys.length"
+              class="flex min-w-0 flex-wrap gap-1.5 overflow-hidden"
+              data-test="download-record-collection-list"
+            >
               <span
-                v-for="collectionKey in collectionList(record)"
+                v-for="collectionKey in collectionKeys"
                 :key="collectionKey"
                 class="rounded-md px-2 py-0.5 text-xs font-semibold"
                 :class="collectionClass(collectionKey)"
@@ -144,6 +186,7 @@ function toggleSelected(event: Event) {
             <span
               v-if="record.sourcePageChineseSubtitleNotice"
               class="download-subtitle-badge w-fit rounded-md border px-2 py-0.5 text-xs font-semibold"
+              data-test="download-record-subtitle-badge"
             >
               {{ t('downloadList.chineseSubtitle') }}
             </span>
@@ -172,7 +215,7 @@ function toggleSelected(event: Event) {
           </span>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="mt-auto grid grid-cols-3 gap-2">
           <button
             type="button"
             class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
@@ -222,7 +265,7 @@ function toggleSelected(event: Event) {
           <button
             v-if="record.state === 'queued' || record.state === 'downloading'"
             type="button"
-            class="danger min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
+            class="danger-secondary min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-cancel"
             @click="emit('cancel', record.videoUrl)"
           >

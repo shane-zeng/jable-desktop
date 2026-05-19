@@ -11,6 +11,7 @@ function downloadRecord(patch: Partial<DownloadRecord>): DownloadRecord {
     preview: null,
     sourcePageChineseSubtitleNotice: false,
     sourcePageSubtitleNoticeText: null,
+    downloadSource: 'normal',
     localPath: null,
     state: 'paused',
     progress: null,

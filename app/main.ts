@@ -138,6 +138,11 @@ type HlsPlaybackCaptureModule = {
     logger?: { info(message?: unknown, ...optionalParams: unknown[]): void } | null;
     isAutoDownloadOnPlaybackEnabled?(): boolean;
     completeHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): void;
+    queueHlsPlaybackBackgroundCompletion?(value: {
+      videoUrl: string;
+      pageLoadId?: string | null;
+      run: (signal: AbortSignal) => Promise<void>;
+    }): void;
     shouldContinueHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): boolean;
     shouldProxyHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): boolean;
     prepareHlsPlaybackCapture?(value: {
@@ -148,6 +153,8 @@ type HlsPlaybackCaptureModule = {
       likes: number | null;
       img: string | null;
       preview: string | null;
+      sourcePageChineseSubtitleNotice?: boolean | null;
+      sourcePageSubtitleNoticeText?: string | null;
       playlistUrl: string;
       playlistText: string;
     }): {
@@ -329,6 +336,9 @@ function installHlsPlaybackCapture(): Promise<void> {
     completeHlsPlaybackCapture: function (value) {
       getDownloadManager().completeHlsPlaybackCapture(value);
     },
+    queueHlsPlaybackBackgroundCompletion: function (value) {
+      getDownloadManager().queueHlsPlaybackBackgroundCompletion(value);
+    },
     shouldContinueHlsPlaybackCapture: function (value) {
       return getDownloadManager().shouldContinueHlsPlaybackCapture(value);
     },
@@ -499,6 +509,9 @@ function updateAppSettings(patch: unknown): AppSettings {
       clearBrowserSessionSaveTimer();
       getBrowserSessionStore().clear();
     }
+  }
+  if (downloadManager && previousSettings.autoDownloadOnPlayback && !settings.autoDownloadOnPlayback) {
+    downloadManager.pausePlaybackAutoDownloadsForSettingDisable();
   }
   if (downloadManager) downloadManager.processQueue();
   return settings;

@@ -14,6 +14,7 @@ function makeDownloadRecord(overrides: Partial<DownloadRecord>): DownloadRecord 
       preview: null,
       sourcePageChineseSubtitleNotice: false,
       sourcePageSubtitleNoticeText: null,
+      downloadSource: 'normal',
       localPath: '/tmp/default.mp4',
       state: 'ready',
       progress: null,
@@ -109,5 +110,45 @@ describe('DownloadRecordCard', function () {
 
       wrapper.unmount();
     }
+  });
+
+  it('does not reserve an empty collection badge row before the subtitle badge', function () {
+    const wrapper = mount(DownloadRecordCard, {
+      props: {
+        record: makeDownloadRecord({
+          collectionKeys: [],
+          sourcePageChineseSubtitleNotice: true,
+          sourcePageSubtitleNoticeText: '此作品曾在本站上傳，現已更新至中文字幕版。'
+        })
+      }
+    });
+
+    expect(wrapper.find('[data-test="download-record-collection-list"]').exists()).toBe(false);
+    expect(wrapper.get('[data-test="download-record-subtitle-badge"]').text()).toBe('中文字幕');
+  });
+
+  it('marks playback auto records and animates the formal download transition', async function () {
+    const playbackRecord = makeDownloadRecord({
+      downloadSource: 'playback_auto',
+      state: 'queued',
+      completedAt: null
+    });
+    const wrapper = mount(DownloadRecordCard, {
+      props: {
+        record: playbackRecord
+      }
+    });
+
+    expect(wrapper.get('[data-test="download-record-card"]').classes()).toContain('download-card-playback-auto');
+
+    await wrapper.setProps({
+      record: Object.assign({}, playbackRecord, { downloadSource: 'normal' })
+    });
+
+    const cardClasses = wrapper.get('[data-test="download-record-card"]').classes();
+    expect(cardClasses).not.toContain('download-card-playback-auto');
+    expect(cardClasses).toContain('download-card-formalizing');
+
+    wrapper.unmount();
   });
 });

@@ -419,6 +419,7 @@ for (const kind of ENGINE_KINDS) {
         error: null,
         sourcePageChineseSubtitleNotice: true,
         sourcePageSubtitleNoticeText: '此作品曾在本站上傳，現已更新至中文字幕版。',
+        downloadSource: 'playback_auto',
         completedAt: '2026-05-17T00:00:00.000Z'
       });
 
@@ -433,6 +434,7 @@ for (const kind of ENGINE_KINDS) {
       assert.equal(ready.fileSizeBytes, 2048);
       assert.equal(ready.sourcePageChineseSubtitleNotice, true);
       assert.equal(ready.sourcePageSubtitleNoticeText, '此作品曾在本站上傳，現已更新至中文字幕版。');
+      assert.equal(ready.downloadSource, 'playback_auto');
       assert.equal(ready.failurePhase, null);
       assert.equal(ready.failureCode, null);
       assert.equal(ready.attemptCount, 0);
@@ -465,6 +467,7 @@ for (const kind of ENGINE_KINDS) {
         attemptCount: 2,
         sourcePageChineseSubtitleNotice: false,
         sourcePageSubtitleNoticeText: null,
+        downloadSource: 'normal',
         lastStartedAt: '2026-05-17T01:00:00.000Z',
         lastErrorAt: '2026-05-17T01:01:00.000Z',
         completedAt: null
@@ -480,6 +483,7 @@ for (const kind of ENGINE_KINDS) {
       assert.equal(failed.attemptCount, 2);
       assert.equal(failed.sourcePageChineseSubtitleNotice, false);
       assert.equal(failed.sourcePageSubtitleNoticeText, null);
+      assert.equal(failed.downloadSource, 'normal');
       assert.equal(failed.lastStartedAt, '2026-05-17T01:00:00.000Z');
       assert.equal(failed.lastErrorAt, '2026-05-17T01:01:00.000Z');
       assert.equal(failed.completedAt, null);
@@ -505,6 +509,7 @@ for (const kind of ENGINE_KINDS) {
         state: 'ready'
       });
       assert.equal(fallback.title, 'Fallback Metadata');
+      assert.equal(fallback.downloadSource, 'normal');
       assert.equal(fallback.preview, 'https://example.test/fallback-preview.mp4');
       assert.equal(engine.removeDownloadAsset('https://jable.tv/videos/fallback-download/'), true);
 
