@@ -232,6 +232,7 @@
   },
   "settings": {
     "aria": "Application Settings",
+    "navigation": "Settings Sections",
     "title": "Settings",
     "subtitle": "Adjust browser, sync, import, and export behavior.",
     "general": {

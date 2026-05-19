@@ -123,6 +123,30 @@ describe('SettingsPanel', function () {
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);
   });
 
+  it('renders section navigation and shows the selected settings group', async function () {
+    const wrapper = mountPanel();
+
+    const links = wrapper.findAll('[data-test^="settings-section-link-"]');
+    expect(links).toHaveLength(5);
+    expect(
+      links.map(function (link) {
+        return link.text();
+      })
+    ).toEqual(['一般', '瀏覽器', '同步', '下載', '資料']);
+    expect(wrapper.get('[data-test="settings-section-link-settings-general"]').attributes('aria-current')).toBe('page');
+    expect(wrapper.get('#settings-general').attributes('style')).toBeUndefined();
+    expect(wrapper.get('#settings-downloads').attributes('style')).toContain('display: none');
+
+    await wrapper.get('[data-test="settings-section-link-settings-downloads"]').trigger('click');
+
+    expect(wrapper.get('[data-test="settings-section-link-settings-downloads"]').classes()).toContain('is-active');
+    expect(wrapper.get('[data-test="settings-section-link-settings-downloads"]').attributes('aria-current')).toBe(
+      'page'
+    );
+    expect(wrapper.get('#settings-general').attributes('style')).toContain('display: none');
+    expect(wrapper.get('#settings-downloads').attributes('style')).toBeUndefined();
+  });
+
   it('disables opening the data folder until the database path is available', function () {
     const wrapper = mountPanel(undefined, null);
 

@@ -239,10 +239,64 @@ button:focus {
 
 .settings-page {
   display: grid;
-  max-width: 980px;
+  max-width: 1120px;
   margin: 0 auto;
   gap: 20px;
   padding: 20px 16px;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.settings-section-nav {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-section-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.settings-section-nav-link:hover {
+  border-color: var(--control-border-hover);
+  background: var(--control-hover);
+  color: var(--text);
+}
+
+.settings-section-nav-link.is-active {
+  border-color: color-mix(in srgb, var(--selection-active-hover) 78%, #fff 22%);
+  background: var(--selection-active);
+  color: #fff;
+}
+
+.settings-section-content {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
 }
 
 .settings-section {
@@ -864,6 +918,32 @@ button:focus {
 }
 
 @media (max-width: 760px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .settings-section-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    gap: 6px;
+    margin: 0 -16px;
+    padding: 8px 16px;
+    overflow-x: auto;
+    border-top: 1px solid var(--panel-border);
+    border-bottom: 1px solid var(--panel-border);
+    background: var(--panel);
+  }
+
+  .settings-section-nav-link {
+    flex: 0 0 auto;
+    width: auto;
+    border-color: var(--panel-border);
+    background: var(--control);
+  }
+
   .settings-row {
     grid-template-columns: 1fr;
   }

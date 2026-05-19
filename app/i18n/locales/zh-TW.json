@@ -232,6 +232,7 @@
   },
   "settings": {
     "aria": "應用程式設定",
+    "navigation": "設定區段",
     "title": "設定",
     "subtitle": "調整瀏覽器、同步與資料匯入匯出的行為。",
     "general": {

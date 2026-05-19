@@ -59,17 +59,27 @@ const importTargetCollection = ref<CollectionKey | ''>('');
 const importTotal = ref<number | null>(null);
 const importError = ref('');
 const exportCollection = ref<CollectionKey>('favourites');
+const activeSettingsSection = ref<SettingsSectionId>('settings-general');
 
 const speedOptions = [
   { value: 1, key: 'safe' },
   { value: 3, key: 'standard' },
   { value: 5, key: 'fast' }
 ];
+const settingsSections = [
+  { id: 'settings-general', labelKey: 'settings.general.title' },
+  { id: 'settings-browser', labelKey: 'settings.browser.title' },
+  { id: 'settings-sync', labelKey: 'settings.sync.title' },
+  { id: 'settings-downloads', labelKey: 'settings.downloads.title' },
+  { id: 'settings-data', labelKey: 'settings.data.title' }
+] as const;
 const downloadSpeedModeHints: Record<DownloadSpeedMode, string> = {
   stable: 'stableHint',
   balanced: 'balancedHint',
   fast: 'fastHint'
 };
+
+type SettingsSectionId = (typeof settingsSections)[number]['id'];
 
 const showMaxTabsWarning = computed(function () {
   return props.settings.maxBrowserTabs > MAX_BROWSER_TABS_WARNING_THRESHOLD;
@@ -225,6 +235,10 @@ function confirmImport() {
     resource: importResource.value
   });
 }
+
+function selectSettingsSection(sectionId: SettingsSectionId) {
+  activeSettingsSection.value = sectionId;
+}
 </script>
 
 <template>
@@ -241,419 +255,453 @@ function confirmImport() {
           <p class="m-0 text-sm leading-6 text-[var(--muted)]">{{ t('settings.subtitle') }}</p>
         </header>
 
-        <section class="settings-section">
-          <h2 class="text-base font-bold">{{ t('settings.general.title') }}</h2>
-          <div class="settings-row settings-row-center">
-            <label for="settings-locale" class="settings-label">{{ t('locale.label') }}</label>
-            <select
-              id="settings-locale"
-              class="w-full max-w-[260px]"
-              :aria-label="t('locale.label')"
-              :value="i18n.locale.value"
-              @change="updateLocale"
-            >
-              <option v-for="option in i18n.localeOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </div>
-          <div class="settings-row settings-row-center">
-            <span class="settings-label">{{ t('settings.general.updates') }}</span>
+        <div class="settings-layout">
+          <nav class="settings-section-nav" :aria-label="t('settings.navigation')" data-test="settings-section-nav">
             <button
+              v-for="section in settingsSections"
+              :key="section.id"
               type="button"
-              class="w-fit"
-              data-test="settings-check-updates"
-              :disabled="busy"
-              @click="emit('check-updates')"
+              class="settings-section-nav-link"
+              :class="{ 'is-active': activeSettingsSection === section.id }"
+              :aria-current="activeSettingsSection === section.id ? 'page' : undefined"
+              :data-test="'settings-section-link-' + section.id"
+              @click="selectSettingsSection(section.id)"
             >
-              {{ t('settings.general.checkForUpdates') }}
+              {{ t(section.labelKey) }}
             </button>
-          </div>
-        </section>
+          </nav>
 
-        <section class="settings-section">
-          <h2 class="text-base font-bold">{{ t('settings.browser.title') }}</h2>
-          <div class="settings-row">
-            <label for="settings-max-tabs" class="settings-label">
-              {{ t('settings.browser.maxTabs') }}
-            </label>
-            <div class="grid gap-2">
-              <input
-                id="settings-max-tabs"
-                class="w-[120px]"
-                data-test="settings-max-tabs"
-                type="number"
-                min="4"
-                max="30"
-                step="1"
-                :value="settings.maxBrowserTabs"
-                :disabled="busy"
-                @change="updateMaxBrowserTabs"
-              />
-              <p v-if="showMaxTabsWarning" class="settings-warning" data-test="settings-max-tabs-warning">
-                {{ t('settings.browser.maxTabsWarning') }}
-              </p>
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.browser.tabsMode') }}</span>
-            <div class="grid gap-2">
-              <div
-                class="segmented-tabs flex w-fit flex-wrap items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
-              >
+          <div class="settings-section-content">
+            <section
+              v-show="activeSettingsSection === 'settings-general'"
+              id="settings-general"
+              class="settings-section"
+            >
+              <h2 class="text-base font-bold">{{ t('settings.general.title') }}</h2>
+              <div class="settings-row settings-row-center">
+                <label for="settings-locale" class="settings-label">{{ t('locale.label') }}</label>
+                <select
+                  id="settings-locale"
+                  class="w-full max-w-[260px]"
+                  :aria-label="t('locale.label')"
+                  :value="i18n.locale.value"
+                  @change="updateLocale"
+                >
+                  <option v-for="option in i18n.localeOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+              </div>
+              <div class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.general.updates') }}</span>
                 <button
-                  v-for="option in BROWSER_TABS_MODE_OPTIONS"
-                  :key="option.value"
-                  class="segmented-tab min-h-[30px]"
-                  :class="{ 'is-active': settings.browserTabsMode === option.value }"
                   type="button"
-                  :data-test="'settings-browser-tabs-mode-' + option.value"
-                  :aria-pressed="settings.browserTabsMode === option.value"
+                  class="w-fit"
+                  data-test="settings-check-updates"
                   :disabled="busy"
-                  @click="updateBrowserTabsMode(option.value)"
+                  @click="emit('check-updates')"
                 >
-                  {{ t('settings.browser.tabsModeOptions.' + option.value) }}
+                  {{ t('settings.general.checkForUpdates') }}
                 </button>
               </div>
-              <p class="settings-help">
-                {{ t('settings.browser.tabsModeDescription') }}
-              </p>
-            </div>
-          </div>
+            </section>
 
-          <div class="settings-row settings-row-center">
-            <span class="settings-label">{{ t('settings.browser.webViewEnhancementMode') }}</span>
-            <label class="flex min-h-[34px] items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                data-test="settings-webview-enhancement-mode"
-                :checked="settings.webViewEnhancementMode"
-                :disabled="busy"
-                @change="updateSettings({ webViewEnhancementMode: eventChecked($event) })"
-              />
-              <span>{{ t('settings.browser.webViewEnhancementModeDescription') }}</span>
-            </label>
-          </div>
-
-          <div class="settings-row settings-row-center">
-            <span class="settings-label">{{ t('settings.browser.tabWidth') }}</span>
-            <button type="button" class="w-fit" :disabled="busy" @click="emit('reset-tabs-width')">
-              {{ t('settings.browser.resetTabWidth') }}
-            </button>
-          </div>
-        </section>
-
-        <section class="settings-section">
-          <h2 class="text-base font-bold">{{ t('settings.sync.title') }}</h2>
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.sync.acceleration') }}</span>
-            <div class="grid gap-2">
-              <div
-                class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
-              >
-                <button
-                  v-for="option in speedOptions"
-                  :key="option.value"
-                  class="segmented-tab min-h-[30px]"
-                  :class="{ 'is-active': settings.fullSyncAjaxWindowSize === option.value }"
-                  type="button"
-                  :data-test="'settings-speed-' + option.key"
-                  :aria-pressed="settings.fullSyncAjaxWindowSize === option.value"
-                  :disabled="busy"
-                  @click="updateSettings({ fullSyncAjaxWindowSize: option.value })"
-                >
-                  {{ t('settings.sync.speed.' + option.key) }}
-                </button>
-              </div>
-              <p class="settings-help">
-                {{ t('settings.sync.accelerationDescription') }}
-              </p>
-              <p v-if="showFastSyncWarning" class="settings-warning">
-                {{ t('settings.sync.fastWarning') }}
-              </p>
-            </div>
-          </div>
-
-          <div class="settings-row settings-row-center">
-            <span class="settings-label">{{ t('settings.sync.autoReplay') }}</span>
-            <label class="flex min-h-[34px] items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                data-test="settings-auto-replay"
-                :checked="settings.autoReplayDeferredSyncOperations"
-                :disabled="busy"
-                @change="updateSettings({ autoReplayDeferredSyncOperations: eventChecked($event) })"
-              />
-              <span>{{ t('settings.sync.autoReplayDescription') }}</span>
-            </label>
-          </div>
-        </section>
-
-        <section class="settings-section">
-          <h2 class="text-base font-bold">{{ t('settings.downloads.title') }}</h2>
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.downloads.ffmpeg.label') }}</span>
-            <div class="grid gap-2">
-              <div class="flex flex-wrap items-center gap-2 text-sm">
-                <span class="font-semibold" :class="ffmpegStatusClass" data-test="settings-ffmpeg-state">
-                  {{ ffmpegStateLabel }}
-                </span>
-                <span class="text-[var(--muted)]">{{ ffmpegSourceLabel }}</span>
-              </div>
-              <code class="settings-code" data-test="settings-ffmpeg-path">
-                {{
-                  (ffmpegStatus && ffmpegStatus.path) ||
-                  settings.ffmpegPath ||
-                  t('settings.downloads.ffmpeg.pathUnavailable')
-                }}
-              </code>
-              <p v-if="ffmpegStatus && ffmpegStatus.version" class="settings-help">
-                {{ ffmpegStatus.version }}
-              </p>
-              <p v-if="ffmpegStatus && ffmpegStatus.error && ffmpegStatus.state !== 'missing'" class="settings-warning">
-                {{ ffmpegStatus.error }}
-              </p>
-              <p class="settings-help">
-                {{ t('settings.downloads.ffmpeg.description') }}
-              </p>
-              <div class="settings-actions">
-                <button
-                  type="button"
-                  data-test="settings-ffmpeg-refresh"
-                  :disabled="busy"
-                  @click="emit('refresh-ffmpeg')"
-                >
-                  {{ t('settings.downloads.ffmpeg.checkAgain') }}
-                </button>
-                <button
-                  type="button"
-                  data-test="settings-ffmpeg-choose"
-                  :disabled="busy"
-                  @click="emit('choose-ffmpeg')"
-                >
-                  {{ t('settings.downloads.ffmpeg.chooseBinary') }}
-                </button>
-                <button
-                  type="button"
-                  data-test="settings-ffmpeg-clear"
-                  :disabled="busy || !settings.ffmpegPath"
-                  @click="emit('clear-ffmpeg')"
-                >
-                  {{ t('settings.downloads.ffmpeg.usePath') }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <label for="settings-max-concurrent-downloads" class="settings-label">
-              {{ t('settings.downloads.concurrent.label') }}
-            </label>
-            <div class="grid gap-2">
-              <input
-                id="settings-max-concurrent-downloads"
-                class="w-[120px]"
-                data-test="settings-max-concurrent-downloads"
-                type="number"
-                :min="MAX_CONCURRENT_DOWNLOADS_LIMITS.min"
-                :max="MAX_CONCURRENT_DOWNLOADS_LIMITS.max"
-                step="1"
-                :value="settings.maxConcurrentDownloads"
-                :disabled="busy"
-                @change="updateMaxConcurrentDownloads"
-              />
-              <p class="settings-help">
-                {{ t('settings.downloads.concurrent.description') }}
-              </p>
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.downloads.speed.label') }}</span>
-            <div class="grid gap-2">
-              <div
-                class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
-              >
-                <button
-                  v-for="option in DOWNLOAD_SPEED_MODE_OPTIONS"
-                  :key="option.value"
-                  class="segmented-tab min-h-[30px]"
-                  :class="{ 'is-active': settings.downloadSpeedMode === option.value }"
-                  type="button"
-                  :data-test="'settings-download-speed-' + option.value"
-                  :aria-pressed="settings.downloadSpeedMode === option.value"
-                  :disabled="busy"
-                  @click="updateDownloadSpeedMode(option.value)"
-                >
-                  {{ t('options.downloadSpeedMode.' + option.value) }}
-                </button>
-              </div>
-              <p class="settings-help">
-                {{ t('settings.downloads.speed.description') }}
-              </p>
-              <p class="settings-warning">
-                {{ t('settings.downloads.speed.' + downloadSpeedModeHints[settings.downloadSpeedMode]) }}
-              </p>
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.downloads.playback.label') }}</span>
-            <label class="flex max-w-[680px] items-start gap-3 text-sm leading-6 text-[var(--muted)]">
-              <input
-                class="mt-1"
-                data-test="settings-auto-download-on-playback"
-                type="checkbox"
-                :checked="settings.autoDownloadOnPlayback"
-                :disabled="busy"
-                @change="updateAutoDownloadOnPlayback"
-              />
-              <span>{{ t('settings.downloads.playback.description') }}</span>
-            </label>
-          </div>
-
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.downloads.root.label') }}</span>
-            <div class="grid gap-2">
-              <div class="flex flex-wrap items-center gap-2 text-sm">
-                <span class="font-semibold text-[var(--text)]">{{ downloadRootSourceLabel }}</span>
-              </div>
-              <code class="settings-code" data-test="settings-download-root-path">
-                {{ downloadRootPath }}
-              </code>
-              <p class="settings-help">
-                {{ t('settings.downloads.root.description') }}
-              </p>
-              <p v-if="downloadRoot && !downloadRoot.exists" class="settings-help">
-                {{ t('settings.downloads.root.missingHint') }}
-              </p>
-              <div class="settings-actions">
-                <button
-                  type="button"
-                  data-test="settings-download-root-choose"
-                  :disabled="busy"
-                  @click="emit('choose-download-root')"
-                >
-                  {{ t('settings.downloads.root.chooseFolder') }}
-                </button>
-                <button
-                  type="button"
-                  data-test="settings-download-root-clear"
-                  :disabled="busy || !settings.downloadRoot"
-                  @click="emit('clear-download-root')"
-                >
-                  {{ t('settings.downloads.root.useDefault') }}
-                </button>
-                <button
-                  type="button"
-                  data-test="settings-download-root-open"
-                  :disabled="busy"
-                  @click="emit('open-download-root')"
-                >
-                  {{ t('settings.downloads.root.openFolder') }}
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="settings-section">
-          <h2 class="text-base font-bold">{{ t('settings.data.title') }}</h2>
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.data.importJson') }}</span>
-            <div class="grid gap-3">
-              <div class="settings-actions">
-                <button type="button" :disabled="busy" @click="chooseImportFile">
-                  {{ t('settings.data.chooseJson') }}
-                </button>
-                <span v-if="importFileName" class="text-sm text-[var(--muted)]">{{ importFileName }}</span>
-                <input
-                  ref="importFile"
-                  data-test="settings-import-file"
-                  type="file"
-                  accept="application/json,.json"
-                  hidden
-                  @change="handleImportFile"
-                />
-              </div>
-
-              <p v-if="importError" class="intent-text-danger m-0 text-sm leading-5">
-                {{ t('settings.data.importParseFailed', { error: importError }) }}
-              </p>
-
-              <div v-if="importResource" class="grid gap-2">
-                <p class="m-0 text-sm text-[var(--muted)]">
-                  {{ importDetectionLabel }}
-                  <span v-if="importTotal !== null">
-                    · {{ t('settings.data.importRows', { count: importTotal }) }}
-                  </span>
-                </p>
-                <div class="settings-actions">
-                  <label for="settings-import-target" class="text-sm font-semibold">
-                    {{ t('settings.data.importTarget') }}
-                  </label>
-                  <select
-                    id="settings-import-target"
-                    data-test="settings-import-target"
-                    :value="importTargetCollection"
+            <section
+              v-show="activeSettingsSection === 'settings-browser'"
+              id="settings-browser"
+              class="settings-section"
+            >
+              <h2 class="text-base font-bold">{{ t('settings.browser.title') }}</h2>
+              <div class="settings-row">
+                <label for="settings-max-tabs" class="settings-label">
+                  {{ t('settings.browser.maxTabs') }}
+                </label>
+                <div class="grid gap-2">
+                  <input
+                    id="settings-max-tabs"
+                    class="w-[120px]"
+                    data-test="settings-max-tabs"
+                    type="number"
+                    min="4"
+                    max="30"
+                    step="1"
+                    :value="settings.maxBrowserTabs"
                     :disabled="busy"
-                    @change="updateImportTarget"
+                    @change="updateMaxBrowserTabs"
+                  />
+                  <p v-if="showMaxTabsWarning" class="settings-warning" data-test="settings-max-tabs-warning">
+                    {{ t('settings.browser.maxTabsWarning') }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.browser.tabsMode') }}</span>
+                <div class="grid gap-2">
+                  <div
+                    class="segmented-tabs flex w-fit flex-wrap items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
                   >
-                    <option value="" disabled>{{ t('settings.data.importTargetPlaceholder') }}</option>
+                    <button
+                      v-for="option in BROWSER_TABS_MODE_OPTIONS"
+                      :key="option.value"
+                      class="segmented-tab min-h-[30px]"
+                      :class="{ 'is-active': settings.browserTabsMode === option.value }"
+                      type="button"
+                      :data-test="'settings-browser-tabs-mode-' + option.value"
+                      :aria-pressed="settings.browserTabsMode === option.value"
+                      :disabled="busy"
+                      @click="updateBrowserTabsMode(option.value)"
+                    >
+                      {{ t('settings.browser.tabsModeOptions.' + option.value) }}
+                    </button>
+                  </div>
+                  <p class="settings-help">
+                    {{ t('settings.browser.tabsModeDescription') }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.browser.webViewEnhancementMode') }}</span>
+                <label class="flex min-h-[34px] items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    data-test="settings-webview-enhancement-mode"
+                    :checked="settings.webViewEnhancementMode"
+                    :disabled="busy"
+                    @change="updateSettings({ webViewEnhancementMode: eventChecked($event) })"
+                  />
+                  <span>{{ t('settings.browser.webViewEnhancementModeDescription') }}</span>
+                </label>
+              </div>
+
+              <div class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.browser.tabWidth') }}</span>
+                <button type="button" class="w-fit" :disabled="busy" @click="emit('reset-tabs-width')">
+                  {{ t('settings.browser.resetTabWidth') }}
+                </button>
+              </div>
+            </section>
+
+            <section v-show="activeSettingsSection === 'settings-sync'" id="settings-sync" class="settings-section">
+              <h2 class="text-base font-bold">{{ t('settings.sync.title') }}</h2>
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.sync.acceleration') }}</span>
+                <div class="grid gap-2">
+                  <div
+                    class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+                  >
+                    <button
+                      v-for="option in speedOptions"
+                      :key="option.value"
+                      class="segmented-tab min-h-[30px]"
+                      :class="{ 'is-active': settings.fullSyncAjaxWindowSize === option.value }"
+                      type="button"
+                      :data-test="'settings-speed-' + option.key"
+                      :aria-pressed="settings.fullSyncAjaxWindowSize === option.value"
+                      :disabled="busy"
+                      @click="updateSettings({ fullSyncAjaxWindowSize: option.value })"
+                    >
+                      {{ t('settings.sync.speed.' + option.key) }}
+                    </button>
+                  </div>
+                  <p class="settings-help">
+                    {{ t('settings.sync.accelerationDescription') }}
+                  </p>
+                  <p v-if="showFastSyncWarning" class="settings-warning">
+                    {{ t('settings.sync.fastWarning') }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.sync.autoReplay') }}</span>
+                <label class="flex min-h-[34px] items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    data-test="settings-auto-replay"
+                    :checked="settings.autoReplayDeferredSyncOperations"
+                    :disabled="busy"
+                    @change="updateSettings({ autoReplayDeferredSyncOperations: eventChecked($event) })"
+                  />
+                  <span>{{ t('settings.sync.autoReplayDescription') }}</span>
+                </label>
+              </div>
+            </section>
+
+            <section
+              v-show="activeSettingsSection === 'settings-downloads'"
+              id="settings-downloads"
+              class="settings-section"
+            >
+              <h2 class="text-base font-bold">{{ t('settings.downloads.title') }}</h2>
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.downloads.ffmpeg.label') }}</span>
+                <div class="grid gap-2">
+                  <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="font-semibold" :class="ffmpegStatusClass" data-test="settings-ffmpeg-state">
+                      {{ ffmpegStateLabel }}
+                    </span>
+                    <span class="text-[var(--muted)]">{{ ffmpegSourceLabel }}</span>
+                  </div>
+                  <code class="settings-code" data-test="settings-ffmpeg-path">
+                    {{
+                      (ffmpegStatus && ffmpegStatus.path) ||
+                      settings.ffmpegPath ||
+                      t('settings.downloads.ffmpeg.pathUnavailable')
+                    }}
+                  </code>
+                  <p v-if="ffmpegStatus && ffmpegStatus.version" class="settings-help">
+                    {{ ffmpegStatus.version }}
+                  </p>
+                  <p
+                    v-if="ffmpegStatus && ffmpegStatus.error && ffmpegStatus.state !== 'missing'"
+                    class="settings-warning"
+                  >
+                    {{ ffmpegStatus.error }}
+                  </p>
+                  <p class="settings-help">
+                    {{ t('settings.downloads.ffmpeg.description') }}
+                  </p>
+                  <div class="settings-actions">
+                    <button
+                      type="button"
+                      data-test="settings-ffmpeg-refresh"
+                      :disabled="busy"
+                      @click="emit('refresh-ffmpeg')"
+                    >
+                      {{ t('settings.downloads.ffmpeg.checkAgain') }}
+                    </button>
+                    <button
+                      type="button"
+                      data-test="settings-ffmpeg-choose"
+                      :disabled="busy"
+                      @click="emit('choose-ffmpeg')"
+                    >
+                      {{ t('settings.downloads.ffmpeg.chooseBinary') }}
+                    </button>
+                    <button
+                      type="button"
+                      data-test="settings-ffmpeg-clear"
+                      :disabled="busy || !settings.ffmpegPath"
+                      @click="emit('clear-ffmpeg')"
+                    >
+                      {{ t('settings.downloads.ffmpeg.usePath') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label for="settings-max-concurrent-downloads" class="settings-label">
+                  {{ t('settings.downloads.concurrent.label') }}
+                </label>
+                <div class="grid gap-2">
+                  <input
+                    id="settings-max-concurrent-downloads"
+                    class="w-[120px]"
+                    data-test="settings-max-concurrent-downloads"
+                    type="number"
+                    :min="MAX_CONCURRENT_DOWNLOADS_LIMITS.min"
+                    :max="MAX_CONCURRENT_DOWNLOADS_LIMITS.max"
+                    step="1"
+                    :value="settings.maxConcurrentDownloads"
+                    :disabled="busy"
+                    @change="updateMaxConcurrentDownloads"
+                  />
+                  <p class="settings-help">
+                    {{ t('settings.downloads.concurrent.description') }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.downloads.speed.label') }}</span>
+                <div class="grid gap-2">
+                  <div
+                    class="segmented-tabs flex w-fit items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+                  >
+                    <button
+                      v-for="option in DOWNLOAD_SPEED_MODE_OPTIONS"
+                      :key="option.value"
+                      class="segmented-tab min-h-[30px]"
+                      :class="{ 'is-active': settings.downloadSpeedMode === option.value }"
+                      type="button"
+                      :data-test="'settings-download-speed-' + option.value"
+                      :aria-pressed="settings.downloadSpeedMode === option.value"
+                      :disabled="busy"
+                      @click="updateDownloadSpeedMode(option.value)"
+                    >
+                      {{ t('options.downloadSpeedMode.' + option.value) }}
+                    </button>
+                  </div>
+                  <p class="settings-help">
+                    {{ t('settings.downloads.speed.description') }}
+                  </p>
+                  <p class="settings-warning">
+                    {{ t('settings.downloads.speed.' + downloadSpeedModeHints[settings.downloadSpeedMode]) }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.downloads.playback.label') }}</span>
+                <label class="flex max-w-[680px] items-start gap-3 text-sm leading-6 text-[var(--muted)]">
+                  <input
+                    class="mt-1"
+                    data-test="settings-auto-download-on-playback"
+                    type="checkbox"
+                    :checked="settings.autoDownloadOnPlayback"
+                    :disabled="busy"
+                    @change="updateAutoDownloadOnPlayback"
+                  />
+                  <span>{{ t('settings.downloads.playback.description') }}</span>
+                </label>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.downloads.root.label') }}</span>
+                <div class="grid gap-2">
+                  <div class="flex flex-wrap items-center gap-2 text-sm">
+                    <span class="font-semibold text-[var(--text)]">{{ downloadRootSourceLabel }}</span>
+                  </div>
+                  <code class="settings-code" data-test="settings-download-root-path">
+                    {{ downloadRootPath }}
+                  </code>
+                  <p class="settings-help">
+                    {{ t('settings.downloads.root.description') }}
+                  </p>
+                  <p v-if="downloadRoot && !downloadRoot.exists" class="settings-help">
+                    {{ t('settings.downloads.root.missingHint') }}
+                  </p>
+                  <div class="settings-actions">
+                    <button
+                      type="button"
+                      data-test="settings-download-root-choose"
+                      :disabled="busy"
+                      @click="emit('choose-download-root')"
+                    >
+                      {{ t('settings.downloads.root.chooseFolder') }}
+                    </button>
+                    <button
+                      type="button"
+                      data-test="settings-download-root-clear"
+                      :disabled="busy || !settings.downloadRoot"
+                      @click="emit('clear-download-root')"
+                    >
+                      {{ t('settings.downloads.root.useDefault') }}
+                    </button>
+                    <button
+                      type="button"
+                      data-test="settings-download-root-open"
+                      :disabled="busy"
+                      @click="emit('open-download-root')"
+                    >
+                      {{ t('settings.downloads.root.openFolder') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section v-show="activeSettingsSection === 'settings-data'" id="settings-data" class="settings-section">
+              <h2 class="text-base font-bold">{{ t('settings.data.title') }}</h2>
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.data.importJson') }}</span>
+                <div class="grid gap-3">
+                  <div class="settings-actions">
+                    <button type="button" :disabled="busy" @click="chooseImportFile">
+                      {{ t('settings.data.chooseJson') }}
+                    </button>
+                    <span v-if="importFileName" class="text-sm text-[var(--muted)]">{{ importFileName }}</span>
+                    <input
+                      ref="importFile"
+                      data-test="settings-import-file"
+                      type="file"
+                      accept="application/json,.json"
+                      hidden
+                      @change="handleImportFile"
+                    />
+                  </div>
+
+                  <p v-if="importError" class="intent-text-danger m-0 text-sm leading-5">
+                    {{ t('settings.data.importParseFailed', { error: importError }) }}
+                  </p>
+
+                  <div v-if="importResource" class="grid gap-2">
+                    <p class="m-0 text-sm text-[var(--muted)]">
+                      {{ importDetectionLabel }}
+                      <span v-if="importTotal !== null">
+                        · {{ t('settings.data.importRows', { count: importTotal }) }}
+                      </span>
+                    </p>
+                    <div class="settings-actions">
+                      <label for="settings-import-target" class="text-sm font-semibold">
+                        {{ t('settings.data.importTarget') }}
+                      </label>
+                      <select
+                        id="settings-import-target"
+                        data-test="settings-import-target"
+                        :value="importTargetCollection"
+                        :disabled="busy"
+                        @change="updateImportTarget"
+                      >
+                        <option value="" disabled>{{ t('settings.data.importTargetPlaceholder') }}</option>
+                        <option value="favourites">{{ t('collections.favourites') }}</option>
+                        <option value="watch_later">{{ t('collections.watch_later') }}</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="primary"
+                        data-test="settings-import-confirm"
+                        :disabled="busy || !importTargetCollection"
+                        @click="confirmImport"
+                      >
+                        {{ t('settings.data.confirmImport') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.data.exportJson') }}</span>
+                <div class="settings-actions">
+                  <select v-model="exportCollection" :disabled="busy" :aria-label="t('settings.data.exportTarget')">
                     <option value="favourites">{{ t('collections.favourites') }}</option>
                     <option value="watch_later">{{ t('collections.watch_later') }}</option>
                   </select>
                   <button
                     type="button"
-                    class="primary"
-                    data-test="settings-import-confirm"
-                    :disabled="busy || !importTargetCollection"
-                    @click="confirmImport"
+                    data-test="settings-export-button"
+                    :disabled="busy"
+                    @click="emit('export-json', exportCollection)"
                   >
-                    {{ t('settings.data.confirmImport') }}
+                    {{ t('settings.data.exportAction') }}
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div class="settings-row settings-row-center">
-            <span class="settings-label">{{ t('settings.data.exportJson') }}</span>
-            <div class="settings-actions">
-              <select v-model="exportCollection" :disabled="busy" :aria-label="t('settings.data.exportTarget')">
-                <option value="favourites">{{ t('collections.favourites') }}</option>
-                <option value="watch_later">{{ t('collections.watch_later') }}</option>
-              </select>
-              <button
-                type="button"
-                data-test="settings-export-button"
-                :disabled="busy"
-                @click="emit('export-json', exportCollection)"
-              >
-                {{ t('settings.data.exportAction') }}
-              </button>
-            </div>
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.data.databasePath') }}</span>
+                <div class="grid gap-2">
+                  <code class="settings-code">
+                    {{ databasePath || t('settings.data.databasePathUnavailable') }}
+                  </code>
+                  <button
+                    type="button"
+                    class="w-fit"
+                    data-test="settings-open-data-folder"
+                    :disabled="busy || !databasePath"
+                    @click="emit('open-data-folder')"
+                  >
+                    {{ t('settings.data.openFolder') }}
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
-
-          <div class="settings-row">
-            <span class="settings-label">{{ t('settings.data.databasePath') }}</span>
-            <div class="grid gap-2">
-              <code class="settings-code">
-                {{ databasePath || t('settings.data.databasePathUnavailable') }}
-              </code>
-              <button
-                type="button"
-                class="w-fit"
-                data-test="settings-open-data-folder"
-                :disabled="busy || !databasePath"
-                @click="emit('open-data-folder')"
-              >
-                {{ t('settings.data.openFolder') }}
-              </button>
-            </div>
-          </div>
-        </section>
+        </div>
       </div>
     </div>
   </section>

@@ -232,6 +232,7 @@
   },
   "settings": {
     "aria": "アプリ設定",
+    "navigation": "設定セクション",
     "title": "設定",
     "subtitle": "ブラウザー、同期、Import、Export の動作を調整します。",
     "general": {
