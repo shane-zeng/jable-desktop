@@ -31,6 +31,8 @@ Before implementing a candidate:
   Pending remote group parsing, latest operation lookup, group resolution, and sync-owned visible/hidden collection item upserts are centralized in `native/local-data-engine/src/sync.rs`.
 - Download Manager bulk queue action cleanup.
   Bulk retry, resume, pause, and cancel flows share focused result accounting helpers while preserving action-specific single-record behavior in `app/main-process/download-manager.ts`.
+- Download Manager local playback preview split.
+  Thumbnail preview metadata validation, VTT formatting, FFmpeg thumbnail generation, preview cache cleanup, and preview generation queue state now live in `app/main-process/local-playback-preview.ts`; `app/main-process/download-manager.ts` keeps local playback token routing, response streaming, download records, and manager IPC surface.
 - WebView preload DOM scraping cleanup.
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, and DOM replacement side effects.
 - HLS playback helper split.

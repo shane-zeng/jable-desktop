@@ -199,7 +199,7 @@ Desktop app files:
 
 - `app/app-contract.ts`: shared user-facing contract constants such as page size, app settings defaults, and settings limit ranges.
 - `app/main.ts`: Electron main-process entrypoint and composition root for app lifecycle, window creation, shared services, and manager registration.
-- `app/main-process/`: main-process domain modules for BrowserView tabs, keyboard shortcuts, app/native menus and update dialogs, context menus, download orchestration, sync workers, IPC registration, IPC payload normalizers, settings persistence, and release update fetching.
+- `app/main-process/`: main-process domain modules for BrowserView tabs, keyboard shortcuts, app/native menus and update dialogs, context menus, download orchestration, local playback range and preview helpers, sync workers, IPC registration, IPC payload normalizers, settings persistence, and release update fetching.
 - `app/preload.ts`: context-isolated renderer IPC bridge exposed as `window.jableApp`.
 - `app/webview-preload.ts`: preload composition root and scraper/pager DOM runtime injected into each embedded Jable `WebContentsView`.
 - `app/browser/`: browser/runtime policy modules: pure BrowserView tab policy, trusted URL policy, optional WebView loading and page cleanup rules, pure webview preload helper logic for AJAX/pager URL parsing, retry/backoff, metrics, page numbers, and video path keys, plus focused preload runtime modules under `app/browser/webview-preload/`.
@@ -254,7 +254,7 @@ Test coverage map:
 - `test/node/webview-content-policy.test.js`: DOM container removal for configured WebView content cleanup rules.
 - `test/node/browser-tab-policy.test.js`: tab web preferences, media serialization, close target selection, tab cycling, and shortcut detection.
 - `test/node/download-helpers.test.js`: HLS playlist extraction, playlist parsing, request header handling, resume manifest compatibility, and error sanitization helpers.
-- `test/node/download-manager.test.js`: Download Manager orchestration helpers, speed mode mapping, failure classification, bulk result shapes, refresh retry compatibility, and sanitizer behavior.
+- `test/node/download-manager.test.js`: Download Manager orchestration helpers, speed mode mapping, local playback serving/preview behavior, failure classification, bulk result shapes, refresh retry compatibility, and sanitizer behavior.
 - `test/node/ipc-normalizers.test.js`: renderer IPC payload validation and normalization.
 - `test/node/webview-preload-helpers.test.js`: pure webview preload helper behavior for constants, metrics, page parsing, AJAX URLs, and retry details.
 - `test/node/settings.test.js`: app settings defaults, persistence, and user-facing limit clamping.

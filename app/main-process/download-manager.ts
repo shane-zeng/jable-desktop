@@ -48,6 +48,7 @@ import {
 } from './download-errors';
 import { normalizeCollectionKey, requiredRecord, requiredStringValue } from './ipc-normalizers';
 import { parseLocalPlaybackRangeHeader } from './local-playback';
+import { createLocalPlaybackPreviewController, type LocalPlaybackFile } from './local-playback-preview';
 
 export {
   downloadFailureCode,
@@ -147,11 +148,6 @@ type DownloadDataStore = {
   upsertDownloadAsset(patch: DownloadRecordPatch): DownloadRecord;
   removeDownloadAsset(videoUrl: string): boolean;
 };
-type LocalPlaybackFile = {
-  record: DownloadRecord;
-  filePath: string;
-  stats: NodeFs.Stats;
-};
 type LocalPlaybackSourceRequest = {
   videoUrl: string | null;
   sourcePageChineseSubtitleNotice: boolean | null;
@@ -159,20 +155,6 @@ type LocalPlaybackSourceRequest = {
 type SourcePageChineseSubtitleNotice = {
   sourcePageChineseSubtitleNotice: boolean;
   sourcePageSubtitleNoticeText: string | null;
-};
-type LocalPlaybackPreviewCue = {
-  start: number;
-  end: number;
-  fileName: string;
-};
-type LocalPlaybackPreviewMetadata = {
-  version: 1;
-  intervalSeconds: number;
-  width: number;
-  height: number;
-  fileSizeBytes: number;
-  mtimeMs: number;
-  cues: LocalPlaybackPreviewCue[];
 };
 type LocalPlaybackRequestTarget =
   | {
@@ -266,9 +248,6 @@ const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
 const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
 const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
 const LOCAL_PLAYBACK_TOKEN_TTL_MS = 30 * 60 * 1000;
-const LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS = 60;
-const LOCAL_PLAYBACK_PREVIEW_WIDTH = 213;
-const LOCAL_PLAYBACK_PREVIEW_HEIGHT = 120;
 const CHINESE_SUBTITLE_NOTICE_TOKEN = '中文字幕版';
 const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY: Record<DownloadSpeedMode, { min: number; max: number }> = {
   stable: { min: 4, max: 8 },
@@ -299,9 +278,6 @@ const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
 const activeDownloadTasks = new Map<string, Promise<void>>();
 const localPlaybackTokens = new Map<string, { videoUrl: string; expiresAt: number }>();
-const localPlaybackPreviewQueue: string[] = [];
-const localPlaybackPreviewQueuedUrls = new Set<string>();
-const localPlaybackPreviewFailedKeys = new Set<string>();
 const hlsPlaybackCaptureProgressNotifications = new Map<
   string,
   { captured: number; notifiedAt: number; total: number }
@@ -311,7 +287,13 @@ const hlsPlaybackCaptureActivePageLoadIds = new Map<string, string>();
 const hlsPlaybackCaptureAutoQueuedUrls = new Set<string>();
 const hlsPlaybackCaptureRuntimeProgress = new Map<string, number>();
 const hlsPlaybackCaptureSuppressedPageLoadIds = new Map<string, string | null>();
-let activeLocalPlaybackPreviewTask: Promise<void> | null = null;
+const localPlaybackPreviewController = createLocalPlaybackPreviewController({
+  ffmpegCommandForDownload: ffmpegCommandForDownload,
+  localPlaybackReadyFile: localPlaybackReadyFile,
+  localPlaybackScheme: LOCAL_PLAYBACK_SCHEME,
+  notifyDownloadsChanged: notifyDownloadsChanged,
+  resolveManagedDownloadPath: resolveManagedDownloadPath
+});
 
 function t(key: string, params?: TranslationParams | null): string {
   return translate(key, params);
@@ -917,339 +899,6 @@ function resolveManagedDownloadPath(fileRelativePath: string | null): string | n
   return filePath;
 }
 
-function localPlaybackPreviewDirectory(outputPath: string): string {
-  return outputPath + '.preview';
-}
-
-function localPlaybackPreviewTempDirectory(outputPath: string): string {
-  return outputPath + '.preview.tmp';
-}
-
-function localPlaybackPreviewMetadataPath(previewDir: string): string {
-  return path.join(previewDir, 'metadata.json');
-}
-
-function isLocalPlaybackPreviewImageFileName(value: string): boolean {
-  return /^thumb-\d{6}\.jpg$/.test(value);
-}
-
-function removeDirectoryIfPresent(dirPath: string) {
-  try {
-    fs.rmSync(dirPath, { recursive: true, force: true });
-  } catch (error) {}
-}
-
-function removeLocalPlaybackPreviewFiles(record: DownloadRecord) {
-  const outputPath = resolveManagedDownloadPath(record.localPath);
-  if (!outputPath) return;
-  removeDirectoryIfPresent(localPlaybackPreviewDirectory(outputPath));
-  removeDirectoryIfPresent(localPlaybackPreviewTempDirectory(outputPath));
-}
-
-function localPlaybackPreviewIdentity(file: LocalPlaybackFile) {
-  return {
-    fileSizeBytes: file.stats.size,
-    mtimeMs: Math.trunc(file.stats.mtimeMs)
-  };
-}
-
-function localPlaybackPreviewGenerationKey(file: LocalPlaybackFile): string {
-  const identity = localPlaybackPreviewIdentity(file);
-  return [file.record.videoUrl, file.filePath, identity.fileSizeBytes, identity.mtimeMs].join('\n');
-}
-
-function localPlaybackPreviewMetadataMatchesFile(
-  metadata: LocalPlaybackPreviewMetadata,
-  file: LocalPlaybackFile
-): boolean {
-  const identity = localPlaybackPreviewIdentity(file);
-  return metadata.fileSizeBytes === identity.fileSizeBytes && metadata.mtimeMs === identity.mtimeMs;
-}
-
-function localPlaybackFileMatchesPreviewSource(file: LocalPlaybackFile): boolean {
-  const current = localPlaybackReadyFile(file.record.videoUrl);
-  if (!current || current.filePath !== file.filePath) return false;
-
-  const original = localPlaybackPreviewIdentity(file);
-  const latest = localPlaybackPreviewIdentity(current);
-  return original.fileSizeBytes === latest.fileSizeBytes && original.mtimeMs === latest.mtimeMs;
-}
-
-function normalizeLocalPlaybackPreviewMetadata(value: unknown): LocalPlaybackPreviewMetadata | null {
-  if (!value || typeof value !== 'object') return null;
-  const metadata = value as Partial<LocalPlaybackPreviewMetadata>;
-  if (metadata.version !== 1) return null;
-  if (metadata.intervalSeconds !== LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS) return null;
-  if (metadata.width !== LOCAL_PLAYBACK_PREVIEW_WIDTH || metadata.height !== LOCAL_PLAYBACK_PREVIEW_HEIGHT) return null;
-  if (typeof metadata.fileSizeBytes !== 'number' || typeof metadata.mtimeMs !== 'number') return null;
-  if (!Array.isArray(metadata.cues) || !metadata.cues.length) return null;
-
-  const cues: LocalPlaybackPreviewCue[] = [];
-  for (const cue of metadata.cues) {
-    if (!cue || typeof cue !== 'object') return null;
-    const candidate = cue as Partial<LocalPlaybackPreviewCue>;
-    if (typeof candidate.start !== 'number' || typeof candidate.end !== 'number') return null;
-    if (typeof candidate.fileName !== 'string' || !isLocalPlaybackPreviewImageFileName(candidate.fileName)) {
-      return null;
-    }
-    if (candidate.start < 0 || candidate.end <= candidate.start) return null;
-    cues.push({
-      start: candidate.start,
-      end: candidate.end,
-      fileName: candidate.fileName
-    });
-  }
-
-  return {
-    version: 1,
-    intervalSeconds: metadata.intervalSeconds,
-    width: metadata.width,
-    height: metadata.height,
-    fileSizeBytes: metadata.fileSizeBytes,
-    mtimeMs: Math.trunc(metadata.mtimeMs),
-    cues: cues
-  };
-}
-
-function readLocalPlaybackPreviewMetadata(file: LocalPlaybackFile): LocalPlaybackPreviewMetadata | null {
-  let metadata: LocalPlaybackPreviewMetadata | null;
-  const previewDir = localPlaybackPreviewDirectory(file.filePath);
-
-  try {
-    metadata = normalizeLocalPlaybackPreviewMetadata(
-      JSON.parse(fs.readFileSync(localPlaybackPreviewMetadataPath(previewDir), 'utf8'))
-    );
-  } catch (error) {
-    return null;
-  }
-
-  if (!metadata || !localPlaybackPreviewMetadataMatchesFile(metadata, file)) return null;
-
-  try {
-    for (const cue of metadata.cues) {
-      if (!fs.statSync(path.join(previewDir, cue.fileName)).isFile()) return null;
-    }
-  } catch (error) {
-    return null;
-  }
-
-  return metadata;
-}
-
-function formatVttTimestamp(seconds: number): string {
-  const safeSeconds = Math.max(0, seconds);
-  const wholeSeconds = Math.floor(safeSeconds);
-  const hours = Math.floor(wholeSeconds / 3600);
-  const minutes = Math.floor((wholeSeconds % 3600) / 60);
-  const remainingSeconds = wholeSeconds % 60;
-
-  return (
-    String(hours).padStart(2, '0') +
-    ':' +
-    String(minutes).padStart(2, '0') +
-    ':' +
-    String(remainingSeconds).padStart(2, '0') +
-    '.000'
-  );
-}
-
-function localPlaybackPreviewVttText(metadata: LocalPlaybackPreviewMetadata): string {
-  const lines = ['WEBVTT', ''];
-  for (const cue of metadata.cues) {
-    lines.push(formatVttTimestamp(cue.start) + ' --> ' + formatVttTimestamp(cue.end));
-    lines.push(cue.fileName);
-    lines.push('');
-  }
-  return lines.join('\n');
-}
-
-function localPlaybackPreviewVttUrl(token: string): string {
-  return LOCAL_PLAYBACK_SCHEME + '://thumb/' + token + '/thumb.vtt';
-}
-
-function localPlaybackPreviewMetadataForFiles(
-  file: LocalPlaybackFile,
-  fileNames: string[]
-): LocalPlaybackPreviewMetadata {
-  const identity = localPlaybackPreviewIdentity(file);
-  return {
-    version: 1,
-    intervalSeconds: LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS,
-    width: LOCAL_PLAYBACK_PREVIEW_WIDTH,
-    height: LOCAL_PLAYBACK_PREVIEW_HEIGHT,
-    fileSizeBytes: identity.fileSizeBytes,
-    mtimeMs: identity.mtimeMs,
-    cues: fileNames.map(function (fileName, index) {
-      const start = index * LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS;
-      return {
-        start: start,
-        end: start + LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS,
-        fileName: fileName
-      };
-    })
-  };
-}
-
-function generatedLocalPlaybackPreviewFiles(tempDir: string): string[] {
-  let entries: string[];
-  try {
-    entries = fs.readdirSync(tempDir);
-  } catch (error) {
-    return [];
-  }
-
-  return entries.filter(isLocalPlaybackPreviewImageFileName).sort();
-}
-
-function writeLocalPlaybackPreviewMetadata(file: LocalPlaybackFile, tempDir: string, fileNames: string[]) {
-  const metadata = localPlaybackPreviewMetadataForFiles(file, fileNames);
-  fs.writeFileSync(localPlaybackPreviewMetadataPath(tempDir), JSON.stringify(metadata, null, 2));
-}
-
-function generateLocalPlaybackPreviewFiles(command: string, file: LocalPlaybackFile): Promise<void> {
-  return new Promise(function (resolve, reject) {
-    const tempDir = localPlaybackPreviewTempDirectory(file.filePath);
-    const previewDir = localPlaybackPreviewDirectory(file.filePath);
-    removeDirectoryIfPresent(tempDir);
-    fs.mkdirSync(tempDir, { recursive: true });
-
-    const child = childProcess.spawn(
-      command,
-      [
-        '-y',
-        '-nostdin',
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-threads',
-        '1',
-        '-i',
-        file.filePath,
-        '-vf',
-        'fps=1/' +
-          LOCAL_PLAYBACK_PREVIEW_INTERVAL_SECONDS +
-          ',scale=' +
-          LOCAL_PLAYBACK_PREVIEW_WIDTH +
-          ':' +
-          LOCAL_PLAYBACK_PREVIEW_HEIGHT +
-          ':force_original_aspect_ratio=decrease:force_divisible_by=2,pad=' +
-          LOCAL_PLAYBACK_PREVIEW_WIDTH +
-          ':' +
-          LOCAL_PLAYBACK_PREVIEW_HEIGHT +
-          ':(ow-iw)/2:(oh-ih)/2',
-        '-q:v',
-        '5',
-        path.join(tempDir, 'thumb-%06d.jpg')
-      ],
-      {
-        windowsHide: true
-      }
-    );
-    let stderr = '';
-
-    child.stderr.on('data', function (chunk) {
-      stderr = (stderr + String(chunk)).slice(-4000);
-    });
-    child.on('error', function (error) {
-      removeDirectoryIfPresent(tempDir);
-      reject(new FfmpegDownloadError(mainErrorMessage(error)));
-    });
-    child.on('close', function (code) {
-      if (code !== 0) {
-        removeDirectoryIfPresent(tempDir);
-        reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
-        return;
-      }
-
-      try {
-        const fileNames = generatedLocalPlaybackPreviewFiles(tempDir);
-        if (!fileNames.length) throw new FfmpegDownloadError('FFmpeg did not generate playback preview thumbnails');
-        if (!localPlaybackFileMatchesPreviewSource(file)) {
-          removeDirectoryIfPresent(tempDir);
-          resolve();
-          return;
-        }
-
-        writeLocalPlaybackPreviewMetadata(file, tempDir, fileNames);
-        removeDirectoryIfPresent(previewDir);
-        fs.renameSync(tempDir, previewDir);
-        resolve();
-      } catch (error) {
-        removeDirectoryIfPresent(tempDir);
-        reject(error);
-      }
-    });
-  });
-}
-
-function localPlaybackFileLooksLikeMp4(filePath: string): boolean {
-  try {
-    const fd = fs.openSync(filePath, 'r');
-    try {
-      const header = Buffer.alloc(32);
-      const bytesRead = fs.readSync(fd, header, 0, header.length, 0);
-      return header.subarray(0, bytesRead).includes(Buffer.from('ftyp'));
-    } finally {
-      fs.closeSync(fd);
-    }
-  } catch (error) {
-    return false;
-  }
-}
-
-async function runLocalPlaybackPreviewGeneration(videoUrl: string): Promise<void> {
-  const readyFile = localPlaybackReadyFile(videoUrl);
-  if (!readyFile || readLocalPlaybackPreviewMetadata(readyFile)) return;
-  if (!localPlaybackFileLooksLikeMp4(readyFile.filePath)) return;
-
-  const generationKey = localPlaybackPreviewGenerationKey(readyFile);
-  if (localPlaybackPreviewFailedKeys.has(generationKey)) return;
-
-  try {
-    const command = await ffmpegCommandForDownload();
-    await generateLocalPlaybackPreviewFiles(command, readyFile);
-    localPlaybackPreviewFailedKeys.delete(generationKey);
-    notifyDownloadsChanged();
-  } catch (error) {
-    localPlaybackPreviewFailedKeys.add(generationKey);
-    console.warn('[local-playback-preview] ' + mainErrorMessage(error));
-  }
-}
-
-function processLocalPlaybackPreviewQueue() {
-  if (activeLocalPlaybackPreviewTask) return;
-
-  const videoUrl = localPlaybackPreviewQueue.shift();
-  if (!videoUrl) return;
-
-  activeLocalPlaybackPreviewTask = runLocalPlaybackPreviewGeneration(videoUrl).finally(function () {
-    localPlaybackPreviewQueuedUrls.delete(videoUrl);
-    activeLocalPlaybackPreviewTask = null;
-    processLocalPlaybackPreviewQueue();
-  });
-}
-
-function scheduleLocalPlaybackPreviewGeneration(file: LocalPlaybackFile) {
-  const videoUrl = file.record.videoUrl;
-  if (localPlaybackPreviewQueuedUrls.has(videoUrl)) return;
-  if (!localPlaybackFileLooksLikeMp4(file.filePath)) return;
-  if (localPlaybackPreviewFailedKeys.has(localPlaybackPreviewGenerationKey(file))) return;
-
-  localPlaybackPreviewQueuedUrls.add(videoUrl);
-  localPlaybackPreviewQueue.push(videoUrl);
-  processLocalPlaybackPreviewQueue();
-}
-
-function removeQueuedLocalPlaybackPreviewGeneration(videoUrl: string) {
-  const queueIndex = localPlaybackPreviewQueue.indexOf(videoUrl);
-  if (queueIndex !== -1) localPlaybackPreviewQueue.splice(queueIndex, 1);
-  if (queueIndex !== -1 || !activeLocalPlaybackPreviewTask) localPlaybackPreviewQueuedUrls.delete(videoUrl);
-
-  for (const key of localPlaybackPreviewFailedKeys) {
-    if (key.startsWith(videoUrl + '\n')) localPlaybackPreviewFailedKeys.delete(key);
-  }
-}
-
 function localPlaybackUnavailable(
   videoUrl: string | null,
   reason: LocalPlaybackUnavailableReason
@@ -1396,14 +1045,14 @@ function localPlaybackSource(value: unknown): LocalPlaybackSourceResult {
   if (!readyFile) return localPlaybackUnavailable(videoUrl, 'unavailable');
 
   const token = createLocalPlaybackToken(readyFile.record.videoUrl);
-  const previewMetadata = readLocalPlaybackPreviewMetadata(readyFile);
-  if (!previewMetadata) scheduleLocalPlaybackPreviewGeneration(readyFile);
+  const previewMetadata = localPlaybackPreviewController.readMetadata(readyFile);
+  if (!previewMetadata) localPlaybackPreviewController.scheduleGeneration(readyFile);
 
   return {
     available: true,
     videoUrl: readyFile.record.videoUrl,
     sourceUrl: localPlaybackTokenUrl(token),
-    thumbnailVttUrl: previewMetadata ? localPlaybackPreviewVttUrl(token) : null,
+    thumbnailVttUrl: previewMetadata ? localPlaybackPreviewController.vttUrl(token) : null,
     title: readyFile.record.title,
     fileSizeBytes: readyFile.stats.size
   };
@@ -1458,10 +1107,10 @@ function localPlaybackFileResponse(file: LocalPlaybackFile, request: Request): R
 }
 
 function localPlaybackPreviewVttResponse(file: LocalPlaybackFile, request: Request): Response {
-  const metadata = readLocalPlaybackPreviewMetadata(file);
+  const metadata = localPlaybackPreviewController.readMetadata(file);
   if (!metadata) return localPlaybackErrorResponse(404, 'Not Found');
 
-  const body = request.method.toUpperCase() === 'HEAD' ? null : localPlaybackPreviewVttText(metadata);
+  const body = request.method.toUpperCase() === 'HEAD' ? null : localPlaybackPreviewController.vttText(metadata);
   return localPlaybackResponse(200, body, {
     'cache-control': 'private, max-age=1800',
     'content-type': 'text/vtt; charset=utf-8'
@@ -1473,7 +1122,7 @@ function localPlaybackPreviewImageResponse(
   target: Extract<LocalPlaybackRequestTarget, { type: 'preview-image' }>,
   request: Request
 ): Response {
-  const metadata = readLocalPlaybackPreviewMetadata(file);
+  const metadata = localPlaybackPreviewController.readMetadata(file);
   if (
     !metadata ||
     !metadata.cues.some(function (cue) {
@@ -1483,7 +1132,7 @@ function localPlaybackPreviewImageResponse(
     return localPlaybackErrorResponse(404, 'Not Found');
   }
 
-  const filePath = path.join(localPlaybackPreviewDirectory(file.filePath), target.fileName);
+  const filePath = localPlaybackPreviewController.imageFilePath(file, target.fileName);
   let stats: NodeFs.Stats;
   try {
     stats = fs.statSync(filePath);
@@ -2622,7 +2271,7 @@ async function runActiveDownload(
     notifyDownloadsChanged();
 
     const readyFile = localPlaybackReadyFile(record.videoUrl);
-    if (readyFile) scheduleLocalPlaybackPreviewGeneration(readyFile);
+    if (readyFile) localPlaybackPreviewController.scheduleGeneration(readyFile);
   } catch (error) {
     const paused = pausedDownloadUrls.has(record.videoUrl) || isDownloadPausedError(error);
     if (!deletedDownloadUrls.has(record.videoUrl)) {
@@ -3180,11 +2829,11 @@ function deleteDownloadRecord(visibleRecord: DownloadRecord): { deleted: boolean
   pausedDownloadUrls.delete(visibleRecord.videoUrl);
   resumedDownloadUrls.delete(visibleRecord.videoUrl);
   suppressHlsPlaybackCapture(visibleRecord.videoUrl);
-  removeQueuedLocalPlaybackPreviewGeneration(visibleRecord.videoUrl);
+  localPlaybackPreviewController.removeQueuedGeneration(visibleRecord.videoUrl);
 
   const deleted = deleteManagedDownloadFile(visibleRecord);
   removeDownloadWorkingFiles(visibleRecord);
-  removeLocalPlaybackPreviewFiles(visibleRecord);
+  localPlaybackPreviewController.removeFiles(visibleRecord);
   const removed = removePersistedDownload(visibleRecord.videoUrl);
 
   return {
