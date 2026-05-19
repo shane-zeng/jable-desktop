@@ -11,6 +11,11 @@ function createTempUserDataDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'jable-electron-smoke-'));
 }
 
+function writeJson(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n');
+}
+
 function startSmokeServer() {
   const server = http.createServer(function (_request, response) {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -75,6 +80,16 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
   let electronApp = null;
 
   try {
+    writeJson(path.join(userDataDir, 'browser-session.json'), {
+      version: 1,
+      updatedAt: '2026-05-19T00:00:00.000Z',
+      activeTabIndex: 1,
+      tabs: [
+        { url: smokeServer.url + '?ignored=1', locked: false, muted: false },
+        { url: smokeServer.url + '?ignored=2', locked: false, muted: false }
+      ]
+    });
+
     electronApp = await electron.launch({
       executablePath: electronPath,
       args: [process.cwd()],
@@ -107,6 +122,57 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     });
     expect(initialTabs.tabs.length).toBe(1);
     expect(initialTabs.activeTabId).toBe(initialTabs.tabs[0].id);
+  } finally {
+    if (electronApp) await electronApp.close();
+    await smokeServer.close();
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('desktop app restores previous browser tabs when enabled', async function () {
+  const userDataDir = createTempUserDataDir();
+  const smokeServer = await startSmokeServer();
+  const firstUrl = smokeServer.url + '?tab=one';
+  const secondUrl = smokeServer.url + '?tab=two';
+  let electronApp = null;
+
+  try {
+    writeJson(path.join(userDataDir, 'settings.json'), {
+      restoreBrowserTabsOnStartup: true
+    });
+    writeJson(path.join(userDataDir, 'browser-session.json'), {
+      version: 1,
+      updatedAt: '2026-05-19T00:00:00.000Z',
+      activeTabIndex: 1,
+      tabs: [
+        { url: firstUrl, locked: false, muted: false },
+        { url: secondUrl, locked: true, muted: true }
+      ]
+    });
+
+    electronApp = await electron.launch({
+      executablePath: electronPath,
+      args: [process.cwd()],
+      cwd: process.cwd(),
+      env: Object.assign({}, process.env, {
+        ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+        JABLE_DESKTOP_TEST_BYPASS_SHELL_OPEN: '1',
+        JABLE_DESKTOP_TEST_HOME_URL: smokeServer.url,
+        JABLE_DESKTOP_TEST_USER_DATA_DIR: userDataDir
+      })
+    });
+
+    const window = await findPreloadBridgeWindow(electronApp);
+    const restoredTabs = await window.evaluate(function () {
+      return globalThis.jableApp.listBrowserTabs();
+    });
+
+    expect(restoredTabs.tabs.length).toBe(2);
+    expect(restoredTabs.tabs[0].url).toBe(firstUrl);
+    expect(restoredTabs.tabs[1].url).toBe(secondUrl);
+    expect(restoredTabs.activeTabId).toBe(restoredTabs.tabs[1].id);
+    expect(restoredTabs.tabs[1].locked).toBe(true);
+    expect(restoredTabs.tabs[1].muted).toBe(true);
   } finally {
     if (electronApp) await electronApp.close();
     await smokeServer.close();

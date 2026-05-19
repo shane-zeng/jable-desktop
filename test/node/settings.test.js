@@ -20,6 +20,7 @@ test('app settings store returns defaults and persists updates', function () {
     maxBrowserTabs: 14,
     browserTabsMode: 'standard',
     compactBrowserTabs: false,
+    restoreBrowserTabsOnStartup: false,
     webViewEnhancementMode: false,
     fullSyncAjaxWindowSize: 3,
     autoReplayDeferredSyncOperations: false,
@@ -35,6 +36,7 @@ test('app settings store returns defaults and persists updates', function () {
     store.update({
       maxBrowserTabs: 22,
       browserTabsMode: 'shared',
+      restoreBrowserTabsOnStartup: true,
       webViewEnhancementMode: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
@@ -49,6 +51,7 @@ test('app settings store returns defaults and persists updates', function () {
       maxBrowserTabs: 22,
       browserTabsMode: 'shared',
       compactBrowserTabs: false,
+      restoreBrowserTabsOnStartup: true,
       webViewEnhancementMode: true,
       fullSyncAjaxWindowSize: 5,
       autoReplayDeferredSyncOperations: true,
@@ -65,6 +68,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().maxBrowserTabs, 22);
   assert.equal(secondStore.get().browserTabsMode, 'shared');
   assert.equal(secondStore.get().compactBrowserTabs, false);
+  assert.equal(secondStore.get().restoreBrowserTabsOnStartup, true);
   assert.equal(secondStore.get().webViewEnhancementMode, true);
   assert.equal(secondStore.get().fullSyncAjaxWindowSize, 5);
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
@@ -111,6 +115,20 @@ test('app settings patch normalizes WebView enhancement mode', function () {
 
   assert.deepEqual(settings.normalizeAppSettingsPatch({ webViewEnhancementMode: 0 }), {
     webViewEnhancementMode: false
+  });
+});
+
+test('app settings patch normalizes browser session restore setting', function () {
+  assert.equal(settings.normalizeAppSettings({ restoreBrowserTabsOnStartup: true }).restoreBrowserTabsOnStartup, true);
+  assert.equal(
+    settings.normalizeAppSettings({ restoreBrowserTabsOnStartup: false }).restoreBrowserTabsOnStartup,
+    false
+  );
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ restoreBrowserTabsOnStartup: 1 }), {
+    restoreBrowserTabsOnStartup: true
+  });
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ restoreBrowserTabsOnStartup: 0 }), {
+    restoreBrowserTabsOnStartup: false
   });
 });
 

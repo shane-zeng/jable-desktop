@@ -8,6 +8,7 @@ const settings: AppSettings = {
   maxBrowserTabs: 22,
   browserTabsMode: 'compact',
   compactBrowserTabs: true,
+  restoreBrowserTabsOnStartup: false,
   webViewEnhancementMode: false,
   fullSyncAjaxWindowSize: 5,
   autoReplayDeferredSyncOperations: false,
@@ -66,6 +67,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('一般');
     expect(wrapper.text()).toContain('瀏覽器');
     expect(wrapper.text()).toContain('分頁列顯示方式');
+    expect(wrapper.text()).toContain('記住開啟的分頁');
     expect(wrapper.text()).toContain('WebView 增強模式');
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('下載');
@@ -97,6 +99,9 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-browser-tabs-mode-shared"]').trigger('click');
     expect(wrapper.emitted('update-settings')).toContainEqual([{ browserTabsMode: 'shared' }]);
+
+    await wrapper.get('[data-test="settings-restore-browser-tabs-on-startup"]').setValue(true);
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ restoreBrowserTabsOnStartup: true }]);
 
     await wrapper.get('[data-test="settings-ffmpeg-refresh"]').trigger('click');
     expect(wrapper.emitted('refresh-ffmpeg')).toEqual([[]]);

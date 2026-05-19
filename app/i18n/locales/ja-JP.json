@@ -251,6 +251,8 @@
         "compact": "フローティング",
         "shared": "共有"
       },
+      "restoreTabsOnStartup": "開いているタブを記憶",
+      "restoreTabsOnStartupDescription": "次回 App 起動時に自動で開きます。",
       "webViewEnhancementMode": "WebView 拡張モード",
       "webViewEnhancementModeDescription": "追加の WebView 読み込みと画面整理ルールを適用します。表示が不安定な場合はオフにしてください。",
       "tabWidth": "タブレール幅",

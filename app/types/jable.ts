@@ -139,6 +139,7 @@ export interface AppSettings {
   maxBrowserTabs: number;
   browserTabsMode: BrowserTabsMode;
   compactBrowserTabs: boolean;
+  restoreBrowserTabsOnStartup: boolean;
   webViewEnhancementMode: boolean;
   fullSyncAjaxWindowSize: number;
   autoReplayDeferredSyncOperations: boolean;

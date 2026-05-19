@@ -251,6 +251,8 @@
         "compact": "浮動",
         "shared": "跨頁"
       },
+      "restoreTabsOnStartup": "記住開啟的分頁",
+      "restoreTabsOnStartupDescription": "下次開啟 App 時自動打開。",
       "webViewEnhancementMode": "WebView 增強模式",
       "webViewEnhancementModeDescription": "啟用額外的 WebView 載入與畫面整理規則；若網站顯示異常，請關閉後重試。",
       "tabWidth": "分頁列寬度",

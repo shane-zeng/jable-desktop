@@ -109,6 +109,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     ),
     browserTabsMode: browserTabsMode,
     compactBrowserTabs: browserTabsMode === 'compact',
+    restoreBrowserTabsOnStartup: Boolean(record.restoreBrowserTabsOnStartup),
     webViewEnhancementMode: Boolean(record.webViewEnhancementMode),
     fullSyncAjaxWindowSize: clampInteger(
       record.fullSyncAjaxWindowSize,
@@ -151,6 +152,9 @@ export function normalizeAppSettingsPatch(value: unknown): AppSettingsPatch {
   if (Object.prototype.hasOwnProperty.call(value, 'browserTabsMode')) {
     patch.browserTabsMode = normalizeBrowserTabsMode(value.browserTabsMode);
     patch.compactBrowserTabs = patch.browserTabsMode === 'compact';
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'restoreBrowserTabsOnStartup')) {
+    patch.restoreBrowserTabsOnStartup = Boolean(value.restoreBrowserTabsOnStartup);
   }
   if (Object.prototype.hasOwnProperty.call(value, 'webViewEnhancementMode')) {
     patch.webViewEnhancementMode = Boolean(value.webViewEnhancementMode);

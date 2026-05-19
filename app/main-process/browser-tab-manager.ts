@@ -11,6 +11,7 @@ import type {
   BrowserTabsState,
   CreateBrowserTabPayload
 } from '../types/jable';
+import type { BrowserSessionSnapshot } from './browser-session-store';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 export type BrowserBoundsState = { visible: boolean; x: number; y: number; width: number; height: number };
@@ -60,6 +61,7 @@ export type BrowserTabManagerContext = {
   getMaxBrowserTabs(): number;
   homeUrl: string;
   normalizeNavigationUrl(value: unknown): string;
+  onBrowserTabsChanged?(): void;
   registerShortcuts(webContents: Electron.WebContents): void;
   rejectPreloadRequestsForWebContents(webContentsId: number, message: string): void;
   sessionPartition: string;
@@ -91,6 +93,7 @@ export type BrowserTabManager = {
   reload(tabId?: string | null, options?: BrowserReloadOptions | null): Promise<BrowserNavigationState>;
   safeCreateTab(options?: CreateBrowserTabPayload | null): BrowserTabsState;
   scheduleHtmlFullScreenResize(): void;
+  sessionSnapshot(): BrowserSessionSnapshot;
   sendToAllTabs(channel: string, payload: unknown): void;
   setBounds(bounds: BrowserBounds | null | undefined): BrowserBounds | null;
   setTabLocked(payload?: BrowserTabLockedPayload | null): BrowserTabsState;
@@ -114,6 +117,7 @@ let getMainWindow: () => Electron.BrowserWindow | null;
 let getMaxBrowserTabs: () => number;
 let homeUrl = '';
 let normalizeNavigationUrl: (value: unknown) => string;
+let onBrowserTabsChanged: (() => void) | null = null;
 let registerShortcuts: (webContents: Electron.WebContents) => void;
 let rejectPreloadRequestsForWebContents: (webContentsId: number, message: string) => void;
 let sessionPartition = '';
@@ -453,6 +457,7 @@ function updateTabNavigationState(tab: BrowserTab | null | undefined) {
 function notifyBrowserTabsChanged() {
   forwardBrowserMessage('browser-tabs-changed', browserTabsState());
   forwardBrowserMessage('browser-navigation-state', browserNavigationState());
+  if (onBrowserTabsChanged) onBrowserTabsChanged();
 }
 
 function browserNavigationState(tabId?: string | null): BrowserNavigationState {
@@ -821,6 +826,36 @@ function getBrowserTabUrl(tabId?: string | null): string {
   return getBrowserTab(tabId).view.webContents.getURL();
 }
 
+function browserSessionSnapshot(): BrowserSessionSnapshot {
+  const normalTabs = browserTabs.filter(function (tab) {
+    return tab.kind === 'normal';
+  });
+  let activeTabIndex = 0;
+
+  for (let i = 0; i < normalTabs.length; i++) {
+    if (normalTabs[i].id === activeBrowserTabId) {
+      activeTabIndex = i;
+      break;
+    }
+  }
+
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    activeTabIndex: activeTabIndex,
+    tabs: normalTabs.map(function (tab) {
+      updateTabNavigationState(tab);
+      syncBrowserTabMediaState(tab);
+
+      return {
+        url: tab.view.webContents.getURL() || tab.url || '',
+        locked: Boolean(tab.locked),
+        muted: Boolean(tab.muted)
+      };
+    })
+  };
+}
+
 export function createBrowserTabManager(context: BrowserTabManagerContext): BrowserTabManager {
   activateFallbackOrigin = context.activateFallbackOrigin;
   fallbackUrlForLoadFailure = context.fallbackUrlForLoadFailure;
@@ -829,6 +864,7 @@ export function createBrowserTabManager(context: BrowserTabManagerContext): Brow
   getMaxBrowserTabs = context.getMaxBrowserTabs;
   homeUrl = context.homeUrl;
   normalizeNavigationUrl = context.normalizeNavigationUrl;
+  onBrowserTabsChanged = context.onBrowserTabsChanged || null;
   registerShortcuts = context.registerShortcuts;
   rejectPreloadRequestsForWebContents = context.rejectPreloadRequestsForWebContents;
   sessionPartition = context.sessionPartition;
@@ -861,6 +897,7 @@ export function createBrowserTabManager(context: BrowserTabManagerContext): Brow
     reload: reloadBrowser,
     safeCreateTab: safeCreateBrowserTab,
     scheduleHtmlFullScreenResize: scheduleBrowserHtmlFullScreenResize,
+    sessionSnapshot: browserSessionSnapshot,
     sendToAllTabs: sendToAllTabs,
     setBounds: setBrowserBounds,
     setTabLocked: setBrowserTabLocked,

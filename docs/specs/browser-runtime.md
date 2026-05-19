@@ -1,6 +1,6 @@
 # Browser Runtime Specification
 
-Last verified against implementation: 2026-05-18
+Last verified against implementation: 2026-05-19
 
 This document specifies the embedded browser runtime owned by the Electron main process and webview preload.
 
@@ -44,6 +44,15 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Closing an inactive tab does not change the active tab.
 - If all normal tabs are closed, the app creates a new home tab.
 - Active-tab changes focus the new active `WebContentsView` so repeated shortcuts continue to work.
+
+## Startup Session Restore
+
+- Settings includes `Restore Previous Tabs on Startup`, backed by `AppSettings.restoreBrowserTabsOnStartup`.
+- The setting defaults to off. When it is off, startup opens one Jable home tab.
+- When enabled, the main process stores `browser-session.json` under Electron `userData` and restores normal browser tabs on the next app start.
+- The snapshot includes normal tab URLs in tab-rail order, active tab index, locked state, muted state, version, and update timestamp.
+- Sync tabs, opener grouping, navigation history, scroll position, title, favicon, and media playback position are not restored.
+- Unsafe or invalid URLs are skipped, restored tabs are capped by the current maximum browser tab setting, and an empty or unreadable snapshot falls back to the Jable home tab.
 
 ## Shortcuts And Gestures
 
@@ -117,6 +126,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 ## Related Files
 
 - `app/main.ts`
+- `app/main-process/browser-session-store.ts`
 - `app/preload.ts`
 - `app/webview-preload.ts`
 - `app/browser/webview-preload-helpers.ts`
@@ -130,6 +140,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 ## Related Tests
 
 - `test/node/browser-tab-policy.test.js`
+- `test/node/browser-session-store.test.js`
 - `test/node/ipc-guardrails.test.js`
 - `test/node/webview-preload-helpers.test.js`
 - `test/node/url-policy.test.js`

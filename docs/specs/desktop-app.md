@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-18
+Last verified against implementation: 2026-05-19
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -97,6 +97,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Browser settings:
   - Maximum browser tabs
   - Browser tab rail display mode
+  - Restore previous normal browser tabs on startup
   - Reset tab rail width
 - Sync settings:
   - Full sync acceleration: safe, standard, fast
@@ -116,6 +117,7 @@ This document specifies the current user-facing Electron desktop application beh
   - Open the local data folder in the OS file manager
 - Maximum browser tabs are clamped from 4 to 30.
 - A warning is shown when the maximum browser tab count is above the warning threshold.
+- Startup tab restore defaults to off. When enabled, it restores normal browser tab URLs, active tab, locked state, and muted state, but not sync tabs or browser history.
 - Full sync AJAX prefetch concurrency is clamped from 1 to 5.
 - A warning is shown for the fastest sync acceleration option.
 - Automatic replay of deferred sync operations defaults to off.

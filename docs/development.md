@@ -128,6 +128,7 @@ Desktop data and search behavior:
 Browser and tab behavior:
 
 - User-facing app settings are stored in `settings.json` under Electron `userData` through `app/main-process/settings.ts`. Shared limits and defaults live in `app/app-contract.ts`. Keep `app/types/jable.ts`, `app/app-contract.ts`, `app/main-process/settings.ts`, `app/preload.ts`, main IPC handlers, `SettingsPanel.vue`, and `test/node/settings.test.js` aligned when adding or changing settings.
+- Browser startup tab restore is controlled by app settings but stores its runtime snapshot separately as `browser-session.json` under Electron `userData` through `app/main-process/browser-session-store.ts`. It restores only normal tab URLs, active tab, locked state, and muted state.
 - Browser tab state includes navigation flags plus media fields: `muted`, `audible`, `mediaPlaying`, `pictureInPicture`, and `discarded`. Keep `app/browser/browser-tab-policy.ts`, main-process serialization, renderer state, and tests aligned.
 - `app/browser/browser-tab-policy.ts` centralizes background throttling, tab media serialization, close selection, keyboard tab switching detection, and visual-order tab cycling. Update `test/node/browser-tab-policy.test.js` when changing any of those rules.
 - Closing the active tab prefers the next tab to the right; if closing the last tab, it falls back to the previous tab. Closing an inactive tab must not change the active tab.

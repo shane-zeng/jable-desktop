@@ -362,6 +362,20 @@ function selectSettingsSection(sectionId: SettingsSectionId) {
               </div>
 
               <div class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.browser.restoreTabsOnStartup') }}</span>
+                <label class="flex min-h-[34px] items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    data-test="settings-restore-browser-tabs-on-startup"
+                    :checked="settings.restoreBrowserTabsOnStartup"
+                    :disabled="busy"
+                    @change="updateSettings({ restoreBrowserTabsOnStartup: eventChecked($event) })"
+                  />
+                  <span>{{ t('settings.browser.restoreTabsOnStartupDescription') }}</span>
+                </label>
+              </div>
+
+              <div class="settings-row settings-row-center">
                 <span class="settings-label">{{ t('settings.browser.webViewEnhancementMode') }}</span>
                 <label class="flex min-h-[34px] items-center gap-2 text-sm">
                   <input

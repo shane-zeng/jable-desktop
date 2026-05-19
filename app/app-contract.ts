@@ -8,6 +8,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   maxBrowserTabs: 14,
   browserTabsMode: 'standard',
   compactBrowserTabs: false,
+  restoreBrowserTabsOnStartup: false,
   webViewEnhancementMode: false,
   fullSyncAjaxWindowSize: 3,
   autoReplayDeferredSyncOperations: false,

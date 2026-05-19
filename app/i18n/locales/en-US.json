@@ -251,6 +251,8 @@
         "compact": "Floating",
         "shared": "Shared"
       },
+      "restoreTabsOnStartup": "Remember Open Tabs",
+      "restoreTabsOnStartupDescription": "Open them automatically next time.",
       "webViewEnhancementMode": "WebView Enhancement Mode",
       "webViewEnhancementModeDescription": "Applies extra WebView loading and page cleanup rules. Turn it off if a site renders unexpectedly.",
       "tabWidth": "Tab Rail Width",

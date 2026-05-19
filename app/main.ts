@@ -17,6 +17,7 @@ import type {
   BrowserTabManager,
   BrowserTabManagerContext
 } from './main-process/browser-tab-manager';
+import type { BrowserSessionSnapshot } from './main-process/browser-session-store';
 import type { BrowserShortcutManager, BrowserShortcutManagerContext } from './main-process/browser-shortcut-manager';
 import type { ContextMenuManager, ContextMenuManagerContext } from './main-process/context-menu-manager';
 import type { DataEngine } from './data/data-engine';
@@ -64,6 +65,14 @@ type SettingsModule = {
   };
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
+};
+type BrowserSessionStoreModule = {
+  BrowserSessionStore: new (filePath: string) => {
+    readForRestore(options: { maxTabs: number; normalizeUrl(value: unknown): string }): BrowserSessionSnapshot | null;
+    write(snapshot: BrowserSessionSnapshot): void;
+    clear(): void;
+  };
+  browserSessionFilePath(userDataPath: string): string;
 };
 type DataEngineModule = {
   COLLECTIONS: DatabaseCollection[];
@@ -153,6 +162,7 @@ const webViewEnhancement = require('./browser/webview-enhancement') as WebViewEn
 const appMenuManagerModule = require('./main-process/app-menu-manager') as {
   createAppMenuManager(context: AppMenuManagerContext): AppMenuManager;
 };
+const browserSessionStoreModule = require('./main-process/browser-session-store') as BrowserSessionStoreModule;
 const browserTabManagerModule = require('./main-process/browser-tab-manager') as {
   createBrowserTabManager(context: BrowserTabManagerContext): BrowserTabManager;
 };
@@ -198,6 +208,7 @@ const JABLE_HOME_URL = configuredHomeUrl();
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
+const BROWSER_SESSION_SAVE_DELAY_MS = 400;
 const IS_MACOS = process.platform === 'darwin';
 const NEW_TAB_ACCELERATOR = IS_MACOS ? 'Command+T' : 'Ctrl+T';
 const CLOSE_TAB_ACCELERATOR = IS_MACOS ? 'Command+W' : 'Ctrl+W';
@@ -228,6 +239,7 @@ const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
 let nextBrowserPreloadRequestId = 1;
 let activeJableOrigin = urlPolicy.JABLE_PRIMARY_ORIGIN;
 let appMenuManager: AppMenuManager | null = null;
+let browserSessionStore: InstanceType<BrowserSessionStoreModule['BrowserSessionStore']> | null = null;
 let browserTabManager: BrowserTabManager | null = null;
 let browserShortcutManager: BrowserShortcutManager | null = null;
 let contextMenuManager: ContextMenuManager | null = null;
@@ -241,6 +253,8 @@ let allowDownloadWindowClose = false;
 let downloadShutdownInProgress: Promise<void> | null = null;
 let quitAfterDownloadShutdownInFlight = false;
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
+let browserSessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let browserSessionRestoreInProgress = false;
 
 function t(key: string, params?: TranslationParams | null): string {
   return i18n.t(currentLocale, key, params);
@@ -380,8 +394,62 @@ function getSettingsStore() {
   return settingsStore;
 }
 
+function getBrowserSessionStore() {
+  if (!browserSessionStore) {
+    browserSessionStore = new browserSessionStoreModule.BrowserSessionStore(
+      browserSessionStoreModule.browserSessionFilePath(app.getPath('userData'))
+    );
+  }
+
+  return browserSessionStore;
+}
+
 function getAppSettings(): AppSettings {
   return getSettingsStore().get();
+}
+
+function clearBrowserSessionSaveTimer() {
+  if (!browserSessionSaveTimer) return;
+  clearTimeout(browserSessionSaveTimer);
+  browserSessionSaveTimer = null;
+}
+
+function saveBrowserSessionNow() {
+  clearBrowserSessionSaveTimer();
+
+  if (!browserTabManager || browserSessionRestoreInProgress || !getAppSettings().restoreBrowserTabsOnStartup) return;
+
+  const snapshot = browserTabManager.sessionSnapshot();
+  if (!snapshot.tabs.length) {
+    getBrowserSessionStore().clear();
+    return;
+  }
+
+  getBrowserSessionStore().write(snapshot);
+}
+
+function scheduleBrowserSessionSave() {
+  if (!browserTabManager || browserSessionRestoreInProgress || !getAppSettings().restoreBrowserTabsOnStartup) return;
+
+  clearBrowserSessionSaveTimer();
+  browserSessionSaveTimer = setTimeout(function () {
+    try {
+      saveBrowserSessionNow();
+    } catch (error) {
+      console.error(error);
+    }
+  }, BROWSER_SESSION_SAVE_DELAY_MS);
+}
+
+function flushBrowserSession() {
+  clearBrowserSessionSaveTimer();
+
+  try {
+    if (getAppSettings().restoreBrowserTabsOnStartup) saveBrowserSessionNow();
+    else getBrowserSessionStore().clear();
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 function getDownloadManager(): DownloadManager {
@@ -410,10 +478,18 @@ function getDownloadManager(): DownloadManager {
 }
 
 function updateAppSettings(patch: unknown): AppSettings {
+  const previousSettings = getAppSettings();
   const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
   notifyBrowserTabsChanged();
   forwardBrowserMessage('settings-changed', settings);
   if (browserTabManager) browserTabManager.sendToAllTabs('settings-changed', settings);
+  if (previousSettings.restoreBrowserTabsOnStartup !== settings.restoreBrowserTabsOnStartup) {
+    if (settings.restoreBrowserTabsOnStartup) saveBrowserSessionNow();
+    else {
+      clearBrowserSessionSaveTimer();
+      getBrowserSessionStore().clear();
+    }
+  }
   if (downloadManager) downloadManager.processQueue();
   return settings;
 }
@@ -582,7 +658,49 @@ function createWindow() {
   });
 
   loadRenderer();
-  createBrowserTab({ url: JABLE_HOME_URL, active: true });
+  createInitialBrowserTabs();
+}
+
+function createInitialBrowserTabs() {
+  const settings = getAppSettings();
+
+  if (!settings.restoreBrowserTabsOnStartup) {
+    createBrowserTab({ url: JABLE_HOME_URL, active: true });
+    return;
+  }
+
+  const snapshot = getBrowserSessionStore().readForRestore({
+    maxTabs: settings.maxBrowserTabs,
+    normalizeUrl: normalizeBrowserNavigationUrl
+  });
+
+  if (!snapshot) {
+    createBrowserTab({ url: JABLE_HOME_URL, active: true });
+    return;
+  }
+
+  browserSessionRestoreInProgress = true;
+
+  try {
+    for (let i = 0; i < snapshot.tabs.length; i++) {
+      createBrowserTab({
+        url: snapshot.tabs[i].url,
+        active: false,
+        locked: snapshot.tabs[i].locked,
+        muted: snapshot.tabs[i].muted
+      });
+    }
+
+    const state = browserTabsState();
+    const activeTab = state.tabs[snapshot.activeTabIndex] || state.tabs[0];
+    if (activeTab) activateBrowserTab(activeTab.id);
+  } catch (error) {
+    console.error(error);
+    if (getBrowserTabManager().tabCount() === 0) createBrowserTab({ url: JABLE_HOME_URL, active: true });
+  } finally {
+    browserSessionRestoreInProgress = false;
+    scheduleBrowserSessionSave();
+  }
 }
 
 function shouldActivateWindowOpen(details: Electron.HandlerDetails | null | undefined) {
@@ -690,6 +808,7 @@ function getBrowserTabManager(): BrowserTabManager {
       },
       homeUrl: JABLE_HOME_URL,
       normalizeNavigationUrl: normalizeBrowserNavigationUrl,
+      onBrowserTabsChanged: scheduleBrowserSessionSave,
       registerShortcuts: registerAppShortcuts,
       rejectPreloadRequestsForWebContents: rejectBrowserPreloadRequestsForWebContents,
       sessionPartition: JABLE_SESSION_PARTITION,
@@ -1137,10 +1256,12 @@ app.on('before-quit', function (event: Electron.Event) {
     return;
   }
 
+  flushBrowserSession();
   closeAllSyncWorkers();
 });
 
 app.on('will-quit', function () {
+  flushBrowserSession();
   closeAllSyncWorkers();
   if (database) {
     database.close();
