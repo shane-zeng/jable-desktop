@@ -2,6 +2,13 @@
 
 This document inventories the application-specific keyboard shortcuts, mouse shortcuts, and browser gestures currently implemented in Jable Desktop. Settings > Shortcuts shows the user-facing, platform-specific subset from the app shortcut catalog. The last section also lists standard menu behavior provided by Electron `role` menu items.
 
+## Top-Level View Keyboard Shortcuts
+
+| Action               | macOS       | Windows/Linux | Behavior                       |
+| -------------------- | ----------- | ------------- | ------------------------------ |
+| Switch to Browser    | `Command+1` | `Ctrl+1`      | Activates the Browser view.    |
+| Switch to Local Data | `Command+2` | `Ctrl+2`      | Activates the Local Data view. |
+
 ## Browser Tab Keyboard Shortcuts
 
 | Action                  | macOS                                                         | Windows/Linux                         | Behavior                                                                                              |

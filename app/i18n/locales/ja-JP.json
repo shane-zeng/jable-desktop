@@ -266,17 +266,27 @@
       "searchPlaceholder": "ショートカットを検索",
       "noResults": "一致するショートカットはありません",
       "categories": {
+        "appViews": "メイン表示",
         "browserTabs": "ブラウザータブ",
         "videoPage": "動画ページ",
         "quickActions": "クイック操作"
       },
       "scope": {
+        "app": "アプリ",
         "browser": "ブラウザー",
         "videoPage": "Jable 動画ページ",
         "embeddedBrowser": "埋め込みブラウザー",
         "localData": "ローカルデータ"
       },
       "items": {
+        "switchBrowserView": {
+          "label": "ブラウザーに切り替え",
+          "description": "ブラウザー表示に切り替えます。"
+        },
+        "switchLocalDataView": {
+          "label": "ローカルデータに切り替え",
+          "description": "ローカルデータ表示に切り替えます。"
+        },
         "newBrowserTab": {
           "label": "新しいブラウザータブ",
           "description": "Jable ホームのタブを作成して、そのタブに切り替えます。"

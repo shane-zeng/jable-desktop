@@ -1,7 +1,7 @@
 import type { AppPlatform } from '../types/jable';
 
 export type ShortcutPlatform = 'macos' | 'windowsLinux';
-export type ShortcutCategory = 'browserTabs' | 'videoPage' | 'quickActions';
+export type ShortcutCategory = 'appViews' | 'browserTabs' | 'videoPage' | 'quickActions';
 export type ShortcutSource =
   | 'browser-shortcut-manager'
   | 'browser-tab-policy'
@@ -9,6 +9,8 @@ export type ShortcutSource =
   | 'webview-preload'
   | 'video-card';
 export type ShortcutKeyToken =
+  | '1'
+  | '2'
   | 'Alt'
   | 'Click'
   | 'Command'
@@ -42,9 +44,33 @@ export type ShortcutCatalogItem = {
   sources: ShortcutSource[];
 };
 
-export const SHORTCUT_CATEGORIES: ShortcutCategory[] = ['browserTabs', 'videoPage', 'quickActions'];
+export const SHORTCUT_CATEGORIES: ShortcutCategory[] = ['appViews', 'browserTabs', 'videoPage', 'quickActions'];
 
 export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
+  {
+    id: 'switch-browser-view',
+    category: 'appViews',
+    labelKey: 'settings.shortcuts.items.switchBrowserView.label',
+    descriptionKey: 'settings.shortcuts.items.switchBrowserView.description',
+    scopeKey: 'settings.shortcuts.scope.app',
+    keys: {
+      macos: [['Command', '1']],
+      windowsLinux: [['Ctrl', '1']]
+    },
+    sources: ['browser-shortcut-manager']
+  },
+  {
+    id: 'switch-local-data-view',
+    category: 'appViews',
+    labelKey: 'settings.shortcuts.items.switchLocalDataView.label',
+    descriptionKey: 'settings.shortcuts.items.switchLocalDataView.description',
+    scopeKey: 'settings.shortcuts.scope.app',
+    keys: {
+      macos: [['Command', '2']],
+      windowsLinux: [['Ctrl', '2']]
+    },
+    sources: ['browser-shortcut-manager']
+  },
   {
     id: 'new-browser-tab',
     category: 'browserTabs',
@@ -202,6 +228,8 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
 ];
 
 const MACOS_KEY_LABELS: Record<ShortcutKeyToken, string> = {
+  '1': '1',
+  '2': '2',
   Alt: 'Alt',
   Click: 'Click',
   Command: '⌘',
@@ -226,6 +254,8 @@ const MACOS_KEY_LABELS: Record<ShortcutKeyToken, string> = {
 };
 
 const TEXT_KEY_LABELS: Record<ShortcutKeyToken, string> = {
+  '1': '1',
+  '2': '2',
   Alt: 'Alt',
   Click: 'Click',
   Command: 'Command',

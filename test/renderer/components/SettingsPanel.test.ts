@@ -164,6 +164,8 @@ describe('SettingsPanel', function () {
 
     await macWrapper.get('[data-test="settings-section-link-settings-shortcuts"]').trigger('click');
 
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-switch-browser-view"]').text()).toContain('⌘1');
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-switch-local-data-view"]').text()).toContain('⌘2');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).toContain('⌘T');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('Ctrl+T');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain('⌥⌘→');
@@ -172,6 +174,10 @@ describe('SettingsPanel', function () {
 
     await windowsWrapper.get('[data-test="settings-section-link-settings-shortcuts"]').trigger('click');
 
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-switch-browser-view"]').text()).toContain('Ctrl+1');
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-switch-local-data-view"]').text()).toContain(
+      'Ctrl+2'
+    );
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).toContain('Ctrl+T');
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('⌘T');
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain(

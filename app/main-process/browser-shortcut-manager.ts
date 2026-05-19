@@ -1,7 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type { BrowserNavigationState, BrowserTabsState, CreateBrowserTabPayload } from '../types/jable';
+import type { AppView, BrowserNavigationState, BrowserTabsState, CreateBrowserTabPayload } from '../types/jable';
 
 type BrowserTabShortcutInput = Electron.Input & {
   control?: boolean;
@@ -63,13 +63,21 @@ function currentMainWindow(): Electron.BrowserWindow | null {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
 }
 
-function isPrimaryShortcut(input: BrowserTabShortcutInput | null | undefined, key: string) {
+function isPrimaryShortcut(input: BrowserTabShortcutInput | null | undefined, key: string, code?: string) {
   if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return false;
-  if (String(input.key || '').toLowerCase() !== key) return false;
+  const inputKey = String(input.key || '').toLowerCase();
+  const inputCode = String(input.code || '').toLowerCase();
+  if (inputKey !== key && (!code || inputCode !== code)) return false;
   if (input.alt || input.shift) return false;
 
   if (isMacos) return Boolean(input.meta) && !input.control;
   return Boolean(input.control) && !input.meta;
+}
+
+function appViewShortcut(input: BrowserTabShortcutInput | null | undefined): AppView | null {
+  if (isPrimaryShortcut(input, '1', 'digit1')) return 'browser';
+  if (isPrimaryShortcut(input, '2', 'digit2')) return 'library';
+  return null;
 }
 
 function isNewTabShortcut(input: BrowserTabShortcutInput | null | undefined) {
@@ -155,8 +163,23 @@ function toggleCompactTabsFromShortcut() {
   });
 }
 
+function switchAppViewFromShortcut(view: AppView) {
+  runShortcutAction('app-view-' + view, function () {
+    if (!currentMainWindow()) return;
+
+    forwardBrowserMessage('app-view-shortcut', { view: view });
+  });
+}
+
 function registerAppShortcuts(webContents: Electron.WebContents) {
   webContents.on('before-input-event', function (event, input) {
+    const shortcutView = appViewShortcut(input);
+    if (shortcutView) {
+      event.preventDefault();
+      switchAppViewFromShortcut(shortcutView);
+      return;
+    }
+
     if (isNewTabShortcut(input)) {
       event.preventDefault();
       openHomeTabFromShortcut();

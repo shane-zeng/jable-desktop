@@ -353,6 +353,11 @@ function handleBrowserMessage(message: BrowserMessage) {
     setActiveView('browser');
   }
 
+  if (message.channel === 'app-view-shortcut') {
+    const payload = (message.args[0] || {}) as { view?: string };
+    if (payload.view === 'browser' || payload.view === 'library') setActiveView(payload.view);
+  }
+
   if (message.channel === 'jable-origin-fallback') {
     const payload = (message.args[0] || {}) as { origin?: string };
     setStatus(i18n.t('status.jableFallback', { origin: payload.origin || 'https://fs1.app' }), 'warning');

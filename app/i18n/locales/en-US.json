@@ -266,17 +266,27 @@
       "searchPlaceholder": "Search shortcuts",
       "noResults": "No matching shortcuts",
       "categories": {
+        "appViews": "Main Views",
         "browserTabs": "Browser Tabs",
         "videoPage": "Video Page",
         "quickActions": "Quick Actions"
       },
       "scope": {
+        "app": "App",
         "browser": "Browser",
         "videoPage": "Jable Video Page",
         "embeddedBrowser": "Embedded Browser",
         "localData": "Local Data"
       },
       "items": {
+        "switchBrowserView": {
+          "label": "Switch to Browser",
+          "description": "Switches to the Browser view."
+        },
+        "switchLocalDataView": {
+          "label": "Switch to Local Data",
+          "description": "Switches to the Local Data view."
+        },
         "newBrowserTab": {
           "label": "New Browser Tab",
           "description": "Creates a new Jable home tab and switches to it."

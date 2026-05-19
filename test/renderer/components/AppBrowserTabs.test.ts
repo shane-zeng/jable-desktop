@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App.vue';
 import LibraryPanel from '@/components/LibraryPanel.vue';
 import { DEFAULT_BROWSER_URL } from '@/constants';
@@ -69,6 +69,35 @@ describe('App browser tab behavior', function () {
       active: false
     });
     expect(wrapper.find('[aria-label="本機資料庫"]').isVisible()).toBe(true);
+
+    wrapper.unmount();
+  });
+
+  it('switches Browser and Local Data from app view shortcut messages', async function () {
+    const api = createAppTestApi();
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          BrowserPanel: true,
+          SettingsPanel: true
+        }
+      }
+    });
+    await settle();
+
+    const browserMessageCallback = vi.mocked(api.onBrowserMessage).mock.calls[0][0];
+    browserMessageCallback({ channel: 'app-view-shortcut', args: [{ view: 'library' }] });
+    await settle();
+
+    expect(wrapper.find('[aria-label="本機資料庫"]').isVisible()).toBe(true);
+
+    browserMessageCallback({ channel: 'app-view-shortcut', args: [{ view: 'browser' }] });
+    await settle();
+
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('瀏覽器');
 
     wrapper.unmount();
   });

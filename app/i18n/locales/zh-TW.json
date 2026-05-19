@@ -266,17 +266,27 @@
       "searchPlaceholder": "搜尋快捷鍵",
       "noResults": "沒有符合的快捷鍵",
       "categories": {
+        "appViews": "主要頁面",
         "browserTabs": "瀏覽器分頁",
         "videoPage": "影片頁面",
         "quickActions": "快速互動"
       },
       "scope": {
+        "app": "應用程式",
         "browser": "瀏覽器",
         "videoPage": "Jable 影片頁面",
         "embeddedBrowser": "內嵌瀏覽器",
         "localData": "本機資料"
       },
       "items": {
+        "switchBrowserView": {
+          "label": "切換到瀏覽器",
+          "description": "切換到瀏覽器頁面。"
+        },
+        "switchLocalDataView": {
+          "label": "切換到本機資料",
+          "description": "切換到本機資料頁面。"
+        },
         "newBrowserTab": {
           "label": "新增瀏覽器分頁",
           "description": "新增 Jable 首頁分頁並切換到該分頁。"
