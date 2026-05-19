@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const downloadManager = require('../../app/runtime-dist/main-process/download-manager.js');
+const downloadManager = require('../../app/runtime-dist/main-process/download/manager.js');
 
 function downloadRecord(patch) {
   return Object.assign(

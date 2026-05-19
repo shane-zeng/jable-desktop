@@ -8,7 +8,7 @@ import { downloadFailureCode, isDownloadPausedError } from './errors';
 import { runFfmpegRemux } from './ffmpeg-remux';
 import type { DownloadFailurePhase, HlsPlaylist, SourcePageChineseSubtitleNotice } from './hls-source';
 import { removeDownloadSegmentTempDirectory } from './segment-workspace';
-import type { LocalPlaybackFile } from '../local-playback-preview';
+import type { LocalPlaybackFile } from '../local-playback/preview';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 

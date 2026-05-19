@@ -9,13 +9,9 @@ const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
 const BROWSER_TAB_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser-tab-manager.ts');
 const CONTEXT_MENU_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'context-menu-manager.ts');
-const DOWNLOAD_MANAGER_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
 const TYPES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'types', 'jable.ts');
-const HLS_CAPTURE_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
-const HLS_HELPERS_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-helpers.ts');
-const HLS_RESEARCH_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-research.ts');
 const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'capture.ts');
 const HLS_CAPTURE_WRITES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'capture-writes.ts');
 const HLS_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'helpers.ts');
@@ -102,22 +98,20 @@ const DOWNLOAD_RUNTIME_PROGRESS_SOURCE_PATH = path.join(
   'runtime-progress.ts'
 );
 const DOWNLOAD_SHUTDOWN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'shutdown.ts');
-const LOCAL_PLAYBACK_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback.ts');
-const LOCAL_PLAYBACK_SERVER_ADAPTER_SOURCE_PATH = path.join(
-  ROOT_DIR,
-  'app',
-  'main-process',
-  'local-playback-server.ts'
-);
-const LOCAL_PLAYBACK_PREVIEW_ADAPTER_SOURCE_PATH = path.join(
-  ROOT_DIR,
-  'app',
-  'main-process',
-  'local-playback-preview.ts'
-);
 const LOCAL_PLAYBACK_RANGE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback', 'range.ts');
 const LOCAL_PLAYBACK_SERVER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback', 'server.ts');
 const LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback', 'preview.ts');
+const REMOVED_MAIN_PROCESS_ADAPTER_PATHS = [
+  'download-manager.ts',
+  'hls-playback-capture.ts',
+  'hls-playback-helpers.ts',
+  'hls-playback-research.ts',
+  'local-playback.ts',
+  'local-playback-server.ts',
+  'local-playback-preview.ts'
+].map(function (fileName) {
+  return path.join(ROOT_DIR, 'app', 'main-process', fileName);
+});
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -125,7 +119,6 @@ function readSource(filePath) {
 
 test('main process uses preload IPC for browser page requests', function () {
   const source = readSource(MAIN_SOURCE_PATH);
-  const downloadManagerAdapterSource = readSource(DOWNLOAD_MANAGER_ADAPTER_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
   const preloadSource = readSource(path.join(__dirname, '..', '..', 'app', 'preload.ts'));
@@ -155,7 +148,14 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(source, /README\.ja-JP\.md#/);
   assert.match(source, /shell\.openExternal\(url\)/);
   assert.match(source, /main-process\/download\/manager/);
-  assert.match(downloadManagerAdapterSource, /export \* from '\.\/download\/manager'/);
+  assert.match(ipcHandlersSource, /from '\.\/download\/manager'/);
+  assert.equal(ipcHandlersSource.includes("from './download-manager'"), false);
+});
+
+test('main process avoids legacy root playback and download adapters', function () {
+  for (const filePath of REMOVED_MAIN_PROCESS_ADAPTER_PATHS) {
+    assert.equal(fs.existsSync(filePath), false, path.relative(ROOT_DIR, filePath) + ' should not exist');
+  }
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
@@ -385,9 +385,6 @@ test('local playback uses managed download records and browser-tab preload updat
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
   const localPlaybackSource = readSource(WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH);
-  const localPlaybackAdapterSource = readSource(LOCAL_PLAYBACK_ADAPTER_SOURCE_PATH);
-  const localPlaybackServerAdapterSource = readSource(LOCAL_PLAYBACK_SERVER_ADAPTER_SOURCE_PATH);
-  const localPlaybackPreviewAdapterSource = readSource(LOCAL_PLAYBACK_PREVIEW_ADAPTER_SOURCE_PATH);
   const localPlaybackRangeSource = readSource(LOCAL_PLAYBACK_RANGE_SOURCE_PATH);
   const localPlaybackServerSource = readSource(LOCAL_PLAYBACK_SERVER_SOURCE_PATH);
   const localPlaybackPreviewSource = readSource(LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH);
@@ -401,9 +398,9 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(source, /function localPlaybackReadyFile/);
   assert.match(source, /createLocalPlaybackServer/);
   assert.match(source, /localPlaybackServer\.source\(value\)/);
-  assert.match(localPlaybackAdapterSource, /export \* from '\.\/local-playback\/range'/);
-  assert.match(localPlaybackServerAdapterSource, /export \* from '\.\/local-playback\/server'/);
-  assert.match(localPlaybackPreviewAdapterSource, /export \* from '\.\/local-playback\/preview'/);
+  assert.match(source, /from '\.\.\/local-playback\/preview'/);
+  assert.match(source, /from '\.\.\/local-playback\/server'/);
+  assert.match(source, /from '\.\.\/local-playback\/range'/);
   assert.match(localPlaybackRangeSource, /export function parseLocalPlaybackRangeHeader/);
   assert.match(localPlaybackServerSource, /function source/);
   assert.match(localPlaybackServerSource, /function handleRequest/);
@@ -512,9 +509,6 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   const downloadManagerSource = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
   const activeRunnerSource = readSource(DOWNLOAD_ACTIVE_RUNNER_SOURCE_PATH);
   const playbackCaptureSource = readSource(DOWNLOAD_PLAYBACK_CAPTURE_SOURCE_PATH);
-  const hlsCaptureAdapterSource = readSource(HLS_CAPTURE_ADAPTER_SOURCE_PATH);
-  const hlsHelpersAdapterSource = readSource(HLS_HELPERS_ADAPTER_SOURCE_PATH);
-  const hlsResearchAdapterSource = readSource(HLS_RESEARCH_ADAPTER_SOURCE_PATH);
   const hlsCaptureSource = readSource(HLS_CAPTURE_SOURCE_PATH);
   const hlsCaptureWritesSource = readSource(HLS_CAPTURE_WRITES_SOURCE_PATH);
   const hlsHelperSource = readSource(HLS_HELPERS_SOURCE_PATH);
@@ -541,9 +535,6 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.doesNotMatch(mainSource, /main-process\/hls-playback-capture/);
   assert.doesNotMatch(mainSource, /main-process\/hls-playback-research/);
   assert.match(mainSource, /jableSession: session\.fromPartition\(JABLE_SESSION_PARTITION\)/);
-  assert.match(hlsCaptureAdapterSource, /export \{ installHlsPlaybackCapture \} from '\.\/hls-playback\/capture'/);
-  assert.match(hlsHelpersAdapterSource, /export \* from '\.\/hls-playback\/helpers'/);
-  assert.match(hlsResearchAdapterSource, /export \{ installHlsPlaybackResearch \} from '\.\/hls-playback\/research'/);
   assert.match(hlsSharedSource, /JABLE_HLS_PROBE/);
   assert.match(hlsResearchSource, /installHlsPlaybackResearch/);
   assert.match(hlsResearchSource, /installHlsPlaybackCapture\(context\)/);

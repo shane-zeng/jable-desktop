@@ -7,11 +7,12 @@
   "main": "app/runtime-dist/main.js",
   "scripts": {
     "check:node": "node scripts/check-node-version.js",
+    "clean:electron": "node scripts/clean-electron-runtime.js",
     "predev:renderer": "npm run check:node",
     "dev:renderer": "vite --config vite.renderer.config.mjs",
     "prebuild:renderer": "npm run check:node",
     "build:renderer": "vite build --config vite.renderer.config.mjs",
-    "prebuild:electron": "npm run check:node",
+    "prebuild:electron": "npm run check:node && npm run clean:electron",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:rust": "node scripts/build-rust-engine.js",
     "rust:fmt": "cargo fmt --manifest-path native/local-data-engine/Cargo.toml -- --check && cargo fmt --manifest-path native/download-engine/Cargo.toml -- --check",

@@ -23,7 +23,7 @@ import type {
   SyncResult
 } from '../types/jable';
 import type { BrowserTab } from './browser-tab-manager';
-import type { DownloadManager } from './download-manager';
+import type { DownloadManager } from './download/manager';
 import type { UpdateCheckResult } from './app-menu-manager';
 import type { ActiveSyncRun, PendingCollectionOperationOverlayState } from './sync-worker-manager';
 import {

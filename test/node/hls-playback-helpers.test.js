@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const helpers = require('../../app/runtime-dist/main-process/hls-playback-helpers.js');
+const helpers = require('../../app/runtime-dist/main-process/hls-playback/helpers.js');
 
 const PROXY_HOST = '127.0.0.1';
 

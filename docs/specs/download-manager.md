@@ -326,7 +326,7 @@ This document specifies the current Download List and local video file managemen
 - `app/download/download-helpers.ts`
 - `app/download/native-download-engine.ts`
 - `app/main.ts`
-- `app/main-process/download-manager.ts`
+- `app/main-process/download/manager.ts`
 - `app/main-process/ipc-handlers.ts`
 - `app/preload.ts`
 - `app/types/jable.ts`

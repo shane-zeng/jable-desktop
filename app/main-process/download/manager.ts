@@ -69,8 +69,8 @@ import {
 } from './request-boundary';
 import { createDownloadRecordStateController, type DownloadRecordStateController } from './record-state';
 import { createDownloadRuntimeProgressController, type DownloadRuntimeProgressController } from './runtime-progress';
-import { createLocalPlaybackPreviewController, type LocalPlaybackFile } from '../local-playback-preview';
-import { createLocalPlaybackServer } from '../local-playback-server';
+import { createLocalPlaybackPreviewController, type LocalPlaybackFile } from '../local-playback/preview';
+import { createLocalPlaybackServer } from '../local-playback/server';
 import { createDownloadShutdownController, type DownloadShutdownController } from './shutdown';
 
 export {
@@ -79,7 +79,7 @@ export {
   isSegmentRefreshCandidate,
   sanitizeDownloadErrorDetail
 } from './errors';
-export { parseLocalPlaybackRangeHeader } from '../local-playback';
+export { parseLocalPlaybackRangeHeader } from '../local-playback/range';
 export { sourcePageChineseSubtitleNoticeTextFromHtml } from './request-boundary';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
