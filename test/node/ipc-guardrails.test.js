@@ -32,6 +32,15 @@ const DOWNLOAD_DISPLAY_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 
 const STYLES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'styles.css');
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload.ts');
 const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload-helpers.ts');
+const WEBVIEW_HLS_PLAYBACK_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload', 'hls-playback.ts');
+const WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'browser',
+  'webview-preload',
+  'local-playback.ts'
+);
+const WEBVIEW_THEATER_MODE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload', 'theater-mode.ts');
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -268,6 +277,7 @@ test('local playback uses managed download records and browser-tab preload updat
   const types = readSource(TYPES_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const localPlaybackSource = readSource(WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH);
 
   assert.match(mainSource, /registerSchemesAsPrivileged/);
   assert.match(mainSource, /installLocalPlaybackProtocol/);
@@ -282,14 +292,16 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(ipcHandlersSource, /ipcMain\.handle\('download:local-playback-source'/);
   assert.match(preload, /ipcRenderer\.invoke\('download:local-playback-source', videoUrl\)/);
   assert.match(types, /localPlaybackSource\(videoUrl: string\): Promise<LocalPlaybackSourceResult>/);
-  assert.match(webviewPreload, /function installLocalPlaybackReplacement/);
-  assert.match(webviewPreload, /ipcRenderer\.on\('downloads-changed'/);
-  assert.match(webviewPreload, /data-jable-local-playback="true"/);
-  assert.match(webviewPreload, /video\.setAttribute\('src', sourceUrl\)/);
-  assert.match(webviewPreload, /function restoreLocalPlaybackTimeline/);
-  assert.match(webviewPreload, /video\.currentTime = duration/);
-  assert.match(webviewPreload, /function reloadAfterActiveLocalPlaybackRemoved/);
-  assert.match(webviewPreload, /window\.location\.reload\(\)/);
+  assert.match(webviewPreload, /createLocalPlaybackController/);
+  assert.match(webviewPreload, /localPlaybackController\.install\(\)/);
+  assert.match(localPlaybackSource, /function installLocalPlaybackReplacement/);
+  assert.match(localPlaybackSource, /ipcRenderer\.on\('downloads-changed'/);
+  assert.match(localPlaybackSource, /data-jable-local-playback="true"/);
+  assert.match(localPlaybackSource, /video\.setAttribute\('src', sourceUrl\)/);
+  assert.match(localPlaybackSource, /function restoreLocalPlaybackTimeline/);
+  assert.match(localPlaybackSource, /video\.currentTime = duration/);
+  assert.match(localPlaybackSource, /function reloadAfterActiveLocalPlaybackRemoved/);
+  assert.match(localPlaybackSource, /window\.location\.reload\(\)/);
 });
 
 test('browser theater mode uses preload IPC and tab-scoped state', function () {
@@ -298,6 +310,7 @@ test('browser theater mode uses preload IPC and tab-scoped state', function () {
   const contextMenuSource = readSource(CONTEXT_MENU_MANAGER_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const theaterModeSource = readSource(WEBVIEW_THEATER_MODE_SOURCE_PATH);
   const sessionSnapshotSource = browserTabManagerSource.slice(
     browserTabManagerSource.indexOf('function browserSessionSnapshot'),
     browserTabManagerSource.indexOf('export function createBrowserTabManager')
@@ -317,19 +330,21 @@ test('browser theater mode uses preload IPC and tab-scoped state', function () {
   assert.match(mainSource, /function setBrowserTabTheaterMode/);
   assert.match(mainSource, /browser:set-theater-mode-request/);
   assert.match(ipcHandlersSource, /browser:theater-mode-changed/);
-  assert.match(webviewPreload, /function installTheaterModeController/);
+  assert.match(webviewPreload, /createTheaterModeController/);
   assert.match(webviewPreload, /browser:set-theater-mode-request/);
   assert.match(webviewPreload, /browser:get-theater-mode-request/);
   assert.match(webviewPreload, /browser:apply-theater-mode/);
   assert.match(webviewPreload, /browser:leave-theater-mode/);
-  assert.match(webviewPreload, /function theaterModeTargetForVideo/);
-  assert.match(webviewPreload, /THEATER_MODE_CONTROL_SELECTOR/);
-  assert.match(webviewPreload, /vjs-control-bar/);
-  assert.match(webviewPreload, /event\.key !== 'Escape'/);
-  assert.match(webviewPreload, /function toggleTheaterModeFromShortcut/);
-  assert.match(webviewPreload, /event\.key\.toLowerCase\(\) === 't'/);
-  assert.match(webviewPreload, /THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR/);
-  assert.match(webviewPreload, /!event\.metaKey/);
+  assert.match(webviewPreload, /theaterModeController\.install\(\)/);
+  assert.match(theaterModeSource, /function installTheaterModeController/);
+  assert.match(theaterModeSource, /function theaterModeTargetForVideo/);
+  assert.match(theaterModeSource, /THEATER_MODE_CONTROL_SELECTOR/);
+  assert.match(theaterModeSource, /vjs-control-bar/);
+  assert.match(theaterModeSource, /event\.key !== 'Escape'/);
+  assert.match(theaterModeSource, /function toggleTheaterModeFromShortcut/);
+  assert.match(theaterModeSource, /event\.key\.toLowerCase\(\) === 't'/);
+  assert.match(theaterModeSource, /THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR/);
+  assert.match(theaterModeSource, /!event\.metaKey/);
   assert.match(webviewPreload, /sendTheaterModeChanged\(result\)/);
 });
 
@@ -368,6 +383,7 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   const downloadManagerSource = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
   const hlsCaptureSource = readSource(HLS_CAPTURE_SOURCE_PATH);
   const hlsHelperSource = readSource(HLS_HELPERS_SOURCE_PATH);
+  const hlsPlaybackSource = readSource(WEBVIEW_HLS_PLAYBACK_SOURCE_PATH);
   const hlsResearchSource = readSource(HLS_RESEARCH_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
 
@@ -449,22 +465,25 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsCaptureSource, /playlist requests require Settings auto-download or debug env/);
   assert.match(hlsCaptureSource, /full HLS URLs are not logged/);
   assert.match(hlsCaptureSource, /getBrowserTabByWebContents\(webContents\)/);
-  assert.match(webviewPreload, /function installHlsPlaylistProxyInterception/);
-  assert.match(webviewPreload, /invoke\('hls:playlist-proxy-url'/);
-  assert.match(webviewPreload, /send\('hls:playback-started'/);
-  assert.match(webviewPreload, /pageLoadId: hlsPlaybackPageLoadId/);
-  assert.match(webviewPreload, /HLS_PLAYBACK_USER_GESTURE_TTL_MS/);
-  assert.match(webviewPreload, /userInitiatedPlayback: userInitiatedPlayback/);
-  assert.match(webviewPreload, /views: currentVideo \? currentVideo\.views : null/);
-  assert.match(webviewPreload, /preview: currentVideo \? currentVideo\.preview : null/);
-  assert.match(webviewPreload, /sourcePageChineseSubtitleNotice: sourcePageNotice\.sourcePageChineseSubtitleNotice/);
-  assert.match(webviewPreload, /sourcePageSubtitleNoticeText: sourcePageNotice\.sourcePageSubtitleNoticeText/);
-  assert.match(webviewPreload, /installHlsPlaybackStartedObserver/);
-  assert.match(webviewPreload, /XMLHttpRequest\.prototype\.open/);
-  assert.match(webviewPreload, /XMLHttpRequest\.prototype\.send/);
-  assert.match(webviewPreload, /window\.fetch = function/);
-  assert.match(webviewPreload, /window\.postMessage/);
-  assert.match(webviewPreload, /title: document\.title/);
+  assert.match(webviewPreload, /createHlsPlaybackController/);
+  assert.match(webviewPreload, /installPlaylistProxyInterception\(\)/);
+  assert.match(webviewPreload, /installPlaybackStartedObserver\(\)/);
+  assert.match(hlsPlaybackSource, /function installHlsPlaylistProxyInterception/);
+  assert.match(hlsPlaybackSource, /invoke\('hls:playlist-proxy-url'/);
+  assert.match(hlsPlaybackSource, /send\('hls:playback-started'/);
+  assert.match(hlsPlaybackSource, /pageLoadId: pageLoadId/);
+  assert.match(hlsPlaybackSource, /HLS_PLAYBACK_USER_GESTURE_TTL_MS/);
+  assert.match(hlsPlaybackSource, /userInitiatedPlayback: userInitiatedPlayback/);
+  assert.match(hlsPlaybackSource, /views: currentVideo \? currentVideo\.views : null/);
+  assert.match(hlsPlaybackSource, /preview: currentVideo \? currentVideo\.preview : null/);
+  assert.match(hlsPlaybackSource, /sourcePageChineseSubtitleNotice: sourcePageNotice\.sourcePageChineseSubtitleNotice/);
+  assert.match(hlsPlaybackSource, /sourcePageSubtitleNoticeText: sourcePageNotice\.sourcePageSubtitleNoticeText/);
+  assert.match(hlsPlaybackSource, /installHlsPlaybackStartedObserver/);
+  assert.match(hlsPlaybackSource, /XMLHttpRequest\.prototype\.open/);
+  assert.match(hlsPlaybackSource, /XMLHttpRequest\.prototype\.send/);
+  assert.match(hlsPlaybackSource, /window\.fetch = function/);
+  assert.match(hlsPlaybackSource, /window\.postMessage/);
+  assert.match(hlsPlaybackSource, /title: document\.title/);
   assert.equal(hlsResearchSource.includes('[hls-probe] request'), true);
   for (const line of hlsCaptureSource.split('\n')) {
     if (line.indexOf('logger(context).info') === -1) continue;

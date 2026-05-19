@@ -130,6 +130,7 @@ export default [
     files: [
       'app/browser/webview-content-policy.ts',
       'app/browser/webview-preload-helpers.ts',
+      'app/browser/webview-preload/**/*.ts',
       'app/webview-preload.ts'
     ],
     languageOptions: {

@@ -37,8 +37,16 @@ Before implementing a candidate:
   Pure proxy URL parsing, request-target parsing, playlist URI rewriting, and capture-plan segment mapping live in `app/main-process/hls-playback-helpers.ts`; `app/main-process/hls-playback-capture.ts` keeps token registration, Electron session fetches, logging, and capture lifecycle side effects.
 - Search count path optimization.
   Search-backed `countVideos` now streams only `v.search_text` through the existing Rust matcher instead of hydrating and sorting full list rows; `listVideos` search filtering remains Rust-owned to preserve current token and pagination semantics.
+- WebView preload runtime concern split.
+  Local playback replacement, theater mode, and HLS playback proxy/runtime observers now live in focused modules under `app/browser/webview-preload/`; `app/webview-preload.ts` keeps preload composition, IPC request handlers, scraping, sync, and collection action side effects.
 
 ## Remaining Candidates
+
+### WebView preload sync and collection action split
+
+Risk: medium, priority medium.
+
+`app/webview-preload.ts` is still above 1000 lines after the runtime concern split because it keeps scraping, pager fallback, sync orchestration, pending operation overlays, collection button interception, and request/response IPC wiring together. The next no-spec-change pass should split only one clear concern at a time, likely collection action interception or browser sync orchestration, while preserving IPC channels, sync semantics, DOM side effects, and `test/node/ipc-guardrails.test.js` coverage.
 
 ### Userscript pagination/export duplication cleanup
 

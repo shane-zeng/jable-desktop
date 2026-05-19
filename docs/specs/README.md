@@ -27,6 +27,7 @@ Use source code and tests as the final source of truth when a user guide, change
 - `app/main.ts`
 - `app/preload.ts`
 - `app/webview-preload.ts`
+- `app/browser/webview-preload/`
 - `app/browser/webview-preload-helpers.ts`
 - `app/data/data-engine.ts`
 - `app/download/download-helpers.ts`
