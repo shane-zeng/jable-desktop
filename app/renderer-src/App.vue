@@ -930,6 +930,7 @@ onBeforeUnmount(function () {
         :ffmpeg-status="ffmpegStatus"
         :download-root="downloadRoot"
         :database-path="appInfo && appInfo.databasePath"
+        :platform="appInfo && appInfo.platform"
         @update-settings="updateAppSettings"
         @change-locale="changeLocale"
         @reset-tabs-width="resetBrowserTabsWidth"

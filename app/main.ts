@@ -32,6 +32,7 @@ import type {
 import type {
   AppSettings,
   AppSettingsPatch,
+  AppPlatform,
   BrowserBounds,
   BrowserNavigatePayload,
   BrowserNavigationState,
@@ -103,6 +104,12 @@ type I18nModule = {
   normalizeLocale(value: unknown): SupportedLocale;
   t(locale: SupportedLocale, key: string, params?: TranslationParams | null): string;
 };
+
+function currentAppPlatform(): AppPlatform {
+  if (process.platform === 'darwin') return 'macos';
+  if (process.platform === 'win32') return 'windows';
+  return 'linux';
+}
 type WebViewEnhancementModule = {
   installJableWebViewEnhancement(
     session: Electron.Session,
@@ -1250,6 +1257,7 @@ function registerIpcHandlers() {
       return databasePath;
     },
     getDownloadManager: getDownloadManager,
+    getAppPlatform: currentAppPlatform,
     getSystemLocale: function () {
       return app.getLocale();
     },

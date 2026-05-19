@@ -260,6 +260,69 @@
       "tabWidth": "分頁列寬度",
       "resetTabWidth": "重設寬度"
     },
+    "shortcuts": {
+      "title": "快捷鍵",
+      "searchLabel": "搜尋快捷鍵",
+      "searchPlaceholder": "搜尋快捷鍵",
+      "noResults": "沒有符合的快捷鍵",
+      "categories": {
+        "browserTabs": "瀏覽器分頁",
+        "videoPage": "影片頁面",
+        "quickActions": "快速互動"
+      },
+      "scope": {
+        "browser": "瀏覽器",
+        "videoPage": "Jable 影片頁面",
+        "embeddedBrowser": "內嵌瀏覽器",
+        "localData": "本機資料"
+      },
+      "items": {
+        "newBrowserTab": {
+          "label": "新增瀏覽器分頁",
+          "description": "新增 Jable 首頁分頁並切換到該分頁。"
+        },
+        "closeCurrentTab": {
+          "label": "關閉目前分頁",
+          "description": "關閉目前瀏覽器分頁；同步鎖定分頁不會關閉。"
+        },
+        "reloadCurrentTab": {
+          "label": "重新整理目前分頁",
+          "description": "重新整理目前瀏覽器分頁。"
+        },
+        "hardReloadCurrentTab": {
+          "label": "強制重新整理目前分頁",
+          "description": "略過快取並重新整理目前瀏覽器分頁。"
+        },
+        "nextBrowserTab": {
+          "label": "下一個分頁",
+          "description": "依分頁列順序切換到右側下一個分頁。"
+        },
+        "previousBrowserTab": {
+          "label": "上一個分頁",
+          "description": "依分頁列順序切換到左側上一個分頁。"
+        },
+        "toggleCompactTabs": {
+          "label": "切換浮動分頁列",
+          "description": "在瀏覽器頁面切換浮動分頁列。"
+        },
+        "toggleTheaterMode": {
+          "label": "切換劇院模式",
+          "description": "在可信任的 Jable 影片頁面切換劇院模式。"
+        },
+        "exitTheaterMode": {
+          "label": "離開劇院模式",
+          "description": "離開目前分頁的劇院模式。"
+        },
+        "openBrowserLinkBackground": {
+          "label": "背景開啟網頁連結",
+          "description": "在背景分頁開啟內嵌瀏覽器中的連結。"
+        },
+        "openLocalVideoBackground": {
+          "label": "背景開啟本機影片",
+          "description": "在背景分頁開啟本機資料中的影片。"
+        }
+      }
+    },
     "sync": {
       "title": "同步",
       "acceleration": "完整同步加速程度",

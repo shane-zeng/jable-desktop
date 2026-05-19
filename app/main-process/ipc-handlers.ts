@@ -3,6 +3,7 @@
 import type * as Electron from 'electron';
 import type { DataEngine } from '../data/data-engine';
 import type {
+  AppPlatform,
   AppSettings,
   AppSettingsPatch,
   BrowserDiagnosis,
@@ -69,6 +70,7 @@ export type IpcHandlersContext = {
   getDatabase(): DataEngine;
   getDatabasePath(): string | null;
   getDownloadManager(): DownloadManager;
+  getAppPlatform(): AppPlatform;
   getSystemLocale(): string;
   goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState>;
   goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState>;
@@ -115,6 +117,7 @@ function registerAppHandlers(context: IpcHandlersContext) {
     return {
       databasePath: context.getDatabasePath(),
       locale: context.currentLocale(),
+      platform: context.getAppPlatform(),
       systemLocale: context.getSystemLocale()
     };
   });

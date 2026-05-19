@@ -260,6 +260,69 @@
       "tabWidth": "Tab Rail Width",
       "resetTabWidth": "Reset Width"
     },
+    "shortcuts": {
+      "title": "Shortcuts",
+      "searchLabel": "Search shortcuts",
+      "searchPlaceholder": "Search shortcuts",
+      "noResults": "No matching shortcuts",
+      "categories": {
+        "browserTabs": "Browser Tabs",
+        "videoPage": "Video Page",
+        "quickActions": "Quick Actions"
+      },
+      "scope": {
+        "browser": "Browser",
+        "videoPage": "Jable Video Page",
+        "embeddedBrowser": "Embedded Browser",
+        "localData": "Local Data"
+      },
+      "items": {
+        "newBrowserTab": {
+          "label": "New Browser Tab",
+          "description": "Creates a new Jable home tab and switches to it."
+        },
+        "closeCurrentTab": {
+          "label": "Close Current Tab",
+          "description": "Closes the current browser tab; locked sync tabs cannot be closed."
+        },
+        "reloadCurrentTab": {
+          "label": "Reload Current Tab",
+          "description": "Reloads the current browser tab."
+        },
+        "hardReloadCurrentTab": {
+          "label": "Hard Reload Current Tab",
+          "description": "Reloads the current browser tab while bypassing cache."
+        },
+        "nextBrowserTab": {
+          "label": "Next Tab",
+          "description": "Switches to the next tab on the right in tab rail order."
+        },
+        "previousBrowserTab": {
+          "label": "Previous Tab",
+          "description": "Switches to the previous tab on the left in tab rail order."
+        },
+        "toggleCompactTabs": {
+          "label": "Toggle Floating Tab Rail",
+          "description": "Toggles the floating tab rail while the Browser view is active."
+        },
+        "toggleTheaterMode": {
+          "label": "Toggle Theater Mode",
+          "description": "Toggles theater mode on trusted Jable video pages."
+        },
+        "exitTheaterMode": {
+          "label": "Exit Theater Mode",
+          "description": "Leaves theater mode for the current tab."
+        },
+        "openBrowserLinkBackground": {
+          "label": "Open Page Link in Background",
+          "description": "Opens an embedded browser link in a background tab."
+        },
+        "openLocalVideoBackground": {
+          "label": "Open Local Video in Background",
+          "description": "Opens a Local Data video in a background tab."
+        }
+      }
+    },
     "sync": {
       "title": "Sync",
       "acceleration": "Full Sync Acceleration",

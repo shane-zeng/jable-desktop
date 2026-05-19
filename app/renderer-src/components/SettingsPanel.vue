@@ -7,9 +7,20 @@ import {
   MAX_CONCURRENT_DOWNLOADS_LIMITS
 } from '../constants';
 import { t, useI18n } from '../i18n';
+import {
+  SHORTCUT_CATALOG,
+  SHORTCUT_CATEGORIES,
+  formatShortcutCombo,
+  formatShortcutKeyToken,
+  isShortcutMacosToken,
+  isShortcutSymbolToken,
+  shortcutCombosForPlatform
+} from '../shortcut-catalog';
+import type { ShortcutCatalogItem, ShortcutCategory, ShortcutCombo, ShortcutKeyToken } from '../shortcut-catalog';
 import type {
   AppSettings,
   AppSettingsPatch,
+  AppPlatform,
   BrowserTabsMode,
   CollectionKey,
   DownloadRootInfo,
@@ -32,6 +43,7 @@ const props = defineProps<{
   ffmpegStatus: FfmpegStatus | null;
   downloadRoot: DownloadRootInfo | null;
   databasePath: string | null;
+  platform: AppPlatform | null;
 }>();
 
 const emit = defineEmits<{
@@ -60,6 +72,8 @@ const importTotal = ref<number | null>(null);
 const importError = ref('');
 const exportCollection = ref<CollectionKey>('favourites');
 const activeSettingsSection = ref<SettingsSectionId>('settings-general');
+const shortcutSearch = ref('');
+const selectedShortcutId = ref(SHORTCUT_CATALOG[0] ? SHORTCUT_CATALOG[0].id : '');
 
 const speedOptions = [
   { value: 1, key: 'safe' },
@@ -69,6 +83,7 @@ const speedOptions = [
 const settingsSections = [
   { id: 'settings-general', labelKey: 'settings.general.title' },
   { id: 'settings-browser', labelKey: 'settings.browser.title' },
+  { id: 'settings-shortcuts', labelKey: 'settings.shortcuts.title' },
   { id: 'settings-sync', labelKey: 'settings.sync.title' },
   { id: 'settings-downloads', labelKey: 'settings.downloads.title' },
   { id: 'settings-data', labelKey: 'settings.data.title' }
@@ -80,6 +95,14 @@ const downloadSpeedModeHints: Record<DownloadSpeedMode, string> = {
 };
 
 type SettingsSectionId = (typeof settingsSections)[number]['id'];
+type ShortcutDisplayKey = {
+  combo: ShortcutCombo;
+  label: string;
+};
+type ShortcutDisplayItem = {
+  item: ShortcutCatalogItem;
+  displayKeys: ShortcutDisplayKey[];
+};
 
 const showMaxTabsWarning = computed(function () {
   return props.settings.maxBrowserTabs > MAX_BROWSER_TABS_WARNING_THRESHOLD;
@@ -123,6 +146,59 @@ const downloadRootPath = computed(function () {
 const downloadRootSourceLabel = computed(function () {
   if (props.downloadRoot && props.downloadRoot.source === 'manual') return t('settings.downloads.root.sourceManual');
   return t('settings.downloads.root.sourceDefault');
+});
+
+const shortcutDisplayItems = computed<ShortcutDisplayItem[]>(function () {
+  const query = shortcutSearch.value.trim().toLowerCase();
+  const items: ShortcutDisplayItem[] = [];
+
+  for (let i = 0; i < SHORTCUT_CATALOG.length; i++) {
+    const item = SHORTCUT_CATALOG[i];
+    const displayKeys = shortcutCombosForPlatform(item, props.platform).map(function (combo) {
+      return {
+        combo: combo,
+        label: formatShortcutCombo(combo, props.platform)
+      };
+    });
+    const searchable = [
+      t('settings.shortcuts.categories.' + item.category),
+      t(item.labelKey),
+      t(item.descriptionKey),
+      t(item.scopeKey),
+      displayKeys
+        .map(function (key) {
+          return key.label;
+        })
+        .join(' ')
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    if (!query || searchable.indexOf(query) !== -1) items.push({ item: item, displayKeys: displayKeys });
+  }
+
+  return items;
+});
+
+const shortcutGroups = computed(function () {
+  return SHORTCUT_CATEGORIES.map(function (category) {
+    return {
+      category: category,
+      items: shortcutDisplayItems.value.filter(function (displayItem) {
+        return displayItem.item.category === category;
+      })
+    };
+  }).filter(function (group) {
+    return group.items.length > 0;
+  });
+});
+
+const selectedShortcut = computed<ShortcutDisplayItem | null>(function () {
+  for (let i = 0; i < shortcutDisplayItems.value.length; i++) {
+    if (shortcutDisplayItems.value[i].item.id === selectedShortcutId.value) return shortcutDisplayItems.value[i];
+  }
+
+  return shortcutDisplayItems.value[0] || null;
 });
 
 function eventValue(event: Event) {
@@ -238,6 +314,29 @@ function confirmImport() {
 
 function selectSettingsSection(sectionId: SettingsSectionId) {
   activeSettingsSection.value = sectionId;
+}
+
+function selectShortcut(itemId: string) {
+  selectedShortcutId.value = itemId;
+}
+
+function shortcutCategoryLabel(category: ShortcutCategory) {
+  return t('settings.shortcuts.categories.' + category);
+}
+
+function shortcutTokenLabel(token: ShortcutKeyToken) {
+  return formatShortcutKeyToken(token, props.platform);
+}
+
+function shortcutTokenClass(token: ShortcutKeyToken) {
+  return {
+    'is-macos': isShortcutMacosToken(token, props.platform),
+    'is-symbol': isShortcutSymbolToken(token, props.platform)
+  };
+}
+
+function shortcutTokenSeparator(tokenIndex: number) {
+  return props.platform === 'macos' || tokenIndex === 0 ? '' : '+';
 }
 </script>
 
@@ -394,6 +493,101 @@ function selectSettingsSection(sectionId: SettingsSectionId) {
                 <button type="button" class="w-fit" :disabled="busy" @click="emit('reset-tabs-width')">
                   {{ t('settings.browser.resetTabWidth') }}
                 </button>
+              </div>
+            </section>
+
+            <section
+              v-show="activeSettingsSection === 'settings-shortcuts'"
+              id="settings-shortcuts"
+              class="settings-section"
+            >
+              <h2 class="text-base font-bold">{{ t('settings.shortcuts.title') }}</h2>
+              <div class="settings-shortcuts-layout">
+                <div class="grid min-w-0 gap-3">
+                  <label for="settings-shortcut-search" class="sr-only">
+                    {{ t('settings.shortcuts.searchLabel') }}
+                  </label>
+                  <input
+                    id="settings-shortcut-search"
+                    v-model="shortcutSearch"
+                    class="settings-shortcut-search"
+                    data-test="settings-shortcut-search"
+                    type="search"
+                    :placeholder="t('settings.shortcuts.searchPlaceholder')"
+                    :aria-label="t('settings.shortcuts.searchLabel')"
+                  />
+
+                  <div class="settings-shortcut-list" data-test="settings-shortcut-list">
+                    <template v-for="group in shortcutGroups" :key="group.category">
+                      <h3 class="settings-shortcut-category">{{ shortcutCategoryLabel(group.category) }}</h3>
+                      <button
+                        v-for="shortcut in group.items"
+                        :key="shortcut.item.id"
+                        type="button"
+                        class="settings-shortcut-row"
+                        :class="{ 'is-active': selectedShortcut && selectedShortcut.item.id === shortcut.item.id }"
+                        :data-test="'settings-shortcut-row-' + shortcut.item.id"
+                        :aria-current="
+                          selectedShortcut && selectedShortcut.item.id === shortcut.item.id ? 'true' : undefined
+                        "
+                        @click="selectShortcut(shortcut.item.id)"
+                      >
+                        <span class="settings-shortcut-row-copy">
+                          <span class="settings-shortcut-name">{{ t(shortcut.item.labelKey) }}</span>
+                          <span class="settings-shortcut-scope">{{ t(shortcut.item.scopeKey) }}</span>
+                        </span>
+                        <span class="settings-shortcut-keys" :data-test="'settings-shortcut-keys-' + shortcut.item.id">
+                          <kbd
+                            v-for="key in shortcut.displayKeys"
+                            :key="key.label"
+                            class="settings-shortcut-key"
+                            :aria-label="key.label"
+                          >
+                            <template v-for="(token, tokenIndex) in key.combo" :key="token + '-' + tokenIndex">
+                              <span v-if="shortcutTokenSeparator(tokenIndex)" class="settings-shortcut-key-separator">
+                                {{ shortcutTokenSeparator(tokenIndex) }}
+                              </span>
+                              <span class="settings-shortcut-key-token" :class="shortcutTokenClass(token)">
+                                {{ shortcutTokenLabel(token) }}
+                              </span>
+                            </template>
+                          </kbd>
+                        </span>
+                      </button>
+                    </template>
+
+                    <p
+                      v-if="shortcutDisplayItems.length === 0"
+                      class="settings-help p-4"
+                      data-test="settings-shortcut-empty"
+                    >
+                      {{ t('settings.shortcuts.noResults') }}
+                    </p>
+                  </div>
+                </div>
+
+                <aside v-if="selectedShortcut" class="settings-shortcut-detail" data-test="settings-shortcut-detail">
+                  <p class="settings-shortcut-detail-eyebrow">{{ t(selectedShortcut.item.scopeKey) }}</p>
+                  <h3 class="m-0 text-lg font-bold">{{ t(selectedShortcut.item.labelKey) }}</h3>
+                  <p class="settings-help">{{ t(selectedShortcut.item.descriptionKey) }}</p>
+                  <div class="settings-shortcut-detail-keys">
+                    <kbd
+                      v-for="key in selectedShortcut.displayKeys"
+                      :key="key.label"
+                      class="settings-shortcut-key"
+                      :aria-label="key.label"
+                    >
+                      <template v-for="(token, tokenIndex) in key.combo" :key="token + '-' + tokenIndex">
+                        <span v-if="shortcutTokenSeparator(tokenIndex)" class="settings-shortcut-key-separator">
+                          {{ shortcutTokenSeparator(tokenIndex) }}
+                        </span>
+                        <span class="settings-shortcut-key-token" :class="shortcutTokenClass(token)">
+                          {{ shortcutTokenLabel(token) }}
+                        </span>
+                      </template>
+                    </kbd>
+                  </div>
+                </aside>
               </div>
             </section>
 

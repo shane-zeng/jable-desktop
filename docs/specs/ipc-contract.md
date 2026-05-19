@@ -1,6 +1,6 @@
 # IPC Contract Specification
 
-Last verified against implementation: 2026-05-19
+Last verified against implementation: 2026-05-20
 
 This document summarizes the current IPC boundary. `app/types/jable.ts` is the source of truth for exact TypeScript payload and response types.
 
@@ -31,7 +31,7 @@ Renderer API group:
 
 Current behavior:
 
-- `getAppInfo()` returns database path, current locale, and system locale.
+- `getAppInfo()` returns database path, current locale, app platform (`macos`, `windows`, or `linux`), and system locale.
 - `getSettings()` returns normalized persisted app settings, including browser tab display mode and startup tab restore preference.
 - `updateSettings()` normalizes and persists supported settings only.
 - `restoreBrowserTabsOnStartup` defaults to `false`; when set to `true`, the main process stores and restores normal browser tab URLs, active tab, locked state, and muted state through an internal `browser-session.json` file. This does not add a renderer IPC method.

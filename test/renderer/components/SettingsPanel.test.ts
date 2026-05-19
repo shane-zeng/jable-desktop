@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it } from 'vitest';
 import SettingsPanel from '@/components/SettingsPanel.vue';
 import { setLocale } from '@/i18n';
-import type { AppSettings, ExportResource } from '../../../app/types/jable';
+import type { AppPlatform, AppSettings, ExportResource } from '../../../app/types/jable';
 
 const settings: AppSettings = {
   maxBrowserTabs: 22,
@@ -20,12 +20,17 @@ const settings: AppSettings = {
   maxConcurrentDownloads: 1
 };
 
-function mountPanel(overrides?: Partial<AppSettings>, databasePath: string | null = '/tmp/jable-favourites.sqlite') {
+function mountPanel(
+  overrides?: Partial<AppSettings>,
+  databasePath: string | null = '/tmp/jable-favourites.sqlite',
+  platform: AppPlatform | null = 'macos'
+) {
   return mount(SettingsPanel, {
     props: {
       active: true,
       busy: false,
       databasePath: databasePath,
+      platform: platform,
       ffmpegStatus: {
         state: 'missing',
         source: null,
@@ -69,6 +74,8 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('分頁列顯示方式');
     expect(wrapper.text()).toContain('記住開啟的分頁');
     expect(wrapper.text()).toContain('WebView 增強模式');
+    expect(wrapper.text()).toContain('快捷鍵');
+    expect(wrapper.text()).toContain('新增瀏覽器分頁');
     expect(wrapper.text()).toContain('同步');
     expect(wrapper.text()).toContain('下載');
     expect(wrapper.text()).toContain('下載位置');
@@ -132,12 +139,12 @@ describe('SettingsPanel', function () {
     const wrapper = mountPanel();
 
     const links = wrapper.findAll('[data-test^="settings-section-link-"]');
-    expect(links).toHaveLength(5);
+    expect(links).toHaveLength(6);
     expect(
       links.map(function (link) {
         return link.text();
       })
-    ).toEqual(['一般', '瀏覽器', '同步', '下載', '資料']);
+    ).toEqual(['一般', '瀏覽器', '快捷鍵', '同步', '下載', '資料']);
     expect(wrapper.get('[data-test="settings-section-link-settings-general"]').attributes('aria-current')).toBe('page');
     expect(wrapper.get('#settings-general').attributes('style')).toBeUndefined();
     expect(wrapper.get('#settings-downloads').attributes('style')).toContain('display: none');
@@ -150,6 +157,31 @@ describe('SettingsPanel', function () {
     );
     expect(wrapper.get('#settings-general').attributes('style')).toContain('display: none');
     expect(wrapper.get('#settings-downloads').attributes('style')).toBeUndefined();
+  });
+
+  it('renders platform-specific shortcuts and filters the shortcut list', async function () {
+    const macWrapper = mountPanel();
+
+    await macWrapper.get('[data-test="settings-section-link-settings-shortcuts"]').trigger('click');
+
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).toContain('⌘T');
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('Ctrl+T');
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain('⌥⌘→');
+
+    const windowsWrapper = mountPanel(undefined, '/tmp/jable-favourites.sqlite', 'windows');
+
+    await windowsWrapper.get('[data-test="settings-section-link-settings-shortcuts"]').trigger('click');
+
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).toContain('Ctrl+T');
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('⌘T');
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain(
+      'Ctrl+PageDown'
+    );
+
+    await windowsWrapper.get('[data-test="settings-shortcut-search"]').setValue('劇院');
+
+    expect(windowsWrapper.find('[data-test="settings-shortcut-row-toggle-theater-mode"]').exists()).toBe(true);
+    expect(windowsWrapper.find('[data-test="settings-shortcut-row-new-browser-tab"]').exists()).toBe(false);
   });
 
   it('disables opening the data folder until the database path is available', function () {

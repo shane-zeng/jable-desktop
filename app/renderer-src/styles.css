@@ -372,6 +372,155 @@ button:focus {
   gap: 8px;
 }
 
+.settings-shortcuts-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 28px;
+  align-items: start;
+}
+
+.settings-shortcut-search {
+  width: min(100%, 620px);
+}
+
+.settings-shortcut-list {
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+
+.settings-shortcut-category {
+  margin: 0;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 78%, var(--control) 22%);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.settings-shortcut-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--panel-border);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.settings-shortcut-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-shortcut-row:not(:disabled):hover,
+.settings-shortcut-row.is-active {
+  background: color-mix(in srgb, var(--selection-active) 42%, transparent);
+}
+
+.settings-shortcut-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.settings-shortcut-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-shortcut-scope,
+.settings-shortcut-detail-eyebrow {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-shortcut-keys {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.settings-shortcut-detail-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 26px;
+  min-width: 28px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--panel-border) 72%, var(--text) 16%);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.settings-shortcut-key-token {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.settings-shortcut-key-separator {
+  color: var(--muted);
+  line-height: 1;
+}
+
+.settings-shortcut-key-token.is-macos {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Symbol', 'Apple Symbols', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  transform: translateY(-0.5px);
+}
+
+.settings-shortcut-key-token.is-symbol {
+  font-size: 15px;
+  transform: translateY(-0.5px);
+}
+
+.settings-shortcut-keys .settings-shortcut-key {
+  width: 100%;
+}
+
+.settings-shortcut-detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.settings-shortcut-detail-eyebrow {
+  margin: 0;
+}
+
 .pending-summary-chip {
   display: inline-grid;
   grid-template-columns: max-content max-content;
@@ -1061,6 +1210,19 @@ button:focus {
 
   .settings-row {
     grid-template-columns: 1fr;
+  }
+
+  .settings-shortcuts-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-shortcut-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-shortcut-keys {
+    justify-content: flex-start;
+    max-width: 320px;
   }
 }
 

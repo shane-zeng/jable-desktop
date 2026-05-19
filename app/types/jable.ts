@@ -7,6 +7,7 @@ export type SyncMode = 'quick' | 'full';
 export type BrowserTabKind = 'normal' | 'sync';
 export type BrowserTabsMode = 'standard' | 'compact' | 'shared';
 export type AppView = 'browser' | 'library' | 'settings';
+export type AppPlatform = 'macos' | 'windows' | 'linux';
 export type SupportedLocale = 'zh-TW' | 'en-US' | 'ja-JP';
 export type LibraryTabKey = CollectionKey | 'downloads' | 'pending_remote';
 export type DownloadSortKey = 'updated_at' | 'title' | 'state' | 'file_size';
@@ -491,6 +492,7 @@ export interface FinishSyncPayload {
 export interface AppInfo {
   databasePath: string | null;
   locale: SupportedLocale;
+  platform: AppPlatform;
   systemLocale: string;
 }
 

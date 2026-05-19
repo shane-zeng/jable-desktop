@@ -57,6 +57,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 ## Shortcuts And Gestures
 
 - App-specific keyboard and mouse shortcuts are documented in `docs/shortcuts.md`.
+- Settings > Shortcuts renders the user-facing shortcut list from `app/renderer-src/shortcut-catalog.ts` and formats keys for the current app platform returned by `getAppInfo()`.
 - Browser shortcut detection is centralized in `app/browser/browser-tab-policy.ts`.
 - Shortcut handling ignores auto-repeat.
 - A short debounce prevents duplicate shortcut handling across multiple `webContents`.
