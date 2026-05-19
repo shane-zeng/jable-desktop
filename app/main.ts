@@ -21,7 +21,7 @@ import type { BrowserSessionSnapshot } from './main-process/browser-session-stor
 import type { BrowserShortcutManager, BrowserShortcutManagerContext } from './main-process/browser-shortcut-manager';
 import type { ContextMenuManager, ContextMenuManagerContext } from './main-process/context-menu-manager';
 import type { DataEngine } from './data/data-engine';
-import type { DownloadManager, DownloadManagerContext } from './main-process/download-manager';
+import type { DownloadManager, DownloadManagerContext } from './main-process/download/manager';
 import type { IpcHandlersContext } from './main-process/ipc-handlers';
 import type {
   ActiveSyncRun,
@@ -193,12 +193,12 @@ const contextMenuManagerModule = require('./main-process/context-menu-manager') 
   createContextMenuManager(context: ContextMenuManagerContext): ContextMenuManager;
 };
 const dataEngineModule = require('./data/data-engine') as DataEngineModule;
-const downloadManagerModule = require('./main-process/download-manager') as {
+const downloadManagerModule = require('./main-process/download/manager') as {
   LOCAL_PLAYBACK_SCHEME: string;
   createDownloadManager(context: DownloadManagerContext): DownloadManager;
 };
 const i18n = require('./i18n') as I18nModule;
-const hlsPlaybackCapture = require('./main-process/hls-playback-capture') as HlsPlaybackCaptureModule;
+const hlsPlaybackCapture = require('./main-process/hls-playback/capture') as HlsPlaybackCaptureModule;
 const ipcHandlers = require('./main-process/ipc-handlers') as {
   registerIpcHandlers(context: IpcHandlersContext): void;
 };

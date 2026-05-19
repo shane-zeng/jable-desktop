@@ -154,6 +154,7 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(source, /README\.en-US\.md#download-list-and-ffmpeg/);
   assert.match(source, /README\.ja-JP\.md#/);
   assert.match(source, /shell\.openExternal\(url\)/);
+  assert.match(source, /main-process\/download\/manager/);
   assert.match(downloadManagerAdapterSource, /export \* from '\.\/download\/manager'/);
 });
 
@@ -536,7 +537,8 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   ].join('\n');
 
   assert.match(mainSource, /hlsPlaybackCapture\.installHlsPlaybackCapture/);
-  assert.match(mainSource, /main-process\/hls-playback-capture/);
+  assert.match(mainSource, /main-process\/hls-playback\/capture/);
+  assert.doesNotMatch(mainSource, /main-process\/hls-playback-capture/);
   assert.doesNotMatch(mainSource, /main-process\/hls-playback-research/);
   assert.match(mainSource, /jableSession: session\.fromPartition\(JABLE_SESSION_PARTITION\)/);
   assert.match(hlsCaptureAdapterSource, /export \{ installHlsPlaybackCapture \} from '\.\/hls-playback\/capture'/);

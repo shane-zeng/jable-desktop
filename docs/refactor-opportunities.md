@@ -58,7 +58,7 @@ Before implementing a candidate:
 - Download Manager shutdown split.
   Close-time queue draining, queued/active pause persistence, native/FFmpeg stop signals, active task waiting, and the pause-before-close dialog now live in `app/main-process/download/shutdown.ts`; `app/main-process/download-manager.ts` keeps app-facing forwarding and runtime maps.
 - Download Manager folder boundary split.
-  Download Manager implementation modules now live under `app/main-process/download/`, with `app/main-process/download/manager.ts` as the domain composition root and `app/main-process/download-manager.ts` retained as the stable compatibility entrypoint for existing main-process and test imports.
+  Download Manager implementation modules now live under `app/main-process/download/`, with `app/main-process/download/manager.ts` as the domain composition root and `app/main-process/download-manager.ts` retained as the stable compatibility entrypoint for legacy and test imports.
 - WebView preload DOM scraping cleanup.
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, and DOM replacement side effects.
 - HLS playback helper split.
