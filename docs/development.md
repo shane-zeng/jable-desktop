@@ -142,6 +142,22 @@ Browser and tab behavior:
 - Theater mode is tab-scoped runtime state for trusted Jable video pages. It is toggled through the embedded page context menu, applied by `app/browser/webview-preload/theater-mode.ts` with page CSS inside the current `WebContentsView`, preserved across tab switches/reloads/Jable video-to-video navigation, and not included in startup session restore.
 - Application-specific keyboard shortcuts and mouse shortcuts are inventoried in [`docs/shortcuts.md`](shortcuts.md). Keep it aligned with `app/browser/browser-tab-policy.ts`, `app/main-process/browser-shortcut-manager.ts`, `app/webview-preload.ts`, and renderer link handlers.
 
+WebView preload responsibility boundaries:
+
+- `app/webview-preload.ts` is the embedded-page composition root. It may own live DOM glue that must run inside the Jable page: controller construction, install order, current-page scraper callbacks, pager DOM replacement and click/fetch fallback, request/response IPC registration, page diagnosis, and tab gesture forwarding.
+- `app/browser/webview-preload-helpers.ts` owns pure parsing and validation helpers that do not need live page state: row scraping from a supplied root, pager/AJAX URL derivation, retry/backoff details, metric parsing, page numbers, signatures, and video path keys.
+- `app/browser/webview-preload/video-metadata.ts` owns current video URL detection, page title/meta/view/like/subtitle notice readers, clean title normalization, and `db:refresh-video-metadata` scheduling.
+- `app/browser/webview-preload/browser-sync.ts` owns browser-side sync orchestration: quick/full pagination flow, bounded AJAX prefetch fallback decisions, sync progress messages, `db:collection-urls-known`, `db:save-sync-page`, and deferred remote operation replay order.
+- `app/browser/webview-preload/collection-actions.ts` owns Jable collection button interception, active sync locks, deferred toggle queuing, successful toggle mirroring, and pending operation overlays.
+- `app/browser/webview-preload/hls-playback.ts`, `local-playback.ts`, and `theater-mode.ts` own playback and view-mode runtime observers/controllers. `app/webview-preload.ts` should only provide their callbacks for current video URL/details, main video lookup, IPC, and install order.
+- Do not move behavior into a new preload module only to reduce line count. Further extraction should have a real boundary, preserve IPC channel names and payload shapes, and keep DOM side effects explicit through injected callbacks instead of hidden globals.
+
+`app/webview-preload.ts` can still be split further, but the remaining candidates should be handled one concern at a time:
+
+- Pager DOM runtime (`waitForContainerChange`, pager link reading, DOM replacement, AJAX page materialization, and click/fetch fallback) could become a `pager-runtime.ts` module, but it is more tightly coupled to sync callbacks and should keep `browser-sync.ts` as the state-machine owner.
+- Trackpad history and middle-click new-tab forwarding could become a small input/navigation module, but do this only when adding related behavior; today it is not large enough to justify another wrapper by itself.
+- Request/response IPC registration should stay in `app/webview-preload.ts` unless it becomes repetitive enough that an IPC router clearly reduces cognitive load.
+
 Renderer behavior:
 
 - `app/preload.ts` exposes the only renderer-to-main boundary as `window.jableApp`; `app/types/jable.ts` is the contract for those IPC payloads and responses.

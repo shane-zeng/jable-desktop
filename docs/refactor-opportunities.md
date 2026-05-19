@@ -38,7 +38,7 @@ Before implementing a candidate:
 - Search count path optimization.
   Search-backed `countVideos` now streams only `v.search_text` through the existing Rust matcher instead of hydrating and sorting full list rows; `listVideos` search filtering remains Rust-owned to preserve current token and pagination semantics.
 - WebView preload runtime concern split.
-  Browser sync orchestration, deferred sync replay, collection action observation, pending operation overlays, local playback replacement, theater mode, and HLS playback proxy/runtime observers now live in focused modules under `app/browser/webview-preload/`; `app/webview-preload.ts` keeps preload composition, IPC request handlers, scraping, and pager DOM side effects.
+  Browser sync orchestration, deferred sync replay, collection action observation, pending operation overlays, current video metadata refresh, local playback replacement, theater mode, and HLS playback proxy/runtime observers now live in focused modules under `app/browser/webview-preload/`; `app/webview-preload.ts` keeps preload composition, IPC request handlers, scraping, pager DOM side effects, page diagnosis, and tab gesture forwarding.
 
 ## Remaining Candidates
 

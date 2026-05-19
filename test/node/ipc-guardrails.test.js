@@ -49,6 +49,13 @@ const WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH = path.join(
   'local-playback.ts'
 );
 const WEBVIEW_THEATER_MODE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload', 'theater-mode.ts');
+const WEBVIEW_VIDEO_METADATA_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'browser',
+  'webview-preload',
+  'video-metadata.ts'
+);
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -517,12 +524,15 @@ test('browser video pages refresh known local metadata through dedicated IPC', f
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const ipcNormalizersSource = readSource(IPC_NORMALIZERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const videoMetadataSource = readSource(WEBVIEW_VIDEO_METADATA_SOURCE_PATH);
 
   assert.match(dataEngineSource, /refreshVideoMetadata/);
   assert.match(ipcHandlersSource, /ipcMain\.handle\('db:refresh-video-metadata'/);
   assert.match(ipcNormalizersSource, /canonicalJableVideoUrl\(record\.url\)/);
-  assert.match(webviewPreload, /function installVideoMetadataRefresh/);
-  assert.match(webviewPreload, /ipcRenderer\.invoke\('db:refresh-video-metadata', video\)/);
+  assert.match(webviewPreload, /createVideoMetadataController/);
+  assert.match(webviewPreload, /videoMetadataController\.readCurrentVideoDetails/);
+  assert.match(videoMetadataSource, /function installVideoMetadataRefresh/);
+  assert.match(videoMetadataSource, /options\.ipcRenderer\.invoke\('db:refresh-video-metadata', video\)/);
 });
 
 test('main process forces MP4 muxing for partial download files', function () {
