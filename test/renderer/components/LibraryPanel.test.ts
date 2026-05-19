@@ -605,6 +605,8 @@ describe('LibraryPanel', function () {
     expect(wrapper.find('[data-test="download-error-log"]').exists()).toBe(false);
     expect(cards[0].find('[data-test="download-record-select"]').exists()).toBe(true);
     expect(cards[1].find('[data-test="download-record-select"]').exists()).toBe(true);
+    expect(cards[0].get('[data-test="download-record-delete"]').classes()).toContain('danger-secondary');
+    expect(cards[0].get('[data-test="download-record-delete"]').classes()).not.toContain('danger');
 
     await cards[1].get('[data-test="download-record-select"]').setValue(true);
     await wrapper.setProps({ selectedDownloadUrls: ['https://jable.tv/videos/missing/'] });

@@ -131,6 +131,19 @@ button.danger:not(:disabled):hover {
   background: var(--intent-danger-hover);
 }
 
+button.danger-secondary {
+  border-color: color-mix(in srgb, var(--intent-danger) 58%, var(--panel-border) 42%);
+  background: var(--control);
+  color: color-mix(in srgb, var(--intent-danger-hover) 74%, #fff 26%);
+}
+
+button.danger-secondary:not(:disabled):hover,
+button.danger-secondary:not(:disabled):focus-visible {
+  border-color: var(--intent-danger-hover);
+  background: color-mix(in srgb, var(--intent-danger) 22%, var(--control-hover) 78%);
+  color: #fff;
+}
+
 input:not([type='checkbox']),
 select {
   min-height: 34px;

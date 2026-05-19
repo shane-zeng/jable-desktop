@@ -236,7 +236,7 @@ function toggleSelected(event: Event) {
               record.state === 'missing'
             "
             type="button"
-            class="danger min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
+            class="danger-secondary min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
             data-test="download-record-delete"
             @click="emit('delete', record.videoUrl)"
           >
