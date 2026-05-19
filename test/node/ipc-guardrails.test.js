@@ -32,6 +32,14 @@ const DOWNLOAD_DISPLAY_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 
 const STYLES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'renderer-src', 'styles.css');
 const WEBVIEW_PRELOAD_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'webview-preload.ts');
 const WEBVIEW_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload-helpers.ts');
+const WEBVIEW_BROWSER_SYNC_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload', 'browser-sync.ts');
+const WEBVIEW_COLLECTION_ACTIONS_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'browser',
+  'webview-preload',
+  'collection-actions.ts'
+);
 const WEBVIEW_HLS_PLAYBACK_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'browser', 'webview-preload', 'hls-playback.ts');
 const WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH = path.join(
   ROOT_DIR,
@@ -80,13 +88,15 @@ test('main process uses preload IPC for browser page requests', function () {
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const browserSyncSource = readSource(WEBVIEW_BROWSER_SYNC_SOURCE_PATH);
   const removedGlobal = 'jableDesktop' + 'Scraper';
 
   assert.equal(source.includes(removedGlobal), false);
+  assert.match(source, /createBrowserSyncController/);
   assert.match(source, /browser:sync-collection-request/);
   assert.match(source, /browser:diagnose-request/);
   assert.match(source, /browser:preload-response/);
-  assert.match(source, /function syncCollection/);
+  assert.match(browserSyncSource, /function syncCollection/);
   assert.match(source, /function diagnosePage/);
 });
 
@@ -106,6 +116,7 @@ test('webview pager fallback uses Jable get_block requests and page-number from 
 
 test('full sync can use bounded concurrent ajax prefetch with sequential fallback', function () {
   const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const browserSyncSource = readSource(WEBVIEW_BROWSER_SYNC_SOURCE_PATH);
   const helperSource = readSource(WEBVIEW_HELPERS_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
 
@@ -128,19 +139,21 @@ test('full sync can use bounded concurrent ajax prefetch with sequential fallbac
   assert.match(helperSource, /async function fetchAjaxPagesWithWindow/);
   assert.match(helperSource, /function validateAjaxFirstPage/);
   assert.match(helperSource, /function validateAjaxPages/);
-  assert.match(source, /async function syncRemainingPagesWithAjaxPrefetch/);
+  assert.match(browserSyncSource, /async function syncRemainingPagesWithAjaxPrefetch/);
   assert.match(source, /async function fetchAjaxSyncPageForTemplate/);
-  assert.match(source, /message: 'ajax-page-retry'/);
-  assert.match(source, /message: 'ajax-prefetch-fallback'/);
+  assert.match(browserSyncSource, /message: 'ajax-page-retry'/);
+  assert.match(browserSyncSource, /message: 'ajax-prefetch-fallback'/);
   assert.match(helperSource, /rowUrlSignature\(firstPageCheck\.rows\) !== rowUrlSignature\(firstPageRows\)/);
-  assert.match(source, /ajaxFallbackReason = ajaxFailureDetail\(error\)/);
-  assert.match(source, /ajax prefetch failed; falling back to sequential paging/);
-  assert.match(source, /await syncRemainingPagesWithAjaxPrefetch\(firstPageRows, firstPageSignature\)/);
+  assert.match(browserSyncSource, /ajaxFallbackReason = ajaxFailureDetail\(error\)/);
+  assert.match(browserSyncSource, /ajax prefetch failed; falling back to sequential paging/);
+  assert.match(browserSyncSource, /await syncRemainingPagesWithAjaxPrefetch\(firstPageRows, firstPageSignature\)/);
 });
 
 test('main process replays queued collection operations after recoverable incomplete sync', function () {
   const source = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
+  const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const collectionActionsSource = readSource(WEBVIEW_COLLECTION_ACTIONS_SOURCE_PATH);
 
   assert.match(source, /function shouldApplyDeferredSyncOperations/);
   assert.match(source, /result\.incompleteReason === 'login-required'/);
@@ -149,10 +162,18 @@ test('main process replays queued collection operations after recoverable incomp
   assert.match(ipcHandlersSource, /normalizedPayload\.deferLocal = true/);
   assert.match(source, /resultWithWorker\.queuedOperationsSkipped = skipped/);
   assert.equal(source.includes('!keepWorker && resultWithWorker.completed'), false);
+  assert.match(webviewPreload, /createCollectionActionController/);
+  assert.match(webviewPreload, /collectionActionController\.updateActiveSyncLocks/);
+  assert.match(webviewPreload, /collectionActionController\.updatePendingCollectionOperations/);
+  assert.match(collectionActionsSource, /function queueCollectionToggle/);
+  assert.match(collectionActionsSource, /deferRemote: true/);
+  assert.match(collectionActionsSource, /syncRunId: syncLock\.syncRunId/);
+  assert.match(collectionActionsSource, /function installPendingCollectionOperationOverlay/);
+  assert.match(collectionActionsSource, /schedulePendingOverlay: scheduleApplyPendingCollectionOperations/);
 });
 
 test('webview deferred operation replay retries once and preserves outbox order after a failure', function () {
-  const source = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const source = readSource(WEBVIEW_BROWSER_SYNC_SOURCE_PATH);
 
   assert.match(source, /function applyDeferredSyncOperationWithSingleRetry/);
   assert.match(source, /await applyDeferredSyncOperationOnce\(operation, baseUrl\);[\s\S]*catch \(error\)/);

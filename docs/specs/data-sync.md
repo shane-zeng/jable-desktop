@@ -128,6 +128,7 @@ Important outbox fields:
 
 - Full sync starts at page 1.
 - Full sync scans through the last reachable page.
+- Browser-side sync orchestration lives in `app/browser/webview-preload/browser-sync.ts`.
 - A completed full sync rebuilds visible site order.
 - A completed full sync hides currently visible rows not touched by the completed sync run.
 - Completed full sync status reports the final visible local row count after sync finalization.
@@ -153,7 +154,7 @@ Important outbox fields:
 
 ## Collection Toggles
 
-- Jable collection add/remove button clicks are observed in `app/webview-preload.ts`.
+- Jable collection add/remove button clicks are observed in `app/browser/webview-preload/collection-actions.ts`.
 - Outside active sync, a successful site-side toggle is mirrored into local SQLite through `applyCollectionToggle`.
 - During active sync, toggles are recorded as deferred remote operations.
 - Deferred remote operations do not alter normal local list visibility until Jable AJAX succeeds.
