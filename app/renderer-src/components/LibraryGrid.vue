@@ -51,6 +51,7 @@ const emit = defineEmits<{
   'choose-ffmpeg': [];
   'open-ffmpeg-guide': [];
   'download-video': [video: VideoRow];
+  'locate-download': [videoUrl: string];
   'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
   'open-video': [url: string];
   'open-video-new-tab': [url: string];
@@ -199,6 +200,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
         @open="emit('open-video', $event)"
         @open-new="emit('open-video-new-tab', $event)"
         @download="emit('download-video', $event)"
+        @locate-download="emit('locate-download', $event)"
         @retry-download="emit('retry-download', $event)"
         @resume-download="emit('resume-download', $event)"
         @toggle-download-selection="emit('toggle-download-selection', $event)"

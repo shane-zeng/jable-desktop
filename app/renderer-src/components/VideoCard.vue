@@ -15,6 +15,7 @@ const emit = defineEmits<{
   open: [url: string];
   'open-new': [url: string];
   download: [video: VideoRow];
+  'locate-download': [videoUrl: string];
   'retry-download': [videoUrl: string];
   'resume-download': [videoUrl: string];
   'toggle-download-selection': [payload: { video: VideoRow; selected: boolean }];
@@ -26,7 +27,7 @@ const downloadButtonLabel = computed(function () {
   const state = props.downloadRecord && props.downloadRecord.state;
   if (state === 'queued') return i18n.t('video.downloadQueued');
   if (state === 'downloading') return i18n.t('video.downloadDownloading');
-  if (state === 'ready') return i18n.t('video.downloadReady');
+  if (state === 'ready') return i18n.t('video.viewDownload');
   if (state === 'paused') return i18n.t('video.downloadResume');
   if (state === 'failed' || state === 'missing') return i18n.t('video.downloadRetry');
   return i18n.t('video.download');
@@ -34,11 +35,11 @@ const downloadButtonLabel = computed(function () {
 
 const downloadButtonDisabled = computed(function () {
   const state = props.downloadRecord && props.downloadRecord.state;
-  return state === 'queued' || state === 'downloading' || state === 'ready';
+  return state === 'queued' || state === 'downloading';
 });
 
 const downloadSelectionDisabled = computed(function () {
-  return downloadButtonDisabled.value;
+  return downloadButtonDisabled.value || Boolean(props.downloadRecord && props.downloadRecord.state === 'ready');
 });
 
 function formatNumber(value: number | null | undefined) {
@@ -96,6 +97,10 @@ function downloadVideo(event: MouseEvent) {
   event.preventDefault();
   event.stopPropagation();
   if (downloadButtonDisabled.value) return;
+  if (props.downloadRecord && props.downloadRecord.state === 'ready') {
+    emit('locate-download', props.downloadRecord.videoUrl);
+    return;
+  }
   if (props.downloadRecord && (props.downloadRecord.state === 'failed' || props.downloadRecord.state === 'missing')) {
     emit('retry-download', props.downloadRecord.videoUrl);
     return;

@@ -114,6 +114,8 @@ function toggleSelected(event: Event) {
       'download-card-formalizing': formalizing
     }"
     data-test="download-record-card"
+    :data-video-url="record.videoUrl"
+    tabindex="-1"
   >
     <label
       v-if="selectable"

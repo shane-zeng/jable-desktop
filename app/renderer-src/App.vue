@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BrowserPanel from './components/BrowserPanel.vue';
 import BrowserTabRail from './components/BrowserTabRail.vue';
 import DownloadErrorLogModal from './components/DownloadErrorLogModal.vue';
@@ -75,6 +75,9 @@ const downloadRoot = ref<DownloadRootInfo | null>(null);
 const browser = useBrowserBounds(api, activeView);
 const library = useLibraryState(api);
 let mainLocaleSynced = false;
+let locatedDownloadTimer: ReturnType<typeof setTimeout> | null = null;
+let locatedDownloadCard: HTMLElement | null = null;
+const LOCATED_DOWNLOAD_CLASS = 'download-card-located';
 const sync = useSyncWorkflow({
   api: api,
   busy: busy,
@@ -416,6 +419,62 @@ async function selectLibraryTab(tabKey: string) {
   await library.selectTab(tabKey);
 }
 
+function downloadRecordCardElement(videoUrl: string) {
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-test="download-record-card"]'));
+
+  return (
+    cards.find(function (card) {
+      return card.dataset.videoUrl === videoUrl;
+    }) || null
+  );
+}
+
+function clearLocatedDownloadTimer() {
+  if (!locatedDownloadTimer) return;
+
+  clearTimeout(locatedDownloadTimer);
+  locatedDownloadTimer = null;
+}
+
+function clearLocatedDownloadHighlight() {
+  clearLocatedDownloadTimer();
+  if (locatedDownloadCard) locatedDownloadCard.classList.remove(LOCATED_DOWNLOAD_CLASS);
+  locatedDownloadCard = null;
+}
+
+async function locateDownloadRecord(videoUrl: string) {
+  if (!videoUrl) return;
+
+  clearLocatedDownloadHighlight();
+  library.downloadSearch.value = '';
+  library.downloadStateFilters.value = ['all'];
+  await library.selectTab('downloads');
+  await nextTick();
+  await nextTick();
+
+  const card = downloadRecordCardElement(videoUrl);
+  if (!card) {
+    setStatus(i18n.t('status.downloadLocateFailed'), 'warning');
+    return;
+  }
+
+  card.classList.add(LOCATED_DOWNLOAD_CLASS);
+  locatedDownloadCard = card;
+  if (typeof card.scrollIntoView === 'function') card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  try {
+    card.focus({ preventScroll: true });
+  } catch {
+    card.focus();
+  }
+  locatedDownloadTimer = setTimeout(function () {
+    if (locatedDownloadCard === card) {
+      locatedDownloadCard.classList.remove(LOCATED_DOWNLOAD_CLASS);
+      locatedDownloadCard = null;
+    }
+    locatedDownloadTimer = null;
+  }, 1800);
+}
+
 async function newBrowserTab() {
   if (activeView.value === 'library' && browserTabsShared.value) {
     try {
@@ -708,6 +767,7 @@ onMounted(async function () {
 });
 
 onBeforeUnmount(function () {
+  clearLocatedDownloadHighlight();
   downloadErrorLog.unregisterShortcut();
 });
 </script>
@@ -849,6 +909,7 @@ onBeforeUnmount(function () {
           @choose-ffmpeg="chooseFfmpegPath"
           @open-ffmpeg-guide="openFfmpegGuide"
           @download-video="downloadVideo"
+          @locate-download="locateDownloadRecord"
           @select-downloadable="selectBatchDownloadVideos"
           @download-selected="downloadSelectedVideos"
           @clear-download-selection="library.clearBatchDownloadSelection"

@@ -127,6 +127,20 @@ describe('DownloadRecordCard', function () {
     expect(wrapper.get('[data-test="download-record-subtitle-badge"]').text()).toBe('中文字幕');
   });
 
+  it('keeps the video URL available for download-list scrolling', function () {
+    const record = makeDownloadRecord({
+      videoUrl: 'https://jable.tv/videos/located/'
+    });
+    const wrapper = mount(DownloadRecordCard, {
+      props: {
+        record: record
+      }
+    });
+    const card = wrapper.get('[data-test="download-record-card"]');
+
+    expect(card.attributes('data-video-url')).toBe(record.videoUrl);
+  });
+
   it('marks playback auto records and animates the formal download transition', async function () {
     const playbackRecord = makeDownloadRecord({
       downloadSource: 'playback_auto',

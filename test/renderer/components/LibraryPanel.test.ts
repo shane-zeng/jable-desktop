@@ -296,8 +296,8 @@ describe('LibraryPanel', function () {
     });
     const buttons = wrapper.findAll('[data-test="video-download"]');
 
-    expect(buttons[0].text()).toBe('已下載');
-    expect((buttons[0].element as HTMLButtonElement).disabled).toBe(true);
+    expect(buttons[0].text()).toBe('查看下載');
+    expect((buttons[0].element as HTMLButtonElement).disabled).toBe(false);
     expect(buttons[1].text()).toBe('重試');
     expect((buttons[1].element as HTMLButtonElement).disabled).toBe(false);
     expect((wrapper.findAll('[data-test="video-download-select"]')[0].element as HTMLInputElement).disabled).toBe(true);
@@ -308,8 +308,10 @@ describe('LibraryPanel', function () {
     await wrapper.get('[data-test="library-select-downloadable"]').trigger('click');
     expect(wrapper.emitted('select-downloadable')).toEqual([[[failedVideo]]]);
 
+    await buttons[0].trigger('click');
     await buttons[1].trigger('click');
 
+    expect(wrapper.emitted('locate-download')).toEqual([[readyVideo.url]]);
     expect(wrapper.emitted('retry-download')).toEqual([[failedVideo.url]]);
     expect(wrapper.emitted('download-video')).toBeUndefined();
   });

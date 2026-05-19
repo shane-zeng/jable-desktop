@@ -1,6 +1,6 @@
 # Download Manager Specification
 
-Last verified against implementation: 2026-05-19
+Last verified against implementation: 2026-05-20
 
 This document specifies the current Download List and local video file management behavior.
 
@@ -154,9 +154,10 @@ This document specifies the current Download List and local video file managemen
   - `queued`: Queued
   - `downloading`: Downloading
   - `paused`: Resume
-  - `ready`: Downloaded
+  - `ready`: View Download
   - `failed` or `missing`: Retry
-- `queued`, `downloading`, and `ready` buttons are disabled on source cards.
+- `queued` and `downloading` buttons are disabled on source cards.
+- `ready` source-card clicks switch to the Download List, clear the Download List search, set the state filters to all states for the current session, scroll the matching Download List card into view, and briefly highlight it.
 - `paused` source-card clicks call the resume IPC path.
 - `failed` and `missing` source-card clicks call the retry IPC path.
 - Download state is loaded from the global download record list, so the same video URL shows the same state across Favourites and Watch Later.

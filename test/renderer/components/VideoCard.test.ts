@@ -224,7 +224,7 @@ describe('VideoCard', function () {
     expect(wrapper.emitted('toggle-download-selection')).toEqual([[{ video: video, selected: true }]]);
   });
 
-  it('shows completed downloads as disabled on the source card', async function () {
+  it('uses completed downloads as a source-card jump to the download list', async function () {
     const video = makeVideo();
     const wrapper = mount(VideoCard, {
       props: {
@@ -234,12 +234,13 @@ describe('VideoCard', function () {
     });
     const button = wrapper.get('[data-test="video-download"]');
 
-    expect(button.text()).toBe('已下載');
-    expect((button.element as HTMLButtonElement).disabled).toBe(true);
+    expect(button.text()).toBe('查看下載');
+    expect((button.element as HTMLButtonElement).disabled).toBe(false);
     expect(wrapper.find('[data-test="video-download-select"]').exists()).toBe(false);
 
     await button.trigger('click');
 
+    expect(wrapper.emitted('locate-download')).toEqual([[video.url]]);
     expect(wrapper.emitted('download')).toBeUndefined();
   });
 

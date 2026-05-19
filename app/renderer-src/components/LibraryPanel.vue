@@ -102,6 +102,7 @@ const emit = defineEmits<{
   'choose-ffmpeg': [];
   'open-ffmpeg-guide': [];
   'download-video': [video: VideoRow];
+  'locate-download': [videoUrl: string];
   'select-downloadable': [videos: VideoRow[]];
   'download-selected': [];
   'clear-download-selection': [];
@@ -200,6 +201,7 @@ const emit = defineEmits<{
       @choose-ffmpeg="emit('choose-ffmpeg')"
       @open-ffmpeg-guide="emit('open-ffmpeg-guide')"
       @download-video="emit('download-video', $event)"
+      @locate-download="emit('locate-download', $event)"
       @toggle-download-selection="emit('toggle-download-selection', $event)"
       @open-video="emit('open-video', $event)"
       @open-video-new-tab="emit('open-video-new-tab', $event)"
