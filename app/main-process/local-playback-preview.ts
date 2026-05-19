@@ -4,7 +4,7 @@ import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type { DownloadRecord } from '../types/jable';
-import { FfmpegDownloadError, mainErrorMessage } from './download-errors';
+import { FfmpegDownloadError, mainErrorMessage } from './download/errors';
 
 const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');

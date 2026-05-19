@@ -9,7 +9,8 @@ const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
 const BROWSER_TAB_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser-tab-manager.ts');
 const CONTEXT_MENU_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'context-menu-manager.ts');
-const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
+const DOWNLOAD_MANAGER_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-manager.ts');
+const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
 const TYPES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'types', 'jable.ts');
 const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
@@ -56,6 +57,42 @@ const WEBVIEW_VIDEO_METADATA_SOURCE_PATH = path.join(
   'webview-preload',
   'video-metadata.ts'
 );
+const DOWNLOAD_ENVIRONMENT_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'environment.ts');
+const DOWNLOAD_SEGMENT_WORKSPACE_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'download',
+  'segment-workspace.ts'
+);
+const DOWNLOAD_REQUEST_BOUNDARY_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'download',
+  'request-boundary.ts'
+);
+const DOWNLOAD_PLAYBACK_CAPTURE_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'download',
+  'playback-capture.ts'
+);
+const DOWNLOAD_FFMPEG_REMUX_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'ffmpeg-remux.ts');
+const DOWNLOAD_HLS_SEGMENTS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'hls-segments.ts');
+const DOWNLOAD_FILE_ACTIONS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'file-actions.ts');
+const DOWNLOAD_QUEUE_ACTIONS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'queue-actions.ts');
+const DOWNLOAD_RECORD_STATE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'record-state.ts');
+const DOWNLOAD_ACTIVE_RUNNER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'active-runner.ts');
+const DOWNLOAD_RUNTIME_PROGRESS_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'download',
+  'runtime-progress.ts'
+);
+const DOWNLOAD_SHUTDOWN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'shutdown.ts');
 const LOCAL_PLAYBACK_SERVER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback-server.ts');
 const LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback-preview.ts');
 
@@ -65,6 +102,7 @@ function readSource(filePath) {
 
 test('main process uses preload IPC for browser page requests', function () {
   const source = readSource(MAIN_SOURCE_PATH);
+  const downloadManagerAdapterSource = readSource(DOWNLOAD_MANAGER_ADAPTER_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
   const preloadSource = readSource(path.join(__dirname, '..', '..', 'app', 'preload.ts'));
@@ -93,6 +131,7 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(source, /README\.en-US\.md#download-list-and-ffmpeg/);
   assert.match(source, /README\.ja-JP\.md#/);
   assert.match(source, /shell\.openExternal\(url\)/);
+  assert.match(downloadManagerAdapterSource, /export \* from '\.\/download\/manager'/);
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
@@ -248,56 +287,70 @@ test('renderer surfaces ajax retry and fallback reasons', function () {
 
 test('main process persists managed-root-relative download paths', function () {
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const queueActionsSource = readSource(DOWNLOAD_QUEUE_ACTIONS_SOURCE_PATH);
+  const environmentSource = readSource(DOWNLOAD_ENVIRONMENT_SOURCE_PATH);
+  const requestBoundarySource = readSource(DOWNLOAD_REQUEST_BOUNDARY_SOURCE_PATH);
+  const fileActionsSource = readSource(DOWNLOAD_FILE_ACTIONS_SOURCE_PATH);
 
-  assert.match(source, /function downloadOutputRelativePath/);
-  assert.match(source, /function usedDownloadRelativePaths/);
-  assert.match(source, /const candidateName = index === 1 \? name : name \+ ' \(' \+ index \+ '\)'/);
-  assert.match(source, /const relativePath = candidateName \+ '\.mp4'/);
-  assert.equal(source.includes("path.join(payload.collectionKey, candidateName + '.mp4')"), false);
-  assert.match(source, /fs\.existsSync\(filePath\) \|\| fs\.existsSync\(filePath \+ '\.part'\)/);
-  assert.equal(source.includes("createHash('sha1')"), false);
-  assert.match(source, /function resolveManagedDownloadPath/);
-  assert.match(source, /path\.isAbsolute\(fileRelativePath\)/);
-  assert.match(source, /path\.resolve\(downloadRootPath, fileRelativePath\)/);
-  assert.match(source, /isPathInsideDirectory\(filePath, downloadRootPath\)/);
-  assert.match(source, /localPath: downloadOutputRelativePath\(payload\)/);
-  assert.match(source, /shell\.openPath\(filePath\)/);
-  assert.match(source, /shell\.showItemInFolder\(filePath\)/);
-  assert.equal(source.includes('function downloadOutputPath'), false);
+  assert.match(requestBoundarySource, /function downloadOutputRelativePath/);
+  assert.match(requestBoundarySource, /function usedDownloadRelativePaths/);
+  assert.match(requestBoundarySource, /const candidateName = index === 1 \? name : name \+ ' \(' \+ index \+ '\)'/);
+  assert.match(requestBoundarySource, /const relativePath = candidateName \+ '\.mp4'/);
+  assert.equal(requestBoundarySource.includes("path.join(payload.collectionKey, candidateName + '.mp4')"), false);
+  assert.match(requestBoundarySource, /fs\.existsSync\(filePath\) \|\| fs\.existsSync\(filePath \+ '\.part'\)/);
+  assert.equal(requestBoundarySource.includes("createHash('sha1')"), false);
+  assert.match(requestBoundarySource, /function resolveManagedDownloadPath/);
+  assert.match(requestBoundarySource, /path\.isAbsolute\(fileRelativePath\)/);
+  assert.match(requestBoundarySource, /path\.resolve\(downloadRootPath, fileRelativePath\)/);
+  assert.match(requestBoundarySource, /isPathInsideDirectory\(filePath, downloadRootPath\)/);
+  assert.match(queueActionsSource, /localPath: options\.downloadOutputRelativePath\(payload\)/);
+  assert.match(fileActionsSource, /options\.openShellPath\(filePath\)/);
+  assert.match(fileActionsSource, /options\.revealShellPath\(filePath\)/);
+  assert.match(environmentSource, /options\.shell\.openPath\(filePath\)/);
+  assert.match(environmentSource, /options\.shell\.showItemInFolder\(filePath\)/);
+  assert.equal(requestBoundarySource.includes('function downloadOutputPath'), false);
   assert.equal(source.includes('localPath: outputPath'), false);
 });
 
 test('main process validates the download root before queueing work', function () {
-  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const queueActionsSource = readSource(DOWNLOAD_QUEUE_ACTIONS_SOURCE_PATH);
+  const environmentSource = readSource(DOWNLOAD_ENVIRONMENT_SOURCE_PATH);
 
-  assert.match(source, /function ensureDownloadRootReady/);
-  assert.match(source, /fs\.mkdirSync\(root\.path, \{ recursive: true \}\)/);
-  assert.match(source, /fs\.statSync\(root\.path\)\.isDirectory\(\)/);
-  assert.match(source, /fs\.accessSync\(root\.path, fs\.constants\.W_OK\)/);
+  assert.match(environmentSource, /function ensureDownloadRootReady/);
+  assert.match(environmentSource, /fs\.mkdirSync\(root\.path, \{ recursive: true \}\)/);
+  assert.match(environmentSource, /fs\.statSync\(root\.path\)\.isDirectory\(\)/);
+  assert.match(environmentSource, /fs\.accessSync\(root\.path, fs\.constants\.W_OK\)/);
   assert.match(
-    source,
-    /await ffmpegCommandForDownload\(\);\n\s+ensureDownloadRootReady\(\);\n\n\s+const record = upsertPersistedDownload/
+    queueActionsSource,
+    /await options\.ffmpegCommandForDownload\(\);\n\s+options\.ensureDownloadRootReady\(\);\n\n\s+options\.upsertDownloadVideoMetadata/
   );
 });
 
 test('main process persists missing state discovered by open or reveal', function () {
-  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const recordStateSource = readSource(DOWNLOAD_RECORD_STATE_SOURCE_PATH);
+  const fileActionsSource = readSource(DOWNLOAD_FILE_ACTIONS_SOURCE_PATH);
 
-  assert.match(source, /function reconcileDownloadRecordFileState/);
-  assert.match(source, /const next = downloadRecordWithFileState\(record\)/);
-  assert.match(source, /notifyDownloadsChanged\(\);\n\s+return persisted/);
-  assert.match(source, /const readyRecord = record \? reconcileDownloadRecordFileState\(record\) : null/);
+  assert.match(recordStateSource, /function reconcileDownloadRecordFileState/);
+  assert.match(recordStateSource, /const next = recordWithFileState\(record\)/);
+  assert.match(recordStateSource, /options\.notifyDownloadsChanged\(\);\n\s+return persisted/);
+  assert.match(
+    fileActionsSource,
+    /const readyRecord = record \? options\.reconcileDownloadRecordFileState\(record\) : null/
+  );
 });
 
 test('main process accepts only canonical trusted Jable video URLs for downloads', function () {
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const requestBoundarySource = readSource(DOWNLOAD_REQUEST_BOUNDARY_SOURCE_PATH);
+  const fileActionsSource = readSource(DOWNLOAD_FILE_ACTIONS_SOURCE_PATH);
+  const queueActionsSource = readSource(DOWNLOAD_QUEUE_ACTIONS_SOURCE_PATH);
 
-  assert.match(source, /function normalizeDownloadVideoUrl/);
-  assert.match(source, /urlPolicy\.canonicalJableVideoUrl/);
-  assert.match(source, /errors\.untrustedDownloadUrl/);
-  assert.match(source, /url: normalizeDownloadVideoUrl\(video\.url, 'video\.url', channel\)/);
-  assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:retry'\)/);
-  assert.match(source, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:open-file'\)/);
+  assert.match(requestBoundarySource, /function normalizeDownloadVideoUrl/);
+  assert.match(source, /canonicalVideoUrl: urlPolicy\.canonicalJableVideoUrl/);
+  assert.match(requestBoundarySource, /errors\.untrustedDownloadUrl/);
+  assert.match(requestBoundarySource, /url: normalizeDownloadVideoUrl\(video\.url, 'video\.url', channel\)/);
+  assert.match(queueActionsSource, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:retry'\)/);
+  assert.match(fileActionsSource, /normalizeDownloadVideoUrl\(value, 'videoUrl', 'download:open-file'\)/);
 });
 
 test('local playback uses managed download records and browser-tab preload updates', function () {
@@ -391,7 +444,9 @@ test('browser theater mode uses preload IPC and tab-scoped state', function () {
 });
 
 test('download records persist playback auto-resume block guard', function () {
-  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const playbackCaptureSource = readSource(DOWNLOAD_PLAYBACK_CAPTURE_SOURCE_PATH);
+  const queueActionsSource = readSource(DOWNLOAD_QUEUE_ACTIONS_SOURCE_PATH);
+  const shutdownSource = readSource(DOWNLOAD_SHUTDOWN_SOURCE_PATH);
   const types = readSource(TYPES_SOURCE_PATH);
   const nativeDownloads = readSource(NATIVE_DOWNLOADS_SOURCE_PATH);
   const nativeSchema = readSource(NATIVE_SCHEMA_SOURCE_PATH);
@@ -405,24 +460,26 @@ test('download records persist playback auto-resume block guard', function () {
   assert.match(nativeDownloads, /"playback_auto_resume_blocked"/);
   assert.match(nativeDownloads, /"downloadSource"/);
   assert.match(nativeDownloads, /"download_source"/);
-  assert.match(source, /function isPlaybackAutoResumeBlockedRecord/);
-  assert.match(source, /function playbackAutoResumeBlockedAfterPause/);
-  assert.match(source, /if \(isPlaybackAutoResumeBlockedRecord\(existingRecord\)\) return null/);
-  assert.match(source, /if \(isPlaybackAutoResumeBlockedRecord\(record\)\) return false/);
-  assert.match(source, /if \(isNormalDownloaderActive \|\| isNormalDownloaderQueued\) return true/);
-  assert.match(source, /if \(isPlaybackCaptureOwned\) return false/);
-  assert.match(source, /queuedItem\.source === 'normal'/);
-  assert.match(source, /queuedItem\.source === 'playback_background'/);
-  assert.match(source, /downloadSource: 'playback_auto'/);
-  assert.match(source, /downloadSource: 'normal'/);
-  assert.match(source, /playbackAutoResumeBlocked: false/);
-  assert.match(source, /playbackAutoResumeBlocked: item\.source === 'normal' \? true/);
-  assert.match(source, /playbackAutoResumeBlocked: runtime\.source === 'normal' \? true/);
+  assert.match(playbackCaptureSource, /function isPlaybackAutoResumeBlockedRecord/);
+  assert.match(queueActionsSource, /function playbackAutoResumeBlockedAfterPause/);
+  assert.match(playbackCaptureSource, /if \(isPlaybackAutoResumeBlockedRecord\(existingRecord\)\) return null/);
+  assert.match(playbackCaptureSource, /if \(isPlaybackAutoResumeBlockedRecord\(record\)\) return false/);
+  assert.match(queueActionsSource, /if \(isNormalDownloaderActive \|\| isNormalDownloaderQueued\) return true/);
+  assert.match(queueActionsSource, /if \(isPlaybackCaptureOwned\) return false/);
+  assert.match(queueActionsSource, /queuedItem\.source === 'normal'/);
+  assert.match(queueActionsSource, /queuedItem\.source === 'playback_background'/);
+  assert.match(playbackCaptureSource, /downloadSource: 'playback_auto'/);
+  assert.match(queueActionsSource, /downloadSource: 'normal'/);
+  assert.match(queueActionsSource, /playbackAutoResumeBlocked: false/);
+  assert.match(shutdownSource, /item\.source === 'normal' \? true : record\.playbackAutoResumeBlocked/);
+  assert.match(shutdownSource, /runtime\.source === 'normal' \? true : record\.playbackAutoResumeBlocked/);
 });
 
 test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function () {
   const mainSource = readSource(MAIN_SOURCE_PATH);
   const downloadManagerSource = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const activeRunnerSource = readSource(DOWNLOAD_ACTIVE_RUNNER_SOURCE_PATH);
+  const playbackCaptureSource = readSource(DOWNLOAD_PLAYBACK_CAPTURE_SOURCE_PATH);
   const hlsCaptureSource = readSource(HLS_CAPTURE_SOURCE_PATH);
   const hlsHelperSource = readSource(HLS_HELPERS_SOURCE_PATH);
   const hlsPlaybackSource = readSource(WEBVIEW_HLS_PLAYBACK_SOURCE_PATH);
@@ -482,17 +539,17 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(mainSource, /queueHlsPlaybackBackgroundCompletion: function/);
   assert.match(hlsCaptureSource, /\[hls-capture\] prepared/);
   assert.match(hlsCaptureSource, /\[hls-capture\] segment saved/);
-  assert.match(downloadManagerSource, /type DownloadQueueSource = 'normal' \| 'playback_background'/);
-  assert.match(downloadManagerSource, /type HlsPlaybackBackgroundCompletionWorker/);
+  assert.match(activeRunnerSource, /type DownloadQueueSource = 'normal' \| 'playback_background'/);
+  assert.match(playbackCaptureSource, /type HlsPlaybackBackgroundCompletionWorker/);
   assert.match(downloadManagerSource, /const downloadQueue: DownloadQueueItem\[\] = \[\]/);
   assert.match(downloadManagerSource, /prepareHlsPlaybackCapture/);
-  assert.match(downloadManagerSource, /playbackCaptureUserInitiated/);
+  assert.match(playbackCaptureSource, /playbackCaptureUserInitiated/);
   assert.match(downloadManagerSource, /queueHlsPlaybackBackgroundCompletion/);
   assert.match(downloadManagerSource, /runQueuedPlaybackBackgroundDownload/);
   assert.match(downloadManagerSource, /recordHlsPlaybackCaptureSegment/);
   assert.match(downloadManagerSource, /completeHlsPlaybackCapture/);
-  assert.match(downloadManagerSource, /hlsPlaybackCaptureRuntimeProgress/);
-  assert.match(downloadManagerSource, /hlsPlaybackCaptureSuppressedPageLoadIds/);
+  assert.match(playbackCaptureSource, /runtimeProgress/);
+  assert.match(playbackCaptureSource, /suppressedPageLoadIds/);
   assert.match(downloadManagerSource, /upsertVideoMetadata/);
   assert.match(hlsCaptureSource, /\/asset\//);
   assert.match(hlsCaptureSource, /\[hls-proxy\] asset/);
@@ -550,28 +607,35 @@ test('browser video pages refresh known local metadata through dedicated IPC', f
 });
 
 test('main process forces MP4 muxing for partial download files', function () {
-  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const ffmpegRemuxSource = readSource(DOWNLOAD_FFMPEG_REMUX_SOURCE_PATH);
 
-  assert.match(source, /const tempPath = outputPath \+ '\.part'/);
-  assert.match(source, /'-movflags',\n\s*'\+faststart',\n\s*'-f',\n\s*'mp4',\n\s*tempPath/);
+  assert.match(ffmpegRemuxSource, /const tempPath = outputPath \+ '\.part'/);
+  assert.match(ffmpegRemuxSource, /'-movflags',\n\s*'\+faststart',\n\s*'-f',\n\s*'mp4',\n\s*tempPath/);
 });
 
 test('main process streams FFmpeg download progress without persisting runtime fields', function () {
-  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const recordStateSource = readSource(DOWNLOAD_RECORD_STATE_SOURCE_PATH);
+  const runtimeProgressSource = readSource(DOWNLOAD_RUNTIME_PROGRESS_SOURCE_PATH);
+  const ffmpegRemuxSource = readSource(DOWNLOAD_FFMPEG_REMUX_SOURCE_PATH);
+  const segmentWorkspaceSource = readSource(DOWNLOAD_SEGMENT_WORKSPACE_SOURCE_PATH);
   const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
 
-  assert.match(source, /const downloadRuntimeProgress = new Map<string, DownloadRuntimeProgress>\(\)/);
-  assert.match(source, /'-progress',\n\s*'pipe:1'/);
-  assert.match(source, /child\.stdout\?\.on\('data'/);
-  assert.match(source, /downloadedBytes: runtimeProgress\.downloadedBytes/);
-  assert.match(source, /downloadSpeedBytesPerSecond: runtimeProgress\.downloadSpeedBytesPerSecond/);
-  assert.equal(source.includes('/^segment-\\d{6}\\.(aac|m4s|mp4|ts)$/'), true);
+  assert.match(runtimeProgressSource, /const progressByVideoUrl = new Map<string, DownloadRuntimeProgressState>\(\)/);
+  assert.match(ffmpegRemuxSource, /'-progress',\n\s*'pipe:1'/);
+  assert.match(ffmpegRemuxSource, /child\.stdout\?\.on\('data'/);
+  assert.match(recordStateSource, /downloadedBytes: runtimeProgress\.downloadedBytes/);
+  assert.match(recordStateSource, /downloadSpeedBytesPerSecond: runtimeProgress\.downloadSpeedBytesPerSecond/);
+  assert.equal(segmentWorkspaceSource.includes('/^segment-\\d{6}\\.(aac|m4s|mp4|ts)$/'), true);
   assert.match(types, /downloadedBytes\?: number \| null/);
   assert.match(types, /downloadSpeedBytesPerSecond\?: number \| null/);
 });
 
 test('main process downloads HLS segments in bounded parallel batches', function () {
   const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const activeRunnerSource = readSource(DOWNLOAD_ACTIVE_RUNNER_SOURCE_PATH);
+  const shutdownSource = readSource(DOWNLOAD_SHUTDOWN_SOURCE_PATH);
+  const hlsSegmentsSource = readSource(DOWNLOAD_HLS_SEGMENTS_SOURCE_PATH);
+  const segmentWorkspaceSource = readSource(DOWNLOAD_SEGMENT_WORKSPACE_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
   const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
   const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
@@ -584,31 +648,34 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(source, /balanced: \{ min: 8, max: 32 \}/);
   assert.match(source, /fast: \{ min: 16, max: 32 \}/);
   assert.match(source, /const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3/);
-  assert.match(source, /getDownloadEngine\(\)\.downloadHlsSegments/);
-  assert.match(source, /const concurrency = currentDownloadSegmentConcurrency\(\)/);
-  assert.match(source, /minConcurrency: concurrency\.min/);
-  assert.match(source, /maxConcurrency: concurrency\.max/);
-  assert.match(source, /sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT/);
-  assert.match(source, /retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT/);
+  assert.match(hlsSegmentsSource, /options\.getDownloadEngine\(\)\.downloadHlsSegments/);
+  assert.match(hlsSegmentsSource, /const concurrency = options\.currentDownloadSegmentConcurrency\(\)/);
+  assert.match(hlsSegmentsSource, /minConcurrency: concurrency\.min/);
+  assert.match(hlsSegmentsSource, /maxConcurrency: concurrency\.max/);
+  assert.match(hlsSegmentsSource, /sampleSegmentCount: options\.sampleSegmentCount/);
+  assert.match(hlsSegmentsSource, /retryLimit: options\.retryLimit/);
   assert.match(source, /const activeDownloads = new Map<string, ActiveDownloadRuntime>\(\)/);
   assert.match(source, /const activeDownloadTasks = new Map<string, Promise<void>>\(\)/);
   assert.match(source, /while \(activeDownloads\.size < maxConcurrentDownloads\(\)\)/);
-  assert.match(source, /function waitForActiveDownloadTasks\(\): Promise<void>/);
+  assert.match(shutdownSource, /function waitForActiveDownloadTasks\(\): Promise<void>/);
   assert.match(source, /pauseDownloadsForShutdown\(\): Promise<void>/);
-  assert.match(source, /if \(runtime\.nativeId\) getDownloadEngine\(\)\.cancelDownload\(runtime\.nativeId\)/);
+  assert.match(shutdownSource, /if \(runtime\.nativeId\) options\.cancelNativeDownloadIfLoaded\(runtime\.nativeId\)/);
   assert.match(source, /const pausedDownloadUrls = new Set<string>\(\)/);
   assert.match(source, /const resumedDownloadUrls = new Set<string>\(\)/);
-  assert.match(source, /state: 'paused'/);
-  assert.match(source, /resumeManifestMatches\(outputPath, playlist\)/);
+  assert.match(shutdownSource, /state: 'paused'/);
+  assert.match(hlsSegmentsSource, /resumeManifestMatches\(outputPath, playlist\)/);
   assert.match(source, /downloadHlsSegmentsWithPlaylistRefresh/);
-  assert.match(source, /resolveDownloadHlsSource\(\n\s*record\.videoUrl,\n\s*runtime\.abortController\.signal/);
-  assert.match(source, /isSegmentRefreshCandidate\(error\)/);
-  assert.match(source, /function shouldReuseDownloadSegmentTempDirectory/);
-  assert.match(source, /function reusableSegmentFileCount/);
-  assert.match(source, /function segmentResumeExtension/);
-  assert.match(source, /version: 2/);
-  assert.match(source, /extension: segmentResumeExtension\(segment\.url\)/);
-  assert.match(source, /updateDownloadRuntimeProgress\(videoUrl, downloadSegmentDirectorySize\(tempDir\)\)/);
+  assert.match(
+    activeRunnerSource,
+    /resolveDownloadHlsSource\(\n\s*record\.videoUrl,\n\s*runtime\.abortController\.signal/
+  );
+  assert.match(hlsSegmentsSource, /isSegmentRefreshCandidate\(error\)/);
+  assert.match(segmentWorkspaceSource, /function shouldReuseDownloadSegmentTempDirectory/);
+  assert.match(segmentWorkspaceSource, /function reusableSegmentFileCount/);
+  assert.match(segmentWorkspaceSource, /function segmentResumeExtension/);
+  assert.match(segmentWorkspaceSource, /version: 2/);
+  assert.match(segmentWorkspaceSource, /extension: segmentResumeExtension\(segment\.url\)/);
+  assert.match(hlsSegmentsSource, /updateDownloadRuntimeProgress\(videoUrl, downloadSegmentDirectorySize\(tempDir\)\)/);
   assert.doesNotMatch(source, /stableMediaUrlIdentity/);
   assert.match(mainSource, /let downloadShutdownInProgress: Promise<void> \| null = null/);
   assert.match(mainSource, /function quitAfterDownloadsPaused\(\)/);
@@ -647,11 +714,15 @@ test('preload and IPC expose bulk download list actions', function () {
 });
 
 test('main process remuxes downloaded local HLS segments with FFmpeg', function () {
-  const source = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
+  const activeRunnerSource = readSource(DOWNLOAD_ACTIVE_RUNNER_SOURCE_PATH);
+  const ffmpegRemuxSource = readSource(DOWNLOAD_FFMPEG_REMUX_SOURCE_PATH);
 
-  assert.match(source, /const localPlaylistPath = await downloadHlsSegmentsWithPlaylistRefresh/);
-  assert.match(source, /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath, runtime\)/);
-  assert.match(source, /'-allowed_extensions',\n\s*'ALL',\n\s*'-protocol_whitelist',\n\s*'file,crypto'/);
+  assert.match(activeRunnerSource, /const localPlaylistPath = await options\.downloadHlsSegmentsWithPlaylistRefresh/);
+  assert.match(
+    activeRunnerSource,
+    /await runFfmpegRemux\(command, localPlaylistPath, record\.videoUrl, outputPath, runtime,/
+  );
+  assert.match(ffmpegRemuxSource, /'-allowed_extensions',\n\s*'ALL',\n\s*'-protocol_whitelist',\n\s*'file,crypto'/);
 });
 
 test('renderer sends cloneable plain download payloads', function () {

@@ -35,6 +35,30 @@ Before implementing a candidate:
   Thumbnail preview metadata validation, VTT formatting, FFmpeg thumbnail generation, preview cache cleanup, and preview generation queue state now live in `app/main-process/local-playback-preview.ts`; `app/main-process/download-manager.ts` keeps local playback token routing, response streaming, download records, and manager IPC surface.
 - Download Manager local playback server split.
   Local playback token TTL, custom-protocol request parsing, local video response streaming, thumbnail VTT/image responses, and `download:local-playback-source` shaping now live in `app/main-process/local-playback-server.ts`; `app/main-process/download-manager.ts` keeps ready-file lookup, download records, and manager API forwarding.
+- Download Manager environment split.
+  FFmpeg detection/path selection, download-root selection/readiness validation, and shell open/reveal behavior now live in `app/main-process/download/environment.ts`; `app/main-process/download-manager.ts` keeps download records, queue orchestration, HLS work, and IPC-facing action forwarding.
+- Download Manager segment workspace split.
+  `.segments` directory naming, segment file naming, resume-manifest identity matching, reusable segment counting, playback-capture manifest counts, and segment-directory byte totals now live in `app/main-process/download/segment-workspace.ts`; `app/main-process/download-manager.ts` keeps the HLS resolution, native segment download, and remux orchestration.
+- Download Manager request/path boundary split.
+  Renderer download payload normalization, trusted video URL enforcement, source-page subtitle notice parsing, collision-safe relative output filenames, and managed-path containment checks now live in `app/main-process/download/request-boundary.ts`; `app/main-process/download-manager.ts` keeps only short wrappers where existing orchestration and tests depend on those names.
+- Download Manager playback capture split.
+  Playback-triggered download capture state, user-initiated playback gating, page-load suppression, playback auto-resume guards, capture progress, and background completion queueing now live in `app/main-process/download/playback-capture.ts`; `app/main-process/download-manager.ts` keeps normal queue orchestration and delegates playback-capture IPC actions to that controller.
+- Download Manager FFmpeg remux split.
+  FFmpeg child process spawning, progress-pipe parsing, `.mp4.part` cleanup, MP4 remux arguments, pause/cancel checks, and final rename now live in `app/main-process/download/ffmpeg-remux.ts`; `app/main-process/download-manager.ts` decides when remux runs and how resulting status is persisted.
+- Download Manager HLS source/segment split.
+  Jable cookie headers, video page fetches, source-page subtitle notice extraction, playlist URL extraction, and variant playlist selection now live in `app/main-process/download/hls-source.ts`; Rust native segment download calls, sampled concurrency options, progress polling, playlist refresh compatibility checks, and native segment error mapping now live in `app/main-process/download/hls-segments.ts`.
+- Download Manager file action split.
+  Delete confirmation, managed file deletion, record removal, preview cleanup, open file, and reveal file now live in `app/main-process/download/file-actions.ts`; `app/main-process/download-manager.ts` keeps queue state and supplies the action controller with the relevant record/runtime callbacks.
+- Download Manager queue action split.
+  Enqueue, retry, resume, pause, cancel, bulk queue actions, and playback auto-download disabling now live in `app/main-process/download/queue-actions.ts`; `app/main-process/download-manager.ts` keeps active download execution, queue pumping, record notification, and controller wiring.
+- Download Manager record/runtime state split.
+  Persisted/runtime record projection now lives in `app/main-process/download/record-state.ts`, and throttled byte/speed sampling now lives in `app/main-process/download/runtime-progress.ts`; `app/main-process/download-manager.ts` supplies queue, active-task, playback-capture, and persistence callbacks.
+- Download Manager active runner split.
+  One active HLS download pipeline now lives in `app/main-process/download/active-runner.ts`: start persistence, output directory preparation, HLS source/segment/remux orchestration, ready/failed/paused persistence, preview scheduling, and runtime cleanup.
+- Download Manager shutdown split.
+  Close-time queue draining, queued/active pause persistence, native/FFmpeg stop signals, active task waiting, and the pause-before-close dialog now live in `app/main-process/download/shutdown.ts`; `app/main-process/download-manager.ts` keeps app-facing forwarding and runtime maps.
+- Download Manager folder boundary split.
+  Download Manager implementation modules now live under `app/main-process/download/`, with `app/main-process/download/manager.ts` as the domain composition root and `app/main-process/download-manager.ts` retained as the stable compatibility entrypoint for existing main-process and test imports.
 - WebView preload DOM scraping cleanup.
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, and DOM replacement side effects.
 - HLS playback helper split.
