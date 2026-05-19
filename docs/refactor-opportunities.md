@@ -32,9 +32,9 @@ Before implementing a candidate:
 - Download Manager bulk queue action cleanup.
   Bulk retry, resume, pause, and cancel flows share focused result accounting helpers while preserving action-specific single-record behavior in `app/main-process/download-manager.ts`.
 - Download Manager local playback preview split.
-  Thumbnail preview metadata validation, VTT formatting, FFmpeg thumbnail generation, preview cache cleanup, and preview generation queue state now live in `app/main-process/local-playback-preview.ts`; `app/main-process/download-manager.ts` keeps local playback token routing, response streaming, download records, and manager IPC surface.
+  Thumbnail preview metadata validation, VTT formatting, FFmpeg thumbnail generation, preview cache cleanup, and preview generation queue state now live in `app/main-process/local-playback/preview.ts`; `app/main-process/download-manager.ts` keeps the stable manager API surface through the download module.
 - Download Manager local playback server split.
-  Local playback token TTL, custom-protocol request parsing, local video response streaming, thumbnail VTT/image responses, and `download:local-playback-source` shaping now live in `app/main-process/local-playback-server.ts`; `app/main-process/download-manager.ts` keeps ready-file lookup, download records, and manager API forwarding.
+  Local playback token TTL, custom-protocol request parsing, local video response streaming, thumbnail VTT/image responses, and `download:local-playback-source` shaping now live in `app/main-process/local-playback/server.ts`; range parsing lives in `app/main-process/local-playback/range.ts`.
 - Download Manager environment split.
   FFmpeg detection/path selection, download-root selection/readiness validation, and shell open/reveal behavior now live in `app/main-process/download/environment.ts`; `app/main-process/download-manager.ts` keeps download records, queue orchestration, HLS work, and IPC-facing action forwarding.
 - Download Manager segment workspace split.
@@ -62,11 +62,15 @@ Before implementing a candidate:
 - WebView preload DOM scraping cleanup.
   Pure video row, preview URL, pager, and page signature parsing now live in `app/browser/webview-preload-helpers.ts`; `app/webview-preload.ts` keeps IPC, progress reporting, and DOM replacement side effects.
 - HLS playback helper split.
-  Pure proxy URL parsing, request-target parsing, playlist URI rewriting, and capture-plan segment mapping live in `app/main-process/hls-playback-helpers.ts`; `app/main-process/hls-playback-capture.ts` keeps token registration, Electron session fetches, logging, and capture lifecycle side effects.
+  Pure proxy URL parsing, request-target parsing, playlist URI rewriting, and capture-plan segment mapping live in `app/main-process/hls-playback/helpers.ts`; `app/main-process/hls-playback-helpers.ts` remains a compatibility adapter.
 - Search count path optimization.
   Search-backed `countVideos` now streams only `v.search_text` through the existing Rust matcher instead of hydrating and sorting full list rows; `listVideos` search filtering remains Rust-owned to preserve current token and pagination semantics.
 - WebView preload runtime concern split.
   Browser sync orchestration, deferred sync replay, collection action observation, pending operation overlays, current video metadata refresh, local playback replacement, theater mode, and HLS playback proxy/runtime observers now live in focused modules under `app/browser/webview-preload/`; `app/webview-preload.ts` keeps preload composition, IPC request handlers, scraping, pager DOM side effects, page diagnosis, and tab gesture forwarding.
+- HLS playback folder and proxy split.
+  Production HLS playback modules now live under `app/main-process/hls-playback/`: `capture.ts` is the composition entrypoint, `proxy-server.ts` owns loopback proxy/token/playlist routing, `ipc.ts` owns renderer IPC payloads, `capture-writes.ts` owns managed segment writes and prefetch, `proxy-headers.ts` owns request/response headers, `probe.ts` owns debug observation, and `shared.ts` owns shared types/env gates. Root `hls-playback-*.ts` files remain stable adapters.
+- Main-process local playback folder boundary.
+  Local playback range parsing, custom-protocol serving, and thumbnail preview generation now live under `app/main-process/local-playback/`, with root `local-playback*.ts` files retained as compatibility adapters for existing imports.
 
 ## Remaining Candidates
 

@@ -13,9 +13,18 @@ const DOWNLOAD_MANAGER_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-pr
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
 const TYPES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'types', 'jable.ts');
-const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
-const HLS_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-helpers.ts');
-const HLS_RESEARCH_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-research.ts');
+const HLS_CAPTURE_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-capture.ts');
+const HLS_HELPERS_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-helpers.ts');
+const HLS_RESEARCH_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback-research.ts');
+const HLS_CAPTURE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'capture.ts');
+const HLS_CAPTURE_WRITES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'capture-writes.ts');
+const HLS_HELPERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'helpers.ts');
+const HLS_IPC_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'ipc.ts');
+const HLS_PROBE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'probe.ts');
+const HLS_PROXY_HEADERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'proxy-headers.ts');
+const HLS_PROXY_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'proxy-server.ts');
+const HLS_RESEARCH_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'research.ts');
+const HLS_SHARED_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'hls-playback', 'shared.ts');
 const NATIVE_DOWNLOADS_SOURCE_PATH = path.join(ROOT_DIR, 'native', 'local-data-engine', 'src', 'downloads.rs');
 const NATIVE_SCHEMA_SOURCE_PATH = path.join(ROOT_DIR, 'native', 'local-data-engine', 'src', 'schema.rs');
 const SYNC_WORKER_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'sync-worker-manager.ts');
@@ -93,8 +102,22 @@ const DOWNLOAD_RUNTIME_PROGRESS_SOURCE_PATH = path.join(
   'runtime-progress.ts'
 );
 const DOWNLOAD_SHUTDOWN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'shutdown.ts');
-const LOCAL_PLAYBACK_SERVER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback-server.ts');
-const LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback-preview.ts');
+const LOCAL_PLAYBACK_ADAPTER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback.ts');
+const LOCAL_PLAYBACK_SERVER_ADAPTER_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'local-playback-server.ts'
+);
+const LOCAL_PLAYBACK_PREVIEW_ADAPTER_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'local-playback-preview.ts'
+);
+const LOCAL_PLAYBACK_RANGE_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback', 'range.ts');
+const LOCAL_PLAYBACK_SERVER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback', 'server.ts');
+const LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'local-playback', 'preview.ts');
 
 function readSource(filePath) {
   return fs.readFileSync(filePath, 'utf8');
@@ -361,6 +384,10 @@ test('local playback uses managed download records and browser-tab preload updat
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
   const localPlaybackSource = readSource(WEBVIEW_LOCAL_PLAYBACK_SOURCE_PATH);
+  const localPlaybackAdapterSource = readSource(LOCAL_PLAYBACK_ADAPTER_SOURCE_PATH);
+  const localPlaybackServerAdapterSource = readSource(LOCAL_PLAYBACK_SERVER_ADAPTER_SOURCE_PATH);
+  const localPlaybackPreviewAdapterSource = readSource(LOCAL_PLAYBACK_PREVIEW_ADAPTER_SOURCE_PATH);
+  const localPlaybackRangeSource = readSource(LOCAL_PLAYBACK_RANGE_SOURCE_PATH);
   const localPlaybackServerSource = readSource(LOCAL_PLAYBACK_SERVER_SOURCE_PATH);
   const localPlaybackPreviewSource = readSource(LOCAL_PLAYBACK_PREVIEW_SOURCE_PATH);
 
@@ -373,6 +400,10 @@ test('local playback uses managed download records and browser-tab preload updat
   assert.match(source, /function localPlaybackReadyFile/);
   assert.match(source, /createLocalPlaybackServer/);
   assert.match(source, /localPlaybackServer\.source\(value\)/);
+  assert.match(localPlaybackAdapterSource, /export \* from '\.\/local-playback\/range'/);
+  assert.match(localPlaybackServerAdapterSource, /export \* from '\.\/local-playback\/server'/);
+  assert.match(localPlaybackPreviewAdapterSource, /export \* from '\.\/local-playback\/preview'/);
+  assert.match(localPlaybackRangeSource, /export function parseLocalPlaybackRangeHeader/);
   assert.match(localPlaybackServerSource, /function source/);
   assert.match(localPlaybackServerSource, /function handleRequest/);
   assert.match(localPlaybackServerSource, /options\.previewController\.readMetadata/);
@@ -480,65 +511,89 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   const downloadManagerSource = readSource(DOWNLOAD_MANAGER_SOURCE_PATH);
   const activeRunnerSource = readSource(DOWNLOAD_ACTIVE_RUNNER_SOURCE_PATH);
   const playbackCaptureSource = readSource(DOWNLOAD_PLAYBACK_CAPTURE_SOURCE_PATH);
+  const hlsCaptureAdapterSource = readSource(HLS_CAPTURE_ADAPTER_SOURCE_PATH);
+  const hlsHelpersAdapterSource = readSource(HLS_HELPERS_ADAPTER_SOURCE_PATH);
+  const hlsResearchAdapterSource = readSource(HLS_RESEARCH_ADAPTER_SOURCE_PATH);
   const hlsCaptureSource = readSource(HLS_CAPTURE_SOURCE_PATH);
+  const hlsCaptureWritesSource = readSource(HLS_CAPTURE_WRITES_SOURCE_PATH);
   const hlsHelperSource = readSource(HLS_HELPERS_SOURCE_PATH);
+  const hlsIpcSource = readSource(HLS_IPC_SOURCE_PATH);
+  const hlsProbeSource = readSource(HLS_PROBE_SOURCE_PATH);
   const hlsPlaybackSource = readSource(WEBVIEW_HLS_PLAYBACK_SOURCE_PATH);
+  const hlsProxyHeadersSource = readSource(HLS_PROXY_HEADERS_SOURCE_PATH);
+  const hlsProxySource = readSource(HLS_PROXY_SOURCE_PATH);
   const hlsResearchSource = readSource(HLS_RESEARCH_SOURCE_PATH);
+  const hlsSharedSource = readSource(HLS_SHARED_SOURCE_PATH);
   const webviewPreload = readSource(WEBVIEW_PRELOAD_SOURCE_PATH);
+  const hlsProductionSource = [
+    hlsCaptureSource,
+    hlsCaptureWritesSource,
+    hlsIpcSource,
+    hlsProbeSource,
+    hlsProxyHeadersSource,
+    hlsProxySource,
+    hlsSharedSource
+  ].join('\n');
 
   assert.match(mainSource, /hlsPlaybackCapture\.installHlsPlaybackCapture/);
   assert.match(mainSource, /main-process\/hls-playback-capture/);
   assert.doesNotMatch(mainSource, /main-process\/hls-playback-research/);
   assert.match(mainSource, /jableSession: session\.fromPartition\(JABLE_SESSION_PARTITION\)/);
-  assert.match(hlsResearchSource, /JABLE_HLS_PROBE/);
+  assert.match(hlsCaptureAdapterSource, /export \{ installHlsPlaybackCapture \} from '\.\/hls-playback\/capture'/);
+  assert.match(hlsHelpersAdapterSource, /export \* from '\.\/hls-playback\/helpers'/);
+  assert.match(hlsResearchAdapterSource, /export \{ installHlsPlaybackResearch \} from '\.\/hls-playback\/research'/);
+  assert.match(hlsSharedSource, /JABLE_HLS_PROBE/);
   assert.match(hlsResearchSource, /installHlsPlaybackResearch/);
-  assert.match(hlsCaptureSource, /JABLE_HLS_PROXY/);
-  assert.match(hlsCaptureSource, /JABLE_HLS_CAPTURE/);
+  assert.match(hlsResearchSource, /installHlsPlaybackCapture\(context\)/);
+  assert.match(hlsSharedSource, /JABLE_HLS_PROXY/);
+  assert.match(hlsSharedSource, /JABLE_HLS_CAPTURE/);
   assert.match(hlsCaptureSource, /installHlsPlaybackCapture/);
-  assert.match(hlsCaptureSource, /const HLS_PLAYLIST_PROXY_HOST = '127\.0\.0\.1'/);
-  assert.match(hlsCaptureSource, /http\.createServer/);
-  assert.match(hlsCaptureSource, /startHlsPlaylistProxyServer/);
-  assert.match(hlsCaptureSource, /ipcMain\.handle\('hls:playlist-proxy-url'/);
-  assert.match(hlsCaptureSource, /\[hls-proxy\] token/);
-  assert.match(hlsCaptureSource, /\/playlist\/' \+ token \+ '\.m3u8'/);
+  assert.match(hlsCaptureSource, /installHlsPlaybackProbe\(context\)/);
+  assert.match(hlsCaptureSource, /installHlsPlaylistProxy\(context\)/);
+  assert.match(hlsSharedSource, /const HLS_PLAYLIST_PROXY_HOST = '127\.0\.0\.1'/);
+  assert.match(hlsProxySource, /http\.createServer/);
+  assert.match(hlsProxySource, /startHlsPlaylistProxyServer/);
+  assert.match(hlsIpcSource, /ipcMain\.handle\('hls:playlist-proxy-url'/);
+  assert.match(hlsIpcSource, /\[hls-proxy\] token/);
+  assert.match(hlsProxySource, /\/playlist\/' \+ token \+ '\.m3u8'/);
   assert.match(hlsHelperSource, /function hlsPlaylistProxyRequestTargetFromUrl/);
   assert.equal(hlsHelperSource.includes('parsed.pathname.match(/^\\/playlist\\/([A-Za-z0-9_-]+)\\.m3u8$/)'), true);
-  assert.match(hlsCaptureSource, /webRequest\.onBeforeSendHeaders/);
-  assert.match(hlsCaptureSource, /webRequest\.onCompleted/);
-  assert.equal(hlsCaptureSource.includes('webRequest.onBeforeRequest'), false);
-  assert.match(hlsCaptureSource, /hlsProbePathHash/);
-  assert.match(hlsCaptureSource, /hlsPlaylistProxyRewritePlaylist/);
+  assert.match(hlsProbeSource, /webRequest\.onBeforeSendHeaders/);
+  assert.match(hlsProbeSource, /webRequest\.onCompleted/);
+  assert.equal(hlsProductionSource.includes('webRequest.onBeforeRequest'), false);
+  assert.match(hlsProbeSource, /hlsProbePathHash/);
+  assert.match(hlsProxySource, /hlsPlaylistProxyRewritePlaylist/);
   assert.match(hlsHelperSource, /function hlsPlaylistProxyRewritePlaylistContent/);
-  assert.match(hlsCaptureSource, /hlsPlaylistProxyAssetUrl/);
-  assert.match(hlsCaptureSource, /prepareHlsPlaybackCapture/);
-  assert.match(hlsCaptureSource, /recordHlsPlaybackCaptureSegment/);
-  assert.match(hlsCaptureSource, /hls:playback-started/);
-  assert.match(hlsCaptureSource, /hlsPlaylistProxyPayloadMetadata/);
-  assert.match(hlsCaptureSource, /hlsPlaylistProxyPayloadPageLoadId/);
-  assert.match(hlsCaptureSource, /userInitiatedPlayback/);
-  assert.match(hlsCaptureSource, /shouldProxyHlsPlaybackCapture/);
+  assert.match(hlsProxySource, /hlsPlaylistProxyAssetUrl/);
+  assert.match(hlsProxySource, /prepareHlsPlaybackCapture/);
+  assert.match(hlsCaptureWritesSource, /recordHlsPlaybackCaptureSegment/);
+  assert.match(hlsIpcSource, /hls:playback-started/);
+  assert.match(hlsIpcSource, /hlsPlaylistProxyPayloadMetadata/);
+  assert.match(hlsIpcSource, /hlsPlaylistProxyPayloadPageLoadId/);
+  assert.match(hlsIpcSource, /userInitiatedPlayback/);
+  assert.match(hlsIpcSource, /shouldProxyHlsPlaybackCapture/);
   assert.match(
-    hlsCaptureSource,
+    hlsProxySource,
     /function hlsPlaybackCaptureActivePageKey\(webContentsId: number, videoUrl: string, pageLoadId: string \| null\)/
   );
   assert.match(
-    hlsCaptureSource,
+    hlsProxySource,
     /hlsPlaybackCaptureActivePageKey\(entry\.webContentsId, entry\.videoUrl, entry\.pageLoadId\)/
   );
-  assert.match(hlsCaptureSource, /hlsPlaybackCaptureActivePageKey\(event\.sender\.id, senderVideoUrl, pageLoadId\)/);
-  assert.match(hlsCaptureSource, /class HlsPlaybackCaptureStoppedError/);
-  assert.equal(hlsCaptureSource.includes("stopped ? '[hls-capture] segment stopped'"), true);
-  assert.match(hlsCaptureSource, /hlsPlaybackCaptureActivePage/);
-  assert.match(hlsCaptureSource, /shouldContinueHlsPlaybackCapture/);
-  assert.match(hlsCaptureSource, /isAutoDownloadOnPlaybackEnabled/);
-  assert.match(hlsCaptureSource, /startHlsPlaybackCapturePrefetch/);
-  assert.match(hlsCaptureSource, /queueHlsPlaybackBackgroundCompletion/);
-  assert.match(hlsCaptureSource, /runHlsPlaybackCapturePrefetchWithCompletion/);
-  assert.match(hlsCaptureSource, /hlsPlaylistProxyCapturedAssetResponse/);
+  assert.match(hlsIpcSource, /state\.activePageKey\(event\.sender\.id, senderVideoUrl, pageLoadId\)/);
+  assert.match(hlsCaptureWritesSource, /class HlsPlaybackCaptureStoppedError/);
+  assert.equal(hlsCaptureWritesSource.includes("stopped ? '[hls-capture] segment stopped'"), true);
+  assert.match(hlsProxySource, /hlsPlaybackCaptureActivePage/);
+  assert.match(hlsCaptureWritesSource, /shouldContinueHlsPlaybackCapture/);
+  assert.match(hlsSharedSource, /isAutoDownloadOnPlaybackEnabled/);
+  assert.match(hlsProxySource, /startHlsPlaybackCapturePrefetch/);
+  assert.match(hlsCaptureWritesSource, /queueHlsPlaybackBackgroundCompletion/);
+  assert.match(hlsCaptureWritesSource, /runHlsPlaybackCapturePrefetchWithCompletion/);
+  assert.match(hlsProxySource, /hlsPlaylistProxyCapturedAssetResponse/);
   assert.match(mainSource, /getAppSettings\(\)\.autoDownloadOnPlayback/);
   assert.match(mainSource, /queueHlsPlaybackBackgroundCompletion: function/);
-  assert.match(hlsCaptureSource, /\[hls-capture\] prepared/);
-  assert.match(hlsCaptureSource, /\[hls-capture\] segment saved/);
+  assert.match(hlsProxySource, /\[hls-capture\] prepared/);
+  assert.match(hlsCaptureWritesSource, /\[hls-capture\] segment saved/);
   assert.match(activeRunnerSource, /type DownloadQueueSource = 'normal' \| 'playback_background'/);
   assert.match(playbackCaptureSource, /type HlsPlaybackBackgroundCompletionWorker/);
   assert.match(downloadManagerSource, /const downloadQueue: DownloadQueueItem\[\] = \[\]/);
@@ -551,19 +606,20 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(playbackCaptureSource, /runtimeProgress/);
   assert.match(playbackCaptureSource, /suppressedPageLoadIds/);
   assert.match(downloadManagerSource, /upsertVideoMetadata/);
-  assert.match(hlsCaptureSource, /\/asset\//);
-  assert.match(hlsCaptureSource, /\[hls-proxy\] asset/);
-  assert.match(hlsCaptureSource, /\[hls-proxy\] asset served/);
-  assert.match(hlsCaptureSource, /hlsPlaylistProxyFallbackRedirect/);
-  assert.match(hlsCaptureSource, /referer: entry\.origin \+ '\/'/);
-  assert.match(hlsCaptureSource, /access-control-allow-credentials/);
-  assert.match(hlsCaptureSource, /access-control-allow-private-network/);
-  assert.match(hlsCaptureSource, /HLS_PLAYLIST_PROXY_FETCH_TIMEOUT_MS/);
-  assert.match(hlsCaptureSource, /\[hls-proxy\] request error/);
-  assert.match(hlsCaptureSource, /loopback HLS proxy/);
-  assert.match(hlsCaptureSource, /playlist requests require Settings auto-download or debug env/);
-  assert.match(hlsCaptureSource, /full HLS URLs are not logged/);
-  assert.match(hlsCaptureSource, /getBrowserTabByWebContents\(webContents\)/);
+  assert.match(hlsProxySource, /\/asset\//);
+  assert.match(hlsProxySource, /\[hls-proxy\] asset/);
+  assert.match(hlsProxySource, /\[hls-proxy\] asset served/);
+  assert.match(hlsProxySource, /hlsPlaylistProxyFallbackRedirect/);
+  assert.match(hlsProxyHeadersSource, /referer: entry\.origin \+ '\/'/);
+  assert.match(hlsProxyHeadersSource, /access-control-allow-credentials/);
+  assert.match(hlsProxyHeadersSource, /access-control-allow-private-network/);
+  assert.match(hlsSharedSource, /HLS_PLAYLIST_PROXY_FETCH_TIMEOUT_MS/);
+  assert.match(hlsProxySource, /\[hls-proxy\] request error/);
+  assert.match(hlsProxySource, /loopback HLS proxy/);
+  assert.match(hlsProxySource, /playlist requests require Settings auto-download or debug env/);
+  assert.match(hlsProbeSource, /full HLS URLs are not logged/);
+  assert.match(hlsProbeSource, /getBrowserTabByWebContents\(webContents\)/);
+  assert.match(hlsIpcSource, /getBrowserTabByWebContents\(event\.sender\)/);
   assert.match(webviewPreload, /createHlsPlaybackController/);
   assert.match(webviewPreload, /installPlaylistProxyInterception\(\)/);
   assert.match(webviewPreload, /installPlaybackStartedObserver\(\)/);
@@ -583,8 +639,8 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsPlaybackSource, /window\.fetch = function/);
   assert.match(hlsPlaybackSource, /window\.postMessage/);
   assert.match(hlsPlaybackSource, /title: document\.title/);
-  assert.equal(hlsResearchSource.includes('[hls-probe] request'), true);
-  for (const line of hlsCaptureSource.split('\n')) {
+  assert.equal(hlsProbeSource.includes('[hls-probe] request'), true);
+  for (const line of hlsProductionSource.split('\n')) {
     if (line.indexOf('logger(context).info') === -1) continue;
     assert.equal(/,\s*details\.url/.test(line), false);
   }
