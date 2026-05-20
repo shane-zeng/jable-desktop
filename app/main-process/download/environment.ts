@@ -49,6 +49,10 @@ const path: typeof NodePath = require('node:path');
 const FFMPEG_CHECK_TIMEOUT_MS = 5000;
 const FFMPEG_COMMAND = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 
+function shouldRunCommandThroughShell(command: string): boolean {
+  return process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(command);
+}
+
 export function createDownloadEnvironmentController(
   options: DownloadEnvironmentControllerOptions
 ): DownloadEnvironmentController {
@@ -62,6 +66,7 @@ export function createDownloadEnvironmentController(
         command,
         ['-version'],
         {
+          shell: shouldRunCommandThroughShell(command),
           timeout: FFMPEG_CHECK_TIMEOUT_MS,
           windowsHide: true
         },

@@ -21,6 +21,10 @@ type FfmpegRemuxOptions = {
 const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');
 
+function shouldRunCommandThroughShell(command: string): boolean {
+  return process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(command);
+}
+
 function removePartialDownloadFile(outputPath: string) {
   try {
     fs.unlinkSync(outputPath + '.part');
@@ -107,6 +111,7 @@ export function runFfmpegRemux(
         tempPath
       ],
       {
+        shell: shouldRunCommandThroughShell(command),
         windowsHide: true
       }
     );
