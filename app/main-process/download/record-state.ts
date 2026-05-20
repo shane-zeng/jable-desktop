@@ -59,13 +59,17 @@ export function createDownloadRecordStateController(
       return Object.assign({}, record, {
         state: 'ready' as const,
         error: null,
+        downloadSource: 'normal' as const,
         fileSizeBytes: stats ? stats.size : record.fileSizeBytes
       });
     }
-    if (record.state === 'ready' && exists && stats && record.fileSizeBytes !== stats.size) {
-      return Object.assign({}, record, {
-        fileSizeBytes: stats.size
-      });
+    if (record.state === 'ready' && exists) {
+      const readyPatch: Partial<DownloadRecord> = {};
+      if (record.downloadSource === 'playback_auto') readyPatch.downloadSource = 'normal';
+      if (stats && record.fileSizeBytes !== stats.size) readyPatch.fileSizeBytes = stats.size;
+      if (!Object.keys(readyPatch).length) return record;
+
+      return Object.assign({}, record, readyPatch);
     }
 
     return record;
@@ -114,6 +118,7 @@ export function createDownloadRecordStateController(
       current.state !== next.state ||
       current.progress !== next.progress ||
       current.error !== next.error ||
+      current.downloadSource !== next.downloadSource ||
       current.fileSizeBytes !== next.fileSizeBytes ||
       current.failurePhase !== next.failurePhase ||
       current.failureCode !== next.failureCode ||
@@ -130,6 +135,7 @@ export function createDownloadRecordStateController(
       state: next.state,
       progress: next.progress,
       error: next.error,
+      downloadSource: next.downloadSource,
       fileSizeBytes: next.fileSizeBytes,
       failurePhase: next.failurePhase,
       failureCode: next.failureCode,
@@ -149,6 +155,7 @@ export function createDownloadRecordStateController(
         state: next.state,
         progress: next.progress,
         error: next.error,
+        downloadSource: next.downloadSource,
         fileSizeBytes: next.fileSizeBytes,
         failurePhase: next.failurePhase,
         failureCode: next.failureCode,

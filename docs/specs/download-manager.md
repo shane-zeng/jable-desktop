@@ -86,7 +86,7 @@ This document specifies the current Download List and local video file managemen
   - `preview`
   - `sourcePageChineseSubtitleNotice`
   - `sourcePageSubtitleNoticeText`
-  - `downloadSource`, either `normal` for user-formalized downloads or `playback_auto` for playback-triggered records not yet explicitly resumed, retried, or enqueued by the user
+  - `downloadSource`, either `normal` for formal download records or `playback_auto` for playback-triggered records not yet completed and not yet explicitly resumed, retried, or enqueued by the user
   - `localPath` as a managed-root-relative file path
   - `state`
   - `progress`
@@ -134,7 +134,7 @@ This document specifies the current Download List and local video file managemen
 - Any existing `normal` download record is treated as user-formalized ownership. Playback-triggered capture must not retry, replace, or restart it while it is `paused`, `failed`, `missing`, or canceled; the user must use Resume, Retry, or Download actions to start that formal download path again.
 - Cancel stops playback-capture background completion, stops future capture writes for the current page load, removes working segment files where possible, and leaves the record `failed` with the localized canceled message. Reloading the video page starts a new page-load token, so playback can create a fresh capture again. Retry clears suppression and uses the normal queued download path.
 - Delete stops playback-capture background completion, stops future capture writes for the current page load, removes managed media/working files and the download record, and suppresses recreating that record from the still-open playback token. Reloading the video page starts a new page-load token, so playback can create a fresh capture again.
-- After playback-background prefetch or foreground playback has filled reusable media segment files, the same active worker reuses compatible local segments and produces the final MP4 without re-fetching those media segments. Rust may still fetch missing keys or missing/incompatible segments before writing the local playlist used by FFmpeg.
+- After playback-background prefetch or foreground playback has filled reusable media segment files, the same active worker reuses compatible local segments and produces the final MP4 without re-fetching those media segments. Rust may still fetch missing keys or missing/incompatible segments before writing the local playlist used by FFmpeg. Once the final MP4 becomes `ready`, the record is formalized by setting `downloadSource` to `normal`.
 
 ## Local Data Cards
 
@@ -222,7 +222,7 @@ This document specifies the current Download List and local video file managemen
 - Resume All is global to `paused` records and reuses the same segment-level resume path as single-card Resume.
 - Cancel Queued is global to `queued` records and uses the same semantics as single queued cancel: the record becomes `failed` with the localized canceled message and ready MP4 files are not deleted.
 - Download List cards show selection checkboxes only for `ready`, `paused`, `failed`, and `missing` records.
-- Download List cards may render `playback_auto` records with a distinct border treatment. When a user action changes a card from `playback_auto` to `normal`, the card plays a short transition animation and then returns to the normal card treatment.
+- Download List cards may render `playback_auto` records with a distinct border treatment. When a user action or successful playback-background completion changes a card from `playback_auto` to `normal`, the card plays a short transition animation and then returns to the normal card treatment.
 - Delete Selected applies only to the currently visible selected eligible records. It asks for confirmation once, deletes managed files when present, removes records, and cleans safe working files. It does not modify Favourites, Watch Later, or Jable remote state.
 - Error Log is a hidden diagnostics modal for `failed` and `missing` records. It is intentionally not shown as a toolbar button; it opens only from the Download List with `Ctrl/Cmd+Shift+E` or the `D`, `L`, `E` key sequence within 2 seconds.
 - Error Log defaults to the most recent 100 records sorted by `lastErrorAt`, then `updatedAt`, then `createdAt`, with an explicit Show All control when more records exist.
@@ -278,7 +278,7 @@ This document specifies the current Download List and local video file managemen
 - If segment download fails with HTTP 403, 428, 429, 503, 504, or a compatible CDN rejection pattern, main refreshes the video page and playlist once before final failure.
 - Refreshed playlist retry is allowed only when the existing resume manifest matches or the segment structure can be safely reused. If refresh fails or the refreshed playlist is incompatible, the original segment failure remains the final failure metadata.
 - Pause or cancel requests are honored before and after the refresh retry attempt.
-- On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, and state becomes `ready`.
+- On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, `downloadSource` becomes `normal`, and state becomes `ready`.
 - On failure the partial file and temporary segment files are removed where possible and state becomes `failed`.
 - On pause the unreliable `.mp4.part` output is removed, the `.segments` working directory is preserved, and state becomes `paused`.
 - When the user confirms pause-and-close during App quit, the App waits for active download workers to finish their paused-state cleanup before closing the native data engine.

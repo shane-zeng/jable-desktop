@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const downloadManager = require('../../app/runtime-dist/main-process/download/manager.js');
+const { createDownloadActiveRunner } = require('../../app/runtime-dist/main-process/download/active-runner.js');
 
 function downloadRecord(patch) {
   return Object.assign(
@@ -135,6 +136,38 @@ function createFakeFfmpeg(userDataDir) {
   return filePath;
 }
 
+function createFakeRemuxFfmpeg(userDataDir) {
+  const filePath = path.join(userDataDir, process.platform === 'win32' ? 'fake-remux-ffmpeg.cmd' : 'fake-remux-ffmpeg');
+  const script =
+    process.platform === 'win32'
+      ? [
+          '@echo off',
+          'set "out="',
+          ':read_args',
+          'if "%~1"=="" goto write_output',
+          'set "out=%~1"',
+          'shift',
+          'goto read_args',
+          ':write_output',
+          '> "%out%" echo fake-video',
+          'echo total_size=10',
+          ''
+        ].join('\r\n')
+      : [
+          '#!/bin/sh',
+          'out=""',
+          'for arg in "$@"; do',
+          '  out="$arg"',
+          'done',
+          'printf "fake-video" > "$out"',
+          'printf "total_size=10\\n"',
+          ''
+        ].join('\n');
+  fs.writeFileSync(filePath, script);
+  fs.chmodSync(filePath, 0o755);
+  return filePath;
+}
+
 function waitForCondition(predicate, timeoutMs = 1000) {
   const startedAt = Date.now();
   return new Promise(function (resolve, reject) {
@@ -185,6 +218,129 @@ test('download manager classifies and sanitizes failure metadata details', funct
   assert.match(detail, /\[download root\]/);
   assert.equal(detail.includes('token=secret'), false);
   assert.equal(detail.includes(rootPath), false);
+});
+
+test('download active runner formalizes completed playback background downloads', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-background-ready-formal-'));
+  try {
+    const videoUrl = 'https://jable.tv/videos/background-ready-formal/';
+    const outputPath = path.join(userDataDir, 'downloads', 'background-ready-formal.mp4');
+    const fakeFfmpeg = createFakeRemuxFfmpeg(userDataDir);
+    const patches = [];
+    let beforeDownloadSegmentsCalled = false;
+    let record = downloadRecord({
+      videoUrl: videoUrl,
+      downloadSource: 'playback_auto',
+      localPath: 'background-ready-formal.mp4',
+      state: 'queued'
+    });
+
+    const runner = createDownloadActiveRunner({
+      clearActiveDownload: function () {},
+      clearDownloadFlags: function () {},
+      clearPlaybackCaptureAfterActiveDownload: function () {},
+      clearRuntimeProgress: function () {},
+      downloadCanceledError: function () {
+        return new Error('canceled');
+      },
+      downloadErrorMessage: function (error) {
+        return error && error.message ? error.message : String(error);
+      },
+      downloadFileSystemError: function (error) {
+        return error instanceof Error ? error : new Error(String(error));
+      },
+      downloadHlsSegmentsWithPlaylistRefresh: async function () {
+        const playlistPath = path.join(userDataDir, 'playlist.m3u8');
+        fs.writeFileSync(playlistPath, '#EXTM3U\n');
+        return playlistPath;
+      },
+      downloadPausedError: function () {
+        return new Error('paused');
+      },
+      downloadTimestamp: function () {
+        return '2026-05-20T00:00:00.000Z';
+      },
+      ffmpegCommandForDownload: async function () {
+        return fakeFfmpeg;
+      },
+      isCanceled: function () {
+        return false;
+      },
+      isDeleted: function () {
+        return false;
+      },
+      isPaused: function () {
+        return false;
+      },
+      localPlaybackReadyFile: function () {
+        return null;
+      },
+      notifyDownloadsChanged: function () {},
+      path: path,
+      removePartialDownloadFile: function (targetPath) {
+        fs.rmSync(targetPath + '.part', { force: true });
+      },
+      resolveDownloadHlsSource: async function () {
+        return {
+          cookieHeader: '',
+          playlist: {
+            url: 'https://cdn.example.test/background-ready-formal/index.m3u8',
+            segments: []
+          },
+          sourcePageChineseSubtitleNotice: false,
+          sourcePageSubtitleNoticeText: null
+        };
+      },
+      resolveManagedDownloadPath: function (fileRelativePath) {
+        return fileRelativePath ? path.join(userDataDir, 'downloads', fileRelativePath) : null;
+      },
+      schedulePreviewGeneration: function () {},
+      statFile: function (filePath) {
+        return fs.statSync(filePath);
+      },
+      t: function (key) {
+        return key;
+      },
+      updateDownloadRuntimeProgress: function () {},
+      upsertPersistedDownload: function (patch) {
+        patches.push(Object.assign({}, patch));
+        record = Object.assign({}, record, patch);
+        return record;
+      },
+      writeDirectory: function (directoryPath) {
+        fs.mkdirSync(directoryPath, { recursive: true });
+      }
+    });
+
+    await runner.runActiveDownload(
+      record,
+      {
+        abortController: new AbortController(),
+        nativeId: null,
+        process: null,
+        source: 'playback_background'
+      },
+      true,
+      async function () {
+        beforeDownloadSegmentsCalled = true;
+      }
+    );
+
+    assert.equal(beforeDownloadSegmentsCalled, true);
+    assert.equal(record.state, 'ready');
+    assert.equal(record.downloadSource, 'normal');
+    assert.equal(record.progress, 1);
+    assert.equal(record.completedAt, '2026-05-20T00:00:00.000Z');
+    assert.equal(fs.readFileSync(outputPath, 'utf8'), 'fake-video');
+    assert.equal(
+      patches.some(function (patch) {
+        return patch.state === 'ready' && patch.downloadSource === 'normal';
+      }),
+      true
+    );
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
 });
 
 test('download manager captures proxied HLS playback segments for later resume', function () {
@@ -412,6 +568,39 @@ test('download manager queues playback background completion without persisting 
     });
     assert.equal(harness.records.get(videoUrl).state, 'queued');
     assert.equal(harness.records.get(videoUrl).progress, null);
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager formalizes existing ready playback auto records when listing downloads', function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-ready-playback-auto-formal-'));
+  try {
+    const videoUrl = 'https://jable.tv/videos/ready-playback-auto-formal/';
+    const downloadRoot = path.join(userDataDir, 'downloads');
+    fs.mkdirSync(downloadRoot, { recursive: true });
+    fs.writeFileSync(path.join(downloadRoot, 'ready-playback-auto-formal.mp4'), 'ready');
+
+    const harness = createHarness(
+      [
+        {
+          videoUrl: videoUrl,
+          downloadSource: 'playback_auto',
+          localPath: 'ready-playback-auto-formal.mp4',
+          state: 'ready',
+          fileSizeBytes: 1,
+          completedAt: '2026-05-20T00:00:00.000Z'
+        }
+      ],
+      userDataDir
+    );
+
+    const records = harness.manager.listDownloads();
+    assert.equal(records.length, 1);
+    assert.equal(records[0].state, 'ready');
+    assert.equal(records[0].downloadSource, 'normal');
+    assert.equal(records[0].fileSizeBytes, 5);
+    assert.equal(harness.records.get(videoUrl).downloadSource, 'normal');
   } finally {
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }

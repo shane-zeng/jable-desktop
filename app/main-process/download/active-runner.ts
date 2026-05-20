@@ -179,6 +179,7 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
 
       options.upsertPersistedDownload({
         videoUrl: record.videoUrl,
+        downloadSource: 'normal',
         state: 'ready',
         progress: 1,
         error: null,
