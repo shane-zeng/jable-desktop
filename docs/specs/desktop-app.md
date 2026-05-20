@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-19
+Last verified against implementation: 2026-05-20
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -14,6 +14,7 @@ This document specifies the current user-facing Electron desktop application beh
 - The top bar provides browser back, forward, and reload controls when the Browser view is active.
 - The top bar switches between Browser and Local Data through segmented controls.
 - Settings is opened from a dedicated top-level button.
+- Top-level views can also be switched with `Command+1/2/3` on macOS or `Ctrl+1/2/3` on Windows/Linux for Browser, Local Data, and Settings.
 - The renderer UI is dark-mode-only.
 - Desktop UI locales are `zh-TW`, `en-US`, and `ja-JP`.
 - Locale selection affects renderer copy, native menus, context menus, dialogs, and toast messages.
@@ -28,6 +29,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Newly created browser tabs follow opener-group behavior: repeated tabs opened from the same source tab are kept together below that source tab and before the next unrelated tab.
 - Closing active opener-group child tabs walks through the remaining children first, then returns to the opener tab before moving to unrelated tabs.
 - The tab rail supports persisted standard, compact, and shared display modes through app settings.
+- Shared tab rail mode can also be toggled with the documented keyboard shortcut while Browser or Local Data is active.
 - Tab rail width is a renderer-local `localStorage` preference.
 - Tab width can be reset from Settings.
 - Compact mode reveals a floating tab rail when the pointer enters the compact trigger area.

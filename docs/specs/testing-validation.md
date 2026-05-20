@@ -78,7 +78,7 @@ Verify these behaviors when touching related desktop areas:
 - Jable login persists across restart while the server-side session remains valid.
 - Primary-origin load failure falls back to `https://fs1.app` and local storage still canonicalizes video URLs.
 - Browser tabs open, switch, close, mute, right-click, and preserve active-tab policy.
-- Tab rail display mode can be changed through Settings, including shared mode.
+- Tab rail display mode can be changed through Settings and shortcuts, including shared mode.
 - Tab rail width can be resized and reset.
 - `target=_blank` and `window.open` create app tabs.
 - Middle-click in embedded browser opens links in background tabs.

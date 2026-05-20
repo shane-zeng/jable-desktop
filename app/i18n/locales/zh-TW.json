@@ -287,6 +287,10 @@
           "label": "切換到本機資料",
           "description": "切換到本機資料頁面。"
         },
+        "switchSettingsView": {
+          "label": "切換到設定",
+          "description": "切換到設定頁面。"
+        },
         "newBrowserTab": {
           "label": "新增瀏覽器分頁",
           "description": "新增 Jable 首頁分頁並切換到該分頁。"
@@ -314,6 +318,10 @@
         "toggleCompactTabs": {
           "label": "切換浮動分頁列",
           "description": "在瀏覽器頁面切換浮動分頁列。"
+        },
+        "toggleSharedTabs": {
+          "label": "切換跨頁分頁列",
+          "description": "在瀏覽器或本機資料頁面切換跨頁分頁列。"
         },
         "toggleTheaterMode": {
           "label": "切換劇院模式",
@@ -568,6 +576,7 @@
     "forward": "下一頁",
     "reload": "重新整理",
     "theaterMode": "劇院模式",
+    "exitTheaterMode": "離開劇院模式",
     "newTab": "新增分頁",
     "copyCurrentPageUrl": "複製目前頁面網址",
     "switchToTab": "切換到此分頁",

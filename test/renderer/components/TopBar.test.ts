@@ -80,4 +80,26 @@ describe('TopBar', function () {
     expect(wrapper.text()).toContain('設定');
     expect(wrapper.find('[aria-label="戻る"]').exists()).toBe(true);
   });
+
+  it('renders status content in the center chrome without replacing view tabs', function () {
+    const wrapper = mount(TopBar, {
+      props: {
+        activeView: 'browser',
+        busy: false,
+        navigation: {
+          tabId: null,
+          canGoBack: true,
+          canGoForward: false,
+          locked: false
+        }
+      },
+      slots: {
+        status: '<div data-test="toast-status">同步完成</div>'
+      }
+    });
+
+    expect(wrapper.get('[data-test="topbar-center"]').text()).toContain('同步完成');
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(2);
+    expect(wrapper.find('[data-test="settings-view-button"]').exists()).toBe(true);
+  });
 });

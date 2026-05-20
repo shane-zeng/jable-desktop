@@ -287,6 +287,10 @@
           "label": "ローカルデータに切り替え",
           "description": "ローカルデータ表示に切り替えます。"
         },
+        "switchSettingsView": {
+          "label": "設定に切り替え",
+          "description": "設定表示に切り替えます。"
+        },
         "newBrowserTab": {
           "label": "新しいブラウザータブ",
           "description": "Jable ホームのタブを作成して、そのタブに切り替えます。"
@@ -314,6 +318,10 @@
         "toggleCompactTabs": {
           "label": "フローティングタブレールを切り替え",
           "description": "ブラウザー表示中にフローティングタブレールを切り替えます。"
+        },
+        "toggleSharedTabs": {
+          "label": "共有タブレールを切り替え",
+          "description": "ブラウザーまたはローカルデータ表示中に共有タブレールを切り替えます。"
         },
         "toggleTheaterMode": {
           "label": "シアターモードを切り替え",
@@ -568,6 +576,7 @@
     "forward": "進む",
     "reload": "再読み込み",
     "theaterMode": "シアターモード",
+    "exitTheaterMode": "シアターモードを終了",
     "newTab": "新しいタブ",
     "copyCurrentPageUrl": "現在のページ URL をコピー",
     "switchToTab": "このタブに切り替え",

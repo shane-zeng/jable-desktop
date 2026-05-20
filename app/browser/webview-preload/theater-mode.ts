@@ -15,13 +15,14 @@ type TheaterModeControllerOptions = {
 
 type TheaterModeController = {
   install(): void;
-  set(enabled: boolean, failIfMissing: boolean): TheaterModeResult;
+  set(enabled: boolean, failIfMissing: boolean, exitLabel?: string | null): TheaterModeResult;
   snapshot(): TheaterModeResult;
 };
 
 const THEATER_MODE_STYLE_ID = 'jable-desktop-theater-style';
 const THEATER_MODE_ROOT_CLASS = 'jable-desktop-theater-active';
 const THEATER_MODE_TARGET_CLASS = 'jable-desktop-theater-target';
+const THEATER_MODE_EXIT_BUTTON_ID = 'jable-desktop-theater-exit';
 const THEATER_MODE_APPLY_DELAY_MS = 120;
 const THEATER_MODE_PLAYER_SELECTORS = [
   '#player',
@@ -55,6 +56,8 @@ export const THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR =
 export function createTheaterModeController(options: TheaterModeControllerOptions): TheaterModeController {
   let preferred = false;
   let appliedElement: HTMLElement | null = null;
+  let exitButton: HTMLButtonElement | null = null;
+  let exitButtonLabel = 'Exit theater mode';
   let applyTimer: ReturnType<typeof setTimeout> | null = null;
   let observer: MutationObserver | null = null;
 
@@ -197,9 +200,99 @@ export function createTheaterModeController(options: TheaterModeControllerOption
       ':hover .mejs-controls{' +
       'visibility:visible!important;' +
       'opacity:1!important;' +
+      '}' +
+      '#' +
+      THEATER_MODE_EXIT_BUTTON_ID +
+      '{' +
+      'position:fixed!important;' +
+      'top:12px!important;' +
+      'right:12px!important;' +
+      'z-index:2147483647!important;' +
+      'display:inline-flex!important;' +
+      'align-items:center!important;' +
+      'justify-content:center!important;' +
+      'width:34px!important;' +
+      'height:34px!important;' +
+      'padding:0!important;' +
+      'border:1px solid rgba(255,255,255,.24)!important;' +
+      'border-radius:999px!important;' +
+      'background:rgba(17,19,24,.72)!important;' +
+      'color:#fff!important;' +
+      'box-shadow:0 8px 24px rgba(0,0,0,.36)!important;' +
+      'cursor:pointer!important;' +
+      'opacity:.78!important;' +
+      'pointer-events:auto!important;' +
+      '}' +
+      '#' +
+      THEATER_MODE_EXIT_BUTTON_ID +
+      ':hover,#' +
+      THEATER_MODE_EXIT_BUTTON_ID +
+      ':focus{' +
+      'opacity:1!important;' +
+      'background:rgba(17,19,24,.9)!important;' +
+      'outline:2px solid rgba(112,167,255,.9)!important;' +
+      'outline-offset:2px!important;' +
+      '}' +
+      '#' +
+      THEATER_MODE_EXIT_BUTTON_ID +
+      '::before,#' +
+      THEATER_MODE_EXIT_BUTTON_ID +
+      '::after{' +
+      'content:""!important;' +
+      'position:absolute!important;' +
+      'top:50%!important;' +
+      'left:50%!important;' +
+      'width:18px!important;' +
+      'height:4px!important;' +
+      'border-radius:999px!important;' +
+      'background:currentColor!important;' +
+      'transform:translate(-50%,-50%) rotate(45deg)!important;' +
+      '}' +
+      '#' +
+      THEATER_MODE_EXIT_BUTTON_ID +
+      '::after{' +
+      'transform:translate(-50%,-50%) rotate(-45deg)!important;' +
       '}';
 
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  function updateTheaterModeExitButtonLabel(label?: string | null) {
+    const normalized = String(label || '').trim();
+    if (normalized) exitButtonLabel = normalized;
+    if (exitButton) {
+      exitButton.setAttribute('aria-label', exitButtonLabel);
+      exitButton.title = exitButtonLabel;
+    }
+  }
+
+  function removeTheaterModeExitButton() {
+    if (!exitButton) return;
+
+    exitButton.remove();
+    exitButton = null;
+  }
+
+  function ensureTheaterModeExitButton() {
+    if (exitButton && exitButton.isConnected) return;
+
+    removeTheaterModeExitButton();
+
+    const button = document.createElement('button');
+    button.id = THEATER_MODE_EXIT_BUTTON_ID;
+    button.type = 'button';
+    button.setAttribute('aria-keyshortcuts', 'Escape');
+    updateTheaterModeExitButtonLabel();
+    button.addEventListener('click', function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      const result = setTheaterMode(false, false);
+      options.sendChanged(result);
+    });
+
+    (document.body || document.documentElement).appendChild(button);
+    exitButton = button;
+    updateTheaterModeExitButtonLabel();
   }
 
   function theaterModeTargetForVideo(video: HTMLVideoElement): HTMLElement {
@@ -239,6 +332,7 @@ export function createTheaterModeController(options: TheaterModeControllerOption
 
     document.documentElement.classList.remove(THEATER_MODE_ROOT_CLASS);
     if (document.body) document.body.classList.remove(THEATER_MODE_ROOT_CLASS);
+    removeTheaterModeExitButton();
   }
 
   function stopTheaterModeObserver() {
@@ -333,12 +427,14 @@ export function createTheaterModeController(options: TheaterModeControllerOption
     document.documentElement.classList.add(THEATER_MODE_ROOT_CLASS);
     if (document.body) document.body.classList.add(THEATER_MODE_ROOT_CLASS);
     target.classList.add(THEATER_MODE_TARGET_CLASS);
+    ensureTheaterModeExitButton();
 
     return theaterModeResult(true);
   }
 
-  function setTheaterMode(enabled: boolean, failIfMissing: boolean): TheaterModeResult {
+  function setTheaterMode(enabled: boolean, failIfMissing: boolean, exitLabel?: string | null): TheaterModeResult {
     preferred = Boolean(enabled);
+    updateTheaterModeExitButtonLabel(exitLabel);
 
     if (!preferred) {
       removeTheaterModeClasses();

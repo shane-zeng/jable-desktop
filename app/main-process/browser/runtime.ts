@@ -333,12 +333,19 @@ export function createBrowserRuntimeController(context: BrowserRuntimeController
     };
   }
 
+  function browserTheaterModePayload(enabled: boolean): { enabled: boolean; exitLabel: string } {
+    return {
+      enabled: enabled,
+      exitLabel: context.t('context.exitTheaterMode')
+    };
+  }
+
   async function setTabTheaterMode(tab: BrowserTab, enabled: boolean): Promise<BrowserTheaterModeResult> {
     const result = normalizeBrowserTheaterModeResult(
       await requestBrowserPreload<BrowserTheaterModeResult>(
         tab,
         'browser:set-theater-mode-request',
-        { enabled: enabled },
+        browserTheaterModePayload(enabled),
         context.theaterModeRequestTimeoutMs
       ),
       enabled

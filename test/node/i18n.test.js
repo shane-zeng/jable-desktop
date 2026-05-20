@@ -49,6 +49,9 @@ test('translates native menu and dialog labels by locale', function () {
   assert.equal(i18n.t('zh-TW', 'context.theaterMode'), '劇院模式');
   assert.equal(i18n.t('en-US', 'context.theaterMode'), 'Theater Mode');
   assert.equal(i18n.t('ja-JP', 'context.theaterMode'), 'シアターモード');
+  assert.equal(i18n.t('zh-TW', 'context.exitTheaterMode'), '離開劇院模式');
+  assert.equal(i18n.t('zh-TW', 'settings.shortcuts.items.switchSettingsView.label'), '切換到設定');
+  assert.equal(i18n.t('zh-TW', 'settings.shortcuts.items.toggleSharedTabs.label'), '切換跨頁分頁列');
 });
 
 test('interpolates translated messages', function () {

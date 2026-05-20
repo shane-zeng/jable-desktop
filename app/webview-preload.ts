@@ -645,6 +645,13 @@ function sendTheaterModeChanged(result: TheaterModeResult) {
   ipcRenderer.send('browser:theater-mode-changed', result);
 }
 
+function theaterModeExitLabelFromPayload(payload: unknown): string | null {
+  if (!isRecord(payload) || typeof payload.exitLabel !== 'string') return null;
+
+  const label = payload.exitLabel.trim();
+  return label || null;
+}
+
 ipcRenderer.on('browser:sync-collection-request', function (_event, payload: unknown) {
   const requestId = requestIdFromPayload(payload);
   if (!requestId) return;
@@ -714,7 +721,7 @@ ipcRenderer.on('browser:set-theater-mode-request', function (_event, payload: un
 
   try {
     const enabled = Boolean(isRecord(payload) && payload.enabled);
-    const result = theaterModeController.set(enabled, true);
+    const result = theaterModeController.set(enabled, true, theaterModeExitLabelFromPayload(payload));
     sendTheaterModeChanged(result);
     sendPreloadResponse(requestId, result);
   } catch (error) {
@@ -737,7 +744,7 @@ ipcRenderer.on('browser:apply-theater-mode', function (_event, payload: unknown)
   const enabled = !isRecord(payload) || payload.enabled !== false;
 
   try {
-    theaterModeController.set(enabled, false);
+    theaterModeController.set(enabled, false, theaterModeExitLabelFromPayload(payload));
   } catch (error) {}
 });
 

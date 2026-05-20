@@ -73,7 +73,7 @@ describe('App browser tab behavior', function () {
     wrapper.unmount();
   });
 
-  it('switches Browser and Local Data from app view shortcut messages', async function () {
+  it('switches Browser, Local Data, and Settings from app view shortcut messages', async function () {
     const api = createAppTestApi();
     window.jableApp = api;
 
@@ -94,10 +94,48 @@ describe('App browser tab behavior', function () {
 
     expect(wrapper.find('[aria-label="本機資料庫"]').isVisible()).toBe(true);
 
+    browserMessageCallback({ channel: 'app-view-shortcut', args: [{ view: 'settings' }] });
+    await settle();
+
+    expect(wrapper.get('[data-test="settings-view-button"]').attributes('aria-pressed')).toBe('true');
+
     browserMessageCallback({ channel: 'app-view-shortcut', args: [{ view: 'browser' }] });
     await settle();
 
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('瀏覽器');
+
+    wrapper.unmount();
+  });
+
+  it('toggles shared tab rail from shortcut messages outside Settings', async function () {
+    const api = createAppTestApi([], {
+      browserTabsMode: 'standard',
+      compactBrowserTabs: false
+    });
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          BrowserPanel: true,
+          SettingsPanel: true
+        }
+      }
+    });
+    await settle();
+
+    const browserMessageCallback = vi.mocked(api.onBrowserMessage).mock.calls[0][0];
+    browserMessageCallback({ channel: 'browser-tabs-shared-toggle-shortcut', args: [{}] });
+    await settle();
+
+    expect(api.updateSettings).toHaveBeenLastCalledWith({ browserTabsMode: 'shared' });
+
+    await clickButtonByText(wrapper, '本機資料');
+    browserMessageCallback({ channel: 'browser-tabs-shared-toggle-shortcut', args: [{}] });
+    await settle();
+
+    expect(api.updateSettings).toHaveBeenLastCalledWith({ browserTabsMode: 'standard' });
 
     wrapper.unmount();
   });

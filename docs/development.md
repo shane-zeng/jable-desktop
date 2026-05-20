@@ -285,9 +285,9 @@ For targeted checks, use `npm test` for SQLite/import/export/search behavior, `n
 Manual checks:
 
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
-- Open, switch, close, right-click, toggle tab rail display modes, hover to reveal close buttons, and drag-resize browser tabs. In shared mode, confirm Local Data shows the same tab rail and its new-tab actions create background tabs without switching away from Local Data. Confirm Jable `target=_blank` links open a new app tab.
+- Open, switch, close, right-click, toggle tab rail display modes from settings and shortcuts, hover to reveal close buttons, and drag-resize browser tabs. In shared mode, confirm Local Data shows the same tab rail and its new-tab actions create background tabs without switching away from Local Data. Confirm Jable `target=_blank` links open a new app tab.
 - Enter and leave fullscreen from a Jable video player. Confirm fullscreen covers the tab rail and top bar, then restores the normal browser layout after exit.
-- Toggle theater mode from a Jable video page context menu and with plain `T`. Confirm it fills only the browser content area, preserves the top bar and tab rail, exits with `Esc`, leaves `Command+T` / `Ctrl+T` as new-tab shortcuts, survives tab switches/reload/video-to-video navigation, and is absent from non-video pages.
+- Toggle theater mode from a Jable video page context menu and with plain `T`. Confirm it fills only the browser content area, preserves the top bar and tab rail, exits with `Esc` and the in-content `x` button, leaves `Command+T` / `Ctrl+T` as new-tab shortcuts, survives tab switches/reload/video-to-video navigation, and is absent from non-video pages.
 - Verify keyboard tab switching shortcuts from [`docs/shortcuts.md`](shortcuts.md), including repeated previous/next switching without clicking the page between keystrokes.
 - Right-click Jable page content and verify link, media, selection, navigation, and page URL menu actions appear in the expected contexts.
 - Toggle Jable favourite/watch-later buttons in the embedded page and confirm the local list updates after the site-side action succeeds.

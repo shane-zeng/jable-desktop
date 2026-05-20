@@ -53,6 +53,17 @@ type SettingsModule = {
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
 };
+type WindowOptionsModule = {
+  mainWindowDimensions(
+    platform: NodeJS.Platform,
+    workAreaSize?: { width: number; height: number } | null
+  ): {
+    width: number;
+    height: number;
+    minWidth: number;
+    minHeight: number;
+  };
+};
 type DataEngineModule = {
   COLLECTIONS: DatabaseCollection[];
   createDataEngine(filePath: string): DataEngine;
@@ -173,6 +184,7 @@ const syncWorkerManagerModule = require('./main-process/sync-worker-manager') as
   createSyncWorkerManager(context: SyncWorkerManagerContext): SyncWorkerManager;
 };
 const updateChecker = require('./main-process/update-checker') as UpdateCheckerModule;
+const windowOptions = require('./main-process/window-options') as WindowOptionsModule;
 const urlPolicy = require('./browser/url-policy') as UrlPolicyModule;
 const COLLECTIONS = dataEngineModule.COLLECTIONS;
 
@@ -534,11 +546,16 @@ function promptPauseDownloadsAndClose(browserWindow: Electron.BrowserWindow) {
 }
 
 function createWindow() {
+  const dimensions = windowOptions.mainWindowDimensions(
+    process.platform,
+    electron.screen.getPrimaryDisplay().workAreaSize
+  );
+
   mainWindow = new BrowserWindow({
-    width: 1360,
-    height: 860,
-    minWidth: 1100,
-    minHeight: 680,
+    width: dimensions.width,
+    height: dimensions.height,
+    minWidth: dimensions.minWidth,
+    minHeight: dimensions.minHeight,
     title: 'Jable Desktop',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

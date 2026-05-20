@@ -180,10 +180,14 @@ function clearLegacyBrowserTabsCompact() {
 }
 
 async function setBrowserTabsCompact(value: boolean) {
-  browserTabsMode.value = value ? 'compact' : 'standard';
+  await setBrowserTabsMode(value ? 'compact' : 'standard');
+}
+
+async function setBrowserTabsMode(mode: BrowserTabsMode) {
+  browserTabsMode.value = mode;
   browser.scheduleResize();
   try {
-    applyAppSettings(await api.updateSettings({ compactBrowserTabs: value }));
+    applyAppSettings(await api.updateSettings({ browserTabsMode: mode }));
   } catch (error) {
     console.error(error);
     setStatus(i18n.t('status.settingsSaveFailed', { error: errorMessage(error) }), 'error');
@@ -349,13 +353,19 @@ function handleBrowserMessage(message: BrowserMessage) {
     setBrowserTabsCompact(!browserTabsCompact.value);
   }
 
+  if (message.channel === 'browser-tabs-shared-toggle-shortcut' && activeView.value !== 'settings') {
+    setBrowserTabsMode(browserTabsShared.value ? 'standard' : 'shared');
+  }
+
   if (message.channel === 'browser-tab-shortcut') {
     setActiveView('browser');
   }
 
   if (message.channel === 'app-view-shortcut') {
     const payload = (message.args[0] || {}) as { view?: string };
-    if (payload.view === 'browser' || payload.view === 'library') setActiveView(payload.view);
+    if (payload.view === 'browser' || payload.view === 'library' || payload.view === 'settings') {
+      setActiveView(payload.view);
+    }
   }
 
   if (message.channel === 'jable-origin-fallback') {
@@ -788,32 +798,42 @@ onBeforeUnmount(function () {
       @forward="browser.goForward"
       @reload="browser.reload"
       @diagnose="diagnoseLayout"
-    />
-
-    <Transition name="status-toast">
-      <div v-if="toast" class="app-toast" :class="'app-toast-' + toast.tone" role="status" aria-live="polite">
-        <div class="app-toast-content">
-          <span>{{ toast.text }}</span>
+    >
+      <template #status>
+        <Transition name="status-toast">
           <div
-            v-if="toast.showQueueProgress && syncQueueProgress"
-            class="app-toast-progress"
-            role="progressbar"
-            :aria-label="
-              i18n.t('status.syncQueueProgressLabel', {
-                processed: syncQueueProgressProcessed,
-                total: syncQueueProgress.total
-              })
-            "
-            aria-valuemin="0"
-            :aria-valuemax="syncQueueProgress.total"
-            :aria-valuenow="syncQueueProgressProcessed"
+            v-if="toast"
+            class="app-toast app-toast-inline"
+            :class="'app-toast-' + toast.tone"
+            role="status"
+            aria-live="polite"
           >
-            <span :style="{ width: syncQueueProgressPercent + '%' }"></span>
+            <div class="app-toast-content">
+              <span>{{ toast.text }}</span>
+              <div
+                v-if="toast.showQueueProgress && syncQueueProgress"
+                class="app-toast-progress"
+                role="progressbar"
+                :aria-label="
+                  i18n.t('status.syncQueueProgressLabel', {
+                    processed: syncQueueProgressProcessed,
+                    total: syncQueueProgress.total
+                  })
+                "
+                aria-valuemin="0"
+                :aria-valuemax="syncQueueProgress.total"
+                :aria-valuenow="syncQueueProgressProcessed"
+              >
+                <span :style="{ width: syncQueueProgressPercent + '%' }"></span>
+              </div>
+            </div>
+            <button class="app-toast-close" type="button" :aria-label="i18n.t('toast.close')" @click="hideToast">
+              ×
+            </button>
           </div>
-        </div>
-        <button class="app-toast-close" type="button" :aria-label="i18n.t('toast.close')" @click="hideToast">×</button>
-      </div>
-    </Transition>
+        </Transition>
+      </template>
+    </TopBar>
 
     <main
       class="relative h-full min-h-0 overflow-hidden"

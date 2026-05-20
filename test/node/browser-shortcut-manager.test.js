@@ -61,18 +61,22 @@ test('browser shortcut manager forwards app view number shortcuts', function () 
 
   assert.equal(macosHarness.press({ key: '1', meta: true }), true);
   assert.equal(macosHarness.press({ key: '2', meta: true }), true);
+  assert.equal(macosHarness.press({ key: '3', meta: true }), true);
   assert.deepEqual(macosHarness.forwardedMessages, [
     { channel: 'app-view-shortcut', payload: { view: 'browser' } },
-    { channel: 'app-view-shortcut', payload: { view: 'library' } }
+    { channel: 'app-view-shortcut', payload: { view: 'library' } },
+    { channel: 'app-view-shortcut', payload: { view: 'settings' } }
   ]);
 
   const windowsHarness = createHarness({ isMacos: false });
 
   assert.equal(windowsHarness.press({ key: '1', control: true }), true);
   assert.equal(windowsHarness.press({ key: '2', control: true }), true);
+  assert.equal(windowsHarness.press({ key: '3', control: true }), true);
   assert.deepEqual(windowsHarness.forwardedMessages, [
     { channel: 'app-view-shortcut', payload: { view: 'browser' } },
-    { channel: 'app-view-shortcut', payload: { view: 'library' } }
+    { channel: 'app-view-shortcut', payload: { view: 'library' } },
+    { channel: 'app-view-shortcut', payload: { view: 'settings' } }
   ]);
 });
 
@@ -81,5 +85,26 @@ test('browser shortcut manager ignores number shortcuts with unrelated modifiers
 
   assert.equal(harness.press({ key: '1', meta: true, shift: true }), false);
   assert.equal(harness.press({ key: '2', control: true }), false);
+  assert.equal(harness.press({ key: '3', meta: true, alt: true }), false);
   assert.deepEqual(harness.forwardedMessages, []);
+});
+
+test('browser shortcut manager forwards tab rail display mode shortcuts', function () {
+  const macosHarness = createHarness({ isMacos: true });
+
+  assert.equal(macosHarness.press({ key: 's', meta: true }), true);
+  assert.equal(macosHarness.press({ key: 's', meta: true, shift: true }), true);
+  assert.deepEqual(macosHarness.forwardedMessages, [
+    { channel: 'browser-tabs-compact-toggle-shortcut', payload: {} },
+    { channel: 'browser-tabs-shared-toggle-shortcut', payload: {} }
+  ]);
+
+  const windowsHarness = createHarness({ isMacos: false });
+
+  assert.equal(windowsHarness.press({ key: 's', control: true }), true);
+  assert.equal(windowsHarness.press({ key: 's', control: true, shift: true }), true);
+  assert.deepEqual(windowsHarness.forwardedMessages, [
+    { channel: 'browser-tabs-compact-toggle-shortcut', payload: {} },
+    { channel: 'browser-tabs-shared-toggle-shortcut', payload: {} }
+  ]);
 });

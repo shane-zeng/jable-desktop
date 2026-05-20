@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import {
   BROWSER_TABS_MODE_OPTIONS,
   DOWNLOAD_SPEED_MODE_OPTIONS,
@@ -74,6 +74,7 @@ const exportCollection = ref<CollectionKey>('favourites');
 const activeSettingsSection = ref<SettingsSectionId>('settings-general');
 const shortcutSearch = ref('');
 const selectedShortcutId = ref(SHORTCUT_CATALOG[0] ? SHORTCUT_CATALOG[0].id : '');
+const shortcutList = ref<HTMLElement | null>(null);
 
 const speedOptions = [
   { value: 1, key: 'safe' },
@@ -320,6 +321,56 @@ function selectShortcut(itemId: string) {
   selectedShortcutId.value = itemId;
 }
 
+function shortcutIndex(itemId: string) {
+  for (let i = 0; i < shortcutDisplayItems.value.length; i++) {
+    if (shortcutDisplayItems.value[i].item.id === itemId) return i;
+  }
+
+  return -1;
+}
+
+function focusShortcutRow(itemId: string) {
+  void nextTick(function () {
+    const listElement = shortcutList.value;
+    if (!listElement) return;
+
+    const rows = Array.from(listElement.querySelectorAll<HTMLElement>('[data-shortcut-id]'));
+    const row = rows.find(function (element) {
+      return element.dataset.shortcutId === itemId;
+    });
+    if (row) row.focus();
+  });
+}
+
+function moveShortcutSelection(targetIndex: number) {
+  const items = shortcutDisplayItems.value;
+  if (!items.length) return;
+
+  const boundedIndex = Math.max(0, Math.min(items.length - 1, targetIndex));
+  const nextId = items[boundedIndex].item.id;
+  selectedShortcutId.value = nextId;
+  focusShortcutRow(nextId);
+}
+
+function handleShortcutRowKeydown(event: KeyboardEvent, itemId: string) {
+  const currentIndex = shortcutIndex(itemId);
+  if (currentIndex === -1) return;
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    moveShortcutSelection(currentIndex + 1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    moveShortcutSelection(currentIndex - 1);
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    moveShortcutSelection(0);
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    moveShortcutSelection(shortcutDisplayItems.value.length - 1);
+  }
+}
+
 function shortcutCategoryLabel(category: ShortcutCategory) {
   return t('settings.shortcuts.categories.' + category);
 }
@@ -517,7 +568,7 @@ function shortcutTokenSeparator(tokenIndex: number) {
                     :aria-label="t('settings.shortcuts.searchLabel')"
                   />
 
-                  <div class="settings-shortcut-list" data-test="settings-shortcut-list">
+                  <div ref="shortcutList" class="settings-shortcut-list" data-test="settings-shortcut-list">
                     <template v-for="group in shortcutGroups" :key="group.category">
                       <h3 class="settings-shortcut-category">{{ shortcutCategoryLabel(group.category) }}</h3>
                       <button
@@ -527,10 +578,12 @@ function shortcutTokenSeparator(tokenIndex: number) {
                         class="settings-shortcut-row"
                         :class="{ 'is-active': selectedShortcut && selectedShortcut.item.id === shortcut.item.id }"
                         :data-test="'settings-shortcut-row-' + shortcut.item.id"
+                        :data-shortcut-id="shortcut.item.id"
                         :aria-current="
                           selectedShortcut && selectedShortcut.item.id === shortcut.item.id ? 'true' : undefined
                         "
                         @click="selectShortcut(shortcut.item.id)"
+                        @keydown="handleShortcutRowKeydown($event, shortcut.item.id)"
                       >
                         <span class="settings-shortcut-row-copy">
                           <span class="settings-shortcut-name">{{ t(shortcut.item.labelKey) }}</span>

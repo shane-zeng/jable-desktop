@@ -16,6 +16,13 @@ const BROWSER_ORIGIN_CONTROLLER_SOURCE_PATH = path.join(
   'origin-controller.ts'
 );
 const BROWSER_RUNTIME_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser', 'runtime.ts');
+const BROWSER_SHORTCUT_MANAGER_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'browser',
+  'shortcut-manager.ts'
+);
 const BROWSER_PRELOAD_REQUESTS_SOURCE_PATH = path.join(
   ROOT_DIR,
   'app',
@@ -213,6 +220,21 @@ test('main process delegates browser runtime and app side-effect boundaries', fu
   assert.match(appActionsSource, /openLocalDataFolder/);
   assert.match(downloadAppShutdownSource, /downloadShutdownInProgress/);
   assert.match(downloadAppShutdownSource, /pauseDownloadsForShutdown/);
+});
+
+test('browser tab webContents receive the same app shortcut wiring', function () {
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const browserRuntimeSource = readSource(BROWSER_RUNTIME_SOURCE_PATH);
+  const browserShortcutManagerSource = readSource(BROWSER_SHORTCUT_MANAGER_SOURCE_PATH);
+  const browserTabManagerSource = readSource(BROWSER_TAB_MANAGER_SOURCE_PATH);
+  const appSource = readSource(APP_SOURCE_PATH);
+
+  assert.match(mainSource, /registerAppShortcuts\(mainWindow\.webContents\)/);
+  assert.match(browserRuntimeSource, /registerShortcuts: registerAppShortcuts/);
+  assert.match(browserShortcutManagerSource, /webContents\.on\('before-input-event'/);
+  assert.match(browserShortcutManagerSource, /browser-tabs-shared-toggle-shortcut/);
+  assert.match(browserTabManagerSource, /registerShortcuts\(tab\.view\.webContents\)/);
+  assert.match(appSource, /message\.channel === 'browser-tabs-shared-toggle-shortcut'/);
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
@@ -520,6 +542,9 @@ test('browser theater mode uses preload IPC and tab-scoped state', function () {
   assert.match(webviewPreload, /theaterModeController\.install\(\)/);
   assert.match(theaterModeSource, /function installTheaterModeController/);
   assert.match(theaterModeSource, /function theaterModeTargetForVideo/);
+  assert.match(theaterModeSource, /THEATER_MODE_EXIT_BUTTON_ID/);
+  assert.match(theaterModeSource, /function ensureTheaterModeExitButton/);
+  assert.match(theaterModeSource, /options\.sendChanged\(result\)/);
   assert.match(theaterModeSource, /THEATER_MODE_CONTROL_SELECTOR/);
   assert.match(theaterModeSource, /vjs-control-bar/);
   assert.match(theaterModeSource, /event\.key !== 'Escape'/);

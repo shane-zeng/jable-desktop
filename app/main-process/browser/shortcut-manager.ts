@@ -37,6 +37,7 @@ export type BrowserShortcutManager = {
   registerAppShortcuts(webContents: Electron.WebContents): void;
   reloadActiveTabFromShortcut(ignoreCache?: boolean): void;
   toggleCompactTabsFromShortcut(): void;
+  toggleSharedTabsFromShortcut(): void;
 };
 
 const browserTabPolicy = require('../../browser/browser-tab-policy') as BrowserTabPolicyModule;
@@ -63,12 +64,17 @@ function currentMainWindow(): Electron.BrowserWindow | null {
   return mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
 }
 
-function isPrimaryShortcut(input: BrowserTabShortcutInput | null | undefined, key: string, code?: string) {
+function isPrimaryShortcut(
+  input: BrowserTabShortcutInput | null | undefined,
+  key: string,
+  code?: string,
+  options?: { shift?: boolean }
+) {
   if (!input || input.type !== 'keyDown' || input.isAutoRepeat) return false;
   const inputKey = String(input.key || '').toLowerCase();
   const inputCode = String(input.code || '').toLowerCase();
   if (inputKey !== key && (!code || inputCode !== code)) return false;
-  if (input.alt || input.shift) return false;
+  if (input.alt || Boolean(input.shift) !== Boolean(options && options.shift)) return false;
 
   if (isMacos) return Boolean(input.meta) && !input.control;
   return Boolean(input.control) && !input.meta;
@@ -77,6 +83,7 @@ function isPrimaryShortcut(input: BrowserTabShortcutInput | null | undefined, ke
 function appViewShortcut(input: BrowserTabShortcutInput | null | undefined): AppView | null {
   if (isPrimaryShortcut(input, '1', 'digit1')) return 'browser';
   if (isPrimaryShortcut(input, '2', 'digit2')) return 'library';
+  if (isPrimaryShortcut(input, '3', 'digit3')) return 'settings';
   return null;
 }
 
@@ -90,6 +97,10 @@ function isCloseTabShortcut(input: BrowserTabShortcutInput | null | undefined) {
 
 function isToggleCompactTabsShortcut(input: BrowserTabShortcutInput | null | undefined) {
   return isPrimaryShortcut(input, 's');
+}
+
+function isToggleSharedTabsShortcut(input: BrowserTabShortcutInput | null | undefined) {
+  return isPrimaryShortcut(input, 's', undefined, { shift: true });
 }
 
 function runShortcutAction(name: string, action: () => void) {
@@ -163,6 +174,12 @@ function toggleCompactTabsFromShortcut() {
   });
 }
 
+function toggleSharedTabsFromShortcut() {
+  runShortcutAction('toggle-shared-tabs', function () {
+    forwardBrowserMessage('browser-tabs-shared-toggle-shortcut', {});
+  });
+}
+
 function switchAppViewFromShortcut(view: AppView) {
   runShortcutAction('app-view-' + view, function () {
     if (!currentMainWindow()) return;
@@ -209,6 +226,12 @@ function registerAppShortcuts(webContents: Electron.WebContents) {
     if (isToggleCompactTabsShortcut(input)) {
       event.preventDefault();
       toggleCompactTabsFromShortcut();
+      return;
+    }
+
+    if (isToggleSharedTabsShortcut(input)) {
+      event.preventDefault();
+      toggleSharedTabsFromShortcut();
     }
   });
 }
@@ -230,6 +253,7 @@ export function createBrowserShortcutManager(context: BrowserShortcutManagerCont
     openHomeTabFromShortcut: openHomeTabFromShortcut,
     registerAppShortcuts: registerAppShortcuts,
     reloadActiveTabFromShortcut: reloadActiveTabFromShortcut,
-    toggleCompactTabsFromShortcut: toggleCompactTabsFromShortcut
+    toggleCompactTabsFromShortcut: toggleCompactTabsFromShortcut,
+    toggleSharedTabsFromShortcut: toggleSharedTabsFromShortcut
   };
 }

@@ -11,6 +11,7 @@ export type ShortcutSource =
 export type ShortcutKeyToken =
   | '1'
   | '2'
+  | '3'
   | 'Alt'
   | 'Click'
   | 'Command'
@@ -68,6 +69,18 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
     keys: {
       macos: [['Command', '2']],
       windowsLinux: [['Ctrl', '2']]
+    },
+    sources: ['browser/shortcut-manager']
+  },
+  {
+    id: 'switch-settings-view',
+    category: 'appViews',
+    labelKey: 'settings.shortcuts.items.switchSettingsView.label',
+    descriptionKey: 'settings.shortcuts.items.switchSettingsView.description',
+    scopeKey: 'settings.shortcuts.scope.app',
+    keys: {
+      macos: [['Command', '3']],
+      windowsLinux: [['Ctrl', '3']]
     },
     sources: ['browser/shortcut-manager']
   },
@@ -178,6 +191,18 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
     sources: ['browser/shortcut-manager']
   },
   {
+    id: 'toggle-shared-tabs',
+    category: 'browserTabs',
+    labelKey: 'settings.shortcuts.items.toggleSharedTabs.label',
+    descriptionKey: 'settings.shortcuts.items.toggleSharedTabs.description',
+    scopeKey: 'settings.shortcuts.scope.browser',
+    keys: {
+      macos: [['Shift', 'Command', 'S']],
+      windowsLinux: [['Ctrl', 'Shift', 'S']]
+    },
+    sources: ['browser/shortcut-manager']
+  },
+  {
     id: 'toggle-theater-mode',
     category: 'videoPage',
     labelKey: 'settings.shortcuts.items.toggleTheaterMode.label',
@@ -230,6 +255,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
 const MACOS_KEY_LABELS: Record<ShortcutKeyToken, string> = {
   '1': '1',
   '2': '2',
+  '3': '3',
   Alt: 'Alt',
   Click: 'Click',
   Command: '⌘',
@@ -256,6 +282,7 @@ const MACOS_KEY_LABELS: Record<ShortcutKeyToken, string> = {
 const TEXT_KEY_LABELS: Record<ShortcutKeyToken, string> = {
   '1': '1',
   '2': '2',
+  '3': '3',
   Alt: 'Alt',
   Click: 'Click',
   Command: 'Command',

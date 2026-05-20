@@ -57,34 +57,43 @@ const i18n = useI18n();
     </div>
 
     <div
-      class="segmented-tabs topbar-view-tabs flex min-w-0 items-center justify-self-end rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
-      role="tablist"
-      :aria-label="i18n.t('topBar.mainViews')"
+      class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 max-[640px]:gap-2"
+      data-test="topbar-center"
     >
-      <button
-        class="segmented-tab min-h-[30px]"
-        :class="{
-          'is-active': activeView === 'browser'
-        }"
-        type="button"
-        role="tab"
-        :aria-selected="activeView === 'browser'"
-        @click="emit('set-view', 'browser')"
+      <div class="flex min-w-0 justify-center overflow-hidden">
+        <slot name="status"></slot>
+      </div>
+
+      <div
+        class="segmented-tabs topbar-view-tabs flex min-w-0 items-center justify-self-end rounded-lg border border-[var(--panel-border)] bg-[var(--segmented)] p-[3px]"
+        role="tablist"
+        :aria-label="i18n.t('topBar.mainViews')"
       >
-        {{ i18n.t('topBar.browser') }}
-      </button>
-      <button
-        class="segmented-tab min-h-[30px]"
-        :class="{
-          'is-active': activeView === 'library'
-        }"
-        type="button"
-        role="tab"
-        :aria-selected="activeView === 'library'"
-        @click="emit('set-view', 'library')"
-      >
-        {{ i18n.t('topBar.library') }}
-      </button>
+        <button
+          class="segmented-tab min-h-[30px]"
+          :class="{
+            'is-active': activeView === 'browser'
+          }"
+          type="button"
+          role="tab"
+          :aria-selected="activeView === 'browser'"
+          @click="emit('set-view', 'browser')"
+        >
+          {{ i18n.t('topBar.browser') }}
+        </button>
+        <button
+          class="segmented-tab min-h-[30px]"
+          :class="{
+            'is-active': activeView === 'library'
+          }"
+          type="button"
+          role="tab"
+          :aria-selected="activeView === 'library'"
+          @click="emit('set-view', 'library')"
+        >
+          {{ i18n.t('topBar.library') }}
+        </button>
+      </div>
     </div>
 
     <button

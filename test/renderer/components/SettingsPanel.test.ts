@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import SettingsPanel from '@/components/SettingsPanel.vue';
 import { setLocale } from '@/i18n';
 import type { AppPlatform, AppSettings, ExportResource } from '../../../app/types/jable';
@@ -26,6 +26,7 @@ function mountPanel(
   platform: AppPlatform | null = 'macos'
 ) {
   return mount(SettingsPanel, {
+    attachTo: document.body,
     props: {
       active: true,
       busy: false,
@@ -62,6 +63,10 @@ async function selectImportFile(wrapper: ReturnType<typeof mount>, resource: Exp
 }
 
 describe('SettingsPanel', function () {
+  afterEach(function () {
+    document.body.innerHTML = '';
+  });
+
   beforeEach(function () {
     setLocale('zh-TW', false);
   });
@@ -166,9 +171,11 @@ describe('SettingsPanel', function () {
 
     expect(macWrapper.get('[data-test="settings-shortcut-keys-switch-browser-view"]').text()).toContain('⌘1');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-switch-local-data-view"]').text()).toContain('⌘2');
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-switch-settings-view"]').text()).toContain('⌘3');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).toContain('⌘T');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('Ctrl+T');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain('⌥⌘→');
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-toggle-shared-tabs"]').text()).toContain('⇧⌘S');
 
     const windowsWrapper = mountPanel(undefined, '/tmp/jable-favourites.sqlite', 'windows');
 
@@ -178,16 +185,48 @@ describe('SettingsPanel', function () {
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-switch-local-data-view"]').text()).toContain(
       'Ctrl+2'
     );
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-switch-settings-view"]').text()).toContain('Ctrl+3');
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).toContain('Ctrl+T');
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('⌘T');
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain(
       'Ctrl+PageDown'
+    );
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-toggle-shared-tabs"]').text()).toContain(
+      'Ctrl+Shift+S'
     );
 
     await windowsWrapper.get('[data-test="settings-shortcut-search"]').setValue('劇院');
 
     expect(windowsWrapper.find('[data-test="settings-shortcut-row-toggle-theater-mode"]').exists()).toBe(true);
     expect(windowsWrapper.find('[data-test="settings-shortcut-row-new-browser-tab"]').exists()).toBe(false);
+
+    await windowsWrapper.get('[data-test="settings-shortcut-search"]').setValue('跨頁');
+
+    expect(windowsWrapper.find('[data-test="settings-shortcut-row-toggle-shared-tabs"]').exists()).toBe(true);
+  });
+
+  it('moves shortcut selection with keyboard arrows after a row is clicked', async function () {
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="settings-section-link-settings-shortcuts"]').trigger('click');
+
+    const localDataRow = wrapper.get('[data-test="settings-shortcut-row-switch-local-data-view"]');
+    await localDataRow.trigger('click');
+
+    expect(localDataRow.attributes('aria-current')).toBe('true');
+
+    await localDataRow.trigger('keydown', { key: 'ArrowDown' });
+    await flushPromises();
+
+    const settingsRow = wrapper.get('[data-test="settings-shortcut-row-switch-settings-view"]');
+    expect(settingsRow.attributes('aria-current')).toBe('true');
+    expect(document.activeElement).toBe(settingsRow.element);
+
+    await settingsRow.trigger('keydown', { key: 'ArrowUp' });
+    await flushPromises();
+
+    expect(localDataRow.attributes('aria-current')).toBe('true');
+    expect(document.activeElement).toBe(localDataRow.element);
   });
 
   it('disables opening the data folder until the database path is available', function () {

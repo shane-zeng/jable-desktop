@@ -61,6 +61,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Browser shortcut detection is centralized in `app/browser/browser-tab-policy.ts`.
 - Shortcut handling ignores auto-repeat.
 - A short debounce prevents duplicate shortcut handling across multiple `webContents`.
+- App view shortcuts switch to Browser, Local Data, and Settings with `Command/Ctrl+1`, `Command/Ctrl+2`, and `Command/Ctrl+3`.
 - Reload shortcuts include browser-standard normal reload keys and hard-reload variants, including `F5`, `Command/Ctrl+R`, `Command/Ctrl+Shift+R`, `Ctrl+F5`, `Shift+F5`, and macOS `Command+Option+R`.
 - macOS horizontal trackpad gestures inside embedded browser content map to browser back/forward when the target cannot continue horizontal scrolling.
 - macOS window swipe gestures also map to browser back/forward.
@@ -112,6 +113,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - When a tab with theater mode enabled returns to a Jable video page, the webview preload reapplies the theater layout after the player appears.
 - Pressing plain `T` on a trusted Jable video page toggles theater mode when focus is not in an editable field. `Command+T` / `Ctrl+T` keeps its existing new-tab behavior.
 - Pressing `Esc` while theater mode is active disables theater mode for that tab.
+- Clicking the theater-mode `x` button inside the browser content disables theater mode for that tab.
 - HTML fullscreen remains separate and takes priority over theater layout while fullscreen is active.
 
 ## WebView Enhancement Mode

@@ -570,7 +570,10 @@ function sendBrowserTheaterModeMessage(tab: BrowserTab | null | undefined, chann
   if (!tab || !tab.theaterMode || tab.view.webContents.isDestroyed()) return;
 
   try {
-    tab.view.webContents.send(channel, { enabled: true });
+    tab.view.webContents.send(channel, {
+      enabled: true,
+      exitLabel: t('context.exitTheaterMode')
+    });
   } catch (error) {}
 }
 
