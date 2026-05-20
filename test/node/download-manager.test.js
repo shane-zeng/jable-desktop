@@ -149,7 +149,7 @@ function createFakeRemuxFfmpeg(userDataDir) {
           'shift',
           'goto read_args',
           ':write_output',
-          '> "%out%" echo fake-video',
+          '> "%out%" <nul set /p dummy=fake-video',
           'echo total_size=10',
           ''
         ].join('\r\n')
