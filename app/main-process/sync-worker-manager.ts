@@ -1,7 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type { BrowserLoadFailure } from './browser-tab-manager';
+import type { BrowserLoadFailure } from './browser/tab-manager';
 import type {
   BrowserTabKind,
   CollectionAction,

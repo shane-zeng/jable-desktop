@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { createBrowserShortcutManager } = require('../../app/runtime-dist/main-process/browser-shortcut-manager');
+const { createBrowserShortcutManager } = require('../../app/runtime-dist/main-process/browser/shortcut-manager');
 
 function createHarness(options = {}) {
   let shortcutHandler = null;

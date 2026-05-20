@@ -1,7 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type { AppView, BrowserNavigationState, BrowserTabsState, CreateBrowserTabPayload } from '../types/jable';
+import type { AppView, BrowserNavigationState, BrowserTabsState, CreateBrowserTabPayload } from '../../types/jable';
 
 type BrowserTabShortcutInput = Electron.Input & {
   control?: boolean;
@@ -39,7 +39,7 @@ export type BrowserShortcutManager = {
   toggleCompactTabsFromShortcut(): void;
 };
 
-const browserTabPolicy = require('../browser/browser-tab-policy') as BrowserTabPolicyModule;
+const browserTabPolicy = require('../../browser/browser-tab-policy') as BrowserTabPolicyModule;
 const browserTabReloadShortcut = browserTabPolicy.browserTabReloadShortcut;
 const browserTabShortcutOffset = browserTabPolicy.browserTabShortcutOffset;
 

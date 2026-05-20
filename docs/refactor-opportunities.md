@@ -73,6 +73,10 @@ Before implementing a candidate:
   Local playback range parsing, custom-protocol serving, and thumbnail preview generation now live under `app/main-process/local-playback/`.
 - Root playback/download adapter removal.
   Main-process source, Node tests, and Electron startup now import domain entrypoints directly from `app/main-process/download/`, `app/main-process/hls-playback/`, and `app/main-process/local-playback/`. Electron runtime builds clean `app/runtime-dist/` before compiling so deleted ignored output files do not remain package candidates.
+- Main-process browser/app boundary split.
+  `app/main.ts` is back under 1000 lines and keeps lifecycle plus top-level wiring. Embedded browser runtime wiring, browser session restore/save, preload request/response bookkeeping, and active Jable origin fallback state are delegated out of `main.ts`; app local/export/documentation side effects live in `app-actions.ts`; and app-level active-download quit/window-close gating lives in `download-app-shutdown.ts`.
+- Main-process browser folder boundary.
+  Browser runtime modules now live under `app/main-process/browser/`: `runtime.ts` composes the browser subsystem, `tab-manager.ts` owns `WebContentsView` tab state, `shortcut-manager.ts` owns main-process shortcut wiring, `session-controller.ts` and `session-store.ts` own startup tab persistence, `preload-requests.ts` owns browser preload request/response bookkeeping, and `origin-controller.ts` owns active Jable origin fallback state.
 
 ## Remaining Candidates
 

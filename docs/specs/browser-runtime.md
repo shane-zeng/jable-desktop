@@ -138,7 +138,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 ## Related Files
 
 - `app/main.ts`
-- `app/main-process/browser-session-store.ts`
+- `app/main-process/browser/session-store.ts`
 - `app/preload.ts`
 - `app/webview-preload.ts`
 - `app/browser/webview-preload/browser-sync.ts`

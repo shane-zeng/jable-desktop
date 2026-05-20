@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const browserSessionStore = require('../../app/runtime-dist/main-process/browser-session-store.js');
+const browserSessionStore = require('../../app/runtime-dist/main-process/browser/session-store.js');
 
 function tempSessionPath() {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'jable-browser-session-')), 'browser-session.json');

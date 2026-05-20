@@ -75,7 +75,7 @@ These items are provided through Electron menu `role` entries. Labels and accele
 - Browser tab keyboard shortcuts are registered through Electron `before-input-event` on each relevant `webContents`, including the renderer and every BrowserView.
 - The shortcut handler ignores auto-repeat and uses a short debounce to avoid handling the same keypress from multiple `webContents`.
 - After a successful tab switch, focus is moved to the new active BrowserView so repeated tab-switching shortcuts continue to work.
-- Tab-switching, opener-group new-tab placement, close activation, and reload shortcut helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser-shortcut-manager.ts`.
+- Tab-switching, opener-group new-tab placement, close activation, and reload shortcut helpers live in `app/browser/browser-tab-policy.ts`; main-process shortcut wiring lives in `app/main-process/browser/shortcut-manager.ts`.
 - Settings > Shortcuts renders its platform-specific user-facing list from `app/renderer-src/shortcut-catalog.ts`. When shortcut behavior changes, update this document, the catalog, implementation, and focused tests in the same change.
 - Theater mode can be toggled from the context menu or with plain `T` on trusted Jable video pages. `Command+T` / `Ctrl+T` still opens a new browser tab, and editable fields keep normal text input.
 - Embedded browser middle-click new-tab behavior lives in `app/webview-preload.ts`; Local Data video-card new-tab gestures originate in `app/renderer-src/components/VideoCard.vue`, and `app/renderer-src/App.vue` decides whether the created browser tab is activated.

@@ -10,17 +10,16 @@ import type {
   UpdateCheckOptions,
   UpdateCheckResult
 } from './main-process/app-menu-manager';
-import type {
-  BrowserLoadFailure,
-  BrowserReloadOptions,
-  BrowserTab,
-  BrowserTabManager,
-  BrowserTabManagerContext
-} from './main-process/browser-tab-manager';
-import type { BrowserSessionSnapshot } from './main-process/browser-session-store';
-import type { BrowserShortcutManager, BrowserShortcutManagerContext } from './main-process/browser-shortcut-manager';
+import type { AppActions, AppActionsContext } from './main-process/app-actions';
+import type { BrowserLoadFailure, BrowserTab } from './main-process/browser/tab-manager';
+import type { BrowserOriginController, BrowserOriginControllerContext } from './main-process/browser/origin-controller';
+import type { BrowserRuntimeController, BrowserRuntimeControllerContext } from './main-process/browser/runtime';
 import type { ContextMenuManager, ContextMenuManagerContext } from './main-process/context-menu-manager';
 import type { DataEngine } from './data/data-engine';
+import type {
+  DownloadAppShutdownController,
+  DownloadAppShutdownControllerContext
+} from './main-process/download-app-shutdown';
 import type { DownloadManager, DownloadManagerContext } from './main-process/download/manager';
 import type { IpcHandlersContext } from './main-process/ipc-handlers';
 import type {
@@ -33,16 +32,9 @@ import type {
   AppSettings,
   AppSettingsPatch,
   AppPlatform,
-  BrowserBounds,
-  BrowserNavigatePayload,
-  BrowserNavigationState,
   BrowserTabKind,
-  BrowserTabLockedPayload,
   BrowserTabMenuPayload,
-  BrowserTabMutedPayload,
-  BrowserTabsState,
   CollectionKey,
-  CreateBrowserTabPayload,
   ExportJsonFileResult,
   LibraryVideoMenuPayload,
   PendingRemoteOperationActionResult,
@@ -50,12 +42,6 @@ import type {
   SyncBrowserCollectionOptions,
   SyncResult
 } from './types/jable';
-import {
-  optionalBooleanField,
-  optionalStringField,
-  requiredRecord,
-  requiredStringValue
-} from './main-process/ipc-normalizers';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
 type DatabaseCollection = { key: CollectionKey; name: string; sourcePath: string };
@@ -67,37 +53,12 @@ type SettingsModule = {
   normalizeAppSettingsPatch(value: unknown): AppSettingsPatch;
   settingsFilePath(userDataPath: string): string;
 };
-type BrowserSessionStoreModule = {
-  BrowserSessionStore: new (filePath: string) => {
-    readForRestore(options: { maxTabs: number; normalizeUrl(value: unknown): string }): BrowserSessionSnapshot | null;
-    write(snapshot: BrowserSessionSnapshot): void;
-    clear(): void;
-  };
-  browserSessionFilePath(userDataPath: string): string;
-};
 type DataEngineModule = {
   COLLECTIONS: DatabaseCollection[];
   createDataEngine(filePath: string): DataEngine;
 };
 type BrowserTabPolicyModule = {
   browserTabWebPreferences(kind: BrowserTabKind, preloadPath: string, partition: string): Electron.WebPreferences;
-};
-type BrowserPreloadRequest = {
-  webContentsId: number;
-  timer: ReturnType<typeof setTimeout>;
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-};
-type BrowserPreloadResponse = {
-  requestId: string;
-  ok: boolean;
-  result?: unknown;
-  error?: string;
-};
-type BrowserTheaterModeResult = {
-  enabled: boolean;
-  applied: boolean;
-  videoUrl: string | null;
 };
 type I18nModule = {
   DEFAULT_LOCALE: SupportedLocale;
@@ -178,21 +139,26 @@ const electron: typeof Electron = require('electron');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 const webViewEnhancement = require('./browser/webview-enhancement') as WebViewEnhancementModule;
+const appActionsModule = require('./main-process/app-actions') as {
+  createAppActions(context: AppActionsContext): AppActions;
+};
 const appMenuManagerModule = require('./main-process/app-menu-manager') as {
   createAppMenuManager(context: AppMenuManagerContext): AppMenuManager;
 };
-const browserSessionStoreModule = require('./main-process/browser-session-store') as BrowserSessionStoreModule;
-const browserTabManagerModule = require('./main-process/browser-tab-manager') as {
-  createBrowserTabManager(context: BrowserTabManagerContext): BrowserTabManager;
+const browserOriginControllerModule = require('./main-process/browser/origin-controller') as {
+  createBrowserOriginController(context: BrowserOriginControllerContext): BrowserOriginController;
 };
-const browserShortcutManagerModule = require('./main-process/browser-shortcut-manager') as {
-  createBrowserShortcutManager(context: BrowserShortcutManagerContext): BrowserShortcutManager;
+const browserRuntimeModule = require('./main-process/browser/runtime') as {
+  createBrowserRuntimeController(context: BrowserRuntimeControllerContext): BrowserRuntimeController;
 };
 const browserTabPolicy = require('./browser/browser-tab-policy') as BrowserTabPolicyModule;
 const contextMenuManagerModule = require('./main-process/context-menu-manager') as {
   createContextMenuManager(context: ContextMenuManagerContext): ContextMenuManager;
 };
 const dataEngineModule = require('./data/data-engine') as DataEngineModule;
+const downloadAppShutdownModule = require('./main-process/download-app-shutdown') as {
+  createDownloadAppShutdownController(context: DownloadAppShutdownControllerContext): DownloadAppShutdownController;
+};
 const downloadManagerModule = require('./main-process/download/manager') as {
   LOCAL_PLAYBACK_SCHEME: string;
   createDownloadManager(context: DownloadManagerContext): DownloadManager;
@@ -255,26 +221,18 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let mainWindow: Electron.BrowserWindow | null = null;
-const browserPreloadRequests: Record<string, BrowserPreloadRequest> = {};
-let nextBrowserPreloadRequestId = 1;
-let activeJableOrigin = urlPolicy.JABLE_PRIMARY_ORIGIN;
+let appActions: AppActions | null = null;
 let appMenuManager: AppMenuManager | null = null;
-let browserSessionStore: InstanceType<BrowserSessionStoreModule['BrowserSessionStore']> | null = null;
-let browserTabManager: BrowserTabManager | null = null;
-let browserShortcutManager: BrowserShortcutManager | null = null;
+let browserOriginController: BrowserOriginController | null = null;
+let browserRuntimeController: BrowserRuntimeController | null = null;
 let contextMenuManager: ContextMenuManager | null = null;
 let database: DataEngine | null = null;
 let databasePath: string | null = null;
+let downloadAppShutdownController: DownloadAppShutdownController | null = null;
 let downloadManager: DownloadManager | null = null;
 let syncWorkerManager: SyncWorkerManager | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
-let allowDownloadAppQuit = false;
-let allowDownloadWindowClose = false;
-let downloadShutdownInProgress: Promise<void> | null = null;
-let quitAfterDownloadShutdownInFlight = false;
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
-let browserSessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let browserSessionRestoreInProgress = false;
 
 function t(key: string, params?: TranslationParams | null): string {
   return i18n.t(currentLocale, key, params);
@@ -328,7 +286,9 @@ function installHlsPlaybackCapture(): Promise<void> {
   return hlsPlaybackCapture.installHlsPlaybackCapture({
     canonicalJableVideoUrl: urlPolicy.canonicalJableVideoUrl,
     env: process.env,
-    getBrowserTabByWebContents: getBrowserTabByWebContents,
+    getBrowserTabByWebContents: function (webContents) {
+      return getBrowserRuntime().getTabByWebContents(webContents);
+    },
     jableFallbackOrigin: urlPolicy.JABLE_FALLBACK_ORIGIN,
     jablePrimaryOrigin: urlPolicy.JABLE_PRIMARY_ORIGIN,
     jableSession: session.fromPartition(JABLE_SESSION_PARTITION),
@@ -365,27 +325,68 @@ function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function normalizeBrowserNavigationUrl(value: unknown): string {
-  const url = String(value || '').trim();
-  if (!url) return '';
-  if (!urlPolicy.isSafeBrowserUrl(url)) throw new Error(t('errors.unsupportedUrlProtocol'));
-  return urlPolicy.rewriteJableUrlOrigin(url, activeJableOrigin);
+function getBrowserOriginController(): BrowserOriginController {
+  if (!browserOriginController) {
+    browserOriginController = browserOriginControllerModule.createBrowserOriginController({
+      fallbackJableUrl: urlPolicy.fallbackJableUrl,
+      fallbackOrigin: urlPolicy.JABLE_FALLBACK_ORIGIN,
+      forwardBrowserMessage: forwardBrowserMessage,
+      isSafeBrowserUrl: urlPolicy.isSafeBrowserUrl,
+      primaryOrigin: urlPolicy.JABLE_PRIMARY_ORIGIN,
+      rewriteJableUrlOrigin: urlPolicy.rewriteJableUrlOrigin,
+      t: t
+    });
+  }
+
+  return browserOriginController;
 }
 
-function notifyJableOriginFallback(origin: string) {
-  forwardBrowserMessage('jable-origin-fallback', { origin: origin });
+function normalizeBrowserNavigationUrl(value: unknown): string {
+  return getBrowserOriginController().normalizeNavigationUrl(value);
 }
 
 function activateJableFallbackOrigin() {
-  if (activeJableOrigin === urlPolicy.JABLE_FALLBACK_ORIGIN) return;
-  activeJableOrigin = urlPolicy.JABLE_FALLBACK_ORIGIN;
-  notifyJableOriginFallback(activeJableOrigin);
+  getBrowserOriginController().activateFallbackOrigin();
 }
 
 function fallbackUrlForLoadFailure(failure: BrowserLoadFailure | null | undefined): string | null {
-  if (!failure || failure.errorCode === -3) return null;
-  if (activeJableOrigin !== urlPolicy.JABLE_PRIMARY_ORIGIN) return null;
-  return urlPolicy.fallbackJableUrl(failure.url);
+  return getBrowserOriginController().fallbackUrlForLoadFailure(failure);
+}
+
+function getBrowserRuntime(): BrowserRuntimeController {
+  if (!browserRuntimeController) {
+    browserRuntimeController = browserRuntimeModule.createBrowserRuntimeController({
+      activateFallbackOrigin: activateJableFallbackOrigin,
+      createWindow: createWindow,
+      fallbackUrlForLoadFailure: fallbackUrlForLoadFailure,
+      forwardBrowserMessage: forwardBrowserMessage,
+      getMainWindow: function () {
+        return mainWindow;
+      },
+      getMaxBrowserTabs: function () {
+        return getAppSettings().maxBrowserTabs;
+      },
+      getSettings: getAppSettings,
+      homeUrl: JABLE_HOME_URL,
+      isMacos: IS_MACOS,
+      logger: console,
+      mainErrorMessage: mainErrorMessage,
+      normalizeNavigationUrl: normalizeBrowserNavigationUrl,
+      saveDelayMs: BROWSER_SESSION_SAVE_DELAY_MS,
+      sessionPartition: JABLE_SESSION_PARTITION,
+      shouldDenyWebViewEnhancementNavigation: shouldDenyWebViewEnhancementNavigation,
+      showBrowserContextMenu: showBrowserContextMenu,
+      t: t,
+      theaterModeRequestTimeoutMs: BROWSER_THEATER_MODE_REQUEST_TIMEOUT_MS,
+      userDataPath: function () {
+        return app.getPath('userData');
+      },
+      WebContentsView: WebContentsView,
+      webviewPreloadPath: path.join(__dirname, 'webview-preload.js')
+    });
+  }
+
+  return browserRuntimeController;
 }
 
 function browserSyncCollectionPayloadWithSettings(payload: {
@@ -417,66 +418,8 @@ function getSettingsStore() {
   return settingsStore;
 }
 
-function getBrowserSessionStore() {
-  if (!browserSessionStore) {
-    browserSessionStore = new browserSessionStoreModule.BrowserSessionStore(
-      browserSessionStoreModule.browserSessionFilePath(app.getPath('userData'))
-    );
-  }
-
-  return browserSessionStore;
-}
-
 function getAppSettings(): AppSettings {
   return getSettingsStore().get();
-}
-
-function clearBrowserSessionSaveTimer() {
-  if (!browserSessionSaveTimer) return;
-  clearTimeout(browserSessionSaveTimer);
-  browserSessionSaveTimer = null;
-}
-
-function saveBrowserSessionNow() {
-  clearBrowserSessionSaveTimer();
-
-  if (!browserTabManager || browserSessionRestoreInProgress || !getAppSettings().restoreBrowserTabsOnStartup) return;
-
-  const snapshot = browserTabManager.sessionSnapshot();
-  if (!snapshot.tabs.length) {
-    getBrowserSessionStore().clear();
-    return;
-  }
-
-  getBrowserSessionStore().write(snapshot);
-}
-
-function scheduleBrowserSessionSave() {
-  if (!browserTabManager || browserSessionRestoreInProgress || !getAppSettings().restoreBrowserTabsOnStartup) return;
-
-  clearBrowserSessionSaveTimer();
-  browserSessionSaveTimer = setTimeout(function () {
-    try {
-      saveBrowserSessionNow();
-    } catch (error) {
-      console.error(error);
-    }
-  }, BROWSER_SESSION_SAVE_DELAY_MS);
-}
-
-function flushBrowserSession() {
-  clearBrowserSessionSaveTimer();
-
-  try {
-    if (!getAppSettings().restoreBrowserTabsOnStartup) {
-      getBrowserSessionStore().clear();
-      return;
-    }
-
-    if (browserTabManager && browserTabManager.tabCount() > 0) saveBrowserSessionNow();
-  } catch (error) {
-    console.error(error);
-  }
 }
 
 function getDownloadManager(): DownloadManager {
@@ -491,7 +434,7 @@ function getDownloadManager(): DownloadManager {
       },
       forwardBrowserMessage: forwardBrowserMessage,
       sendToAllBrowserTabs: function (channel, payload) {
-        if (browserTabManager) browserTabManager.sendToAllTabs(channel, payload);
+        getBrowserRuntime().sendToAllTabs(channel, payload);
       },
       session: session,
       shell: shell,
@@ -507,14 +450,13 @@ function getDownloadManager(): DownloadManager {
 function updateAppSettings(patch: unknown): AppSettings {
   const previousSettings = getAppSettings();
   const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
-  notifyBrowserTabsChanged();
+  getBrowserRuntime().notifyChanged();
   forwardBrowserMessage('settings-changed', settings);
-  if (browserTabManager) browserTabManager.sendToAllTabs('settings-changed', settings);
+  getBrowserRuntime().sendToAllTabs('settings-changed', settings);
   if (previousSettings.restoreBrowserTabsOnStartup !== settings.restoreBrowserTabsOnStartup) {
-    if (settings.restoreBrowserTabsOnStartup) saveBrowserSessionNow();
+    if (settings.restoreBrowserTabsOnStartup) getBrowserRuntime().saveSessionNow();
     else {
-      clearBrowserSessionSaveTimer();
-      getBrowserSessionStore().clear();
+      getBrowserRuntime().clearSession();
     }
   }
   if (downloadManager && previousSettings.autoDownloadOnPlayback && !settings.autoDownloadOnPlayback) {
@@ -533,100 +475,62 @@ function getDatabase(): DataEngine {
   return database;
 }
 
-function localDataFolderPath(): string {
-  getDatabase();
-  if (!databasePath) throw new Error(t('status.unknownError'));
-  return path.dirname(databasePath);
+function getAppActions(): AppActions {
+  if (!appActions) {
+    appActions = appActionsModule.createAppActions({
+      app: app,
+      collections: COLLECTIONS,
+      dialog: dialog,
+      ffmpegGuideUrls: FFMPEG_GUIDE_URLS,
+      fs: fs,
+      getCurrentLocale: function () {
+        return currentLocale;
+      },
+      getDatabase: getDatabase,
+      getDatabasePath: function () {
+        return databasePath;
+      },
+      getMainWindow: function () {
+        return mainWindow;
+      },
+      path: path,
+      shell: shell,
+      t: t
+    });
+  }
+
+  return appActions;
 }
 
 function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
-  const folderPath = localDataFolderPath();
-  fs.mkdirSync(folderPath, { recursive: true });
-
-  return shell.openPath(folderPath).then(function (errorMessage: string) {
-    if (errorMessage) throw new Error(errorMessage);
-    return {
-      opened: true,
-      path: folderPath
-    };
-  });
+  return getAppActions().openLocalDataFolder();
 }
 
 function openFfmpegGuide(): Promise<{ opened: boolean; url: string }> {
-  const url = FFMPEG_GUIDE_URLS[currentLocale] || FFMPEG_GUIDE_URLS['en-US'];
+  return getAppActions().openFfmpegGuide();
+}
 
-  return shell.openExternal(url).then(function () {
-    return {
-      opened: true,
-      url: url
-    };
-  });
+function getDownloadAppShutdownController(): DownloadAppShutdownController {
+  if (!downloadAppShutdownController) {
+    downloadAppShutdownController = downloadAppShutdownModule.createDownloadAppShutdownController({
+      appQuit: function () {
+        app.quit();
+      },
+      getDownloadManager: getDownloadManager,
+      logger: console,
+      quitAfterWindowClose: process.platform !== 'darwin'
+    });
+  }
+
+  return downloadAppShutdownController;
 }
 
 function hasQueuedOrActiveDownloads(): boolean {
-  return getDownloadManager().hasQueuedOrActiveDownloads();
-}
-
-function pauseDownloadsForShutdown(): Promise<void> {
-  if (!downloadShutdownInProgress) {
-    downloadShutdownInProgress = Promise.resolve()
-      .then(function () {
-        return getDownloadManager().pauseDownloadsForShutdown();
-      })
-      .finally(function () {
-        downloadShutdownInProgress = null;
-      });
-  }
-
-  return downloadShutdownInProgress;
-}
-
-function confirmPauseDownloadsBeforeClose(): Promise<boolean> {
-  return getDownloadManager().confirmPauseDownloadsBeforeClose();
+  return getDownloadAppShutdownController().hasQueuedOrActiveDownloads();
 }
 
 function promptPauseDownloadsAndClose(browserWindow: Electron.BrowserWindow) {
-  confirmPauseDownloadsBeforeClose()
-    .then(function (confirmed) {
-      if (!confirmed) return;
-      if (process.platform !== 'darwin') allowDownloadAppQuit = true;
-      allowDownloadWindowClose = true;
-      return pauseDownloadsForShutdown().then(function () {
-        if (!browserWindow.isDestroyed()) browserWindow.close();
-      });
-    })
-    .catch(function (error) {
-      console.error(error);
-    });
-}
-
-function quitAfterDownloadsPaused() {
-  if (quitAfterDownloadShutdownInFlight) return;
-  quitAfterDownloadShutdownInFlight = true;
-  allowDownloadAppQuit = true;
-  allowDownloadWindowClose = true;
-
-  pauseDownloadsForShutdown()
-    .then(function () {
-      app.quit();
-    })
-    .catch(function (error) {
-      console.error(error);
-    })
-    .finally(function () {
-      quitAfterDownloadShutdownInFlight = false;
-    });
-}
-
-function promptPauseDownloadsAndQuit() {
-  confirmPauseDownloadsBeforeClose()
-    .then(function (confirmed) {
-      if (!confirmed) return;
-      quitAfterDownloadsPaused();
-    })
-    .catch(function (error) {
-      console.error(error);
-    });
+  getDownloadAppShutdownController().promptPauseDownloadsAndClose(browserWindow);
 }
 
 function createWindow() {
@@ -645,14 +549,14 @@ function createWindow() {
     }
   });
 
-  registerAppShortcuts(mainWindow.webContents);
+  getBrowserRuntime().registerAppShortcuts(mainWindow.webContents);
 
   mainWindow.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url) {
       if (shouldDenyWebViewEnhancementNavigation(details.url)) return { action: 'deny' };
 
       try {
-        createBrowserTab({
+        getBrowserRuntime().createTab({
           url: details.url,
           active: true
         });
@@ -665,21 +569,26 @@ function createWindow() {
   });
 
   mainWindow.on('swipe', function (_event: Electron.Event, direction: string) {
-    if (direction === 'right') goBrowserBack();
-    else if (direction === 'left') goBrowserForward();
+    if (direction === 'right') getBrowserRuntime().goBack();
+    else if (direction === 'left') getBrowserRuntime().goForward();
   });
 
-  mainWindow.on('resize', scheduleBrowserHtmlFullScreenResize);
-  mainWindow.on('enter-full-screen', scheduleBrowserHtmlFullScreenResize);
-  mainWindow.on('leave-full-screen', scheduleBrowserHtmlFullScreenResize);
+  mainWindow.on('resize', function () {
+    getBrowserRuntime().scheduleHtmlFullScreenResize();
+  });
+  mainWindow.on('enter-full-screen', function () {
+    getBrowserRuntime().scheduleHtmlFullScreenResize();
+  });
+  mainWindow.on('leave-full-screen', function () {
+    getBrowserRuntime().scheduleHtmlFullScreenResize();
+  });
   mainWindow.on('close', function (event: Electron.Event) {
-    if (allowDownloadWindowClose) {
-      allowDownloadWindowClose = false;
-      flushBrowserSession();
+    if (getDownloadAppShutdownController().consumeWindowCloseAllowance()) {
+      getBrowserRuntime().flushSession();
       return;
     }
     if (!hasQueuedOrActiveDownloads()) {
-      flushBrowserSession();
+      getBrowserRuntime().flushSession();
       return;
     }
 
@@ -687,93 +596,13 @@ function createWindow() {
     promptPauseDownloadsAndClose(mainWindow as Electron.BrowserWindow);
   });
   mainWindow.on('closed', function () {
-    if (browserTabManager) browserTabManager.closeAllTabs();
+    getBrowserRuntime().closeAllTabs();
     mainWindow = null;
     closeAllSyncWorkers();
   });
 
   loadRenderer();
-  createInitialBrowserTabs();
-}
-
-function createInitialBrowserTabs() {
-  const settings = getAppSettings();
-
-  if (!settings.restoreBrowserTabsOnStartup) {
-    createBrowserTab({ url: JABLE_HOME_URL, active: true });
-    return;
-  }
-
-  const snapshot = getBrowserSessionStore().readForRestore({
-    maxTabs: settings.maxBrowserTabs,
-    normalizeUrl: normalizeBrowserNavigationUrl
-  });
-
-  if (!snapshot) {
-    createBrowserTab({ url: JABLE_HOME_URL, active: true });
-    return;
-  }
-
-  browserSessionRestoreInProgress = true;
-
-  try {
-    for (let i = 0; i < snapshot.tabs.length; i++) {
-      createBrowserTab({
-        url: snapshot.tabs[i].url,
-        active: true,
-        locked: snapshot.tabs[i].locked,
-        muted: snapshot.tabs[i].muted
-      });
-    }
-
-    const state = browserTabsState();
-    const activeTab = state.tabs[snapshot.activeTabIndex] || state.tabs[0];
-    if (activeTab) activateBrowserTab(activeTab.id);
-  } catch (error) {
-    console.error(error);
-    if (getBrowserTabManager().tabCount() === 0) createBrowserTab({ url: JABLE_HOME_URL, active: true });
-  } finally {
-    browserSessionRestoreInProgress = false;
-    scheduleBrowserSessionSave();
-  }
-}
-
-function shouldActivateWindowOpen(details: Electron.HandlerDetails | null | undefined) {
-  return !details || details.disposition !== 'background-tab';
-}
-
-function getBrowserShortcutManager(): BrowserShortcutManager {
-  if (!browserShortcutManager) {
-    browserShortcutManager = browserShortcutManagerModule.createBrowserShortcutManager({
-      activateRelativeBrowserTab: function (offset) {
-        return getBrowserTabManager().activateRelativeTab(offset);
-      },
-      closeBrowserTab: closeBrowserTab,
-      createBrowserTab: createBrowserTab,
-      createWindow: createWindow,
-      forwardBrowserMessage: forwardBrowserMessage,
-      getMainWindow: function () {
-        return mainWindow;
-      },
-      homeUrl: JABLE_HOME_URL,
-      isMacos: IS_MACOS,
-      reloadBrowser: reloadBrowser
-    });
-  }
-
-  return browserShortcutManager;
-}
-
-function openHomeTabFromShortcut() {
-  getBrowserShortcutManager().openHomeTabFromShortcut();
-}
-
-function closeActiveTabFromShortcut() {
-  getBrowserShortcutManager().closeActiveTabFromShortcut();
-}
-
-function registerAppShortcuts(webContents: Electron.WebContents) {
-  getBrowserShortcutManager().registerAppShortcuts(webContents);
+  getBrowserRuntime().createInitialTabs();
 }
 
 function loadRenderer() {
@@ -792,7 +621,9 @@ function getAppMenuManager(): AppMenuManager {
     appMenuManager = appMenuManagerModule.createAppMenuManager({
       app: app,
       backgroundUpdateCheckDelayMs: BACKGROUND_UPDATE_CHECK_DELAY_MS,
-      closeActiveTabFromShortcut: closeActiveTabFromShortcut,
+      closeActiveTabFromShortcut: function () {
+        getBrowserRuntime().closeActiveTabFromShortcut();
+      },
       closeTabAccelerator: CLOSE_TAB_ACCELERATOR,
       dialog: dialog,
       getMainWindow: function () {
@@ -803,7 +634,9 @@ function getAppMenuManager(): AppMenuManager {
       mainErrorMessage: mainErrorMessage,
       Menu: Menu,
       newTabAccelerator: NEW_TAB_ACCELERATOR,
-      openHomeTabFromShortcut: openHomeTabFromShortcut,
+      openHomeTabFromShortcut: function () {
+        getBrowserRuntime().openHomeTabFromShortcut();
+      },
       shell: shell,
       t: t,
       updateChecker: updateChecker
@@ -829,240 +662,6 @@ function scheduleBackgroundUpdateCheck() {
   getAppMenuManager().scheduleBackgroundUpdateCheck();
 }
 
-function getBrowserTabManager(): BrowserTabManager {
-  if (!browserTabManager) {
-    browserTabManager = browserTabManagerModule.createBrowserTabManager({
-      activateFallbackOrigin: activateJableFallbackOrigin,
-      fallbackUrlForLoadFailure: fallbackUrlForLoadFailure,
-      forwardBrowserMessage: forwardBrowserMessage,
-      getMainWindow: function () {
-        return mainWindow;
-      },
-      getMaxBrowserTabs: function () {
-        return getAppSettings().maxBrowserTabs;
-      },
-      homeUrl: JABLE_HOME_URL,
-      normalizeNavigationUrl: normalizeBrowserNavigationUrl,
-      onBrowserTabsChanged: scheduleBrowserSessionSave,
-      registerShortcuts: registerAppShortcuts,
-      rejectPreloadRequestsForWebContents: rejectBrowserPreloadRequestsForWebContents,
-      sessionPartition: JABLE_SESSION_PARTITION,
-      shouldActivateWindowOpen: shouldActivateWindowOpen,
-      shouldDenyWebViewEnhancementNavigation: shouldDenyWebViewEnhancementNavigation,
-      showBrowserContextMenu: showBrowserContextMenu,
-      t: t,
-      WebContentsView: WebContentsView,
-      webviewPreloadPath: path.join(__dirname, 'webview-preload.js')
-    });
-  }
-
-  return browserTabManager;
-}
-
-function createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
-  return getBrowserTabManager().createTab(options);
-}
-
-function getBrowserTab(tabId?: string | null): BrowserTab {
-  return getBrowserTabManager().getTab(tabId);
-}
-
-function getBrowserTabByWebContents(webContents: Electron.WebContents | null | undefined): BrowserTab | null {
-  return getBrowserTabManager().getTabByWebContents(webContents);
-}
-
-function browserTabsState(): BrowserTabsState {
-  return getBrowserTabManager().listTabs();
-}
-
-function notifyBrowserTabsChanged() {
-  getBrowserTabManager().notifyChanged();
-}
-
-function browserNavigationState(tabId?: string | null): BrowserNavigationState {
-  return getBrowserTabManager().navigationState(tabId);
-}
-
-function scheduleBrowserHtmlFullScreenResize() {
-  getBrowserTabManager().scheduleHtmlFullScreenResize();
-}
-
-function setBrowserBounds(bounds: BrowserBounds | null | undefined): BrowserBounds | null {
-  return getBrowserTabManager().setBounds(bounds);
-}
-
-function activateBrowserTab(tabId: string | null): BrowserTabsState {
-  return getBrowserTabManager().activateTab(tabId);
-}
-
-function closeBrowserTab(tabId: string | null): BrowserTabsState {
-  return getBrowserTabManager().closeTab(tabId);
-}
-
-function setBrowserTabLocked(payload?: BrowserTabLockedPayload | null): BrowserTabsState {
-  return getBrowserTabManager().setTabLocked(payload);
-}
-
-function setBrowserTabMuted(payload?: BrowserTabMutedPayload | null): BrowserTabsState {
-  return getBrowserTabManager().setTabMuted(payload);
-}
-
-function navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string> {
-  return getBrowserTabManager().navigate(payload);
-}
-
-function reloadBrowser(tabId?: string | null, options?: BrowserReloadOptions | null): Promise<BrowserNavigationState> {
-  return getBrowserTabManager().reload(tabId, options);
-}
-
-function goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState> {
-  return getBrowserTabManager().goBack(tabId);
-}
-
-function goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState> {
-  return getBrowserTabManager().goForward(tabId);
-}
-
-function safeCreateBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState {
-  return getBrowserTabManager().safeCreateTab(options);
-}
-
-function syncBrowserTabMediaState(tab: BrowserTab | null | undefined) {
-  getBrowserTabManager().syncTabMediaState(tab);
-}
-
-function normalizeBrowserTheaterModeResult(value: unknown, fallbackEnabled: boolean): BrowserTheaterModeResult {
-  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  return {
-    enabled: typeof record.enabled === 'boolean' ? record.enabled : fallbackEnabled,
-    applied: Boolean(record.applied),
-    videoUrl: typeof record.videoUrl === 'string' && record.videoUrl ? record.videoUrl : null
-  };
-}
-
-async function setBrowserTabTheaterMode(tab: BrowserTab, enabled: boolean): Promise<BrowserTheaterModeResult> {
-  const result = normalizeBrowserTheaterModeResult(
-    await requestBrowserPreload<BrowserTheaterModeResult>(
-      tab,
-      'browser:set-theater-mode-request',
-      { enabled: enabled },
-      BROWSER_THEATER_MODE_REQUEST_TIMEOUT_MS
-    ),
-    enabled
-  );
-
-  tab.theaterMode = result.enabled;
-  return result;
-}
-
-function syncBrowserTheaterModeFromEvent(event: Electron.IpcMainEvent, payload: unknown) {
-  const tab = getBrowserTabByWebContents(event.sender);
-  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
-
-  if (!tab || typeof record.enabled !== 'boolean') return;
-  tab.theaterMode = record.enabled;
-}
-
-function normalizeBrowserPreloadResponse(payload: unknown): BrowserPreloadResponse {
-  const channel = 'browser:preload-response';
-  const record = requiredRecord(payload, channel);
-  const ok = optionalBooleanField(record, 'ok', channel);
-  const error = optionalStringField(record, 'error', channel);
-  const response: BrowserPreloadResponse = {
-    requestId: requiredStringValue(record.requestId, 'requestId', channel),
-    ok: ok !== false
-  };
-
-  if (typeof record.result !== 'undefined') response.result = record.result;
-  if (typeof error !== 'undefined') response.error = error;
-
-  return response;
-}
-
-function rejectBrowserPreloadRequest(requestId: string, error: Error) {
-  const request = browserPreloadRequests[requestId];
-  if (!request) return;
-
-  clearTimeout(request.timer);
-  delete browserPreloadRequests[requestId];
-  request.reject(error);
-}
-
-function rejectBrowserPreloadRequestsForWebContents(webContentsId: number, message: string) {
-  const requestIds = Object.keys(browserPreloadRequests);
-
-  for (let i = 0; i < requestIds.length; i++) {
-    const requestId = requestIds[i];
-    const request = browserPreloadRequests[requestId];
-    if (request && request.webContentsId === webContentsId) {
-      rejectBrowserPreloadRequest(requestId, new Error(message));
-    }
-  }
-}
-
-function resolveBrowserPreloadResponse(event: Electron.IpcMainEvent, payload: unknown) {
-  let response: BrowserPreloadResponse;
-
-  try {
-    response = normalizeBrowserPreloadResponse(payload);
-  } catch (error) {
-    return;
-  }
-
-  const request = browserPreloadRequests[response.requestId];
-  if (!request) return;
-
-  if (event.sender.id !== request.webContentsId) return;
-
-  clearTimeout(request.timer);
-  delete browserPreloadRequests[response.requestId];
-
-  if (response.ok) request.resolve(response.result);
-  else request.reject(new Error(response.error || 'Browser preload request failed'));
-}
-
-function requestWebContentsPreload<T>(
-  webContents: Electron.WebContents,
-  channel: string,
-  payload: Record<string, unknown>,
-  timeoutMs: number
-): Promise<T> {
-  if (webContents.isDestroyed()) return Promise.reject(new Error(t('errors.tabNotFound')));
-
-  const requestId = 'browser-preload-' + nextBrowserPreloadRequestId++;
-  const message = Object.assign({}, payload, { requestId: requestId });
-
-  return new Promise<T>(function (resolve, reject) {
-    const timer = setTimeout(function () {
-      rejectBrowserPreloadRequest(requestId, new Error('Timed out waiting for webview preload response: ' + channel));
-    }, timeoutMs);
-
-    browserPreloadRequests[requestId] = {
-      webContentsId: webContents.id,
-      timer: timer,
-      resolve: function (value: unknown) {
-        resolve(value as T);
-      },
-      reject: reject
-    };
-
-    try {
-      webContents.send(channel, message);
-    } catch (error) {
-      rejectBrowserPreloadRequest(requestId, new Error(mainErrorMessage(error)));
-    }
-  });
-}
-
-function requestBrowserPreload<T>(
-  tab: BrowserTab,
-  channel: string,
-  payload: Record<string, unknown>,
-  timeoutMs: number
-): Promise<T> {
-  return requestWebContentsPreload<T>(tab.view.webContents, channel, payload, timeoutMs);
-}
-
 function getSyncWorkerManager(): SyncWorkerManager {
   if (!syncWorkerManager) {
     syncWorkerManager = syncWorkerManagerModule.createSyncWorkerManager({
@@ -1072,16 +671,20 @@ function getSyncWorkerManager(): SyncWorkerManager {
       fallbackUrlForLoadFailure: fallbackUrlForLoadFailure,
       forwardBrowserMessage: forwardBrowserMessage,
       getActiveJableOrigin: function () {
-        return activeJableOrigin;
+        return getBrowserOriginController().activeOrigin();
       },
       getAutoReplayDeferredSyncOperations: function () {
         return getAppSettings().autoReplayDeferredSyncOperations;
       },
       getDatabase: getDatabase,
-      rejectPreloadRequestsForWebContents: rejectBrowserPreloadRequestsForWebContents,
-      requestWebContentsPreload: requestWebContentsPreload,
+      rejectPreloadRequestsForWebContents: function (webContentsId, message) {
+        getBrowserRuntime().rejectPreloadRequestsForWebContents(webContentsId, message);
+      },
+      requestWebContentsPreload: function (webContents, channel, payload, timeoutMs) {
+        return getBrowserRuntime().requestWebContentsPreload(webContents, channel, payload, timeoutMs);
+      },
       sendToAllBrowserTabs: function (channel, payload) {
-        getBrowserTabManager().sendToAllTabs(channel, payload);
+        getBrowserRuntime().sendToAllTabs(channel, payload);
       },
       sessionPartition: JABLE_SESSION_PARTITION,
       shouldDenyWebViewEnhancementNavigation: shouldDenyWebViewEnhancementNavigation,
@@ -1139,31 +742,51 @@ function syncBrowserCollectionInWorker(payload: {
 function getContextMenuManager(): ContextMenuManager {
   if (!contextMenuManager) {
     contextMenuManager = contextMenuManagerModule.createContextMenuManager({
-      activateBrowserTab: activateBrowserTab,
+      activateBrowserTab: function (tabId) {
+        return getBrowserRuntime().activateTab(tabId);
+      },
       canCreateBrowserTab: function () {
-        return getBrowserTabManager().canCreateTab();
+        return getBrowserRuntime().canCreateTab();
       },
       canonicalJableVideoUrl: urlPolicy.canonicalJableVideoUrl,
       clipboard: electron.clipboard,
-      closeBrowserTab: closeBrowserTab,
+      closeBrowserTab: function (tabId) {
+        return getBrowserRuntime().closeTab(tabId);
+      },
       forwardBrowserMessage: forwardBrowserMessage,
       getActiveBrowserTabId: function () {
-        return getBrowserTabManager().activeTabId();
+        return getBrowserRuntime().activeTabId();
       },
-      getBrowserTab: getBrowserTab,
+      getBrowserTab: function (tabId) {
+        return getBrowserRuntime().getTab(tabId);
+      },
       getMainWindow: function () {
         return mainWindow;
       },
-      goBrowserBack: goBrowserBack,
-      goBrowserForward: goBrowserForward,
+      goBrowserBack: function (tabId) {
+        return getBrowserRuntime().goBack(tabId);
+      },
+      goBrowserForward: function (tabId) {
+        return getBrowserRuntime().goForward(tabId);
+      },
       homeUrl: JABLE_HOME_URL,
       Menu: Menu,
-      reloadBrowser: reloadBrowser,
-      safeCreateBrowserTab: safeCreateBrowserTab,
-      setBrowserTabTheaterMode: setBrowserTabTheaterMode,
-      setBrowserTabMuted: setBrowserTabMuted,
+      reloadBrowser: function (tabId) {
+        return getBrowserRuntime().reload(tabId);
+      },
+      safeCreateBrowserTab: function (options) {
+        return getBrowserRuntime().safeCreateTab(options);
+      },
+      setBrowserTabTheaterMode: function (tab, enabled) {
+        return getBrowserRuntime().setTabTheaterMode(tab, enabled);
+      },
+      setBrowserTabMuted: function (payload) {
+        return getBrowserRuntime().setTabMuted(payload);
+      },
       shell: shell,
-      syncBrowserTabMediaState: syncBrowserTabMediaState,
+      syncBrowserTabMediaState: function (tab) {
+        getBrowserRuntime().syncTabMediaState(tab);
+      },
       t: t
     });
   }
@@ -1183,37 +806,8 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
   return getContextMenuManager().showLibraryVideoMenu(payload);
 }
 
-function exportFilenameForCollection(collectionKey: CollectionKey): string {
-  for (let i = 0; i < COLLECTIONS.length; i++) {
-    if (COLLECTIONS[i].key === collectionKey) {
-      return collectionKey === 'watch_later' ? 'watch_later_list.json' : 'favourites_list.json';
-    }
-  }
-
-  throw new Error('Unknown collection: ' + collectionKey);
-}
-
 async function exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult> {
-  const filename = exportFilenameForCollection(collectionKey);
-  const dialogOptions = {
-    title: t('dialog.exportJson'),
-    defaultPath: path.join(app.getPath('downloads'), filename),
-    filters: [{ name: 'JSON', extensions: ['json'] }]
-  };
-  const result =
-    mainWindow && !mainWindow.isDestroyed()
-      ? await dialog.showSaveDialog(mainWindow, dialogOptions)
-      : await dialog.showSaveDialog(dialogOptions);
-
-  if (result.canceled || !result.filePath) return { canceled: true };
-
-  const exported = await getDatabase().exportResourceToFile(collectionKey, result.filePath);
-
-  return {
-    canceled: false,
-    filename: path.basename(exported.filePath),
-    total: exported.total
-  };
+  return getAppActions().exportJsonFile(collectionKey);
 }
 
 function forwardBrowserMessage(channel: string, payload: unknown) {
@@ -1225,7 +819,7 @@ function forwardBrowserMessage(channel: string, payload: unknown) {
 }
 
 function syncPayloadForEvent(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent, payload: unknown) {
-  const tab = getBrowserTabByWebContents(event.sender);
+  const tab = getBrowserRuntime().getTabByWebContents(event.sender);
   const normalizedPayload = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
   return Object.assign({}, normalizedPayload, {
     tabId: tab ? tab.id : null
@@ -1235,23 +829,37 @@ function syncPayloadForEvent(event: Electron.IpcMainEvent | Electron.IpcMainInvo
 function registerIpcHandlers() {
   ipcHandlers.registerIpcHandlers({
     activeSyncRunsState: activeSyncRunsState,
-    activateBrowserTab: activateBrowserTab,
+    activateBrowserTab: function (tabId) {
+      return getBrowserRuntime().activateTab(tabId);
+    },
     addPendingRemoteOperationGroup: addPendingRemoteOperationGroup,
     applyBrowserSyncCollectionSettings: browserSyncCollectionPayloadWithSettings,
     browserDiagnosisTimeoutMs: BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS,
-    browserNavigationState: browserNavigationState,
-    browserTabsState: browserTabsState,
+    browserNavigationState: function (tabId) {
+      return getBrowserRuntime().navigationState(tabId);
+    },
+    browserTabsState: function () {
+      return getBrowserRuntime().listTabs();
+    },
     checkForUpdates: checkForUpdates,
-    closeBrowserTab: closeBrowserTab,
-    createBrowserTab: createBrowserTab,
+    closeBrowserTab: function (tabId) {
+      return getBrowserRuntime().closeTab(tabId);
+    },
+    createBrowserTab: function (options) {
+      return getBrowserRuntime().createTab(options);
+    },
     currentLocale: function () {
       return currentLocale;
     },
     exportJsonFile: exportJsonFile,
     forwardBrowserMessage: forwardBrowserMessage,
     getAppSettings: getAppSettings,
-    getBrowserTab: getBrowserTab,
-    getBrowserTabByWebContents: getBrowserTabByWebContents,
+    getBrowserTab: function (tabId) {
+      return getBrowserRuntime().getTab(tabId);
+    },
+    getBrowserTabByWebContents: function (webContents) {
+      return getBrowserRuntime().getTabByWebContents(webContents);
+    },
     getDatabase: getDatabase,
     getDatabasePath: function () {
       return databasePath;
@@ -1261,30 +869,52 @@ function registerIpcHandlers() {
     getSystemLocale: function () {
       return app.getLocale();
     },
-    goBrowserBack: goBrowserBack,
-    goBrowserForward: goBrowserForward,
+    goBrowserBack: function (tabId) {
+      return getBrowserRuntime().goBack(tabId);
+    },
+    goBrowserForward: function (tabId) {
+      return getBrowserRuntime().goForward(tabId);
+    },
     ipcMain: ipcMain,
     mainErrorMessage: mainErrorMessage,
     markActiveSyncMutated: markActiveSyncMutated,
-    navigateBrowser: navigateBrowser,
+    navigateBrowser: function (payload) {
+      return getBrowserRuntime().navigate(payload);
+    },
     notifyPendingCollectionOperationsChanged: notifyPendingCollectionOperationsChanged,
     openFfmpegGuide: openFfmpegGuide,
     openLocalDataFolder: openLocalDataFolder,
     pendingCollectionOperationsState: pendingCollectionOperationsState,
-    reloadBrowser: reloadBrowser,
+    reloadBrowser: function (tabId) {
+      return getBrowserRuntime().reload(tabId);
+    },
     removePendingRemoteOperationGroup: removePendingRemoteOperationGroup,
-    requestBrowserPreload: requestBrowserPreload,
-    resolveBrowserPreloadResponse: resolveBrowserPreloadResponse,
+    requestBrowserPreload: function (tab, channel, payload, timeoutMs) {
+      return getBrowserRuntime().requestBrowserPreload(tab, channel, payload, timeoutMs);
+    },
+    resolveBrowserPreloadResponse: function (event, payload) {
+      getBrowserRuntime().resolvePreloadResponse(event, payload);
+    },
     resolvePendingRemoteOperationGroup: resolvePendingRemoteOperationGroup,
-    safeCreateBrowserTab: safeCreateBrowserTab,
-    setBrowserBounds: setBrowserBounds,
-    setBrowserTabLocked: setBrowserTabLocked,
-    setBrowserTabMuted: setBrowserTabMuted,
+    safeCreateBrowserTab: function (options) {
+      return getBrowserRuntime().safeCreateTab(options);
+    },
+    setBrowserBounds: function (bounds) {
+      return getBrowserRuntime().setBounds(bounds);
+    },
+    setBrowserTabLocked: function (payload) {
+      return getBrowserRuntime().setTabLocked(payload);
+    },
+    setBrowserTabMuted: function (payload) {
+      return getBrowserRuntime().setTabMuted(payload);
+    },
     setCurrentLocale: setCurrentLocale,
     showBrowserTabMenu: showBrowserTabMenu,
     showLibraryVideoMenu: showLibraryVideoMenu,
     syncBrowserCollectionInWorker: syncBrowserCollectionInWorker,
-    syncBrowserTheaterModeFromEvent: syncBrowserTheaterModeFromEvent,
+    syncBrowserTheaterModeFromEvent: function (event, payload) {
+      getBrowserRuntime().syncTheaterModeFromEvent(event, payload);
+    },
     syncPayloadForEvent: syncPayloadForEvent,
     syncRunForCollection: syncRunForCollection,
     updateAppSettings: updateAppSettings
@@ -1317,22 +947,14 @@ app.on('window-all-closed', function () {
 });
 
 app.on('before-quit', function (event: Electron.Event) {
-  if (hasQueuedOrActiveDownloads()) {
-    event.preventDefault();
-    if (allowDownloadAppQuit) {
-      quitAfterDownloadsPaused();
-    } else {
-      promptPauseDownloadsAndQuit();
-    }
-    return;
-  }
+  if (getDownloadAppShutdownController().handleBeforeQuit(event)) return;
 
-  flushBrowserSession();
+  getBrowserRuntime().flushSession();
   closeAllSyncWorkers();
 });
 
 app.on('will-quit', function () {
-  flushBrowserSession();
+  getBrowserRuntime().flushSession();
   closeAllSyncWorkers();
   if (database) {
     database.close();

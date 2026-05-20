@@ -7,8 +7,32 @@ const test = require('node:test');
 
 const ROOT_DIR = path.join(__dirname, '..', '..');
 const MAIN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main.ts');
-const BROWSER_TAB_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser-tab-manager.ts');
+const APP_ACTIONS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'app-actions.ts');
+const BROWSER_ORIGIN_CONTROLLER_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'browser',
+  'origin-controller.ts'
+);
+const BROWSER_RUNTIME_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser', 'runtime.ts');
+const BROWSER_PRELOAD_REQUESTS_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'browser',
+  'preload-requests.ts'
+);
+const BROWSER_SESSION_CONTROLLER_SOURCE_PATH = path.join(
+  ROOT_DIR,
+  'app',
+  'main-process',
+  'browser',
+  'session-controller.ts'
+);
+const BROWSER_TAB_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'browser', 'tab-manager.ts');
 const CONTEXT_MENU_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'context-menu-manager.ts');
+const DOWNLOAD_APP_SHUTDOWN_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download-app-shutdown.ts');
 const DOWNLOAD_MANAGER_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'download', 'manager.ts');
 const IPC_HANDLERS_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'main-process', 'ipc-handlers.ts');
 const TYPES_SOURCE_PATH = path.join(ROOT_DIR, 'app', 'types', 'jable.ts');
@@ -119,6 +143,7 @@ function readSource(filePath) {
 
 test('main process uses preload IPC for browser page requests', function () {
   const source = readSource(MAIN_SOURCE_PATH);
+  const appActionsSource = readSource(APP_ACTIONS_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
   const syncWorkerSource = readSource(SYNC_WORKER_MANAGER_SOURCE_PATH);
   const preloadSource = readSource(path.join(__dirname, '..', '..', 'app', 'preload.ts'));
@@ -146,7 +171,7 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(source, /README\.zh-TW\.md#/);
   assert.match(source, /README\.en-US\.md#download-list-and-ffmpeg/);
   assert.match(source, /README\.ja-JP\.md#/);
-  assert.match(source, /shell\.openExternal\(url\)/);
+  assert.match(appActionsSource, /shell\.openExternal\(url\)/);
   assert.match(source, /main-process\/download\/manager/);
   assert.match(ipcHandlersSource, /from '\.\/download\/manager'/);
   assert.equal(ipcHandlersSource.includes("from './download-manager'"), false);
@@ -156,6 +181,38 @@ test('main process avoids legacy root playback and download adapters', function 
   for (const filePath of REMOVED_MAIN_PROCESS_ADAPTER_PATHS) {
     assert.equal(fs.existsSync(filePath), false, path.relative(ROOT_DIR, filePath) + ' should not exist');
   }
+});
+
+test('main process delegates browser runtime and app side-effect boundaries', function () {
+  const mainSource = readSource(MAIN_SOURCE_PATH);
+  const appActionsSource = readSource(APP_ACTIONS_SOURCE_PATH);
+  const browserOriginSource = readSource(BROWSER_ORIGIN_CONTROLLER_SOURCE_PATH);
+  const browserRuntimeSource = readSource(BROWSER_RUNTIME_SOURCE_PATH);
+  const browserPreloadRequestsSource = readSource(BROWSER_PRELOAD_REQUESTS_SOURCE_PATH);
+  const browserSessionControllerSource = readSource(BROWSER_SESSION_CONTROLLER_SOURCE_PATH);
+  const downloadAppShutdownSource = readSource(DOWNLOAD_APP_SHUTDOWN_SOURCE_PATH);
+
+  assert.match(mainSource, /createBrowserRuntimeController/);
+  assert.match(mainSource, /createAppActions/);
+  assert.match(mainSource, /createDownloadAppShutdownController/);
+  assert.match(mainSource, /createBrowserOriginController/);
+  assert.doesNotMatch(mainSource, /browserPreloadRequests/);
+  assert.doesNotMatch(mainSource, /browserSessionSaveTimer/);
+  assert.doesNotMatch(mainSource, /downloadShutdownInProgress/);
+  assert.match(browserRuntimeSource, /createBrowserTabManager/);
+  assert.match(browserRuntimeSource, /createBrowserShortcutManager/);
+  assert.match(browserRuntimeSource, /createBrowserSessionController/);
+  assert.match(browserRuntimeSource, /createBrowserPreloadRequestManager/);
+  assert.match(browserPreloadRequestsSource, /browser:preload-response/);
+  assert.match(browserPreloadRequestsSource, /Timed out waiting for webview preload response/);
+  assert.match(browserSessionControllerSource, /readForRestore/);
+  assert.match(browserSessionControllerSource, /restoreBrowserTabsOnStartup/);
+  assert.match(browserOriginSource, /jable-origin-fallback/);
+  assert.match(browserOriginSource, /rewriteJableUrlOrigin/);
+  assert.match(appActionsSource, /exportResourceToFile/);
+  assert.match(appActionsSource, /openLocalDataFolder/);
+  assert.match(downloadAppShutdownSource, /downloadShutdownInProgress/);
+  assert.match(downloadAppShutdownSource, /pauseDownloadsForShutdown/);
 });
 
 test('webview preload owns browser sync and diagnosis request handlers', function () {
@@ -430,6 +487,7 @@ test('local playback uses managed download records and browser-tab preload updat
 
 test('browser theater mode uses preload IPC and tab-scoped state', function () {
   const mainSource = readSource(MAIN_SOURCE_PATH);
+  const browserRuntimeSource = readSource(BROWSER_RUNTIME_SOURCE_PATH);
   const browserTabManagerSource = readSource(BROWSER_TAB_MANAGER_SOURCE_PATH);
   const contextMenuSource = readSource(CONTEXT_MENU_MANAGER_SOURCE_PATH);
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
@@ -451,8 +509,8 @@ test('browser theater mode uses preload IPC and tab-scoped state', function () {
     contextMenuSource,
     /canonicalJableVideoUrl\(tab\.url\) \|\| canonicalJableVideoUrl\(contextParams\.pageURL/
   );
-  assert.match(mainSource, /function setBrowserTabTheaterMode/);
-  assert.match(mainSource, /browser:set-theater-mode-request/);
+  assert.match(browserRuntimeSource, /function setTabTheaterMode/);
+  assert.match(browserRuntimeSource, /browser:set-theater-mode-request/);
   assert.match(ipcHandlersSource, /browser:theater-mode-changed/);
   assert.match(webviewPreload, /createTheaterModeController/);
   assert.match(webviewPreload, /browser:set-theater-mode-request/);
@@ -686,6 +744,7 @@ test('main process downloads HLS segments in bounded parallel batches', function
   const hlsSegmentsSource = readSource(DOWNLOAD_HLS_SEGMENTS_SOURCE_PATH);
   const segmentWorkspaceSource = readSource(DOWNLOAD_SEGMENT_WORKSPACE_SOURCE_PATH);
   const mainSource = readSource(MAIN_SOURCE_PATH);
+  const downloadAppShutdownSource = readSource(DOWNLOAD_APP_SHUTDOWN_SOURCE_PATH);
   const preload = readSource(path.join(ROOT_DIR, 'app', 'preload.ts'));
   const types = readSource(path.join(ROOT_DIR, 'app', 'types', 'jable.ts'));
   const ipcHandlersSource = readSource(IPC_HANDLERS_SOURCE_PATH);
@@ -726,9 +785,9 @@ test('main process downloads HLS segments in bounded parallel batches', function
   assert.match(segmentWorkspaceSource, /extension: segmentResumeExtension\(segment\.url\)/);
   assert.match(hlsSegmentsSource, /updateDownloadRuntimeProgress\(videoUrl, downloadSegmentDirectorySize\(tempDir\)\)/);
   assert.doesNotMatch(source, /stableMediaUrlIdentity/);
-  assert.match(mainSource, /let downloadShutdownInProgress: Promise<void> \| null = null/);
-  assert.match(mainSource, /function quitAfterDownloadsPaused\(\)/);
-  assert.match(mainSource, /allowDownloadWindowClose = true/);
+  assert.match(downloadAppShutdownSource, /let downloadShutdownInProgress: Promise<void> \| null = null/);
+  assert.match(downloadAppShutdownSource, /function quitAfterDownloadsPaused\(\)/);
+  assert.match(downloadAppShutdownSource, /allowDownloadWindowClose = true/);
   assert.match(mainSource, /app\.on\('will-quit'/);
   assert.match(ipcHandlersSource, /ipcMain\.handle\('download:pause'/);
   assert.match(ipcHandlersSource, /ipcMain\.handle\('download:resume'/);

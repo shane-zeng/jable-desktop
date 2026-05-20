@@ -3,7 +3,7 @@ import type { AppPlatform } from '../types/jable';
 export type ShortcutPlatform = 'macos' | 'windowsLinux';
 export type ShortcutCategory = 'appViews' | 'browserTabs' | 'videoPage' | 'quickActions';
 export type ShortcutSource =
-  | 'browser-shortcut-manager'
+  | 'browser/shortcut-manager'
   | 'browser-tab-policy'
   | 'theater-mode'
   | 'webview-preload'
@@ -57,7 +57,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
       macos: [['Command', '1']],
       windowsLinux: [['Ctrl', '1']]
     },
-    sources: ['browser-shortcut-manager']
+    sources: ['browser/shortcut-manager']
   },
   {
     id: 'switch-local-data-view',
@@ -69,7 +69,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
       macos: [['Command', '2']],
       windowsLinux: [['Ctrl', '2']]
     },
-    sources: ['browser-shortcut-manager']
+    sources: ['browser/shortcut-manager']
   },
   {
     id: 'new-browser-tab',
@@ -81,7 +81,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
       macos: [['Command', 'T']],
       windowsLinux: [['Ctrl', 'T']]
     },
-    sources: ['browser-shortcut-manager']
+    sources: ['browser/shortcut-manager']
   },
   {
     id: 'close-current-tab',
@@ -93,7 +93,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
       macos: [['Command', 'W']],
       windowsLinux: [['Ctrl', 'W']]
     },
-    sources: ['browser-shortcut-manager']
+    sources: ['browser/shortcut-manager']
   },
   {
     id: 'reload-current-tab',
@@ -105,7 +105,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
       macos: [['Command', 'R'], ['F5']],
       windowsLinux: [['Ctrl', 'R'], ['F5']]
     },
-    sources: ['browser-shortcut-manager', 'browser-tab-policy']
+    sources: ['browser/shortcut-manager', 'browser-tab-policy']
   },
   {
     id: 'hard-reload-current-tab',
@@ -125,7 +125,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
         ['Shift', 'F5']
       ]
     },
-    sources: ['browser-shortcut-manager', 'browser-tab-policy']
+    sources: ['browser/shortcut-manager', 'browser-tab-policy']
   },
   {
     id: 'next-browser-tab',
@@ -144,7 +144,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
         ['Ctrl', 'PageDown']
       ]
     },
-    sources: ['browser-shortcut-manager', 'browser-tab-policy']
+    sources: ['browser/shortcut-manager', 'browser-tab-policy']
   },
   {
     id: 'previous-browser-tab',
@@ -163,7 +163,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
         ['Ctrl', 'PageUp']
       ]
     },
-    sources: ['browser-shortcut-manager', 'browser-tab-policy']
+    sources: ['browser/shortcut-manager', 'browser-tab-policy']
   },
   {
     id: 'toggle-compact-tabs',
@@ -175,7 +175,7 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
       macos: [['Command', 'S']],
       windowsLinux: [['Ctrl', 'S']]
     },
-    sources: ['browser-shortcut-manager']
+    sources: ['browser/shortcut-manager']
   },
   {
     id: 'toggle-theater-mode',

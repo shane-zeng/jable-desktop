@@ -1,7 +1,7 @@
 'use strict';
 
 import type * as Electron from 'electron';
-import type { BrowserTab } from './browser-tab-manager';
+import type { BrowserTab } from './browser/tab-manager';
 import type {
   BrowserNavigationState,
   BrowserTabMenuPayload,
