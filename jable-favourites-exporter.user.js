@@ -822,6 +822,62 @@
     return cacheComplete ? mergeRows(newRows, oldRows) : mergeRows(oldRows, newRows);
   }
 
+  function markActivePagerPageVisited(visited) {
+    const active = document.querySelector('ul.pagination span.page-link.active');
+
+    if (!active) return;
+
+    const activePageText = (active.textContent || '').trim();
+    if (activePageText) visited[activePageText] = true;
+  }
+
+  function comparePagerLinks(a, b) {
+    const na = parseInt(a.id, 10);
+    const nb = parseInt(b.id, 10);
+
+    if (isFinite(na) && isFinite(nb)) return na - nb;
+    return String(a.id).localeCompare(String(b.id));
+  }
+
+  function nextUnvisitedPagerLink(visited) {
+    const links = readPagerLinks();
+    const candidates = [];
+
+    for (let i = 0; i < links.length; i++) {
+      if (!visited[links[i].id]) candidates.push(links[i]);
+    }
+
+    if (!candidates.length) return null;
+
+    candidates.sort(comparePagerLinks);
+    return candidates[0];
+  }
+
+  async function clickPagerLinkAndWait(next) {
+    const oldSig = signature();
+
+    try {
+      next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (e) {}
+
+    await delay(200);
+
+    log('click page', next.id, '(' + next.label + ')');
+    try {
+      next.el.click();
+    } catch (e) {}
+
+    return waitForContainerChange(oldSig, 15000);
+  }
+
+  function downloadExportResource(base, resource) {
+    if (EXPORT_FORMAT === 'csv') {
+      downloadCsv(base + '.csv', toCSV(flattenPages(resource)));
+    } else {
+      downloadJson(base + '.json', resource);
+    }
+  }
+
   async function exportAllByClickWithIndexedDb(adapter) {
     setBtnBusy(true, t('preparing'));
 
@@ -835,11 +891,7 @@
     let lastScrapedPage = null;
     let baseRowsMarked = false;
 
-    const active = document.querySelector('ul.pagination span.page-link.active');
-    if (active) {
-      const activePageText = (active.textContent || '').trim();
-      if (activePageText) visited[activePageText] = true;
-    }
+    markActivePagerPageVisited(visited);
 
     async function recordCurrentPage() {
       const rows = uniqByUrl(scrapeCurrentPage());
@@ -891,12 +943,7 @@
       await adapter.replaceRows(collectionKey, finalRows, true, lastScrapedPage);
 
       setBtnBusy(false, t('exporting'));
-
-      if (EXPORT_FORMAT === 'csv') {
-        downloadCsv(base + '.csv', toCSV(flattenPages(resource)));
-      } else {
-        downloadJson(base + '.json', resource);
-      }
+      downloadExportResource(base, resource);
 
       log('done, total:', resource.meta.total);
     }
@@ -904,44 +951,15 @@
     if (await recordCurrentPage()) return finish();
 
     while (true) {
-      let links = null;
-      const candidates = [];
       let next = null;
-      let oldSig = null;
       let changed = false;
 
       if (safety-- <= 0) return finish();
 
-      links = readPagerLinks();
+      next = nextUnvisitedPagerLink(visited);
+      if (!next) return finish();
 
-      for (let i = 0; i < links.length; i++) {
-        if (!visited[links[i].id]) candidates.push(links[i]);
-      }
-
-      if (!candidates.length) return finish();
-
-      candidates.sort(function (a, b) {
-        const na = parseInt(a.id, 10);
-        const nb = parseInt(b.id, 10);
-        if (isFinite(na) && isFinite(nb)) return na - nb;
-        return String(a.id).localeCompare(String(b.id));
-      });
-
-      next = candidates[0];
-      oldSig = signature();
-
-      try {
-        next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } catch (e) {}
-
-      await delay(200);
-
-      log('click page', next.id, '(' + next.label + ')');
-      try {
-        next.el.click();
-      } catch (e) {}
-
-      changed = await waitForContainerChange(oldSig, 15000);
+      changed = await clickPagerLinkAndWait(next);
       visited[next.id] = true;
 
       if (!changed) {
@@ -990,11 +1008,7 @@
     let safety = 100;
     let lastScrapedPage = null;
 
-    const active = document.querySelector('ul.pagination span.page-link.active');
-    if (active) {
-      const activePageText = (active.textContent || '').trim();
-      if (activePageText) visited[activePageText] = true;
-    }
+    markActivePagerPageVisited(visited);
 
     function rowsForProgress() {
       return cacheComplete ? mergeRows(newRows, cachedRows) : mergeRows(cachedRows, newRows);
@@ -1026,45 +1040,22 @@
     function step() {
       if (safety-- <= 0) return finish();
 
-      const links = readPagerLinks();
-      const candidates = [];
+      const next = nextUnvisitedPagerLink(visited);
+      if (!next) return finish();
 
-      for (let i = 0; i < links.length; i++) {
-        if (!visited[links[i].id]) candidates.push(links[i]);
-      }
+      clickPagerLinkAndWait(next).then(function (changed) {
+        visited[next.id] = true;
 
-      if (!candidates.length) return finish();
+        if (!changed) {
+          log('page did not change before timeout', next.id);
+        }
 
-      candidates.sort(function (a, b) {
-        const na = parseInt(a.id, 10);
-        const nb = parseInt(b.id, 10);
-        if (isFinite(na) && isFinite(nb)) return na - nb;
-        return String(a.id).localeCompare(String(b.id));
+        if (recordCurrentPage()) return finish();
+
+        log('page', next.id, 'new rows', newRows.length, 'total', rowsForProgress().length);
+        setBtnBusy(true, t('progress', { count: rowsForProgress().length }));
+        setTimeout(step, 500 + Math.random() * 500);
       });
-
-      const next = candidates[0];
-      const oldSig = signature();
-
-      try {
-        next.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } catch (e) {}
-
-      setTimeout(function () {
-        log('click page', next.id, '(' + next.label + ')');
-        try {
-          next.el.click();
-        } catch (e) {}
-
-        waitForContainerChange(oldSig, 15000).then(function () {
-          visited[next.id] = true;
-
-          if (recordCurrentPage()) return finish();
-
-          log('page', next.id, 'new rows', newRows.length, 'total', rowsForProgress().length);
-          setBtnBusy(true, t('progress', { count: rowsForProgress().length }));
-          setTimeout(step, 500 + Math.random() * 500);
-        });
-      }, 200);
     }
 
     function finish() {
@@ -1073,11 +1064,7 @@
       const resource = buildExportResource(rowsForProgress(), true, lastScrapedPage);
       saveCachedResource(resource);
 
-      if (EXPORT_FORMAT === 'csv') {
-        downloadCsv(base + '.csv', toCSV(flattenPages(resource)));
-      } else {
-        downloadJson(base + '.json', resource);
-      }
+      downloadExportResource(base, resource);
 
       log('done, total:', resource.meta.total);
     }

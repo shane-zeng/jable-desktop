@@ -77,17 +77,57 @@ Before implementing a candidate:
   `app/main.ts` is back under 1000 lines and keeps lifecycle plus top-level wiring. Embedded browser runtime wiring, browser session restore/save, preload request/response bookkeeping, and active Jable origin fallback state are delegated out of `main.ts`; app local/export/documentation side effects live in `app-actions.ts`; and app-level active-download quit/window-close gating lives in `download-app-shutdown.ts`.
 - Main-process browser folder boundary.
   Browser runtime modules now live under `app/main-process/browser/`: `runtime.ts` composes the browser subsystem, `tab-manager.ts` owns `WebContentsView` tab state, `shortcut-manager.ts` owns main-process shortcut wiring, `session-controller.ts` and `session-store.ts` own startup tab persistence, `preload-requests.ts` owns browser preload request/response bookkeeping, and `origin-controller.ts` owns active Jable origin fallback state.
+- Userscript pagination/export helper cleanup.
+  `jable-favourites-exporter.user.js` now shares focused helpers for active pager tracking, next-page selection, click-and-wait pagination, and final resource download between IndexedDB and localStorage export paths while keeping both cache flows separate.
 
 ## Remaining Candidates
 
-### Userscript pagination/export duplication cleanup
+No active no-spec-change refactor candidates are currently tracked.
 
-Risk: low, priority low.
+## Watchlist
 
-`jable-favourites-exporter.user.js` remains intentionally self-contained. Pagination and export paths contain some repeated logic, but duplication is acceptable unless the extracted helper has clear browser/export domain meaning and reduces branching complexity.
+These are maintenance hot spots, not immediate refactor requests. Do not split them just because they are large; wait until nearby behavior is being changed or the triggering condition applies.
 
-Manual Tampermonkey validation is required on favourites and watch-later pages for both supported origins.
+### Rust sync state machine boundary
+
+Risk: high, priority conditional.
+
+`native/local-data-engine/src/sync.rs` is large and mixes sync page persistence, collection add/remove toggles, deferred remote outbox state, pending remote groups, and finish-sync reconciliation. This is the highest-value future split, but it also owns sensitive sync/outbox invariants.
+
+Trigger: when changing sync, outbox replay, pending remote grouping, or finish-sync reconciliation behavior.
+
+Preferred direction: split in small behavior-preserving steps along real domain boundaries such as sync page persistence and pending remote/outbox handling. Keep Rust-owned invariants covered directly in `native/local-data-engine/src/tests.rs`, with Node contract tests only as the JS boundary check.
+
+### Settings panel section boundaries
+
+Risk: medium, priority conditional.
+
+`app/renderer-src/components/SettingsPanel.vue` currently contains several settings sections plus shortcut display, import detection, FFmpeg configuration, and download-root behavior. It is still acceptable as-is.
+
+Trigger: when adding another settings section, expanding import detection, or changing shortcut/FFmpeg/download-root behavior enough that the existing component becomes harder to scan.
+
+Preferred direction: extract focused section components or helper modules for import detection and shortcut display. Do not split purely for visual neatness.
+
+### App browser message handling
+
+Risk: medium, priority low.
+
+`app/renderer-src/App.vue` already delegates substantial state to composables, but browser message handling still receives multiple cross-domain messages in one place.
+
+Trigger: when adding another set of browser messages or changing browser-message routing enough that the handler obscures ownership.
+
+Preferred direction: consider a focused `useBrowserMessages` composable that routes existing message types without changing renderer state semantics.
+
+### IPC channel string alignment
+
+Risk: medium, priority conditional.
+
+IPC channel names are intentionally repeated across `app/preload.ts`, `app/main-process/ipc-handlers.ts`, and related tests. `docs/specs/ipc-contract.md` already documents the multi-file alignment rule, and current guardrail tests cover the boundary.
+
+Trigger: when adding or renaming a batch of IPC channels.
+
+Preferred direction: consider minimal channel constants only if they reduce real synchronization risk. Do not introduce a generated RPC framework or broad IPC abstraction.
 
 ## How to Continue
 
-When continuing this optimization work, pick one remaining candidate, inspect only the relevant files and tests, then implement and update this file. Do not repeat the original full project architecture analysis unless the user asks for a fresh audit.
+When continuing this optimization work, add or pick one concrete remaining candidate, inspect only the relevant files and tests, then implement and update this file. Do not repeat the original full project architecture analysis unless the user asks for a fresh audit.
