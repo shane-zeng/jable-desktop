@@ -28,10 +28,7 @@ const WINDOWS_MAIN_WINDOW_DIMENSIONS: MainWindowDimensions = {
 
 const WORK_AREA_MARGIN = 48;
 
-export function mainWindowDimensions(
-  platform: string,
-  workAreaSize?: WorkAreaSize | null
-): MainWindowDimensions {
+export function mainWindowDimensions(platform: string, workAreaSize?: WorkAreaSize | null): MainWindowDimensions {
   const preferred = platform === 'win32' ? WINDOWS_MAIN_WINDOW_DIMENSIONS : STANDARD_MAIN_WINDOW_DIMENSIONS;
 
   if (!workAreaSize) return Object.assign({}, preferred);
