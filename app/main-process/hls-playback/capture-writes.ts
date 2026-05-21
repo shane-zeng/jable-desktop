@@ -7,7 +7,7 @@ import type * as NodeStream from 'node:stream';
 import { hlsPlaylistProxyAssetFetchHeaders, hlsPlaylistProxyResponseHeaders } from './proxy-headers';
 import {
   HLS_PLAYBACK_CAPTURE_PREFETCH_CONCURRENCY,
-  logger,
+  hlsPlaybackDebugLog,
   mainErrorMessage,
   type HlsPlaybackCaptureContext,
   type HlsPlaylistProxyAsset,
@@ -166,7 +166,8 @@ async function hlsPlaybackCaptureWriteStreamToFile(
       });
     }
 
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-capture] segment saved',
       'host=' + asset.host,
       'pathHash=' + asset.pathHash,
@@ -187,7 +188,8 @@ async function hlsPlaybackCaptureWriteStreamToFile(
     try {
       await fs.promises.rm(tempPath, { force: true });
     } catch (removeError) {}
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       stopped ? '[hls-capture] segment stopped' : '[hls-capture] segment failed',
       'host=' + asset.host,
       'pathHash=' + asset.pathHash,
@@ -266,7 +268,8 @@ async function hlsPlaybackCaptureFetchAsset(
       );
     } catch (error) {
       if (isHlsPlaybackCaptureStoppedError(error) || abortController.signal.aborted) {
-        logger(context).info(
+        hlsPlaybackDebugLog(
+          context,
           '[hls-capture] prefetch stopped',
           'host=' + asset.host,
           'pathHash=' + asset.pathHash,
@@ -274,7 +277,8 @@ async function hlsPlaybackCaptureFetchAsset(
         );
         return false;
       }
-      logger(context).info(
+      hlsPlaybackDebugLog(
+        context,
         '[hls-capture] prefetch failed',
         'host=' + asset.host,
         'pathHash=' + asset.pathHash,
@@ -332,7 +336,8 @@ export function hlsPlaylistProxyAssetBody(
 
   const streams = body.tee();
   writeHlsPlaybackCaptureStream(context, entry, asset, streams[1], activeFiles).catch(function (error) {
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-capture] segment unhandled',
       'host=' + asset.host,
       'pathHash=' + asset.pathHash,
@@ -384,7 +389,8 @@ async function runHlsPlaybackCapturePrefetchWithCompletion(
   try {
     await runHlsPlaybackCapturePrefetch(context, entry, assets, activeFiles, signal);
   } catch (error) {
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-capture] prefetch failed',
       'host=' + entry.host,
       'pathHash=' + entry.pathHash,
@@ -437,7 +443,8 @@ export function startHlsPlaybackCapturePrefetch(
 
   runHlsPlaybackCapturePrefetchWithCompletion(context, entry, assets, activeFiles, activePrefetches).catch(
     function (error) {
-      logger(context).info(
+      hlsPlaybackDebugLog(
+        context,
         '[hls-capture] prefetch failed',
         'host=' + entry.host,
         'pathHash=' + entry.pathHash,

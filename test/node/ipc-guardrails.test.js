@@ -623,6 +623,8 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsResearchSource, /installHlsPlaybackCapture\(context\)/);
   assert.match(hlsSharedSource, /JABLE_HLS_PROXY/);
   assert.match(hlsSharedSource, /JABLE_HLS_CAPTURE/);
+  assert.match(hlsSharedSource, /JABLE_HLS_VERBOSE/);
+  assert.match(hlsSharedSource, /hlsPlaybackDebugLog/);
   assert.match(hlsCaptureSource, /installHlsPlaybackCapture/);
   assert.match(hlsCaptureSource, /installHlsPlaybackProbe\(context\)/);
   assert.match(hlsCaptureSource, /installHlsPlaylistProxy\(context\)/);
@@ -631,6 +633,7 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsProxySource, /startHlsPlaylistProxyServer/);
   assert.match(hlsIpcSource, /ipcMain\.handle\('hls:playlist-proxy-url'/);
   assert.match(hlsIpcSource, /\[hls-proxy\] token/);
+  assert.match(hlsIpcSource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-proxy\] token'/);
   assert.match(hlsProxySource, /\/playlist\/' \+ token \+ '\.m3u8'/);
   assert.match(hlsHelperSource, /function hlsPlaylistProxyRequestTargetFromUrl/);
   assert.equal(hlsHelperSource.includes('parsed.pathname.match(/^\\/playlist\\/([A-Za-z0-9_-]+)\\.m3u8$/)'), true);
@@ -669,7 +672,9 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(mainSource, /getAppSettings\(\)\.autoDownloadOnPlayback/);
   assert.match(mainSource, /queueHlsPlaybackBackgroundCompletion: function/);
   assert.match(hlsProxySource, /\[hls-capture\] prepared/);
+  assert.match(hlsProxySource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-capture\] prepared'/);
   assert.match(hlsCaptureWritesSource, /\[hls-capture\] segment saved/);
+  assert.match(hlsCaptureWritesSource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-capture\] segment saved'/);
   assert.match(activeRunnerSource, /type DownloadQueueSource = 'normal' \| 'playback_background'/);
   assert.match(playbackCaptureSource, /type HlsPlaybackBackgroundCompletionWorker/);
   assert.match(downloadManagerSource, /const downloadQueue: DownloadQueueItem\[\] = \[\]/);
@@ -684,7 +689,9 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(downloadManagerSource, /upsertVideoMetadata/);
   assert.match(hlsProxySource, /\/asset\//);
   assert.match(hlsProxySource, /\[hls-proxy\] asset/);
+  assert.match(hlsProxySource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-proxy\] asset'/);
   assert.match(hlsProxySource, /\[hls-proxy\] asset served/);
+  assert.match(hlsProxySource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-proxy\] asset served'/);
   assert.match(hlsProxySource, /hlsPlaylistProxyFallbackRedirect/);
   assert.match(hlsProxyHeadersSource, /referer: entry\.origin \+ '\/'/);
   assert.match(hlsProxyHeadersSource, /access-control-allow-credentials/);
@@ -717,7 +724,7 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsPlaybackSource, /title: document\.title/);
   assert.equal(hlsProbeSource.includes('[hls-probe] request'), true);
   for (const line of hlsProductionSource.split('\n')) {
-    if (line.indexOf('logger(context).info') === -1) continue;
+    if (line.indexOf('logger(context).info') === -1 && line.indexOf('hlsPlaybackDebugLog') === -1) continue;
     assert.equal(/,\s*details\.url/.test(line), false);
   }
 });

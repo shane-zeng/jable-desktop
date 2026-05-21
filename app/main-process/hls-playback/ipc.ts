@@ -7,9 +7,9 @@ import { hlsProbePathHash } from './probe';
 import {
   HLS_PLAYBACK_CAPTURE_ACTIVITY_TTL_MS,
   HLS_PLAYLIST_PROXY_HOST,
+  hlsPlaybackDebugLog,
   isAutoDownloadOnPlaybackEnabled,
   isHlsPlaylistProxyEnabled,
-  logger,
   type HlsPlaybackCaptureActivePage,
   type HlsPlaybackCaptureContext,
   type HlsPlaybackCaptureMetadata,
@@ -139,7 +139,8 @@ function hlsPlaybackCaptureStartedForRenderer(
     prepared += 1;
   }
 
-  logger(context).info(
+  hlsPlaybackDebugLog(
+    context,
     '[hls-capture] playback started',
     'webContentsId=' + event.sender.id,
     'prepared=' + prepared,
@@ -197,7 +198,8 @@ function hlsPlaylistProxyUrlForRenderer(
   if (!sourceUrl) return unavailableHlsPlaylistProxyUrl('unavailable');
 
   const entry = state.tokens.get(token);
-  logger(context).info(
+  hlsPlaybackDebugLog(
+    context,
     '[hls-proxy] token',
     'webContentsId=' + event.sender.id,
     'tabId=' + String(tabId),

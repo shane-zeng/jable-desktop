@@ -31,6 +31,7 @@ import {
   HLS_PLAYLIST_PROXY_FETCH_TIMEOUT_MS,
   HLS_PLAYLIST_PROXY_HOST,
   HLS_PLAYLIST_PROXY_TOKEN_TTL_MS,
+  hlsPlaybackDebugLog,
   isAutoDownloadOnPlaybackSettingEnabled,
   isHlsPlaybackCaptureEnabledByEnv,
   logger,
@@ -219,7 +220,8 @@ function hlsPlaylistProxyRewritePlaylist(
 }
 
 function hlsPlaylistProxyFallbackRedirect(context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken): Response {
-  logger(context).info(
+  hlsPlaybackDebugLog(
+    context,
     '[hls-proxy] fail-open',
     'host=' + entry.host,
     'pathHash=' + entry.pathHash,
@@ -259,7 +261,8 @@ function hlsPlaylistProxyPrepareCapture(
       playlistText: playlistText
     });
     if (plan && plan.segmentCount > 0) {
-      logger(context).info(
+      hlsPlaybackDebugLog(
+        context,
         '[hls-capture] prepared',
         'segments=' + plan.segmentCount,
         'host=' + entry.host,
@@ -350,7 +353,8 @@ async function handleHlsPlaylistProxyAssetRequest(
     });
   }
 
-  logger(context).info(
+  hlsPlaybackDebugLog(
+    context,
     '[hls-proxy] asset',
     'method=' + request.method,
     'host=' + asset.host,
@@ -378,7 +382,8 @@ async function handleHlsPlaylistProxyAssetRequest(
     });
     abort.cleanup();
 
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-proxy] asset served',
       'status=' + upstream.status,
       'host=' + asset.host,
@@ -399,7 +404,8 @@ async function handleHlsPlaylistProxyAssetRequest(
   } catch (error) {
     abort.cleanup();
     if (abort.clientAborted()) {
-      logger(context).info(
+      hlsPlaybackDebugLog(
+        context,
         '[hls-proxy] asset aborted',
         'host=' + asset.host,
         'pathHash=' + asset.pathHash,
@@ -412,7 +418,8 @@ async function handleHlsPlaylistProxyAssetRequest(
       });
     }
 
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-proxy] asset failed',
       'host=' + asset.host,
       'pathHash=' + asset.pathHash,
@@ -430,7 +437,8 @@ async function handleHlsPlaylistProxyRequest(context: HlsPlaybackCaptureContext,
   const target = hlsPlaylistProxyRequestTargetFromUrl(request.url);
   const entry = target ? hlsPlaylistProxyTokens.get(target.token) || null : null;
 
-  logger(context).info(
+  hlsPlaybackDebugLog(
+    context,
     '[hls-proxy] handler',
     'method=' + request.method,
     'target=' + (target ? target.type : 'missing'),
@@ -472,7 +480,8 @@ async function handleHlsPlaylistProxyRequest(context: HlsPlaybackCaptureContext,
   const abort = hlsPlaylistProxyFetchAbort(request);
 
   try {
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-proxy] fetch',
       'host=' + entry.host,
       'pathHash=' + entry.pathHash,
@@ -503,7 +512,8 @@ async function handleHlsPlaylistProxyRequest(context: HlsPlaybackCaptureContext,
     if (capturePlan) {
       startHlsPlaybackCapturePrefetch(context, entry, hlsPlaybackCaptureActiveFiles, hlsPlaybackCapturePrefetches);
     }
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-proxy] served',
       'status=' + upstream.status,
       'host=' + entry.host,
@@ -519,7 +529,8 @@ async function handleHlsPlaylistProxyRequest(context: HlsPlaybackCaptureContext,
   } catch (error) {
     abort.cleanup();
     if (abort.clientAborted()) {
-      logger(context).info(
+      hlsPlaybackDebugLog(
+        context,
         '[hls-proxy] fetch aborted',
         'host=' + entry.host,
         'pathHash=' + entry.pathHash,
@@ -638,7 +649,7 @@ async function handleHlsPlaylistProxyHttpRequest(
     await writeHlsPlaylistProxyHttpResponse(response, proxyResponse);
   } catch (error) {
     if (abort.clientAborted()) {
-      logger(context).info('[hls-proxy] loopback aborted');
+      hlsPlaybackDebugLog(context, '[hls-proxy] loopback aborted');
       return;
     }
 
@@ -716,7 +727,8 @@ export async function installHlsPlaylistProxy(context: HlsPlaybackCaptureContext
     const target = hlsPlaylistProxyRequestTargetFromUrl(details.url);
     const entry = target ? hlsPlaylistProxyTokens.get(target.token) || null : null;
     const asset = entry && target && target.type === 'asset' ? entry.assets[target.assetId] || null : null;
-    logger(context).info(
+    hlsPlaybackDebugLog(
+      context,
       '[hls-proxy] request error',
       'requestId=' + details.id,
       'webContentsId=' + String(details.webContentsId || null),

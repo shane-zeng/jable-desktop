@@ -104,6 +104,15 @@ export function logger(context: HlsPlaybackCaptureContext) {
   return context.logger || console;
 }
 
+export function hlsPlaybackDebugLog(
+  context: HlsPlaybackCaptureContext,
+  message?: unknown,
+  ...optionalParams: unknown[]
+) {
+  if (!isHlsPlaybackVerboseLoggingEnabledByEnv(context.env)) return;
+  logger(context).info(message, ...optionalParams);
+}
+
 export function mainErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -121,6 +130,10 @@ export function isHlsProbeEnabledByEnv(env?: Record<string, string | undefined> 
 
 export function isHlsProbeVerboseByEnv(env?: Record<string, string | undefined> | null) {
   return envFlagEnabled(env, 'JABLE_HLS_PROBE_VERBOSE');
+}
+
+export function isHlsPlaybackVerboseLoggingEnabledByEnv(env?: Record<string, string | undefined> | null) {
+  return envFlagEnabled(env, 'JABLE_HLS_VERBOSE');
 }
 
 export function isHlsPlaylistProxyEnabledByEnv(env?: Record<string, string | undefined> | null) {
