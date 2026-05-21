@@ -6,6 +6,15 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.12.4] - 2026-05-21
+
+### Changed
+
+- Fix platform type lint errors
+- Refine tab close activation
+- Format main window options
+- Bump version to 0.12.4
+
 ## [v0.12.2] - 2026-05-20
 
 ### Changed
@@ -345,7 +354,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.2...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.4...HEAD
+[v0.12.4]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.3...v0.12.4
 [v0.12.2]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.1...v0.12.2
 [v0.11.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.1...v0.11.3
 [v0.11.1]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.0...v0.11.1
