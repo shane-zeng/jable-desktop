@@ -142,6 +142,7 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       return globalThis.jableApp.getAppInfo();
     });
     expect(appInfo.databasePath).toContain(userDataDir);
+    expect(typeof appInfo.version).toBe('string');
 
     const defaultSettings = await window.evaluate(function () {
       return globalThis.jableApp.getSettings();

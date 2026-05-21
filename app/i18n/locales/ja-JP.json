@@ -239,6 +239,7 @@
     "subtitle": "ブラウザー、同期、Import、Export の動作を調整します。",
     "general": {
       "title": "一般",
+      "version": "バージョン",
       "updates": "アプリの更新",
       "checkForUpdates": "更新を確認"
     },

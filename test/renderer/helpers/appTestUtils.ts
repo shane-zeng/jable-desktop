@@ -45,7 +45,8 @@ export function createAppTestApi(
       databasePath: '/tmp/jable.sqlite',
       locale: 'zh-TW',
       platform: 'macos',
-      systemLocale: 'zh-TW'
+      systemLocale: 'zh-TW',
+      version: '0.12.4'
     }),
     getSettings: vi.fn().mockResolvedValue(settings),
     updateSettings: vi.fn().mockImplementation(function (patch: Partial<AppSettings>) {

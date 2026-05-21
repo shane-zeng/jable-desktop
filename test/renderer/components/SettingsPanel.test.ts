@@ -23,7 +23,8 @@ const settings: AppSettings = {
 function mountPanel(
   overrides?: Partial<AppSettings>,
   databasePath: string | null = '/tmp/jable-favourites.sqlite',
-  platform: AppPlatform | null = 'macos'
+  platform: AppPlatform | null = 'macos',
+  appVersion: string | null = '0.12.4'
 ) {
   return mount(SettingsPanel, {
     attachTo: document.body,
@@ -32,6 +33,7 @@ function mountPanel(
       busy: false,
       databasePath: databasePath,
       platform: platform,
+      appVersion: appVersion,
       ffmpegStatus: {
         state: 'missing',
         source: null,
@@ -88,6 +90,8 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('下載速度模式');
     expect(wrapper.text()).toContain('播放時自動下載');
     expect(wrapper.text()).toContain('資料');
+    expect(wrapper.text()).toContain('版本');
+    expect(wrapper.get('[data-test="settings-app-version"]').text()).toBe('0.12.4');
     expect(wrapper.text()).toContain('檢查更新');
     expect(wrapper.find('[data-test="settings-max-tabs-warning"]').exists()).toBe(true);
     expect(wrapper.get('[data-test="settings-speed-fast"]').classes()).toContain('is-active');

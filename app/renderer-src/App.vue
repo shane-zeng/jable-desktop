@@ -956,6 +956,7 @@ onBeforeUnmount(function () {
         :download-root="downloadRoot"
         :database-path="appInfo && appInfo.databasePath"
         :platform="appInfo && appInfo.platform"
+        :app-version="appInfo && appInfo.version"
         @update-settings="updateAppSettings"
         @change-locale="changeLocale"
         @reset-tabs-width="resetBrowserTabsWidth"

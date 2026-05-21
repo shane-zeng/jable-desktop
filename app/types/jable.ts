@@ -494,6 +494,7 @@ export interface AppInfo {
   locale: SupportedLocale;
   platform: AppPlatform;
   systemLocale: string;
+  version: string;
 }
 
 export interface OpenLocalDataFolderResult {

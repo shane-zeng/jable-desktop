@@ -239,6 +239,7 @@
     "subtitle": "Adjust browser, sync, import, and export behavior.",
     "general": {
       "title": "General",
+      "version": "Version",
       "updates": "App Updates",
       "checkForUpdates": "Check for Updates"
     },

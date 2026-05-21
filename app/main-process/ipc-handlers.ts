@@ -71,6 +71,7 @@ export type IpcHandlersContext = {
   getDatabasePath(): string | null;
   getDownloadManager(): DownloadManager;
   getAppPlatform(): AppPlatform;
+  getAppVersion(): string;
   getSystemLocale(): string;
   goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState>;
   goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState>;
@@ -118,7 +119,8 @@ function registerAppHandlers(context: IpcHandlersContext) {
       databasePath: context.getDatabasePath(),
       locale: context.currentLocale(),
       platform: context.getAppPlatform(),
-      systemLocale: context.getSystemLocale()
+      systemLocale: context.getSystemLocale(),
+      version: context.getAppVersion()
     };
   });
 

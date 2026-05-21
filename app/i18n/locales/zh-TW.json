@@ -239,6 +239,7 @@
     "subtitle": "調整瀏覽器、同步與資料匯入匯出的行為。",
     "general": {
       "title": "一般",
+      "version": "版本",
       "updates": "應用程式更新",
       "checkForUpdates": "檢查更新"
     },

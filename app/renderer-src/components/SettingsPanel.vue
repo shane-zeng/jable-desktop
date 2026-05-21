@@ -44,6 +44,7 @@ const props = defineProps<{
   downloadRoot: DownloadRootInfo | null;
   databasePath: string | null;
   platform: AppPlatform | null;
+  appVersion: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -441,6 +442,10 @@ function shortcutTokenSeparator(tokenIndex: number) {
                     {{ option.label }}
                   </option>
                 </select>
+              </div>
+              <div v-if="appVersion" class="settings-row settings-row-center">
+                <span class="settings-label">{{ t('settings.general.version') }}</span>
+                <code class="settings-code" data-test="settings-app-version">{{ appVersion }}</code>
               </div>
               <div class="settings-row settings-row-center">
                 <span class="settings-label">{{ t('settings.general.updates') }}</span>

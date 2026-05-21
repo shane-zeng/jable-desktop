@@ -946,6 +946,9 @@ function registerIpcHandlers() {
     },
     getDownloadManager: getDownloadManager,
     getAppPlatform: currentAppPlatform,
+    getAppVersion: function () {
+      return app.getVersion();
+    },
     getSystemLocale: function () {
       return app.getLocale();
     },
