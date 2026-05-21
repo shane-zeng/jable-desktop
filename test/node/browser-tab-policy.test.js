@@ -61,7 +61,7 @@ test('nextActiveTabIdAfterClose returns null when closing the only active tab', 
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-1', 'tab-1'), null);
 });
 
-test('nextActiveTabIdAfterClose follows opener-group tabs before returning to the opener root', function () {
+test('nextActiveTabIdAfterClose keeps close activation inside opener groups before unrelated tabs', function () {
   const tabs = [
     { id: 'tab-1' },
     { id: 'tab-2' },
@@ -71,9 +71,16 @@ test('nextActiveTabIdAfterClose follows opener-group tabs before returning to th
     { id: 'tab-3' }
   ];
 
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2', 'tab-2'), 'tab-2-1');
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2-1', 'tab-2-1'), 'tab-2-2');
   assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2-2', 'tab-2-2'), 'tab-2-3');
-  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2-3', 'tab-2-3'), 'tab-2');
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-2-3', 'tab-2-3'), 'tab-2-2');
+});
+
+test('nextActiveTabIdAfterClose ignores opener when closing the last active tab', function () {
+  const tabs = [{ id: 'tab-1' }, { id: 'tab-2' }, { id: 'tab-3', openerTabId: 'tab-1' }];
+
+  assert.equal(policy.nextActiveTabIdAfterClose(tabs, 'tab-3', 'tab-3'), 'tab-2');
 });
 
 test('nextActiveTabIdAfterClose falls back to the next top-level tab after an opener group is closed', function () {

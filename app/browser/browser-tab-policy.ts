@@ -213,10 +213,15 @@ function nextActiveTabIdAfterClose(
         }
       }
 
-      for (let openerIndex = 0; openerIndex < tabs.length; openerIndex++) {
-        const openerTab = tabs[openerIndex];
-        if (openerTab && openerTab.id === openerTabId) return openerTab.id;
+      for (let siblingIndex = i - 1; siblingIndex >= 0; siblingIndex--) {
+        const siblingTab = tabs[siblingIndex];
+        if (siblingTab && siblingTab.id !== closingTabId && tabOpenedBy(siblingTab, openerTabId)) {
+          return siblingTab.id;
+        }
       }
+
+      const adjacentTab = tabs[i - 1] || tabs[i + 1] || null;
+      return adjacentTab ? adjacentTab.id : null;
     }
 
     const nextTab = tabs[i + 1] || tabs[i - 1] || null;

@@ -40,7 +40,7 @@ This document specifies the embedded browser runtime owned by the Electron main 
 - Background tab dispositions stay in the background; other dispositions activate the new tab.
 - Closing the active tab activates the tab to the right when possible.
 - Closing the last active tab falls back to the previous tab.
-- Closing an active opener-group child activates the next child in that group first. After the group children are closed, focus returns to the opener/root tab before moving to unrelated tabs.
+- Closing inside an opener group stays within direct child or sibling tabs before moving to unrelated tabs, and falls back to adjacent tab-rail order when no group peer remains.
 - Closing an inactive tab does not change the active tab.
 - If all normal tabs are closed, the app creates a new home tab.
 - Active-tab changes focus the new active `WebContentsView` so repeated shortcuts continue to work.

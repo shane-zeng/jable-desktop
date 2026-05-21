@@ -27,7 +27,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Users can open, activate, close, mute, and reload browser tabs.
 - A new normal tab opens the configured Jable home URL, defaulting to `https://jable.tv/`.
 - Newly created browser tabs follow opener-group behavior: repeated tabs opened from the same source tab are kept together below that source tab and before the next unrelated tab.
-- Closing active opener-group child tabs walks through the remaining children first, then returns to the opener tab before moving to unrelated tabs.
+- Closing active opener-group tabs stays within direct child or sibling tabs before moving to unrelated tabs; otherwise closing follows adjacent tab-rail order.
 - The tab rail supports persisted standard, compact, and shared display modes through app settings.
 - Shared tab rail mode can also be toggled with the documented keyboard shortcut while Browser or Local Data is active.
 - Tab rail width is a renderer-local `localStorage` preference.
