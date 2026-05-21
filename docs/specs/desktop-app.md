@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-20
+Last verified against implementation: 2026-05-21
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -18,6 +18,7 @@ This document specifies the current user-facing Electron desktop application beh
 - The renderer UI is dark-mode-only.
 - Desktop UI locales are `zh-TW`, `en-US`, and `ja-JP`.
 - Locale selection affects renderer copy, native menus, context menus, dialogs, and toast messages.
+- The main app window restores the normal bounds and maximized state saved from the previous successful close, clamped to visible display work areas and minimum window size.
 - `app/renderer-src/App.vue` owns top-level wiring, while focused composables own browser bounds, library state, sync workflow, pending remote actions, and toast status.
 
 ## Browser View
@@ -160,3 +161,5 @@ This document specifies the current user-facing Electron desktop application beh
 - `app/renderer-src/composables/useSyncWorkflow.ts`
 - `app/renderer-src/composables/useToastStatus.ts`
 - `app/app-contract.ts`
+- `app/main-process/window-options.ts`
+- `app/main-process/window-state.ts`

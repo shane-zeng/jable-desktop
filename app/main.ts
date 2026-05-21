@@ -28,6 +28,7 @@ import type {
   SyncWorkerManager,
   SyncWorkerManagerContext
 } from './main-process/sync-worker-manager';
+import type { MainWindowSavedState } from './main-process/window-options';
 import type {
   AppSettings,
   AppSettingsPatch,
@@ -54,15 +55,26 @@ type SettingsModule = {
   settingsFilePath(userDataPath: string): string;
 };
 type WindowOptionsModule = {
-  mainWindowDimensions(
+  mainWindowPlacement(
     platform: string,
-    workAreaSize?: { width: number; height: number } | null
+    workAreas?: Array<{ x: number; y: number; width: number; height: number }> | null,
+    savedState?: MainWindowSavedState | null
   ): {
+    x?: number;
+    y?: number;
     width: number;
     height: number;
     minWidth: number;
     minHeight: number;
+    maximized: boolean;
   };
+};
+type WindowStateModule = {
+  MainWindowStateStore: new (filePath: string) => {
+    readState(): MainWindowSavedState | null;
+    writeState(state: MainWindowSavedState): void;
+  };
+  mainWindowStateFilePath(userDataPath: string): string;
 };
 type DataEngineModule = {
   COLLECTIONS: DatabaseCollection[];
@@ -185,6 +197,7 @@ const syncWorkerManagerModule = require('./main-process/sync-worker-manager') as
 };
 const updateChecker = require('./main-process/update-checker') as UpdateCheckerModule;
 const windowOptions = require('./main-process/window-options') as WindowOptionsModule;
+const windowStateModule = require('./main-process/window-state') as WindowStateModule;
 const urlPolicy = require('./browser/url-policy') as UrlPolicyModule;
 const COLLECTIONS = dataEngineModule.COLLECTIONS;
 
@@ -244,6 +257,7 @@ let downloadAppShutdownController: DownloadAppShutdownController | null = null;
 let downloadManager: DownloadManager | null = null;
 let syncWorkerManager: SyncWorkerManager | null = null;
 let settingsStore: InstanceType<SettingsModule['AppSettingsStore']> | null = null;
+let mainWindowStateStore: InstanceType<WindowStateModule['MainWindowStateStore']> | null = null;
 let currentLocale: SupportedLocale = i18n.DEFAULT_LOCALE;
 
 function t(key: string, params?: TranslationParams | null): string {
@@ -430,6 +444,45 @@ function getSettingsStore() {
   return settingsStore;
 }
 
+function getMainWindowStateStore() {
+  if (!mainWindowStateStore) {
+    mainWindowStateStore = new windowStateModule.MainWindowStateStore(
+      windowStateModule.mainWindowStateFilePath(app.getPath('userData'))
+    );
+  }
+
+  return mainWindowStateStore;
+}
+
+function saveMainWindowState(browserWindow: Electron.BrowserWindow) {
+  try {
+    const normalBounds = browserWindow.getNormalBounds();
+    getMainWindowStateStore().writeState({
+      x: normalBounds.x,
+      y: normalBounds.y,
+      width: normalBounds.width,
+      height: normalBounds.height,
+      maximized: browserWindow.isMaximized()
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function mainWindowWorkAreas(): Array<{ x: number; y: number; width: number; height: number }> {
+  const primaryDisplay = electron.screen.getPrimaryDisplay();
+  const displays = electron.screen.getAllDisplays();
+  const orderedDisplays = [primaryDisplay].concat(
+    displays.filter(function (display) {
+      return display.id !== primaryDisplay.id;
+    })
+  );
+
+  return orderedDisplays.map(function (display) {
+    return display.workArea;
+  });
+}
+
 function getAppSettings(): AppSettings {
   return getSettingsStore().get();
 }
@@ -546,16 +599,16 @@ function promptPauseDownloadsAndClose(browserWindow: Electron.BrowserWindow) {
 }
 
 function createWindow() {
-  const dimensions = windowOptions.mainWindowDimensions(
+  const placement = windowOptions.mainWindowPlacement(
     process.platform,
-    electron.screen.getPrimaryDisplay().workAreaSize
+    mainWindowWorkAreas(),
+    getMainWindowStateStore().readState()
   );
-
-  mainWindow = new BrowserWindow({
-    width: dimensions.width,
-    height: dimensions.height,
-    minWidth: dimensions.minWidth,
-    minHeight: dimensions.minHeight,
+  const browserWindowOptions: Electron.BrowserWindowConstructorOptions = {
+    width: placement.width,
+    height: placement.height,
+    minWidth: placement.minWidth,
+    minHeight: placement.minHeight,
     title: 'Jable Desktop',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -564,7 +617,15 @@ function createWindow() {
       sandbox: false,
       webviewTag: false
     }
-  });
+  };
+
+  if (typeof placement.x === 'number' && typeof placement.y === 'number') {
+    browserWindowOptions.x = placement.x;
+    browserWindowOptions.y = placement.y;
+  }
+
+  mainWindow = new BrowserWindow(browserWindowOptions);
+  if (placement.maximized) mainWindow.maximize();
 
   getBrowserRuntime().registerAppShortcuts(mainWindow.webContents);
 
@@ -601,10 +662,12 @@ function createWindow() {
   });
   mainWindow.on('close', function (event: Electron.Event) {
     if (getDownloadAppShutdownController().consumeWindowCloseAllowance()) {
+      saveMainWindowState(mainWindow as Electron.BrowserWindow);
       getBrowserRuntime().flushSession();
       return;
     }
     if (!hasQueuedOrActiveDownloads()) {
+      saveMainWindowState(mainWindow as Electron.BrowserWindow);
       getBrowserRuntime().flushSession();
       return;
     }

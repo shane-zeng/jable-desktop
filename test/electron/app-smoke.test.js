@@ -108,6 +108,12 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
         { url: smokeServer.url + '?ignored=2', locked: false, muted: false }
       ]
     });
+    writeJson(path.join(userDataDir, 'main-window-state.json'), {
+      version: 1,
+      updatedAt: '2026-05-21T00:00:00.000Z',
+      width: 1200,
+      height: 700
+    });
 
     electronApp = await electron.launch({
       executablePath: electronPath,
@@ -124,6 +130,13 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     const window = await findPreloadBridgeWindow(electronApp);
 
     await expect(window).toHaveTitle(/Jable/i);
+
+    const restoredWindowBounds = await electronApp.evaluate(function ({ BrowserWindow }) {
+      const windows = BrowserWindow.getAllWindows();
+      return windows[0] ? windows[0].getBounds() : null;
+    });
+    expect(restoredWindowBounds.width).toBe(1200);
+    expect(restoredWindowBounds.height).toBe(700);
 
     const appInfo = await window.evaluate(function () {
       return globalThis.jableApp.getAppInfo();
@@ -201,9 +214,18 @@ test('desktop app restores previous browser tabs when enabled', async function (
 
     await electronApp.evaluate(function ({ BrowserWindow }) {
       const windows = BrowserWindow.getAllWindows();
+      if (windows[0]) windows[0].setSize(1210, 710);
+    });
+    await electronApp.evaluate(function ({ BrowserWindow }) {
+      const windows = BrowserWindow.getAllWindows();
       if (windows[0]) windows[0].close();
     });
     await waitForWindowCount(electronApp, 0);
+
+    const savedWindowState = JSON.parse(fs.readFileSync(path.join(userDataDir, 'main-window-state.json'), 'utf8'));
+    expect(savedWindowState.width).toBe(1210);
+    expect(savedWindowState.height).toBe(710);
+
     await electronApp.evaluate(function ({ app }) {
       app.emit('activate');
     });
