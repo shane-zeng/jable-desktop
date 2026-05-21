@@ -55,7 +55,7 @@ type SettingsModule = {
 };
 type WindowOptionsModule = {
   mainWindowDimensions(
-    platform: NodeJS.Platform,
+    platform: string,
     workAreaSize?: { width: number; height: number } | null
   ): {
     width: number;
