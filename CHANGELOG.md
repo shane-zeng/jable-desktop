@@ -6,6 +6,15 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.12.5] - 2026-05-21
+
+### Changed
+
+- Restore main window state on startup
+- Show app version in settings
+- Gate HLS playback verbose logs
+- Bump version to 0.12.5
+
 ## [v0.12.4] - 2026-05-21
 
 ### Changed
@@ -354,7 +363,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.4...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.5...HEAD
+[v0.12.5]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.4...v0.12.5
 [v0.12.4]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.3...v0.12.4
 [v0.12.2]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.1...v0.12.2
 [v0.11.3]: https://github.com/shane-zeng/jable-desktop/compare/v0.11.1...v0.11.3
