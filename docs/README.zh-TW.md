@@ -26,7 +26,7 @@ Jable Desktop 是非官方桌面工具，與 Jable 官方沒有關聯。
 - Incremental sync 與 full reconciliation sync 設計
 - Embedded browser session persistence
 - Shared IPC wire types
-- 輕量 i18n 架構，支援 renderer、Electron native menu 與 userscript 多語系
+- 輕量 i18n 架構，支援 renderer 與 Electron native menu 多語系
 - GitHub Actions 自動化 lint、typecheck、test 與 release packaging
 
 ## 架構概覽
@@ -163,7 +163,6 @@ winget install Gyan.FFmpeg
 - 在「設定」>「資料」匯出 JSON 備份
 - 在「設定」>「資料」匯入 JSON 還原
 - 保留網站排序資訊 (`site_order`)
-- 相容舊版 Tampermonkey userscript 匯出格式
 - 匯入時若 JSON 內含來源路徑，App 會預選「影片收藏」或「稍後觀看」；若無法判斷，需手動選擇匯入目標
 
 ## 資料與登入狀態
@@ -175,19 +174,6 @@ App 不會將你的清單上傳到其他服務；登入與瀏覽仍直接與 Jab
 若 `https://jable.tv` 載入失敗，桌面 app 會在目前 session 自動切換到官方備用站 `https://fs1.app`。本機資料仍會使用主要網址作為標準 URL，避免同一影片因不同網域重複。
 
 Jable 的登入狀態會保存在隔離的 Electron session partition 中，但若 Jable 官方 session 過期，仍可能需要重新登入。
-
-## Tampermonkey Userscript
-
-原始 userscript 仍可單獨使用：[`jable-favourites-exporter.user.js`](../jable-favourites-exporter.user.js)。
-
-它支援：
-
-- `https://jable.tv/my/favourites/videos/`
-- `https://jable.tv/my/favourites/videos-watch-later/`
-- `https://fs1.app/my/favourites/videos/`
-- `https://fs1.app/my/favourites/videos-watch-later/`
-
-進入頁面後，點擊右下角浮動匯出按鈕即可匯出所有分頁。旁邊的語言選擇器可切換 **繁中** / **EN** / **日本語**。
 
 ## 開發文件
 

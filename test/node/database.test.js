@@ -1521,60 +1521,6 @@ test('migration removes legacy playback state table', function (t) {
   rawDb.close();
 });
 
-test('importResource accepts userscript paged JSON and exportResource includes site order', function (t) {
-  const db = createTestEngine(t);
-  const resource = {
-    data: [
-      {
-        data: [
-          {
-            title: 'Imported video',
-            url: 'https://jable.tv/videos/imported/',
-            views: 200,
-            likes: 20,
-            img: null,
-            preview: null
-          },
-          {
-            title: 'Imported video 2',
-            url: 'https://jable.tv/videos/imported-2/',
-            views: 300,
-            likes: 30,
-            img: null,
-            preview: null
-          }
-        ],
-        meta: {
-          current_page: 1,
-          per_page: 24,
-          count: 2
-        }
-      }
-    ],
-    meta: {
-      format_version: 2,
-      completed: true,
-      last_scraped_page: 1
-    }
-  };
-
-  const result = db.importResource('watch_later', resource);
-  assert.equal(result.imported, 2);
-
-  const exported = db.exportResource('watch_later');
-  assert.equal(exported.meta.format_version, 2);
-  assert.equal(exported.meta.completed, true);
-  assert.equal(exported.meta.total, 2);
-  assert.equal(exported.data[0].data[0].url, 'https://jable.tv/videos/imported/');
-  assert.equal(exported.data[0].data[1].url, 'https://jable.tv/videos/imported-2/');
-  assert.deepEqual(
-    exported.data[0].data.map(function (row) {
-      return row.site_order;
-    }),
-    [1, 2]
-  );
-});
-
 test('importResource preserves explicit site_order from desktop JSON', function (t) {
   const db = createTestEngine(t);
   const resource = {
@@ -1622,23 +1568,23 @@ test('importResource preserves explicit site_order from desktop JSON', function 
   );
 });
 
-test('importResource accepts sort_order as an import alias and exports site_order', function (t) {
+test('importResource rejects flat rows outside desktop export pages', function (t) {
   const db = createTestEngine(t);
   const resource = {
     data: [
       {
-        title: 'Alias second',
-        url: 'https://jable.tv/videos/alias-second/',
+        title: 'Flat second',
+        url: 'https://jable.tv/videos/flat-second/',
         views: 20,
         likes: 2,
-        sort_order: 2
+        site_order: 2
       },
       {
-        title: 'Alias first',
-        url: 'https://jable.tv/videos/alias-first/',
+        title: 'Flat first',
+        url: 'https://jable.tv/videos/flat-first/',
         views: 10,
         likes: 1,
-        sort_order: 1
+        site_order: 1
       }
     ],
     meta: {
@@ -1646,22 +1592,10 @@ test('importResource accepts sort_order as an import alias and exports site_orde
     }
   };
 
-  db.importResource('watch_later', resource);
-
-  const exported = db.exportResource('watch_later');
-  assert.deepEqual(
-    exported.data[0].data.map(function (row) {
-      return row.url;
-    }),
-    ['https://jable.tv/videos/alias-first/', 'https://jable.tv/videos/alias-second/']
-  );
-  assert.equal(Object.prototype.hasOwnProperty.call(exported.data[0].data[0], 'sort_order'), false);
-  assert.deepEqual(
-    exported.data[0].data.map(function (row) {
-      return row.site_order;
-    }),
-    [1, 2]
-  );
+  assert.throws(function () {
+    db.importResource('watch_later', resource);
+  }, /desktop paged JSON data/);
+  assert.deepEqual(db.listVideos('watch_later'), []);
 });
 
 test('exportResourceToFile writes JSON equivalent to exportResource', async function (t) {

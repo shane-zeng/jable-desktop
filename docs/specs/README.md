@@ -1,14 +1,13 @@
 # Current Feature Specifications
 
-Last verified against implementation: 2026-05-17
+Last verified against implementation: 2026-05-21
 
-This directory contains implementation-backed feature specifications for Jable Desktop and the bundled Tampermonkey userscript. These files describe the current behavior of the repository as implemented, not future product intent.
+This directory contains implementation-backed feature specifications for Jable Desktop. These files describe the current behavior of the repository as implemented, not future product intent.
 
 The English files in this directory are the version-controlled source of truth. When a reading copy in another language is useful, create the matching `*.local.md` file beside the English spec, such as `data-sync.local.md` for `data-sync.md`. Those local files are intentionally ignored by Git and must not be treated as authoritative.
 
 ## Specification Index
 
-- [Userscript](userscript.md): Tampermonkey exporter behavior, supported pages, export format, localization, and cache rules.
 - [Desktop App](desktop-app.md): user-facing Electron/Vue desktop behavior, including Browser, Local Data, Settings, video cards, and Pending Sync.
 - [Browser Runtime](browser-runtime.md): embedded `WebContentsView` browser runtime, tab policy, navigation, fallback origin handling, ad blocking, fullscreen, context menus, and update checks.
 - [Data And Sync](data-sync.md): collections, local storage, search, quick/full sync, AJAX acceleration, outbox handling, pending remote operations, and JSON import/export.
@@ -20,7 +19,6 @@ The English files in this directory are the version-controlled source of truth. 
 
 Use source code and tests as the final source of truth when a user guide, changelog, or specification appears stale. The most important implementation references are:
 
-- `jable-favourites-exporter.user.js`
 - `app/app-contract.ts`
 - `app/types/jable.ts`
 - `app/main-process/ipc-normalizers.ts`

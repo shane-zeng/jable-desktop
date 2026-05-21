@@ -5,26 +5,29 @@ use std::path::Path;
 
 use crate::collections::ensure_collection;
 use crate::collections::{Collection, PRIMARY_ORIGIN};
-use crate::payload::{normalize_video_url, object_field, read_site_order, value_string};
+use crate::payload::{normalize_video_url, object_field, value_string};
 use crate::{now_iso, now_millis, to_napi_error, Engine};
 
 const PAGE_SIZE: usize = 24;
 
-fn flatten_resource(resource: &Value) -> Vec<Value> {
+fn flatten_resource(resource: &Value) -> Result<Vec<Value>> {
     let mut rows = Vec::new();
     let Some(data) = object_field(resource, "data").and_then(|value| value.as_array()) else {
-        return rows;
+        return Err(Error::from_reason(
+            "importResource requires desktop paged JSON data".to_string(),
+        ));
     };
 
     for item in data {
-        if let Some(page_data) = object_field(item, "data").and_then(|value| value.as_array()) {
-            rows.extend(page_data.iter().cloned());
-        } else if object_field(item, "url").is_some() {
-            rows.push(item.clone());
-        }
+        let Some(page_data) = object_field(item, "data").and_then(|value| value.as_array()) else {
+            return Err(Error::from_reason(
+                "importResource requires desktop paged JSON data".to_string(),
+            ));
+        };
+        rows.extend(page_data.iter().cloned());
     }
 
-    rows
+    Ok(rows)
 }
 
 fn export_video(row: &Value) -> Value {
@@ -90,15 +93,7 @@ impl Engine {
         let resource = object_field(&payload, "resource")
             .cloned()
             .unwrap_or(Value::Null);
-        let mut rows = flatten_resource(&resource);
-
-        for (index, row) in rows.iter_mut().enumerate() {
-            if read_site_order(row).is_none() {
-                if let Some(object) = row.as_object_mut() {
-                    object.insert("siteOrder".to_string(), json!(index + 1));
-                }
-            }
-        }
+        let rows = flatten_resource(&resource)?;
         let completed = object_field(&resource, "meta")
             .and_then(|meta| object_field(meta, "completed"))
             .and_then(|value| value.as_bool())

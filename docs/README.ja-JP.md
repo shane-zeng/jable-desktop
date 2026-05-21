@@ -26,7 +26,7 @@ Jable Desktop は非公式のデスクトップツールであり、Jable 公式
 - Incremental sync と full reconciliation sync workflow
 - Embedded browser session persistence
 - Shared IPC wire types
-- renderer、Electron native menu、userscript UI をカバーする軽量 i18n architecture
+- renderer と Electron native menu をカバーする軽量 i18n architecture
 - lint、type-check、test、release packaging を実行する GitHub Actions quality gates
 
 ## アーキテクチャ概要
@@ -163,7 +163,6 @@ FFmpeg build を自分でダウンロードして展開し、`bin` フォルダ�
 - 設定 > データ から JSON backup を Export
 - 設定 > データ から JSON backup を Import
 - `site_order` を保持
-- 旧 Tampermonkey export files と互換
 - JSON に source metadata が含まれる場合はお気に入りまたは後で見るを自動選択します。判定できない場合は Import 先を手動で選択してください
 
 ## データとログイン状態
@@ -175,19 +174,6 @@ FFmpeg build を自分でダウンロードして展開し、`bin` フォルダ�
 `https://jable.tv` を読み込めない場合、デスクトップアプリは現在の session で公式代替サイト `https://fs1.app` に自動切り替えします。ローカルデータは引き続き primary URL を canonical URL として扱うため、同じ動画がドメイン違いで重複しません。
 
 ログイン状態は分離された Electron session partition に保存されます。ただし、Jable 公式側の session が期限切れになった場合は再ログインが必要になることがあります。
-
-## Tampermonkey Userscript
-
-元の userscript は引き続き単体で利用できます: [`jable-favourites-exporter.user.js`](../jable-favourites-exporter.user.js)。
-
-対応ページ:
-
-- `https://jable.tv/my/favourites/videos/`
-- `https://jable.tv/my/favourites/videos-watch-later/`
-- `https://fs1.app/my/favourites/videos/`
-- `https://fs1.app/my/favourites/videos-watch-later/`
-
-対象ページを開いた後、右下の floating export button をクリックすると全ページを Export できます。隣の compact language selector で **繁中**、**EN**、**日本語** を選択できます。
 
 ## 開発ドキュメント
 

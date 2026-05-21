@@ -90,10 +90,10 @@ fn normalize_video_url_canonicalizes_supported_origins() {
 }
 
 #[test]
-fn read_site_order_accepts_desktop_and_legacy_fields() {
+fn read_site_order_accepts_runtime_and_export_fields() {
     assert_eq!(read_site_order(&json!({ "siteOrder": "7" })), Some(7));
     assert_eq!(read_site_order(&json!({ "site_order": 8 })), Some(8));
-    assert_eq!(read_site_order(&json!({ "sort_order": 9 })), Some(9));
+    assert_eq!(read_site_order(&json!({ "sort_order": 9 })), None);
 }
 
 #[test]

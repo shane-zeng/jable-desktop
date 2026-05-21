@@ -8,74 +8,26 @@ The short project entrypoint lives in [README.md](../README.md). Full user-facin
 
 # Jable Desktop
 
-> A Tampermonkey user script and Electron desktop app to export, sync, and browse favourite or watch-later videos from [Jable.tv](https://jable.tv/) — even when pagination is loaded dynamically.
+> An Electron desktop app to sync, browse, search, import, export, and download favourite or watch-later videos from [Jable.tv](https://jable.tv/) — even when pagination is loaded dynamically.
 
 Jable Desktop is an unofficial desktop companion for Jable.
 
-The original userscript remains available as `jable-favourites-exporter.user.js`. The desktop app adds an embedded browser with isolated persistent Jable cookies and SQLite storage.
+The desktop app opens Jable in an embedded browser with isolated persistent Jable cookies and SQLite storage.
 
 ---
 
 ## Features
 
-- Export all items across multiple pages (auto-click pagination).
 - Supports both **「影片收藏」** and **「稍後觀看」** pages.
 - Works even when Jable uses AJAX to load content (no API access needed).
-- Output format: **JSON** (default) or **CSV** (toggleable).
-- Compatible with modern browsers (Chrome / Edge / Firefox).
-- No external dependencies for the userscript.
 - Desktop app stores synced data in SQLite and supports JSON import/export.
 - Desktop sync preserves Jable site order and supports quick/full sync modes.
 - Desktop app includes Download List and local video file management.
 - Embedded browser uses multi-tab `WebContentsView` tabs with a persistent Jable session partition.
 - Optional WebView enhancement mode can apply a small, Jable-specific loading and page cleanup ruleset in the shared session. It is off by default.
 - Renderer UI is dark-mode-only, with no system appearance selector.
-- Desktop and userscript UI support Traditional Chinese, English, and Japanese localization.
+- Desktop UI supports Traditional Chinese, English, and Japanese localization.
 - Browser shortcuts and quick interactions are documented in [`docs/shortcuts.md`](shortcuts.md).
-
----
-
-## Userscript Installation
-
-1. Install [Tampermonkey](https://www.tampermonkey.net/) browser extension.
-2. Visit the script file: `jable-favourites-exporter.user.js`.
-3. Tampermonkey will prompt to install the script. Click **Install**.
-
----
-
-## Userscript Usage
-
-1. Go to your Jable account:
-
-- **影片收藏**: `https://jable.tv/my/favourites/videos/`
-- **稍後觀看**: `https://jable.tv/my/favourites/videos-watch-later/`
-- **備用站影片收藏**: `https://fs1.app/my/favourites/videos/`
-- **備用站稍後觀看**: `https://fs1.app/my/favourites/videos-watch-later/`
-
-2. Wait until all thumbnails are loaded.
-3. Click the floating export button in the lower-right corner. Use the compact language selector beside it to choose **繁中**, **EN**, or **日本語** when needed.
-4. The script will:
-
-- Simulate clicking each pagination button.
-- Collect video titles and URLs.
-- Export a JSON or CSV file automatically.
-
----
-
-## Output Files
-
-| Page     | URL                                                  | Output filename                     |
-| -------- | ---------------------------------------------------- | ----------------------------------- |
-| 影片收藏 | `https://jable.tv/my/favourites/videos/`             | `favourites_list.json` (or `.csv`)  |
-| 稍後觀看 | `https://jable.tv/my/favourites/videos-watch-later/` | `watch_later_list.json` (or `.csv`) |
-| 影片收藏 | `https://fs1.app/my/favourites/videos/`              | `favourites_list.json` (or `.csv`)  |
-| 稍後觀看 | `https://fs1.app/my/favourites/videos-watch-later/`  | `watch_later_list.json` (or `.csv`) |
-
-You can change export format by editing this line in the script:
-
-```js
-const EXPORT_FORMAT = 'json'; // or 'csv'
-```
 
 ---
 
@@ -109,7 +61,7 @@ Desktop sync behavior:
 - Jable collection add/remove button clicks are observed in `app/browser/webview-preload/collection-actions.ts`; during active sync they are deferred into the ordered `sync_operations` outbox. Outside active sync, successful site-side toggles are mirrored into local SQLite visibility state through `db:apply-collection-toggle`.
 - The Rust data engine owns persisted outbox state. Deferred rows move through `pending`, `applied`, `failed`, `blocked`, `resolved`, and `superseded`; the webview only performs Jable AJAX with the current cookie/session. Deferred remote operations never alter normal local list visibility until Jable AJAX succeeds. Automatic replay is controlled by Settings and is off by default. When enabled, replay runs in original operation order and stops after the first failed operation, marking later pending rows as blocked. The main process replays the outbox one operation at a time so it can emit `sync-queue-progress` updates and keep the renderer progress bar accurate.
 - The renderer's global Pending Sync tab is backed by `listPendingRemoteOperationGroups()`, which groups unresolved outbox rows by `collectionKey + videoUrl` without exposing a final-intent guess. Manual handling offers explicit `Add` and `Remove` actions, which send a single Jable AJAX operation and apply local visibility only after success, plus `Resolved`, which only clears local pending state. A later clean full sync marks older pending/failed/blocked rows from previous sync runs `superseded`; rows created during the current sync run remain pending when automatic replay is off.
-- JSON export includes `site_order` as the desktop backup order field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Renderer import UX lives in Settings > Data, preselects a collection from `meta.source_path`, `meta.source_url`, or filename when possible, and still requires a final target collection before calling `importJson({ collectionKey, resource })`.
+- JSON export includes `site_order` as the desktop backup order field. Import reads the desktop paged JSON backup shape produced by the app. Renderer import UX lives in Settings > Data, preselects a collection from `meta.source_path`, `meta.source_url`, or filename when possible, and still requires a final target collection before calling `importJson({ collectionKey, resource })`.
 
 Desktop data and search behavior:
 
@@ -184,17 +136,11 @@ Localization behavior:
 - Renderer locale changes are sent through `window.jableApp.setLocale()`, so native application menus, context menus, dialog titles, and renderer copy stay aligned.
 - Keep visible renderer copy, aria labels, placeholders, toast messages, select option labels, and menu/dialog labels in the locale dictionaries. Avoid putting user-facing fallback labels in `app/renderer-src/constants.ts`.
 - Dictionary key parity between `zh-TW`, `en-US`, and `ja-JP` is covered by `test/node/i18n.test.js`. Missing keys are exposed as `[missing:key.path]` in development/test and fall back to the raw key in production.
-- The userscript remains self-contained, so it has a small local i18n dictionary inside `jable-favourites-exporter.user.js` rather than importing the desktop dictionaries. Its language preference is stored in `localStorage` as `jable-favourites-exporter:locale`.
-- When adding a new user-facing message, update all desktop locale JSON files, update the userscript dictionary separately if the message appears there, and add or adjust tests for any new translation behavior.
-
-Userscript cache behavior:
-
-- The userscript remains self-contained and dependency-free, but large exports prefer an IndexedDB cache with localStorage fallback.
-- IndexedDB cache methods cover open/read meta/load rows/known URL map/save progress/mark base rows/replace rows/migration. Preserve localStorage migration and progress feedback when changing long-running export flow.
+- When adding a new user-facing message, update all desktop locale JSON files and add or adjust tests for any new translation behavior.
 
 Licensing and attribution:
 
-- The project license is Apache License 2.0. Keep `LICENSE`, `package.json`, the root package entry in `package-lock.json`, `jable-favourites-exporter.user.js` metadata, `README.md`, and `docs/README.*.md` aligned when license metadata changes.
+- The project license is Apache License 2.0. Keep `LICENSE`, `package.json`, the root package entry in `package-lock.json`, `README.md`, and `docs/README.*.md` aligned when license metadata changes.
 - The root `LICENSE` file should stay as the canonical Apache License 2.0 text for scanner compatibility. Project-specific copyright, disclaimers, and acknowledgements belong in README/user documentation.
 - `package-lock.json` also records dependency licenses. Only the root package entry reflects this project's license; do not bulk-edit dependency license fields.
 - Download workflow design is acknowledged in README as referencing `hcjohn463/JableDownload`. If future changes copy code, assets, or substantial implementation text from that or any other project, verify license compatibility and preserve required copyright, attribution, and NOTICE material.
@@ -227,7 +173,7 @@ Desktop app files:
 
 ### Quality Checks
 
-The project uses ESLint and Prettier as conservative guardrails. The config enforces `const` by default, `let` only for reassignment, no `var` declarations, no variable shadowing, block-scoped variable usage, strict equality, explicit boolean coercion, and consistent type imports. It still preserves the project shape: TypeScript source compiled to CommonJS for Electron runtime modules, Vue single-file components in the renderer, and a self-contained Tampermonkey userscript.
+The project uses ESLint and Prettier as conservative guardrails. The config enforces `const` by default, `let` only for reassignment, no `var` declarations, no variable shadowing, block-scoped variable usage, strict equality, explicit boolean coercion, and consistent type imports. It still preserves the project shape: TypeScript source compiled to CommonJS for Electron runtime modules and Vue single-file components in the renderer.
 
 Use Node.js 24, matching `.node-version`, the repository `engines` field, and GitHub Actions. The package manager is locked through `packageManager` in `package.json`.
 
@@ -240,7 +186,7 @@ npm run check
 
 Useful commands:
 
-- `npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
+- `npm run lint`: run ESLint across Electron, renderer, and tests.
 - `npm run lint:fix`: apply safe ESLint fixes.
 - `npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
 - `npm run build:rust`: build the Rust native data and download engines into `app/native-dist/`.
@@ -250,7 +196,7 @@ Useful commands:
 - `npm run check`: run lint, typecheck, Node tests, renderer tests, and renderer build.
 - `npm run test:electron`: build the Electron runtime and renderer, then run the minimal Playwright Electron startup smoke test with isolated test user data and a local HTTP page. This is a targeted Electron boot/preload check, not part of `npm run check`.
 
-TypeScript covers the renderer, shared IPC/wire types, and Electron runtime source. The Tampermonkey userscript remains JavaScript to preserve its no-build, self-contained runtime shape.
+TypeScript covers the renderer, shared IPC/wire types, and Electron runtime source.
 
 Test coverage map:
 
@@ -264,7 +210,7 @@ Test coverage map:
 - `test/node/webview-preload-helpers.test.js`: pure webview preload helper behavior for constants, metrics, page parsing, AJAX URLs, and retry details.
 - `test/node/settings.test.js`: app settings defaults, persistence, and user-facing limit clamping.
 - `test/node/sync-utils.test.js`: numeric pager selection.
-- `test/node/i18n.test.js` and `test/node/userscript-i18n.test.js`: locale normalization, dictionary key parity, missing-key behavior, and userscript locale UI guardrails.
+- `test/node/i18n.test.js`: locale normalization, dictionary key parity, and missing-key behavior.
 - `native/local-data-engine/src/tests.rs`: Rust-native data-engine invariants that should not depend only on addon contract coverage, including URL normalization, site-order import aliases, search token matching, outbox grouping, resolved groups, full-sync superseded state, and download asset metadata persistence.
 - `native/download-engine/src/planning.rs` and `native/download-engine/src/playlist.rs`: Rust-native download engine concurrency planning, CDN rejection handling, and local HLS playlist generation.
 - `test/renderer/components/*.test.ts`: component rendering and emitted UI actions.
@@ -300,8 +246,7 @@ Manual checks:
 - Search with `any`, `all`, and `phrase` modes and confirm title/URL filtering still matches README examples.
 - Switch desktop language between Traditional Chinese, English, and Japanese from Settings. Confirm the top bar, settings page, local data controls, pagination, video metadata labels, toast messages, application menu, page context menu, tab context menu, and export dialog title update.
 - Restart the app after changing language and confirm the `jable-desktop:locale` preference is preserved.
-- In Tampermonkey, verify the userscript floating export UI on favourites and watch-later pages. Switch between **繁中**, **EN**, and **日本語**, confirm the button label changes immediately, and confirm progress/error labels follow the selected language.
-- Import an existing userscript JSON export from Settings > Data, confirm source detection or manual target selection, and verify rows appear in the selected collection.
+- Import an existing desktop JSON export from Settings > Data, confirm source detection or manual target selection, and verify rows appear in the selected collection.
 - Export JSON from Settings > Data and confirm the `{ data: [...], meta: {...} }` shape is preserved.
 
 ### Desktop Packaging

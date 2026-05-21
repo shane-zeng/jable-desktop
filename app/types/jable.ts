@@ -53,7 +53,6 @@ export interface ScrapedVideoRow {
   preview: string | null;
   siteOrder?: number | null;
   site_order?: number | null;
-  sort_order?: number | null;
 }
 
 export type VideoMetadataRefreshPayload = ScrapedVideoRow;

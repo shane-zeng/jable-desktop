@@ -4,7 +4,7 @@ This file tracks no-spec-change optimization work so future maintenance can cont
 
 ## Scope Rule
 
-These refactors must not change documented behavior, IPC contracts, sync semantics, JSON shapes, renderer UI behavior, or userscript output.
+These refactors must not change documented behavior, IPC contracts, sync semantics, JSON shapes, or renderer UI behavior.
 
 Before implementing a candidate:
 
@@ -77,8 +77,6 @@ Before implementing a candidate:
   `app/main.ts` is back under 1000 lines and keeps lifecycle plus top-level wiring. Embedded browser runtime wiring, browser session restore/save, preload request/response bookkeeping, and active Jable origin fallback state are delegated out of `main.ts`; app local/export/documentation side effects live in `app-actions.ts`; and app-level active-download quit/window-close gating lives in `download-app-shutdown.ts`.
 - Main-process browser folder boundary.
   Browser runtime modules now live under `app/main-process/browser/`: `runtime.ts` composes the browser subsystem, `tab-manager.ts` owns `WebContentsView` tab state, `shortcut-manager.ts` owns main-process shortcut wiring, `session-controller.ts` and `session-store.ts` own startup tab persistence, `preload-requests.ts` owns browser preload request/response bookkeeping, and `origin-controller.ts` owns active Jable origin fallback state.
-- Userscript pagination/export helper cleanup.
-  `jable-favourites-exporter.user.js` now shares focused helpers for active pager tracking, next-page selection, click-and-wait pagination, and final resource download between IndexedDB and localStorage export paths while keeping both cache flows separate.
 
 ## Remaining Candidates
 

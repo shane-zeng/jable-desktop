@@ -26,7 +26,7 @@ It opens Jable inside the app and syncs favourites and watch-later lists into lo
 - Incremental sync and full reconciliation sync workflows
 - Embedded browser session persistence
 - Shared IPC wire types
-- Lightweight i18n architecture covering the renderer, Electron native menus, and userscript UI
+- Lightweight i18n architecture covering the renderer and Electron native menus
 - GitHub Actions quality gates for linting, type-checking, testing, and release packaging
 
 ## Architecture Overview
@@ -163,7 +163,6 @@ Fast mode prefetches more pages at once and helps large lists. If it hits timeou
 - Export JSON backups from Settings > Data
 - Import JSON backups from Settings > Data
 - Preserve `site_order`
-- Compatible with legacy Tampermonkey export files
 - When a JSON file includes source metadata, the app preselects Favourites or Watch Later; if the source cannot be detected, choose the import target manually
 
 ## Data And Login State
@@ -175,19 +174,6 @@ The app does not upload list data to external services. Browsing and sign-in con
 If `https://jable.tv` fails to load, the desktop app automatically switches to the official fallback site `https://fs1.app` for the current session. Local data still uses the primary URL as the canonical URL so the same video is not duplicated across domains.
 
 Login state is stored inside an isolated Electron session partition, but users may still need to sign in again if the official Jable session expires.
-
-## Tampermonkey Userscript
-
-The original userscript remains available as [`jable-favourites-exporter.user.js`](../jable-favourites-exporter.user.js).
-
-It supports:
-
-- `https://jable.tv/my/favourites/videos/`
-- `https://jable.tv/my/favourites/videos-watch-later/`
-- `https://fs1.app/my/favourites/videos/`
-- `https://fs1.app/my/favourites/videos-watch-later/`
-
-Open one of those pages, then click the floating export button in the lower-right corner to export all pages. Use the compact language selector beside it to choose **繁中**, **EN**, or **日本語**.
 
 ## Development Docs
 

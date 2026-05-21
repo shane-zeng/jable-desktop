@@ -1,0 +1,85 @@
+{
+  "repo_notes": [
+    {
+      "content": "Use docs/specs/*.md as implementation-backed feature specifications, docs/development.md as the architecture and validation reference, and AGENTS.md as the maintenance and placement guidance. Treat source code and tests as the final source of truth when documentation disagrees."
+    },
+    {
+      "content": "Do not treat generated output directories as architecture sources: app/runtime-dist/, app/renderer-dist/, and app/native-dist/ are build artifacts. Focus on app/main.ts, app/main-process/, app/browser/, app/webview-preload.ts, app/renderer-src/, app/data/, app/download/, native/local-data-engine/, native/download-engine/, test/, and docs/specs/."
+    },
+    {
+      "content": "Document stable ownership boundaries and behavior contracts. Avoid presenting volatile implementation details such as exact helper names, queue internals, or concurrency numbers as long-term product facts unless they are confirmed in source code or docs/specs/."
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "High-level introduction to Jable Desktop, its Electron desktop app, major runtime layers, and where to find authoritative docs."
+    },
+    {
+      "title": "Development and Release Workflow",
+      "purpose": "Developer setup, Node 24 requirement, Rust native addon builds, main npm scripts, test selection, packaging, release workflow, and validation guidance from docs/development.md and docs/specs/testing-validation.md.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Desktop Architecture",
+      "purpose": "Renderer, Electron main process, webview preload, shared browser policy modules, Rust native engines, and how IPC connects these boundaries.",
+      "parent": "Overview"
+    },
+    {
+      "title": "Electron Main Process",
+      "purpose": "Main process composition, IPC handler registration, settings persistence, app actions, window lifecycle, browser runtime wiring, and update checks.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "Browser Runtime",
+      "purpose": "Embedded WebContentsView tabs, session partitioning, tab policy, fallback Jable origins, URL trust rules, context menus, shortcuts, fullscreen, and browser session restore.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "Renderer UI",
+      "purpose": "Vue renderer structure, App.vue responsibilities, BrowserPanel, LibraryPanel, SettingsPanel, reusable components, composables, state ownership, and window.jableApp usage.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "Webview Preload and Sync",
+      "purpose": "Injected Jable page runtime, scraping, pager handling, quick/full sync, AJAX fallback, deferred collection actions, pending remote operation overlays, and sync worker interaction.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "Local Data Engine",
+      "purpose": "Rust SQLite data engine, schema and migrations, collections, FTS search, URL canonicalization, list/count contracts, JSON import/export, and Node/Rust test responsibilities.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "Sync and Outbox Semantics",
+      "purpose": "Quick sync, full sync, visibility reconciliation, deferred remote operations, outbox states, pending remote groups, automatic replay, manual Add/Remove/Resolved actions, and behavior guarantees from docs/specs/data-sync.md.",
+      "parent": "Local Data Engine"
+    },
+    {
+      "title": "Download System",
+      "purpose": "Download manager architecture, TypeScript orchestration modules, Rust HLS download engine, FFmpeg remuxing, playback-triggered capture, local playback, file actions, and shutdown behavior.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "IPC Contract",
+      "purpose": "Renderer-to-main preload bridge, IPC payload types, normalization and validation rules, channel alignment requirements, preload event flow, and tests guarding the boundary.",
+      "parent": "Desktop Architecture"
+    },
+    {
+      "title": "Internationalization",
+      "purpose": "Desktop locale dictionaries, supported locales, locale selection and IPC propagation, key parity tests, and user-facing copy rules."
+    },
+    {
+      "title": "Testing Guide",
+      "purpose": "Node tests, renderer Vitest tests, Rust tests, Electron Playwright smoke tests, format/lint/typecheck/build gates, and how to choose focused validation for a change."
+    },
+    {
+      "title": "Maintenance Guidelines",
+      "purpose": "Architecture placement rules, no-spec-change refactor workflow, current refactor backlog/watchlist, generated output rules, documentation update rules, and anti-over-engineering guidance."
+    },
+    {
+      "title": "Glossary",
+      "purpose": "Definitions of project-specific terms such as quick sync, full sync, Pending Sync, outbox, site_order, WebContentsView tab, fallback origin, playback capture, and native engines."
+    }
+  ]
+}

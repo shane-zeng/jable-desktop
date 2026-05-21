@@ -1,6 +1,6 @@
 # Jable Desktop
 
-Unofficial local-first desktop app for syncing, browsing, searching, importing, and exporting Jable favourites and watch-later lists.
+Unofficial local-first desktop app for syncing, browsing, searching, importing, exporting, and downloading Jable favourites and watch-later lists.
 
 <p align="center">
   <img src="images/local-data.png" width="900" alt="Jable Desktop local data view" />
@@ -18,9 +18,7 @@ Unofficial local-first desktop app for syncing, browsing, searching, importing, 
 
 ## Overview
 
-Jable Desktop opens Jable inside an embedded browser and syncs your favourites and watch-later lists into a local SQLite database. It keeps browsing and sign-in directly between you and Jable, while the app provides local search, sorting, backup, and restore workflows.
-
-The project also includes the original self-contained Tampermonkey exporter: [`jable-favourites-exporter.user.js`](jable-favourites-exporter.user.js).
+Jable Desktop opens Jable inside an embedded browser and syncs your favourites and watch-later lists into a local SQLite database. It keeps browsing and sign-in directly between you and Jable, while the app provides local search, sorting, backup, restore, and download workflows.
 
 ## Highlights
 
@@ -29,9 +27,9 @@ The project also includes the original self-contained Tampermonkey exporter: [`j
 - Automatic fallback from `jable.tv` to `fs1.app` when the primary site fails to load
 - Local SQLite storage with FTS5 search
 - Quick sync and full sync modes
-- JSON import/export with legacy userscript compatibility
+- JSON import/export for desktop backups
 - Download List and local video file management
-- Lightweight Traditional Chinese / English / Japanese localization across desktop and userscript UI
+- Lightweight Traditional Chinese / English / Japanese localization across the desktop UI
 - macOS and Windows release targets
 
 ## Quick Start

@@ -3,7 +3,7 @@
   "version": "0.12.5",
   "private": true,
   "packageManager": "npm@11.12.1",
-  "description": "Tampermonkey exporter and Electron desktop app for Jable favourites and watch-later lists.",
+  "description": "Electron desktop app for syncing, browsing, importing, exporting, and downloading Jable favourites and watch-later lists.",
   "main": "app/runtime-dist/main.js",
   "scripts": {
     "check:node": "node scripts/check-node-version.js",
@@ -53,7 +53,7 @@
     "electron",
     "jable",
     "sqlite",
-    "tampermonkey"
+    "download"
   ],
   "license": "Apache-2.0",
   "devDependencies": {

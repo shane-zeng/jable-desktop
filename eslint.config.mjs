@@ -142,13 +142,6 @@ export default [
     }
   },
   {
-    files: ['jable-favourites-exporter.user.js'],
-    languageOptions: {
-      globals: browserGlobals,
-      sourceType: 'script'
-    }
-  },
-  {
     files: ['app/renderer-src/**/*.{js,ts,vue}'],
     languageOptions: {
       globals: {

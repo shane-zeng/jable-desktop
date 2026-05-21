@@ -80,7 +80,6 @@ pub(crate) fn normalize_video_url(value: Option<&Value>) -> Option<String> {
 pub(crate) fn read_site_order(value: &Value) -> Option<i64> {
     value_i64(object_field(value, "siteOrder"))
         .or_else(|| value_i64(object_field(value, "site_order")))
-        .or_else(|| value_i64(object_field(value, "sort_order")))
 }
 
 pub(crate) fn normalize_video(value: &Value) -> Option<NormalizedVideo> {

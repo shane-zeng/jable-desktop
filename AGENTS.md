@@ -2,9 +2,8 @@
 
 ## Project Structure & Module Organization
 
-This repository contains a self-contained Tampermonkey userscript and an Electron desktop app for syncing, browsing, importing, and exporting Jable favourites and watch-later entries.
+This repository contains an Electron desktop app for syncing, browsing, importing, exporting, and downloading Jable favourites and watch-later entries.
 
-- `jable-favourites-exporter.user.js`: main userscript with metadata, configuration, scraping helpers, pagination, cache, download logic, and its own small i18n dictionary.
 - `app/main.ts`: Electron main-process entrypoint and composition root. Keep window lifecycle, app startup/shutdown wiring, shared Electron services, and manager registration here; move domain behavior into the folders below.
 - `app/main-process/`: Electron main-process domain modules. `browser/` owns the embedded browser runtime boundary: `runtime.ts` wires controllers, `tab-manager.ts` owns Browser tab/window orchestration, `shortcut-manager.ts` owns keyboard shortcut registration, `session-controller.ts` plus `session-store.ts` own browser startup session save/restore, `preload-requests.ts` owns preload request/response bookkeeping, and `origin-controller.ts` owns active Jable origin fallback policy. Native app menu and update dialogs live in `app-menu-manager.ts`, app-level local/export/documentation actions in `app-actions.ts`, app-level download quit/close gating in `download-app-shutdown.ts`, context menus in `context-menu-manager.ts`, `download/` owns download orchestration/controllers/HLS/FFmpeg/runtime state by subdomain, `hls-playback/` owns playback-triggered HLS proxy/probe/capture modules, `local-playback/` owns local video range/server/preview helpers, sync worker orchestration lives in `sync-worker-manager.ts`, IPC registration in `ipc-handlers.ts`, IPC payload normalizers in `ipc-normalizers.ts`, settings persistence in `settings.ts`, and release update fetching in `update-checker.ts`.
 - `app/preload.ts`: context-isolated bridge that exposes the only renderer-to-main API as `window.jableApp`.
@@ -20,7 +19,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `app/runtime-dist/`: TypeScript-compiled Electron runtime loaded by Electron and packaged for release.
 - `app/renderer-src/`: Vue 3 + TailwindCSS + TypeScript renderer source. `components/BrowserTabRail.vue` owns the reusable browser tab rail shared by Browser and Local Data modes, while `App.vue` decides whether new browser tabs opened from Local Data remain in the background.
 - `app/renderer-dist/`: Vite-built renderer loaded by Electron and packaged for release.
-- `test/node/`: Node test files for database behavior, import/export, sync utilities, download helpers/manager behavior, i18n, userscript i18n, update checks, and browser tab policy.
+- `test/node/`: Node test files for database behavior, import/export, sync utilities, download helpers/manager behavior, i18n, update checks, and browser tab policy.
 - `test/renderer/`: Vitest renderer, component, composable, and renderer i18n tests.
 - `test/electron/`: Playwright Electron startup smoke test for the real packaged-runtime boot path, the context-isolated preload bridge, and basic settings/tab IPC reachability. Keep this suite intentionally thin; behavior coverage belongs in Node, Rust, or renderer tests.
 - `scripts/update-release-changelog.js`: release automation helper that updates `CHANGELOG.md` for a completed version tag.
@@ -31,7 +30,7 @@ This repository contains a self-contained Tampermonkey userscript and an Electro
 - `CHANGELOG.md`: generated release history for version tags. Do not edit it during normal feature or bug-fix work.
 - `AGENTS.md`: contributor guidance for future maintenance.
 
-Keep the userscript self-contained. Put desktop-only code under `app/`, Node tests under `test/node/`, and renderer tests under `test/renderer/`.
+Put desktop runtime code under `app/`, Node tests under `test/node/`, and renderer tests under `test/renderer/`.
 
 ## Refactor Backlog and No-Spec-Change Optimization
 
@@ -42,20 +41,16 @@ When asked to continue optimization or refactor work:
 - Use the `jable-desktop-maintenance` skill for the repeatable placement, validation, and no-spec-change workflow.
 - Do not re-analyze the full project structure first unless the user explicitly asks for a fresh audit.
 - Read `docs/refactor-opportunities.md`, verify the relevant current code and tests, then implement the next selected item.
-- Preserve documented behavior, IPC contracts, sync semantics, JSON shapes, renderer UI behavior, and userscript output.
+- Preserve documented behavior, IPC contracts, sync semantics, JSON shapes, and renderer UI behavior.
 - If the backlog appears stale, update it as part of the same change instead of duplicating completed work.
 
 ## Build, Test, and Development Commands
 
 Use Node.js 24. The repository enforces this through `.node-version`, `.npmrc`, `scripts/check-node-version.js`, and `package.json` engines. If your shell is not already on Node 24, run local npm commands through `fnm exec --using 24 ...`.
 
-The userscript has no build step. Edit it directly and validate it in Tampermonkey.
-
 - `ll`: inspect repository files.
-- `cat jable-favourites-exporter.user.js`: review the userscript.
-- `grep "EXPORT_FORMAT" jable-favourites-exporter.user.js`: find userscript configuration or implementation details.
 - `npm install`: install Electron and renderer development dependencies.
-- `fnm exec --using 24 npm run lint`: run ESLint across userscript, Electron, renderer, and tests.
+- `fnm exec --using 24 npm run lint`: run ESLint across Electron, renderer, and tests.
 - `fnm exec --using 24 npm run lint:fix`: apply safe ESLint fixes.
 - `fnm exec --using 24 npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
 - `fnm exec --using 24 npm run format`: format the repository with Prettier.
@@ -72,25 +67,11 @@ The userscript has no build step. Edit it directly and validate it in Tampermonk
 - `fnm exec --using 24 npm run test:electron`: build the app and run the minimal Playwright Electron startup smoke test with isolated test user data.
 - `git diff`: review local changes before committing.
 
-For userscript validation, install or update `jable-favourites-exporter.user.js` in Tampermonkey, then test:
-
-- `https://jable.tv/my/favourites/videos/`
-- `https://jable.tv/my/favourites/videos-watch-later/`
-- `https://fs1.app/my/favourites/videos/`
-- `https://fs1.app/my/favourites/videos-watch-later/`
-
 ## Coding Style & Architecture
 
-Use plain JavaScript compatible with modern browsers and Tampermonkey in the userscript:
+ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the existing style unless there is a clear reason to change it: CommonJS in Electron main/preload modules and Vue SFCs plus TypeScript in the renderer. Do not introduce broad style-only refactors outside a deliberate formatting baseline.
 
-- Two-space indentation.
-- Prefer `const`; use `let` only when reassignment is required. Do not introduce new `var` declarations.
-- Small, direct functions with descriptive names such as `scrapeCurrentPage`, `readPagerLinks`, and `downloadJson`.
-- Uppercase constants for selectors and IDs, for example `SEL_PAGER_LINKS` and `BTN_ID`.
-
-ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the existing style unless there is a clear reason to change it: CommonJS in Electron main/preload modules, Vue SFCs plus TypeScript in the renderer, and a self-contained browser userscript. Do not introduce broad style-only refactors outside a deliberate formatting baseline.
-
-Avoid dependencies, bundlers, or broad abstractions unless the script or desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
+Avoid dependencies, bundlers, or broad abstractions unless the desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
 
 Before implementing new behavior, first make a placement decision: existing file, new file, nearest domain folder, or new subdirectory. Use the `jable-desktop-maintenance` skill for the detailed workflow around placement, no-spec-change refactors, module moves, validation selection, and architecture-doc alignment.
 
@@ -116,7 +97,7 @@ Local search uses SQLite FTS5. Changes to search tokenization, migrations, filte
 
 Rust native data-engine behavior must also be covered directly in `native/local-data-engine/src/tests.rs` when the change affects Rust-owned invariants such as migrations, FTS/search tokenization, sync visibility, sync operation reduction, outbox state transitions, pending remote grouping, resolved/superseded handling, or JSON import/export. Do not rely only on Node contract tests for Rust-owned state machines.
 
-Desktop JSON export uses `site_order` as the official backup ordering field. Import accepts `site_order`, accepts `sort_order` as an alias, and falls back to JSON row order for older userscript exports. Do not rename this public field without updating import/export code, tests, README user guides, `docs/specs/data-sync.md`, and `docs/development.md`.
+Desktop JSON export uses `site_order` as the official backup ordering field. Import reads the desktop paged JSON backup shape produced by the app. Do not rename this public field without updating import/export code, tests, README user guides, `docs/specs/data-sync.md`, and `docs/development.md`.
 
 Desktop JSON import UI must require an explicit target collection. It may preselect favourites or watch-later from JSON `meta.source_path`, `meta.source_url`, or filename hints, but the final `collectionKey` passed to the data engine must come from the confirmed UI target.
 
@@ -128,9 +109,7 @@ Automatic post-sync outbox replay is a user setting and defaults off. Deferred r
 
 Desktop UI supports `zh-TW`, `en-US`, and `ja-JP`. User-facing renderer copy, aria labels, placeholders, toast messages, select labels, native menu labels, context menu labels, and dialog labels belong in `app/i18n/locales/*.json`.
 
-The userscript remains self-contained and keeps its own small i18n dictionary inside `jable-favourites-exporter.user.js`; do not import desktop locale helpers into the userscript.
-
-When adding or changing user-facing messages, update all desktop locale JSON files, update the userscript dictionary when the message appears there, and adjust `test/node/i18n.test.js` or `test/node/userscript-i18n.test.js` when key parity or fallback behavior changes.
+When adding or changing user-facing messages, update all desktop locale JSON files and adjust `test/node/i18n.test.js` when key parity or fallback behavior changes.
 
 Keep documentation split by audience:
 
@@ -146,7 +125,7 @@ When behavior changes, update the relevant spec in `docs/specs/` in the same pul
 
 ## Licensing and Attribution
 
-The project is licensed under Apache License 2.0. Keep the root `LICENSE` file, `package.json`, root package entry in `package-lock.json`, userscript `@license` metadata, `README.md`, and `docs/README.*.md` aligned when changing license metadata. Do not rewrite dependency license entries in `package-lock.json`.
+The project is licensed under Apache License 2.0. Keep the root `LICENSE` file, `package.json`, root package entry in `package-lock.json`, `README.md`, and `docs/README.*.md` aligned when changing license metadata. Do not rewrite dependency license entries in `package-lock.json`.
 
 The root `LICENSE` file should remain the canonical Apache License 2.0 text so license scanners can recognize it. Put project-specific copyright, disclaimers, and acknowledgements in README/user documentation rather than editing the license text itself.
 
@@ -154,22 +133,19 @@ If code, assets, or substantial implementation text are copied or adapted from a
 
 ## Testing Guidelines
 
-Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes, shared settings persistence, and Download Manager helpers/orchestration. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine or download-engine changes, especially migrations, search, sync reducers, outbox state, segment planning, retry behavior, and local playlist generation. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` only when touching Electron startup, BrowserWindow/WebContentsView bootstrapping, preload bridge exposure, protocol/session setup, or main/preload IPC registration wiring. Do not use Electron smoke as routine validation for renderer UI, database/import/export behavior, or download logic when narrower Node, Rust, or renderer tests cover the change. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting. Test userscript changes manually in Tampermonkey before opening a pull request.
+Run `fnm exec --using 24 npm run check` before opening a pull request. Run `fnm exec --using 24 npm test` for SQLite/import/export/search/sync changes, shared settings persistence, and Download Manager helpers/orchestration. Run `fnm exec --using 24 npm run rust:test` or `fnm exec --using 24 npm run rust:ci` for Rust native data-engine or download-engine changes, especially migrations, search, sync reducers, outbox state, segment planning, retry behavior, and local playlist generation. Run `fnm exec --using 24 npm run typecheck`, `fnm exec --using 24 npm run test:renderer`, and `fnm exec --using 24 npm run build:renderer` for renderer changes. Run `fnm exec --using 24 npm run test:electron` only when touching Electron startup, BrowserWindow/WebContentsView bootstrapping, preload bridge exposure, protocol/session setup, or main/preload IPC registration wiring. Do not use Electron smoke as routine validation for renderer UI, database/import/export behavior, or download logic when narrower Node, Rust, or renderer tests cover the change. Run `fnm exec --using 24 npm run format:check` when touching Markdown, YAML, CSS, Vue, TypeScript, or JavaScript formatting.
 
 GitHub Actions run formatting checks, linting, typechecking, tests, and renderer builds on pushes and pull requests. Release workflows also run formatting checks and the same full quality gate before packaging unsigned artifacts.
 
 Verify relevant behavior after changes:
 
-- The userscript floating export UI appears on favourites and watch-later pages, and language switching updates labels/progress text.
-- Pagination is clicked through without duplicate exported URLs.
-- JSON and CSV output still include `title`, `url`, `views`, and `likes`; desktop JSON backups also preserve `site_order`.
-- Both favourites and watch-later pages produce the expected filenames.
+- Desktop JSON backups preserve `site_order`.
 - The desktop app can open Jable, preserve login after restart when the server-side session remains valid, sync both collections, search local data, persist settings, and import/export JSON from the settings page.
 - Browser tabs, context menus, keyboard shortcuts, fullscreen video, tab rail display modes, and `WebContentsView` bounds still behave as documented in `docs/shortcuts.md` and `docs/development.md`.
 
 ## Commit & Pull Request Guidelines
 
-Recent commits use short, imperative summaries, for example `Add Jable Favourites Exporter user script`.
+Recent commits use short, imperative summaries, for example `Add download queue controls`.
 
 Do not update `CHANGELOG.md` for normal feature, fix, documentation, or test commits. Release notes are generated by `.github/workflows/release.yml` after a draft release is created, using `scripts/update-release-changelog.js`; when `Unreleased` is empty, the script builds the release section from first-parent commit subjects between version tags. Keep commit subjects concise and release-readable because they feed the generated changelog.
 
@@ -178,13 +154,11 @@ Only edit `CHANGELOG.md` when explicitly working on release automation, repairin
 Pull requests should include:
 
 - A concise description of the behavior changed.
-- Manual test notes with browser, Tampermonkey, OS, and desktop app details when relevant.
+- Manual test notes with browser, OS, and desktop app details when relevant.
 - Screenshots or exported sample shape when UI or output format changes.
 - Any known limitations caused by Jable DOM changes, Electron behavior, packaging constraints, or unsigned release artifacts.
 
 ## Security & Configuration Tips
-
-Keep `@grant none` unless a Tampermonkey API is required. Do not add external network calls, credentials, analytics, or tracking. Treat Jable DOM selectors as fragile and update them narrowly when the site changes.
 
 Keep URL trust rules centralized in `app/browser/url-policy.ts`. The supported Jable origins are `https://jable.tv` and `https://fs1.app`; fallback-origin video URLs should canonicalize to the primary origin before storage so local rows do not duplicate across domains.
 

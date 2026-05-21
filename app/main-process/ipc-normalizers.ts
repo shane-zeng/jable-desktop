@@ -43,7 +43,6 @@ export type CollectionTogglePayload = {
   preview?: unknown;
   siteOrder?: unknown;
   site_order?: unknown;
-  sort_order?: unknown;
 };
 
 export function ipcPayloadError(channel: string, field?: string): Error {

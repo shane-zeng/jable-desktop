@@ -39,7 +39,6 @@ type CollectionTogglePayload = {
   preview?: unknown;
   siteOrder?: unknown;
   site_order?: unknown;
-  sort_order?: unknown;
 };
 type DeferredSyncOperation = {
   id: number;

@@ -1,6 +1,6 @@
 # Data And Sync Specification
 
-Last verified against implementation: 2026-05-20
+Last verified against implementation: 2026-05-21
 
 This document specifies local data, search, sync, outbox, and JSON import/export behavior.
 
@@ -192,10 +192,7 @@ Important outbox fields:
   - filename hints
 - The confirmed `collectionKey` passed to the data engine is the final import target.
 - Import accepts desktop paged JSON resources.
-- Import accepts legacy userscript paged JSON resources.
 - Import accepts `site_order`.
-- Import accepts `sort_order` as an alias.
-- If no ordering field exists, import falls back to JSON row order.
 - If imported metadata is marked completed, import finalizes sync state for that collection.
 
 ## JSON Export

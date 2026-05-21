@@ -1,6 +1,6 @@
 # Testing And Validation Specification
 
-Last verified against implementation: 2026-05-18
+Last verified against implementation: 2026-05-21
 
 This document maps current functionality to automated and manual validation.
 
@@ -45,7 +45,6 @@ fnm exec --using 24 npm run test:electron
 | Rust native download engine adaptive concurrency, playlist generation, build/check/clippy     | `npm run rust:ci`                           |
 | IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
-| Userscript i18n guardrails                                                                    | `test/node/userscript-i18n.test.js`         |
 | Update checking                                                                               | `test/node/update-checker.test.js`          |
 | WebView enhancement loading rules                                                             | `test/node/webview-enhancement.test.js`     |
 | WebView content cleanup rules                                                                 | `test/node/webview-content-policy.test.js`  |
@@ -58,7 +57,6 @@ fnm exec --using 24 npm run test:electron
 
 ## Change-Specific Test Selection
 
-- Userscript UI or localization changes: run userscript i18n tests and manually test Tampermonkey pages.
 - Renderer UI changes: run renderer tests, typecheck, and renderer build.
 - Main-process browser/tab changes: run browser tab policy tests and IPC guardrail tests. Run Electron smoke tests only when startup or tab-manager wiring changes.
 - IPC payload normalization changes: run IPC normalizer tests, IPC guardrail tests, and typecheck. Run Electron smoke tests only when main/preload handler registration wiring changes.
@@ -127,27 +125,6 @@ Verify these behaviors when touching related desktop areas:
 - JSON import requires a final target collection.
 - JSON export preserves the `{ data, meta }` paged resource shape and `site_order`.
 - Language switching updates renderer copy, native menus, context menus, dialogs, and toast messages.
-
-## Manual Userscript Validation
-
-Verify these pages in Tampermonkey when touching the userscript:
-
-- `https://jable.tv/my/favourites/videos/`
-- `https://jable.tv/my/favourites/videos-watch-later/`
-- `https://fs1.app/my/favourites/videos/`
-- `https://fs1.app/my/favourites/videos-watch-later/`
-
-Expected checks:
-
-- Floating export UI appears only on supported collection pages.
-- Locale selector switches between Traditional Chinese, English, and Japanese.
-- Progress and error labels follow the selected locale.
-- Pagination advances without duplicate exported URLs.
-- JSON output includes paged `data` and `meta`.
-- CSV output includes `title,url,views,likes,img,preview`.
-- Favourites export uses `favourites_list`.
-- Watch-later export uses `watch_later_list`.
-- Long exports preserve or migrate cache state through IndexedDB or localStorage fallback.
 
 ## Documentation Validation
 
