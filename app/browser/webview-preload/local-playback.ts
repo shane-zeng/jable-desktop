@@ -70,6 +70,7 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
   let scanTimer: ReturnType<typeof setTimeout> | null = null;
   const failedSources: Record<string, boolean> = {};
   const failedVideoUrls: Record<string, boolean> = {};
+  const unavailableVideoUrls: Record<string, boolean> = {};
   const restoreStates = new WeakMap<HTMLVideoElement, LocalPlaybackRestoreState>();
   const errorHandlers = new WeakMap<HTMLVideoElement, LocalPlaybackErrorHandler>();
   const previewControllers = new WeakMap<HTMLVideoElement, LocalPlaybackPreviewController>();
@@ -563,6 +564,10 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
       return;
     }
     if (failedVideoUrls[videoUrl]) return;
+    if (unavailableVideoUrls[videoUrl]) return;
+
+    const video = options.mainVideoElement();
+    if (!video) return;
 
     const sourcePageNotice = options.readCurrentLocalPlaybackSourcePageNotice();
     if (
@@ -571,10 +576,7 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
       activeSourcePageChineseSubtitleNotice === sourcePageNotice.sourcePageChineseSubtitleNotice &&
       !failedSources[activeSourceUrl]
     ) {
-      const activeVideo = options.mainVideoElement();
-      if (activeVideo) {
-        setLocalPlaybackSource(activeVideo, videoUrl, activeSourceUrl, activeThumbnailVttUrl, sourcePageNotice);
-      }
+      setLocalPlaybackSource(video, videoUrl, activeSourceUrl, activeThumbnailVttUrl, sourcePageNotice);
       return;
     }
 
@@ -592,14 +594,15 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
     if (sequence !== requestSequence || options.currentVideoUrl() !== videoUrl) return;
 
     if (!localPlaybackSourceIsAvailable(result)) {
+      if (result.reason === 'not_ready' || result.reason === 'missing' || result.reason === 'unavailable') {
+        // Once this loaded page has a real player and no ready local file, do not switch later when a download completes.
+        unavailableVideoUrls[videoUrl] = true;
+      }
       handleLocalPlaybackUnavailable(videoUrl);
       return;
     }
 
     if (failedSources[result.sourceUrl]) return;
-
-    const video = options.mainVideoElement();
-    if (!video) return;
 
     setLocalPlaybackSource(video, result.videoUrl, result.sourceUrl, result.thumbnailVttUrl, sourcePageNotice);
   }
@@ -629,10 +632,7 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
         }
 
         void refreshActiveLocalPlaybackPreview();
-        return;
       }
-
-      scheduleLocalPlaybackSourceCheck();
     });
 
     if (typeof MutationObserver === 'undefined') return;

@@ -82,7 +82,7 @@ Verify these behaviors when touching related desktop areas:
 - Middle-click in embedded browser opens links in background tabs.
 - HTML fullscreen covers the app chrome and restores normal bounds after exit.
 - Browser context menus show correct link, media, selection copy, Google search, navigation, and page URL actions.
-- Jable video pages with ready managed downloads automatically switch the page video element to local playback. If the switch happens while the user is already watching, the preload preserves the current playback position and resumes only when the video was already playing; missing, failed, queued, or unavailable downloads keep normal Jable playback. If a ready local playback file is deleted while the page is using it, the page reloads so Jable rebuilds its own player.
+- Jable video pages with ready managed downloads automatically switch the page video element to local playback when the page opens or reloads. If that page-load switch happens while the user is already watching, the preload preserves the current playback position and resumes only when the video was already playing; missing, failed, queued, unfinished, or unavailable downloads keep normal Jable playback for that page load. If a ready local playback file is deleted while the page is using it, the page reloads so Jable rebuilds its own player.
 - In shared tab rail mode, Local Data new-tab actions create background browser tabs without switching away from Local Data.
 - Local video cards open in current tab, open in background new tabs through middle/platform click, and show context menu actions.
 - Local video cards show compact download states and do not expose detailed progress or error text.

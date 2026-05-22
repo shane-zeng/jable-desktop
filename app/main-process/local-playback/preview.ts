@@ -5,6 +5,7 @@ import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type { DownloadRecord } from '../../types/jable';
 import { FfmpegDownloadError, mainErrorMessage } from '../download/errors';
+import { removeDirectoryAfterRename } from '../safe-directory-removal';
 
 const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');
@@ -40,6 +41,13 @@ type LocalPlaybackPreviewControllerOptions = {
   resolveManagedDownloadPath(fileRelativePath: string | null): string | null;
 };
 
+type ActivePreviewGeneration = {
+  videoUrl: string;
+  filePath: string;
+  child: NodeChildProcess.ChildProcess | null;
+  canceled: boolean;
+};
+
 export type LocalPlaybackPreviewController = {
   imageFilePath(file: LocalPlaybackFile, fileName: string): string;
   readMetadata(file: LocalPlaybackFile): LocalPlaybackPreviewMetadata | null;
@@ -59,8 +67,11 @@ export function createLocalPlaybackPreviewController(
 ): LocalPlaybackPreviewController {
   const previewQueue: string[] = [];
   const previewQueuedUrls = new Set<string>();
+  const previewCanceledUrls = new Set<string>();
   const previewFailedKeys = new Set<string>();
   let activePreviewTask: Promise<void> | null = null;
+  let activePreviewUrl: string | null = null;
+  let activePreviewGeneration: ActivePreviewGeneration | null = null;
 
   function previewDirectory(outputPath: string): string {
     return outputPath + '.preview';
@@ -79,15 +90,24 @@ export function createLocalPlaybackPreviewController(
   }
 
   function removeDirectoryIfPresent(dirPath: string) {
-    try {
-      fs.rmSync(dirPath, { recursive: true, force: true });
-    } catch (error) {}
+    removeDirectoryAfterRename(dirPath);
+  }
+
+  function cancelActivePreviewGeneration(active: ActivePreviewGeneration) {
+    active.canceled = true;
+    if (active.child && !active.child.killed) active.child.kill('SIGTERM');
   }
 
   function removeFiles(record: DownloadRecord) {
     const outputPath = options.resolveManagedDownloadPath(record.localPath);
     if (!outputPath) return;
     removeDirectoryIfPresent(previewDirectory(outputPath));
+
+    if (activePreviewGeneration && activePreviewGeneration.filePath === outputPath) {
+      cancelActivePreviewGeneration(activePreviewGeneration);
+      return;
+    }
+
     removeDirectoryIfPresent(previewTempDirectory(outputPath));
   }
 
@@ -243,12 +263,18 @@ export function createLocalPlaybackPreviewController(
     fs.writeFileSync(previewMetadataPath(tempDir), JSON.stringify(metadata, null, 2));
   }
 
-  function generateFiles(command: string, file: LocalPlaybackFile): Promise<void> {
+  function generateFiles(command: string, file: LocalPlaybackFile): Promise<boolean> {
     return new Promise(function (resolve, reject) {
       const tempDir = previewTempDirectory(file.filePath);
       const previewDir = previewDirectory(file.filePath);
       removeDirectoryIfPresent(tempDir);
       fs.mkdirSync(tempDir, { recursive: true });
+      const activeGeneration: ActivePreviewGeneration = {
+        videoUrl: file.record.videoUrl,
+        filePath: file.filePath,
+        child: null,
+        canceled: false
+      };
 
       const child = childProcess.spawn(
         command,
@@ -282,16 +308,34 @@ export function createLocalPlaybackPreviewController(
           windowsHide: true
         }
       );
+      activeGeneration.child = child;
+      activePreviewGeneration = activeGeneration;
       let stderr = '';
+
+      function finishActiveGeneration() {
+        if (activePreviewGeneration === activeGeneration) activePreviewGeneration = null;
+      }
 
       child.stderr.on('data', function (chunk) {
         stderr = (stderr + String(chunk)).slice(-4000);
       });
       child.on('error', function (error) {
         removeDirectoryIfPresent(tempDir);
+        finishActiveGeneration();
+        if (activeGeneration.canceled) {
+          resolve(false);
+          return;
+        }
         reject(new FfmpegDownloadError(mainErrorMessage(error)));
       });
       child.on('close', function (code) {
+        finishActiveGeneration();
+        if (activeGeneration.canceled) {
+          removeDirectoryIfPresent(tempDir);
+          resolve(false);
+          return;
+        }
+
         if (code !== 0) {
           removeDirectoryIfPresent(tempDir);
           reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
@@ -303,14 +347,14 @@ export function createLocalPlaybackPreviewController(
           if (!fileNames.length) throw new FfmpegDownloadError('FFmpeg did not generate playback preview thumbnails');
           if (!localPlaybackFileMatchesPreviewSource(file)) {
             removeDirectoryIfPresent(tempDir);
-            resolve();
+            resolve(false);
             return;
           }
 
           writeMetadata(file, tempDir, fileNames);
           removeDirectoryIfPresent(previewDir);
           fs.renameSync(tempDir, previewDir);
-          resolve();
+          resolve(true);
         } catch (error) {
           removeDirectoryIfPresent(tempDir);
           reject(error);
@@ -335,6 +379,8 @@ export function createLocalPlaybackPreviewController(
   }
 
   async function runGeneration(videoUrl: string): Promise<void> {
+    if (previewCanceledUrls.has(videoUrl)) return;
+
     const readyFile = options.localPlaybackReadyFile(videoUrl);
     if (!readyFile || readMetadata(readyFile)) return;
     if (!fileLooksLikeMp4(readyFile.filePath)) return;
@@ -344,9 +390,13 @@ export function createLocalPlaybackPreviewController(
 
     try {
       const command = await options.ffmpegCommandForDownload();
-      await generateFiles(command, readyFile);
-      previewFailedKeys.delete(generationKey);
-      options.notifyDownloadsChanged();
+      if (previewCanceledUrls.has(videoUrl)) return;
+
+      const generated = await generateFiles(command, readyFile);
+      if (generated) {
+        previewFailedKeys.delete(generationKey);
+        options.notifyDownloadsChanged();
+      }
     } catch (error) {
       previewFailedKeys.add(generationKey);
       console.warn('[local-playback-preview] ' + mainErrorMessage(error));
@@ -359,8 +409,11 @@ export function createLocalPlaybackPreviewController(
     const videoUrl = previewQueue.shift();
     if (!videoUrl) return;
 
+    activePreviewUrl = videoUrl;
     activePreviewTask = runGeneration(videoUrl).finally(function () {
+      previewCanceledUrls.delete(videoUrl);
       previewQueuedUrls.delete(videoUrl);
+      if (activePreviewUrl === videoUrl) activePreviewUrl = null;
       activePreviewTask = null;
       processQueue();
     });
@@ -380,7 +433,11 @@ export function createLocalPlaybackPreviewController(
   function removeQueuedGeneration(videoUrl: string) {
     const queueIndex = previewQueue.indexOf(videoUrl);
     if (queueIndex !== -1) previewQueue.splice(queueIndex, 1);
+    if (activePreviewUrl === videoUrl) previewCanceledUrls.add(videoUrl);
     if (queueIndex !== -1 || !activePreviewTask) previewQueuedUrls.delete(videoUrl);
+    if (activePreviewGeneration && activePreviewGeneration.videoUrl === videoUrl) {
+      cancelActivePreviewGeneration(activePreviewGeneration);
+    }
 
     for (const key of previewFailedKeys) {
       if (key.startsWith(videoUrl + '\n')) previewFailedKeys.delete(key);
