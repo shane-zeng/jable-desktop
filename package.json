@@ -41,6 +41,7 @@
     "pretest:renderer": "npm run check:node",
     "test:renderer": "vitest run --config vitest.renderer.config.mjs",
     "test:electron": "npm run build && playwright test --config playwright.electron.config.mjs",
+    "test:electron:built": "playwright test --config playwright.electron.config.mjs",
     "test:all": "npm test && npm run test:renderer",
     "pack:mac": "npm run build && electron-builder --mac --dir --arm64",
     "pack:win": "npm run build && electron-builder --win --dir --x64",
