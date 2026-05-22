@@ -45,7 +45,7 @@ jobs:
         run: npm run check
 
       - name: Build unsigned macOS artifacts
-        run: npm run dist:mac:unsigned
+        run: npm run dist:mac:unsigned:built
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
@@ -93,7 +93,7 @@ jobs:
         run: npm run check
 
       - name: Build unsigned Windows artifacts
-        run: npm run dist:win:unsigned
+        run: npm run dist:win:unsigned:built
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

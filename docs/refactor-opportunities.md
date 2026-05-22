@@ -15,6 +15,8 @@ Before implementing a candidate:
 
 ## Completed Batches
 
+- Release packaging duplicate build removal.
+  Release jobs now package from the build outputs produced by the preceding `npm run check` quality gate, avoiding a second full `npm run build` before `electron-builder`.
 - GitHub Actions Rust cache and stale-run cancellation.
   Test and release build jobs now restore the shared Rust workspace cache for `native/target`, and test workflow runs cancel stale in-progress runs for the same pull request or branch.
 - Rust native engine workspace build cache.

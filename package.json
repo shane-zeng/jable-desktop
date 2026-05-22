@@ -47,8 +47,10 @@
     "pack:win": "npm run build && electron-builder --win --dir --x64",
     "dist:mac": "npm run build && electron-builder --mac dmg zip --arm64 --publish never",
     "dist:mac:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --publish never",
+    "dist:mac:unsigned:built": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --publish never",
     "dist:win": "npm run build && electron-builder --win nsis zip --x64 --publish never",
-    "dist:win:unsigned": "npm run build && electron-builder --win nsis zip --x64 --publish never"
+    "dist:win:unsigned": "npm run build && electron-builder --win nsis zip --x64 --publish never",
+    "dist:win:unsigned:built": "electron-builder --win nsis zip --x64 --publish never"
   },
   "keywords": [
     "electron",

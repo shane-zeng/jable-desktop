@@ -260,7 +260,7 @@ Install dependencies once:
 npm install
 ```
 
-Packaging scripts build the Rust native addons, Electron runtime, and Vue renderer before running `electron-builder`. The native `.node` files are included from `app/native-dist/` and unpacked through `asarUnpack`, because Electron cannot load native addons directly from inside `app.asar`.
+Packaging scripts build the Rust native addons, Electron runtime, and Vue renderer before running `electron-builder`. The native `.node` files are included from `app/native-dist/` and unpacked through `asarUnpack`, because Electron cannot load native addons directly from inside `app.asar`. Release-only `*:built` packaging scripts skip the build step and assume those output directories were already produced by the preceding quality gate.
 
 macOS release packaging targets Apple Silicon only. Windows release packaging runs on a Windows x64 runner so `npm run build:rust` produces the `jable_data_engine.win32-x64.node` and `jable_download_engine.win32-x64.node` addons before `electron-builder` packages the app.
 
@@ -291,7 +291,7 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow checks formatting, runs `npm run check`, builds unsigned macOS arm64 artifacts with `npm run dist:mac:unsigned`, builds unsigned Windows x64 artifacts with `npm run dist:win:unsigned`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
+The workflow checks formatting, runs `npm run check`, builds unsigned macOS arm64 artifacts from those checked build outputs with `npm run dist:mac:unsigned:built`, builds unsigned Windows x64 artifacts from those checked build outputs with `npm run dist:win:unsigned:built`, then creates a GitHub draft release. After the draft release is created, the workflow checks out the default branch with the `RELEASE_BYPASS_PAT` repository secret, verifies the released tag points at the current default-branch head, updates `CHANGELOG.md` for the released tag, and commits that changelog update back to the default branch. Review and smoke test the draft assets before publishing the release.
 
 The macOS and Windows workflow artifacts uploaded between build jobs and the release job are retained for 1 day only. The draft GitHub release assets are the durable release downloads.
 
