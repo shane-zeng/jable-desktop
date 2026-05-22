@@ -67,7 +67,7 @@ test('diagnostics logger writes JSONL and redacts sensitive values', function ()
   assert.equal(entries[0].process, 'main');
   assert.equal(entries[0].details.cookie, '[redacted]');
   assert.match(entries[0].details.url, /^\[remote URL host=jable\.tv hash=[a-f0-9]{16}\]$/);
-  assert.equal(entries[0].details.localPath, '[userData]/downloads/video.mp4');
+  assert.equal(entries[0].details.localPath, path.join('[userData]', 'downloads', 'video.mp4'));
   assert.equal(entries[0].details.localBackslashPath, '[userData]\\downloads\\video.mp4');
   assert.equal(entries[0].details.windowsPath, '[local path]');
   assert.equal(entries[0].details.windowsForwardPath, '[local path]');
