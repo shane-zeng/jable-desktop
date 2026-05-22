@@ -1,6 +1,7 @@
 'use strict';
 
 import type * as NodeChildProcess from 'node:child_process';
+import { terminateChildProcess } from '../child-process-termination';
 import type {
   BulkDownloadActionResult,
   CancelDownloadResult,
@@ -334,7 +335,7 @@ export function createDownloadQueueActionsController(
     if (runtime) {
       runtime.abortController.abort();
       if (runtime.nativeId) options.cancelNativeDownload(runtime.nativeId);
-      if (runtime.process) runtime.process.kill('SIGTERM');
+      if (runtime.process) terminateChildProcess(runtime.process);
     } else {
       options.removePartialDownloadFileForRecord(record);
     }
@@ -448,7 +449,7 @@ export function createDownloadQueueActionsController(
     if (runtime) {
       runtime.abortController.abort();
       if (runtime.nativeId) options.cancelNativeDownload(runtime.nativeId);
-      if (runtime.process) runtime.process.kill('SIGTERM');
+      if (runtime.process) terminateChildProcess(runtime.process);
     } else {
       options.removeDownloadWorkingFiles(currentRecord);
     }

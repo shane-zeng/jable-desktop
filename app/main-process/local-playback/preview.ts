@@ -4,6 +4,7 @@ import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type { DownloadRecord } from '../../types/jable';
+import { terminateChildProcess } from '../child-process-termination';
 import { FfmpegDownloadError, mainErrorMessage } from '../download/errors';
 import { removeDirectoryAfterRename } from '../safe-directory-removal';
 
@@ -96,7 +97,7 @@ export function createLocalPlaybackPreviewController(
 
   function cancelActivePreviewGeneration(active: ActivePreviewGeneration) {
     active.canceled = true;
-    if (active.child && !active.child.killed) active.child.kill('SIGTERM');
+    if (active.child && !active.child.killed) terminateChildProcess(active.child);
   }
 
   function removeFiles(record: DownloadRecord) {

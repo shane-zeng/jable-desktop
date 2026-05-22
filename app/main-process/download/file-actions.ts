@@ -3,6 +3,7 @@
 import type * as Electron from 'electron';
 import type * as NodeChildProcess from 'node:child_process';
 import type * as NodeFs from 'node:fs';
+import { terminateChildProcess } from '../child-process-termination';
 import type {
   DeleteDownloadResult,
   DeleteDownloadsResult,
@@ -186,7 +187,7 @@ export function createDownloadFileActionsController(
       options.markDeleted(videoUrl);
       activeRuntime.abortController.abort();
       if (activeRuntime.nativeId) options.cancelNativeDownload(activeRuntime.nativeId);
-      if (activeRuntime.process) activeRuntime.process.kill('SIGTERM');
+      if (activeRuntime.process) terminateChildProcess(activeRuntime.process);
     }
     const result = deleteDownloadRecord(visibleRecord);
     options.notifyDownloadsChanged();

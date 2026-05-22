@@ -2,6 +2,7 @@
 
 import type * as Electron from 'electron';
 import type { DownloadRecord, DownloadRecordPatch } from '../../types/jable';
+import { terminateChildProcess } from '../child-process-termination';
 import type { ActiveDownloadRuntime, DownloadQueueSource } from './active-runner';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
@@ -73,7 +74,7 @@ export function createDownloadShutdownController(
     pauseDownloadRecord(videoUrl, runtime.source === 'normal' ? true : record.playbackAutoResumeBlocked);
     runtime.abortController.abort();
     if (runtime.nativeId) options.cancelNativeDownloadIfLoaded(runtime.nativeId);
-    if (runtime.process) runtime.process.kill('SIGTERM');
+    if (runtime.process) terminateChildProcess(runtime.process);
   }
 
   function pauseDownloadsForShutdown(): Promise<void> {
