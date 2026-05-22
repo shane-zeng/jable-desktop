@@ -2,6 +2,7 @@
 
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
+import { removeDirectoryAfterRename } from '../safe-directory-removal';
 
 type DownloadSegmentWorkspaceKey = {
   method: string;
@@ -32,9 +33,7 @@ function downloadResumeManifestPath(outputPath: string): string {
 }
 
 export function removeDownloadSegmentTempDirectory(outputPath: string) {
-  try {
-    fs.rmSync(downloadSegmentTempDirectory(outputPath), { recursive: true, force: true });
-  } catch (error) {}
+  removeDirectoryAfterRename(downloadSegmentTempDirectory(outputPath));
 }
 
 function roundedDuration(value: number | null): number | null {

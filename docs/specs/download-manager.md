@@ -28,6 +28,9 @@ This document specifies the current Download List and local video file managemen
 - Local timeline preview thumbnails are sampled from the managed MP4 at 60-second intervals, using 213x120 JPEG frames to match Jable's observed preview density.
 - Timeline preview generation runs as a background follow-up after the MP4 becomes ready, and local playback remains available when preview generation is pending, missing, or failed.
 - Deleting a download removes its generated local timeline preview cache together with the managed media file and working files.
+  Working directories may be quarantined under a deletion-suffixed sibling path and retried in the background when the OS
+  temporarily denies direct removal. The app also retries matching quarantined workspace cleanup when the download manager
+  starts or the download root changes.
 
 ## FFmpeg Dependency
 
@@ -278,8 +281,10 @@ This document specifies the current Download List and local video file managemen
 - If segment download fails with HTTP 403, 428, 429, 503, 504, or a compatible CDN rejection pattern, main refreshes the video page and playlist once before final failure.
 - Refreshed playlist retry is allowed only when the existing resume manifest matches or the segment structure can be safely reused. If refresh fails or the refreshed playlist is incompatible, the original segment failure remains the final failure metadata.
 - Pause or cancel requests are honored before and after the refresh retry attempt.
-- On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed, `downloadSource` becomes `normal`, and state becomes `ready`.
-- On failure the partial file and temporary segment files are removed where possible and state becomes `failed`.
+- On success the `.part` file is renamed to the final MP4, file size is recorded, temporary segment files are removed or
+  quarantined for retried background cleanup, `downloadSource` becomes `normal`, and state becomes `ready`.
+- On failure the partial file and temporary segment files are removed or quarantined for retried background cleanup where
+  possible and state becomes `failed`.
 - On pause the unreliable `.mp4.part` output is removed, the `.segments` working directory is preserved, and state becomes `paused`.
 - When the user confirms pause-and-close during App quit, the App waits for active download workers to finish their paused-state cleanup before closing the native data engine.
 - Resume is segment-level. It refreshes the video page and playlist, validates the refreshed playlist by reusable media structure rather than signed CDN URL path, reuses completed segment files, downloads missing segments, and remuxes a fresh `.mp4.part`.

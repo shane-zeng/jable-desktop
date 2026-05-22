@@ -72,6 +72,7 @@ import { createDownloadRuntimeProgressController, type DownloadRuntimeProgressCo
 import { createLocalPlaybackPreviewController, type LocalPlaybackFile } from '../local-playback/preview';
 import { createLocalPlaybackServer } from '../local-playback/server';
 import { createDownloadShutdownController, type DownloadShutdownController } from './shutdown';
+import { cleanupQuarantinedDirectories } from '../safe-directory-removal';
 
 export {
   downloadFailureCode,
@@ -281,6 +282,28 @@ function downloadErrorMessage(error: unknown): string {
 
 function getDownloadRoot(): DownloadRootInfo {
   return downloadEnvironmentController.getDownloadRoot();
+}
+
+function cleanupQuarantinedDownloadDirectories(rootInfo: DownloadRootInfo = getDownloadRoot()) {
+  cleanupQuarantinedDirectories(rootInfo.path);
+}
+
+async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
+  const result = await downloadEnvironmentController.chooseDownloadRoot();
+  cleanupQuarantinedDownloadDirectories(result);
+  return result;
+}
+
+function setDownloadRoot(value: unknown): DownloadRootInfo {
+  const result = downloadEnvironmentController.setDownloadRoot(value);
+  cleanupQuarantinedDownloadDirectories(result);
+  return result;
+}
+
+function clearDownloadRoot(): DownloadRootInfo {
+  const result = downloadEnvironmentController.clearDownloadRoot();
+  cleanupQuarantinedDownloadDirectories(result);
+  return result;
 }
 
 function ensureDownloadRootReady() {
@@ -923,13 +946,14 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     t: context.t,
     upsertPersistedDownload: upsertPersistedDownload
   });
+  cleanupQuarantinedDownloadDirectories();
 
   return {
     cancelDownload: cancelDownload,
     cancelQueuedDownloads: cancelQueuedDownloads,
-    chooseDownloadRoot: downloadEnvironmentController.chooseDownloadRoot,
+    chooseDownloadRoot: chooseDownloadRoot,
     chooseFfmpegPath: downloadEnvironmentController.chooseFfmpegPath,
-    clearDownloadRoot: downloadEnvironmentController.clearDownloadRoot,
+    clearDownloadRoot: clearDownloadRoot,
     clearFfmpegPath: downloadEnvironmentController.clearFfmpegPath,
     confirmPauseDownloadsBeforeClose: confirmPauseDownloadsBeforeClose,
     deleteDownload: deleteDownload,
@@ -958,7 +982,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     retryDownload: retryDownload,
     retryFailedDownloads: retryFailedDownloads,
     revealDownloadFile: revealDownloadFile,
-    setDownloadRoot: downloadEnvironmentController.setDownloadRoot,
+    setDownloadRoot: setDownloadRoot,
     setFfmpegPath: downloadEnvironmentController.setFfmpegPath,
     enqueueDownload: enqueueDownload
   };

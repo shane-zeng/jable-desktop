@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -1277,6 +1278,115 @@ test('download manager bulk cancel reports empty queue after runtime recovery', 
     });
     assert.equal(harness.records.get('https://jable.tv/videos/queued/').state, 'paused');
   } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager removes records after quarantining undeletable segment workspaces', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-download-delete-quarantine-'));
+  const originalRm = fs.rm;
+  const originalSpawn = childProcess.spawn;
+  const originalWarn = console.warn;
+  const cleanupTargets = [];
+
+  fs.rm = function (target, options, callback) {
+    cleanupTargets.push(target);
+    callback(new Error('simulated cleanup lock'));
+  };
+  childProcess.spawn = function (command, args, options) {
+    cleanupTargets.push(options.env.JABLE_DELETE_DIR);
+    return {
+      unref: function () {}
+    };
+  };
+  console.warn = function () {};
+
+  try {
+    const downloadRoot = path.join(userDataDir, 'downloads');
+    const videoUrl = 'https://jable.tv/videos/delete-quarantine/';
+    const localPath = 'locked-cleanup.mp4';
+    const outputPath = path.join(downloadRoot, localPath);
+    const segmentDir = outputPath + '.segments';
+
+    fs.mkdirSync(segmentDir, { recursive: true });
+    fs.writeFileSync(outputPath, 'ready');
+    fs.writeFileSync(path.join(segmentDir, 'segment-000067.ts'), 'locked');
+
+    const harness = createHarness([{ videoUrl: videoUrl, localPath: localPath, state: 'ready' }], userDataDir);
+    const result = await harness.manager.deleteDownload(videoUrl);
+    const quarantinedSegmentDirs = fs.readdirSync(downloadRoot).filter(function (entry) {
+      return entry.startsWith(localPath + '.segments.delete-');
+    });
+
+    assert.deepEqual(result, { deleted: true, removed: true });
+    assert.equal(harness.records.has(videoUrl), false);
+    assert.equal(fs.existsSync(outputPath), false);
+    assert.equal(fs.existsSync(segmentDir), false);
+    assert.equal(quarantinedSegmentDirs.length, 1);
+    assert.deepEqual(
+      cleanupTargets.map(function (target) {
+        return path.basename(target);
+      }),
+      quarantinedSegmentDirs
+    );
+  } finally {
+    fs.rm = originalRm;
+    childProcess.spawn = originalSpawn;
+    console.warn = originalWarn;
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
+test('download manager retries quarantined workspace cleanup on startup', function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-download-startup-quarantine-'));
+  const originalRm = fs.rm;
+  const originalSpawn = childProcess.spawn;
+  const originalWarn = console.warn;
+  const cleanupTargets = [];
+
+  fs.rm = function (target, options, callback) {
+    const targetPath = String(target);
+    cleanupTargets.push(targetPath);
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    callback(null);
+  };
+  childProcess.spawn = function (command, args, options) {
+    const targetPath = options.env.JABLE_DELETE_DIR;
+    cleanupTargets.push(targetPath);
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    return {
+      unref: function () {}
+    };
+  };
+  console.warn = function () {};
+
+  try {
+    const downloadRoot = path.join(userDataDir, 'downloads');
+    const quarantinedSegmentDir = path.join(downloadRoot, 'locked.mp4.segments.delete-1-2');
+    const quarantinedPreviewDir = path.join(downloadRoot, 'locked.mp4.preview.delete-3-4');
+    const activeSegmentDir = path.join(downloadRoot, 'active.mp4.segments');
+
+    fs.mkdirSync(quarantinedSegmentDir, { recursive: true });
+    fs.mkdirSync(quarantinedPreviewDir, { recursive: true });
+    fs.mkdirSync(activeSegmentDir, { recursive: true });
+
+    createHarness([], userDataDir);
+
+    assert.deepEqual(
+      cleanupTargets
+        .map(function (target) {
+          return path.basename(target);
+        })
+        .sort(),
+      ['locked.mp4.preview.delete-3-4', 'locked.mp4.segments.delete-1-2']
+    );
+    assert.equal(fs.existsSync(quarantinedSegmentDir), false);
+    assert.equal(fs.existsSync(quarantinedPreviewDir), false);
+    assert.equal(fs.existsSync(activeSegmentDir), true);
+  } finally {
+    fs.rm = originalRm;
+    childProcess.spawn = originalSpawn;
+    console.warn = originalWarn;
     fs.rmSync(userDataDir, { recursive: true, force: true });
   }
 });
