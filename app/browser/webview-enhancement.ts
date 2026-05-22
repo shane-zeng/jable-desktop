@@ -132,12 +132,12 @@ function installJableWebViewEnhancement(
   }
 
   const debug = Boolean(normalizedOptions.debug);
-  const logger = normalizedOptions.logger || console;
+  const logger = normalizedOptions.logger || null;
 
   session.webRequest.onBeforeRequest({ urls: SUPPRESSED_REMOTE_URL_PATTERNS }, function (details, callback) {
     const suppressed = webViewEnhancementEnabled(normalizedOptions) && shouldSuppressWebViewRequest(details);
 
-    if (suppressed && debug) {
+    if (suppressed && debug && logger) {
       logger.info('[webview-enhancement] suppressed request', details.url);
     }
 

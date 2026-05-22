@@ -165,7 +165,6 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
           mode: mode,
           syncRunId: syncRunId
         });
-        console.warn('[JableDesktopScraper] known URL check failed; continuing sync', error);
         return false;
       }
     }
@@ -290,11 +289,6 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
           message: 'ajax-prefetch-fallback',
           reason: ajaxFallbackReason
         });
-        console.warn(
-          '[JableDesktopScraper] ajax prefetch failed; falling back to sequential paging',
-          ajaxFallbackReason,
-          error
-        );
         return false;
       }
     }

@@ -136,6 +136,7 @@ This document specifies the current user-facing Electron desktop application beh
 - Electron crash dumps are local-only and stored under `userData/logs/crashes`, with only the newest 10 dump files retained.
 - Diagnostics cover main process lifecycle, settings/database/update failures, IPC handler failures, renderer and webview global errors, WebContents crash/load failures, sync worker exits, and download/native/FFmpeg/file phases.
 - Diagnostics sanitization masks full remote URLs, HLS playlist/segment/key details, cookies, authorization headers, tokens, and user/download-root paths before writing.
+- Diagnostics capture handled workflow failures through the app diagnostics logger or preload/renderer reporting channels, not direct production `console.*` output. Diagnostics are best-effort and must not create new crash paths when log writes, IPC sends, or callbacks fail.
 - Settings > Data can open the log folder and can clear diagnostics. Clearing diagnostics deletes only managed log and crash dump files, not SQLite data, settings, or downloaded videos.
 
 ## Import And Export UX

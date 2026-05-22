@@ -199,7 +199,10 @@ function applyWebViewContentRules() {
     webViewEnhancement.shouldSuppressWebViewNavigation
   );
   if (removed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
-    console.info('[webview-enhancement] updated ' + removed + ' container(s)');
+    reportWebviewDiagnostics('info', 'webview-enhancement-content-policy-updated', {
+      removed: removed,
+      url: location.href
+    });
   }
 }
 

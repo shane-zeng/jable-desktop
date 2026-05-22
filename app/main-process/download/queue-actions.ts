@@ -97,11 +97,11 @@ export function createDownloadQueueActionsController(
   function recordBulkDownloadActionFailure(result: BulkDownloadActionResult, error: unknown, videoUrl?: string) {
     result.failed += 1;
     if (options.reportError) {
-      options.reportError('bulk-download-action-failed', error, {
-        videoUrl: videoUrl || null
-      });
-    } else {
-      console.error(error);
+      try {
+        options.reportError('bulk-download-action-failed', error, {
+          videoUrl: videoUrl || null
+        });
+      } catch {}
     }
   }
 

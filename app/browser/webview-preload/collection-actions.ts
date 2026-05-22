@@ -505,7 +505,6 @@ export function createCollectionActionController(
         action: action,
         videoUrl: video.url
       });
-      console.warn('[JableDesktopScraper] collection toggle sync failed', error);
     }
   }
 
@@ -551,7 +550,6 @@ export function createCollectionActionController(
         syncRunId: syncLock.syncRunId,
         videoUrl: video.url
       });
-      console.warn('[JableDesktopScraper] collection toggle queue failed', error);
       return null;
     }
   }

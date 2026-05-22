@@ -216,6 +216,7 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
         downloadPausedError: options.downloadPausedError,
         isCanceled: options.isCanceled,
         isPaused: options.isPaused,
+        reportError: logDownloadError,
         throwIfDownloadCanceled: throwIfDownloadCanceled,
         updateDownloadRuntimeProgress: options.updateDownloadRuntimeProgress
       });

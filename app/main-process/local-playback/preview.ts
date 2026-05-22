@@ -407,11 +407,11 @@ export function createLocalPlaybackPreviewController(
     } catch (error) {
       previewFailedKeys.add(generationKey);
       if (options.reportError) {
-        options.reportError('local-playback-preview-generation-failed', error, {
-          videoUrl: videoUrl
-        });
-      } else {
-        console.warn('[local-playback-preview] ' + mainErrorMessage(error));
+        try {
+          options.reportError('local-playback-preview-generation-failed', error, {
+            videoUrl: videoUrl
+          });
+        } catch {}
       }
     }
   }

@@ -55,7 +55,10 @@ export type HlsPlaybackCaptureContext = {
   jableFallbackOrigin: string;
   jablePrimaryOrigin: string;
   jableSession: Electron.Session;
-  logger?: { info(message?: unknown, ...optionalParams: unknown[]): void } | null;
+  logger?: {
+    info(message?: unknown, ...optionalParams: unknown[]): void;
+    errorEvent?(domain: string, event: string, error: unknown, details?: unknown): void;
+  } | null;
   isAutoDownloadOnPlaybackEnabled?(): boolean;
   completeHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): void;
   queueHlsPlaybackBackgroundCompletion?(value: {
@@ -101,7 +104,11 @@ export const HLS_PLAYBACK_CAPTURE_ACTIVITY_TTL_MS = 6 * 60 * 60 * 1000;
 export const HLS_PLAYBACK_CAPTURE_PREFETCH_CONCURRENCY = 3;
 
 export function logger(context: HlsPlaybackCaptureContext) {
-  return context.logger || console;
+  return (
+    context.logger || {
+      info: function () {}
+    }
+  );
 }
 
 export function hlsPlaybackDebugLog(
@@ -111,6 +118,17 @@ export function hlsPlaybackDebugLog(
 ) {
   if (!isHlsPlaybackVerboseLoggingEnabledByEnv(context.env)) return;
   logger(context).info(message, ...optionalParams);
+}
+
+export function hlsPlaybackErrorLog(
+  context: HlsPlaybackCaptureContext,
+  event: string,
+  error: unknown,
+  details?: unknown
+) {
+  try {
+    if (context.logger && context.logger.errorEvent) context.logger.errorEvent('hls-playback', event, error, details);
+  } catch {}
 }
 
 export function mainErrorMessage(error: unknown): string {

@@ -31,6 +31,13 @@ This document specifies the current Download List and local video file managemen
   Working directories may be quarantined under a deletion-suffixed sibling path and retried in the background when the OS
   temporarily denies direct removal. The app also retries matching quarantined workspace cleanup when the download manager
   starts or the download root changes.
+- A platform-denied primary media delete, such as Windows `EPERM`, `EACCES`, or `EBUSY` while the MP4 is still locked by
+  playback, FFmpeg, Explorer, antivirus, or OS timing, must keep the download record so the UI does not silently lose a
+  still-existing managed file.
+- Platform-denied working directory cleanup is non-fatal after quarantine. Locked `.segments`, `.preview`, or `.preview.tmp`
+  directories may remain under deletion-suffixed names until a later background cleanup succeeds.
+- Cleanup, remux, and playback-capture file failures should emit sanitized diagnostics through the app diagnostics logger.
+  Diagnostics logging is best-effort and must not block pause, cancel, delete, resume, playback, or background cleanup flows.
 
 ## FFmpeg Dependency
 

@@ -28,13 +28,10 @@ function warnRemovalFailure(
   message: string,
   error?: unknown
 ) {
-  if (reportError) {
+  if (!reportError) return;
+  try {
     reportError(event, error || new Error(message), { message: message });
-    return;
-  }
-
-  const code = errorCode(error);
-  console.warn(code ? message + ' (' + code + ')' : message);
+  } catch {}
 }
 
 function quarantineDirectoryPath(dirPath: string, attempt: number): string {

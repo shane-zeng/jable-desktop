@@ -308,7 +308,8 @@ test('full sync can use bounded concurrent ajax prefetch with sequential fallbac
   assert.match(browserSyncSource, /message: 'ajax-prefetch-fallback'/);
   assert.match(helperSource, /rowUrlSignature\(firstPageCheck\.rows\) !== rowUrlSignature\(firstPageRows\)/);
   assert.match(browserSyncSource, /ajaxFallbackReason = ajaxFailureDetail\(error\)/);
-  assert.match(browserSyncSource, /ajax prefetch failed; falling back to sequential paging/);
+  assert.match(browserSyncSource, /reportSyncFailure\('sync-ajax-prefetch-fallback'/);
+  assert.doesNotMatch(browserSyncSource, /ajax prefetch failed; falling back to sequential paging/);
   assert.match(browserSyncSource, /await syncRemainingPagesWithAjaxPrefetch\(firstPageRows, firstPageSignature\)/);
 });
 

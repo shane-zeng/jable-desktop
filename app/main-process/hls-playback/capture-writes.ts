@@ -12,6 +12,7 @@ import {
 import {
   HLS_PLAYBACK_CAPTURE_PREFETCH_CONCURRENCY,
   hlsPlaybackDebugLog,
+  hlsPlaybackErrorLog,
   mainErrorMessage,
   type HlsPlaybackCaptureContext,
   type HlsPlaylistProxyAsset,
@@ -66,6 +67,15 @@ function hlsPlaybackCaptureContentType(filePath: string): string {
   return 'video/mp2t';
 }
 
+function hlsPlaybackCaptureLogDetails(entry: HlsPlaylistProxyToken, asset: HlsPlaylistProxyAsset) {
+  return {
+    host: asset.host,
+    pathHash: asset.pathHash,
+    tabId: entry.tabId,
+    videoUrl: entry.videoUrl
+  };
+}
+
 function hlsPlaylistProxyCapturedAssetFileResponse(
   entry: HlsPlaylistProxyToken,
   asset: HlsPlaylistProxyAsset,
@@ -106,7 +116,13 @@ function hlsPlaybackCaptureTempPath(filePath: string): string {
   return filePath + '.capture-' + nodeCrypto.randomBytes(8).toString('base64url') + '.part';
 }
 
-async function hlsPlaybackCaptureCommitTempFile(tempPath: string, filePath: string): Promise<boolean> {
+async function hlsPlaybackCaptureCommitTempFile(
+  context: HlsPlaybackCaptureContext,
+  entry: HlsPlaylistProxyToken,
+  asset: HlsPlaylistProxyAsset,
+  tempPath: string,
+  filePath: string
+): Promise<boolean> {
   try {
     if (hlsPlaybackCaptureFileExists(filePath)) return false;
     await fs.promises.link(tempPath, filePath);
@@ -118,7 +134,14 @@ async function hlsPlaybackCaptureCommitTempFile(tempPath: string, filePath: stri
   } finally {
     try {
       await fs.promises.rm(tempPath, { force: true });
-    } catch (removeError) {}
+    } catch (removeError) {
+      hlsPlaybackErrorLog(
+        context,
+        'capture-temp-remove-failed',
+        removeError,
+        hlsPlaybackCaptureLogDetails(entry, asset)
+      );
+    }
   }
 }
 
@@ -160,7 +183,7 @@ async function hlsPlaybackCaptureWriteStreamToFile(
     }
     await handle.close();
     handle = null;
-    committed = await hlsPlaybackCaptureCommitTempFile(tempPath, asset.captureFilePath);
+    committed = await hlsPlaybackCaptureCommitTempFile(context, entry, asset, tempPath, asset.captureFilePath);
     if (!committed) return false;
     if (entry.videoUrl && context.recordHlsPlaybackCaptureSegment) {
       context.recordHlsPlaybackCaptureSegment({
@@ -184,14 +207,30 @@ async function hlsPlaybackCaptureWriteStreamToFile(
     if (!stopped) {
       try {
         await reader.cancel();
-      } catch (cancelError) {}
+      } catch (cancelError) {
+        hlsPlaybackErrorLog(
+          context,
+          'capture-reader-cancel-failed',
+          cancelError,
+          hlsPlaybackCaptureLogDetails(entry, asset)
+        );
+      }
     }
     try {
       if (handle) await handle.close();
-    } catch (closeError) {}
+    } catch (closeError) {
+      hlsPlaybackErrorLog(context, 'capture-file-close-failed', closeError, hlsPlaybackCaptureLogDetails(entry, asset));
+    }
     try {
       await fs.promises.rm(tempPath, { force: true });
-    } catch (removeError) {}
+    } catch (removeError) {
+      hlsPlaybackErrorLog(
+        context,
+        'capture-temp-remove-failed',
+        removeError,
+        hlsPlaybackCaptureLogDetails(entry, asset)
+      );
+    }
     hlsPlaybackDebugLog(
       context,
       stopped ? '[hls-capture] segment stopped' : '[hls-capture] segment failed',
@@ -293,6 +332,7 @@ async function hlsPlaybackCaptureFetchAsset(
         'tabId=' + String(entry.tabId),
         'error=' + mainErrorMessage(error)
       );
+      hlsPlaybackErrorLog(context, 'capture-prefetch-failed', error, hlsPlaybackCaptureLogDetails(entry, asset));
       return false;
     } finally {
       if (signal) signal.removeEventListener('abort', abortFromSignal);
@@ -352,6 +392,7 @@ export function hlsPlaylistProxyAssetBody(
       'tabId=' + String(entry.tabId),
       'error=' + mainErrorMessage(error)
     );
+    hlsPlaybackErrorLog(context, 'capture-segment-unhandled', error, hlsPlaybackCaptureLogDetails(entry, asset));
   });
   return streams[0];
 }
@@ -405,6 +446,12 @@ async function runHlsPlaybackCapturePrefetchWithCompletion(
       'tabId=' + String(entry.tabId),
       'error=' + mainErrorMessage(error)
     );
+    hlsPlaybackErrorLog(context, 'capture-prefetch-run-failed', error, {
+      host: entry.host,
+      pathHash: entry.pathHash,
+      tabId: entry.tabId,
+      videoUrl: entry.videoUrl
+    });
   } finally {
     activePrefetches.delete(key);
     if (entry.videoUrl && context.completeHlsPlaybackCapture) {
@@ -459,6 +506,12 @@ export function startHlsPlaybackCapturePrefetch(
         'tabId=' + String(entry.tabId),
         'error=' + mainErrorMessage(error)
       );
+      hlsPlaybackErrorLog(context, 'capture-prefetch-unhandled', error, {
+        host: entry.host,
+        pathHash: entry.pathHash,
+        tabId: entry.tabId,
+        videoUrl: entry.videoUrl
+      });
     }
   );
 }

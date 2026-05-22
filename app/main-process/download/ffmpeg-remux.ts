@@ -14,6 +14,7 @@ type FfmpegRemuxOptions = {
   downloadPausedError(): Error;
   isCanceled(videoUrl: string): boolean;
   isPaused(videoUrl: string): boolean;
+  reportError?(event: string, error: unknown, details?: unknown): void;
   throwIfDownloadCanceled(videoUrl: string): void;
   updateDownloadRuntimeProgress(videoUrl: string, downloadedBytes: number): void;
 };
@@ -25,10 +26,35 @@ function shouldRunCommandThroughShell(command: string): boolean {
   return process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(command);
 }
 
-function removePartialDownloadFile(outputPath: string) {
+function errorCode(error: unknown): string | null {
+  return error && typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : null;
+}
+
+function reportFfmpegError(
+  reportError: FfmpegRemuxOptions['reportError'],
+  event: string,
+  error: unknown,
+  details?: unknown
+) {
+  if (!reportError) return;
+  try {
+    reportError(event, error, details);
+  } catch {}
+}
+
+function removePartialDownloadFile(
+  outputPath: string,
+  videoUrl: string,
+  reportError?: FfmpegRemuxOptions['reportError']
+) {
   try {
     fs.unlinkSync(outputPath + '.part');
-  } catch (error) {}
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return;
+    reportFfmpegError(reportError, 'ffmpeg-partial-remove-failed', error, {
+      videoUrl: videoUrl
+    });
+  }
 }
 
 function handleFfmpegProgressLine(
@@ -75,7 +101,13 @@ export function runFfmpegRemux(
     let progressRemainder = '';
     try {
       fs.unlinkSync(tempPath);
-    } catch (error) {}
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        reportFfmpegError(options.reportError, 'ffmpeg-stale-partial-remove-failed', error, {
+          videoUrl: videoUrl
+        });
+      }
+    }
 
     try {
       options.throwIfDownloadCanceled(videoUrl);
@@ -142,19 +174,19 @@ export function runFfmpegRemux(
       if (runtime.process === child) runtime.process = null;
 
       if (options.isPaused(videoUrl)) {
-        removePartialDownloadFile(outputPath);
+        removePartialDownloadFile(outputPath, videoUrl, options.reportError);
         reject(options.downloadPausedError());
         return;
       }
 
       if (options.isCanceled(videoUrl)) {
-        removePartialDownloadFile(outputPath);
+        removePartialDownloadFile(outputPath, videoUrl, options.reportError);
         reject(options.downloadCanceledError());
         return;
       }
 
       if (code !== 0) {
-        removePartialDownloadFile(outputPath);
+        removePartialDownloadFile(outputPath, videoUrl, options.reportError);
         reject(new FfmpegDownloadError(stderr.trim() || 'FFmpeg exited with code ' + code));
         return;
       }

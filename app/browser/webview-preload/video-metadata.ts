@@ -201,7 +201,6 @@ export function createVideoMetadataController(options: VideoMetadataControllerOp
           videoUrl: video.url
         });
       }
-      console.warn('[JableDesktopScraper] video metadata refresh failed', error);
     }
   }
 

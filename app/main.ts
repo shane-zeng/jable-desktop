@@ -127,7 +127,10 @@ type HlsPlaybackCaptureModule = {
     jablePrimaryOrigin: string;
     jableSession: Electron.Session;
     ipcMain: typeof Electron.ipcMain;
-    logger?: { info(message?: unknown, ...optionalParams: unknown[]): void } | null;
+    logger?: {
+      info(message?: unknown, ...optionalParams: unknown[]): void;
+      errorEvent?(domain: string, event: string, error: unknown, details?: unknown): void;
+    } | null;
     isAutoDownloadOnPlaybackEnabled?(): boolean;
     completeHlsPlaybackCapture?(value: { videoUrl: string; pageLoadId?: string | null }): void;
     queueHlsPlaybackBackgroundCompletion?(value: {

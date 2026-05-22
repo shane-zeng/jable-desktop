@@ -241,11 +241,11 @@ export function createDownloadFileActionsController(
       } catch (error) {
         result.failed += 1;
         if (options.reportError) {
-          options.reportError('delete-download-file-failed', error, {
-            videoUrl: videoUrl
-          });
-        } else {
-          console.error(error);
+          try {
+            options.reportError('delete-download-file-failed', error, {
+              videoUrl: videoUrl
+            });
+          } catch {}
         }
       }
     }

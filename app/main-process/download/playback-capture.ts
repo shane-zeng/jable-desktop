@@ -280,9 +280,11 @@ export function createDownloadPlaybackCaptureController(
       prepareDownloadSegmentTempDirectory(outputPath, playlist, true, options.reportError);
     } catch (error) {
       if (options.reportError) {
-        options.reportError('playback-capture-workspace-prepare-failed', error, {
-          videoUrl: videoUrl
-        });
+        try {
+          options.reportError('playback-capture-workspace-prepare-failed', error, {
+            videoUrl: videoUrl
+          });
+        } catch {}
       }
       return null;
     }
