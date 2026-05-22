@@ -7,15 +7,15 @@ const path = require('node:path');
 const rootDir = path.resolve(__dirname, '..');
 const targetTriple = process.env.CARGO_BUILD_TARGET || '';
 const nativeDistDir = path.join(rootDir, 'app', 'native-dist');
+const nativeWorkspaceManifest = path.join(rootDir, 'native', 'Cargo.toml');
+const nativeWorkspaceDir = path.dirname(nativeWorkspaceManifest);
 const nativeCrates = [
   {
-    manifestPath: path.join(rootDir, 'native', 'local-data-engine', 'Cargo.toml'),
     libraryName: 'jable_data_engine',
     outputName: 'jable_data_engine.' + nativePlatform() + '-' + nativeArch() + '.node',
     label: 'native data engine'
   },
   {
-    manifestPath: path.join(rootDir, 'native', 'download-engine', 'Cargo.toml'),
     libraryName: 'jable_download_engine',
     outputName: 'jable_download_engine.' + nativePlatform() + '-' + nativeArch() + '.node',
     label: 'native download engine'
@@ -61,14 +61,14 @@ function dynamicLibraryName(libraryName) {
   return 'lib' + libraryName + '.so';
 }
 
-function releaseDir(crateDir) {
+function targetReleaseDir() {
   return targetTriple
-    ? path.join(crateDir, 'target', targetTriple, 'release')
-    : path.join(crateDir, 'target', 'release');
+    ? path.join(nativeWorkspaceDir, 'target', targetTriple, 'release')
+    : path.join(nativeWorkspaceDir, 'target', 'release');
 }
 
-function runCargoBuild(manifestPath) {
-  const args = ['build', '--manifest-path', manifestPath, '--release'];
+function runCargoBuild() {
+  const args = ['build', '--manifest-path', nativeWorkspaceManifest, '--release', '--workspace'];
   if (targetTriple) args.push('--target', targetTriple);
 
   childProcess.execFileSync(cargoBinary(), args, {
@@ -79,12 +79,10 @@ function runCargoBuild(manifestPath) {
 
 fs.rmSync(nativeDistDir, { force: true, recursive: true });
 fs.mkdirSync(nativeDistDir, { recursive: true });
+runCargoBuild();
 for (const nativeCrate of nativeCrates) {
-  const crateDir = path.dirname(nativeCrate.manifestPath);
-  runCargoBuild(nativeCrate.manifestPath);
-
   const outputPath = path.join(nativeDistDir, nativeCrate.outputName);
-  fs.copyFileSync(path.join(releaseDir(crateDir), dynamicLibraryName(nativeCrate.libraryName)), outputPath);
+  fs.copyFileSync(path.join(targetReleaseDir(), dynamicLibraryName(nativeCrate.libraryName)), outputPath);
   if (nativePlatform() === 'darwin' && process.platform === 'darwin') {
     childProcess.execFileSync('codesign', ['--force', '--sign', '-', outputPath], {
       cwd: rootDir,

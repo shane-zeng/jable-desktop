@@ -1,0 +1,6 @@
+[workspace]
+members = [
+  "download-engine",
+  "local-data-engine",
+]
+resolver = "2"

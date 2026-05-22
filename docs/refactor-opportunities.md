@@ -15,6 +15,10 @@ Before implementing a candidate:
 
 ## Completed Batches
 
+- GitHub Actions Rust cache and stale-run cancellation.
+  Test and release build jobs now restore the shared Rust workspace cache for `native/target`, and test workflow runs cancel stale in-progress runs for the same pull request or branch.
+- Rust native engine workspace build cache.
+  `native/Cargo.toml` now owns both native engine crates as one Cargo workspace, so Rust check/clippy/test/build commands share a single `native/target` directory and one lockfile instead of compiling each crate in separate target trees.
 - Rust data-engine no-search list/count query optimization.
   `native/local-data-engine/src/store.rs` pushes simple visible-list count and pagination into SQL while keeping search behavior aligned with `listVideos` and `countVideos`.
 - Rust download asset membership batching.

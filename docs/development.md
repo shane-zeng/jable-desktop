@@ -191,7 +191,7 @@ Useful commands:
 - `npm run lint`: run ESLint across Electron, renderer, and tests.
 - `npm run lint:fix`: apply safe ESLint fixes.
 - `npm run typecheck`: run `vue-tsc` checks for renderer TypeScript/Vue files and `tsc` checks for the Electron runtime.
-- `npm run build:rust`: build the Rust native data and download engines into `app/native-dist/`.
+- `npm run build:rust`: build the Rust native data and download engines from the shared Rust workspace into `app/native-dist/`.
 - `npm run build:electron`: compile Electron runtime TypeScript into `app/runtime-dist/`.
 - `npm run format`: format the repository with Prettier.
 - `npm run format:check`: verify formatting without changing files.
@@ -220,7 +220,7 @@ Test coverage map:
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state, library pagination/filter state, sync workflow status, pending remote actions, and toast status.
 - `test/electron/app-smoke.test.js`: desktop app startup through Electron, `window.jableApp` preload bridge exposure, `app:info`, settings IPC reachability, diagnostics path/API reachability, and initial browser tab state.
 
-GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Pull requests also run Windows readiness checks on `windows-latest`, including `npm run check` and the Electron startup smoke test. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
+GitHub Actions read Node.js from `.node-version`, restore npm and Rust workspace caches, then run `npm run format:check` and `npm run check` for pushes and pull requests. Pull requests also run Windows readiness checks on `windows-latest`, including `npm run check` and the Electron startup smoke test. New pushes to the same pull request or branch cancel stale in-progress test runs. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
 
 ### Desktop Validation
 
