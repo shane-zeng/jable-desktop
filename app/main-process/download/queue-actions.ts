@@ -63,6 +63,7 @@ type DownloadQueueActionsControllerOptions = {
   queuedItems(): DownloadQueueActionItem[];
   queuedItem(videoUrl: string): DownloadQueueActionItem | null;
   recordWithRuntimeState(record: DownloadRecord): DownloadRecord;
+  reportError?(event: string, error: unknown, details?: unknown): void;
   removeDownloadWorkingFiles(record: DownloadRecord): void;
   removePartialDownloadFileForRecord(record: DownloadRecord): void;
   removeQueuedDownload(videoUrl: string): boolean;
@@ -92,8 +93,13 @@ export function createDownloadQueueActionsController(
     else result.skipped += 1;
   }
 
-  function recordBulkDownloadActionFailure(result: BulkDownloadActionResult, error: unknown) {
+  function recordBulkDownloadActionFailure(result: BulkDownloadActionResult, error: unknown, videoUrl?: string) {
     result.failed += 1;
+    if (options.reportError) {
+      options.reportError('bulk-download-action-failed', error, {
+        videoUrl: videoUrl || null
+      });
+    }
     console.error(error);
   }
 
@@ -107,7 +113,7 @@ export function createDownloadQueueActionsController(
       try {
         recordBulkDownloadActionOutcome(result, await action(record));
       } catch (error) {
-        recordBulkDownloadActionFailure(result, error);
+        recordBulkDownloadActionFailure(result, error, record.videoUrl);
       }
     }
 
@@ -124,7 +130,7 @@ export function createDownloadQueueActionsController(
       try {
         recordBulkDownloadActionOutcome(result, action(record));
       } catch (error) {
-        recordBulkDownloadActionFailure(result, error);
+        recordBulkDownloadActionFailure(result, error, record.videoUrl);
       }
     }
 

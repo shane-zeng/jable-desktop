@@ -39,6 +39,7 @@ type DownloadFileActionsControllerOptions = {
   notifyDownloadsChanged(): void;
   openShellPath(filePath: string): Promise<void>;
   reconcileDownloadRecordFileState(record: DownloadRecord): DownloadRecord;
+  reportError?(event: string, error: unknown, details?: unknown): void;
   removeDownloadWorkingFiles(record: DownloadRecord): void;
   removePersistedDownload(videoUrl: string): boolean;
   removePreviewFiles(record: DownloadRecord): void;
@@ -222,6 +223,11 @@ export function createDownloadFileActionsController(
         if (deleted.removed) result.removedRecords += 1;
       } catch (error) {
         result.failed += 1;
+        if (options.reportError) {
+          options.reportError('delete-download-file-failed', error, {
+            videoUrl: videoUrl
+          });
+        }
         console.error(error);
       }
     }

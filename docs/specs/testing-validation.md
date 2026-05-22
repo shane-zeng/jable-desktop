@@ -1,6 +1,6 @@
 # Testing And Validation Specification
 
-Last verified against implementation: 2026-05-21
+Last verified against implementation: 2026-05-22
 
 This document maps current functionality to automated and manual validation.
 
@@ -42,6 +42,7 @@ fnm exec --using 24 npm run test:electron
 | Download asset persistence and normalization                                                  | `test/node/data-engine-contract.test.js`    |
 | HLS playlist extraction, parsing, and request header helpers                                  | `test/node/download-helpers.test.js`        |
 | Download Manager orchestration, speed modes, failure classification, sanitization             | `test/node/download-manager.test.js`        |
+| Diagnostics JSONL formatting, sanitization, rotation, retention, crash pruning, clearing      | `test/node/diagnostics-logger.test.js`      |
 | Rust native download engine adaptive concurrency, playlist generation, build/check/clippy     | `npm run rust:ci`                           |
 | IPC payload normalization                                                                     | `test/node/ipc-normalizers.test.js`         |
 | Desktop i18n key parity and fallback behavior                                                 | `test/node/i18n.test.js`                    |
@@ -53,7 +54,7 @@ fnm exec --using 24 npm run test:electron
 | Renderer i18n                                                                                 | `test/renderer/i18n/index.test.ts`          |
 | Renderer components                                                                           | `test/renderer/components/*.test.ts`        |
 | Renderer composables                                                                          | `test/renderer/composables/*.test.ts`       |
-| Electron startup, preload bridge, settings IPC reachability, initial tab state                | `test/electron/app-smoke.test.js`           |
+| Electron startup, preload bridge, settings/diagnostics IPC reachability, initial tab state    | `test/electron/app-smoke.test.js`           |
 
 ## Change-Specific Test Selection
 
@@ -63,6 +64,7 @@ fnm exec --using 24 npm run test:electron
 - Webview preload helper changes: run webview helper tests, IPC guardrail tests, and Node tests covering URL/sync helper behavior.
 - URL policy or release URL changes: run URL policy and update checker tests.
 - Settings changes: run settings tests plus renderer SettingsPanel tests.
+- Diagnostics/logging changes: run diagnostics logger tests, IPC guardrail tests, renderer Settings/App tests, typecheck, and Electron smoke when startup paths, crash paths, or preload exposure change.
 - Download List, FFmpeg, native download engine, speed modes, failure metadata, pause/resume, or download pipeline changes: run download Node tests, `npm run rust:ci`, renderer component/composable tests, typecheck, lint, and renderer build. Run Electron smoke tests only when the change also touches Electron startup, preload exposure, protocol/session setup, or main/preload IPC registration wiring.
 - Search, migrations, sync visibility, outbox, pending remote, or import/export changes: run Node database tests, data-engine contract tests, and Rust tests.
 - Rust-native data-engine invariant changes: update and run `native/local-data-engine/src/tests.rs` through `fnm exec --using 24 npm run rust:ci`.
@@ -98,6 +100,7 @@ Verify these behaviors when touching related desktop areas:
 - A simple playback-triggered pause can auto-download again after page refresh and playback. Once the user resumes that paused capture into the normal downloader and pauses it again, refreshed playback must not restart auto-download until the user explicitly resumes, retries, or enqueues it.
 - Formal `normal` download records that are paused, failed, missing, or canceled must not be restarted by video-page playback. They restart only through explicit Resume, Retry, or Download actions.
 - Settings can re-check FFmpeg, choose a manual FFmpeg binary, clear the manual path, choose a download folder, and open the download folder.
+- Settings > Data can open the diagnostics log folder and clear diagnostics. Clear must remove only managed logs/crash dumps, tolerate partial file-lock failures, and leave SQLite data, settings, and downloaded videos untouched.
 - Download List renders queued, downloading, paused, failed, ready, and missing rows.
 - Download List multi-select filters can show or combine All, Ready, Downloading, Queued, Paused, Failed, and Missing states, and the selection survives app restart.
 - Ready downloads open through the OS default player and can be revealed in the OS file manager.

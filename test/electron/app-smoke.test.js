@@ -155,6 +155,29 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
     });
     expect(initialTabs.tabs.length).toBe(1);
     expect(initialTabs.activeTabId).toBe(initialTabs.tabs[0].id);
+
+    const logPath = await electronApp.evaluate(function ({ app }) {
+      return app.getPath('logs');
+    });
+    const crashDumpsPath = await electronApp.evaluate(function ({ app }) {
+      return app.getPath('crashDumps');
+    });
+    const realUserDataDir = fs.realpathSync(userDataDir);
+    expect(fs.realpathSync(logPath)).toBe(path.join(realUserDataDir, 'logs'));
+    expect(fs.realpathSync(crashDumpsPath)).toBe(path.join(realUserDataDir, 'logs', 'crashes'));
+
+    const openLogResult = await window.evaluate(function () {
+      return globalThis.jableApp.openLogFolder();
+    });
+    expect(openLogResult.opened).toBe(true);
+    expect(fs.realpathSync(openLogResult.path)).toBe(fs.realpathSync(logPath));
+    await window.evaluate(function () {
+      globalThis.jableApp.reportRendererError({
+        level: 'error',
+        event: 'electron-smoke-renderer-event',
+        message: 'diagnostics smoke'
+      });
+    });
   } finally {
     if (electronApp) await electronApp.close();
     await smokeServer.close();

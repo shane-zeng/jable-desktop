@@ -48,6 +48,7 @@ type ChooseNextPagerLink = (links: BrowserSyncPagerLink[], currentPage: number |
 type BrowserSyncIpc = {
   invoke(channel: 'db:collection-urls-known' | 'db:save-sync-page', payload: unknown): Promise<unknown>;
 };
+type DiagnosticsReporter = (level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) => void;
 
 type BrowserSyncControllerOptions = {
   clickOrFetchPagerLink(link: BrowserSyncPagerLink, preferFetch: boolean): Promise<boolean>;
@@ -60,6 +61,7 @@ type BrowserSyncControllerOptions = {
   ): Promise<AjaxSyncPage>;
   ipcRenderer: BrowserSyncIpc;
   readPagerLinks(): BrowserSyncPagerLink[];
+  reportDiagnostics?: DiagnosticsReporter;
   scrapeCurrentPage(): ScrapedVideoRow[];
   sendProgress(channel: string, payload: unknown): void;
   signature(): string;
@@ -82,6 +84,29 @@ const chooseFirstPagerLink = syncUtils.chooseFirstPagerLink;
 const chooseNextPagerLink = syncUtils.chooseNextPagerLink;
 
 export function createBrowserSyncController(options: BrowserSyncControllerOptions): BrowserSyncController {
+  function serializedError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return {
+        message: String(error)
+      };
+    }
+
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack || null
+    };
+  }
+
+  function reportSyncFailure(event: string, error: unknown, details?: unknown) {
+    if (!options.reportDiagnostics) return;
+
+    options.reportDiagnostics('warn', event, {
+      error: serializedError(error),
+      details: details
+    });
+  }
+
   async function syncCollection(
     syncRequestOptions?: Partial<SyncBrowserCollectionOptions> | null
   ): Promise<SyncResult> {
@@ -135,6 +160,11 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
           urls: urls
         });
       } catch (error) {
+        reportSyncFailure('sync-known-url-check-failed', error, {
+          collectionKey: collectionKey,
+          mode: mode,
+          syncRunId: syncRunId
+        });
         console.warn('[JableDesktopScraper] known URL check failed; continuing sync', error);
         return false;
       }
@@ -245,6 +275,13 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
         return true;
       } catch (error) {
         ajaxFallbackReason = ajaxFailureDetail(error);
+        reportSyncFailure('sync-ajax-prefetch-fallback', error, {
+          collectionKey: collectionKey,
+          mode: mode,
+          syncRunId: syncRunId,
+          reason: ajaxFallbackReason,
+          page: logicalPage || 1
+        });
         options.sendProgress('sync-progress', {
           collectionKey: collectionKey,
           mode: mode,
@@ -441,6 +478,11 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
         await applyDeferredSyncOperationWithSingleRetry(operation, baseUrl);
         applied.push(operation.id);
       } catch (error) {
+        reportSyncFailure('deferred-sync-operation-failed', error, {
+          operationId: operation.id,
+          action: operation.action,
+          blockedCount: operations.length - i - 1
+        });
         failed.push(
           deferredSyncOperationFailure(operation, error instanceof Error ? error.message : String(error), false)
         );

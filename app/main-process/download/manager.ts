@@ -4,6 +4,7 @@ import type * as Electron from 'electron';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type { NativeDownloadEngineModule } from '../../download/native-download-engine';
+import type { DiagnosticsLogger } from '../diagnostics/logger';
 import type {
   AppSettings,
   AppSettingsPatch,
@@ -84,6 +85,7 @@ export { parseLocalPlaybackRangeHeader } from '../local-playback/range';
 export { sourcePageChineseSubtitleNoticeTextFromHtml } from './request-boundary';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
+type DiagnosticsEventLogger = Pick<DiagnosticsLogger, 'event' | 'errorEvent'>;
 type DownloadQueueItem = {
   source: DownloadQueueSource;
   videoUrl: string;
@@ -103,6 +105,7 @@ export type DownloadManagerContext = {
   getAppSettings(): AppSettings;
   getDatabase(): DownloadDataStore;
   getMainWindow(): Electron.BrowserWindow | null;
+  logger?: DiagnosticsEventLogger | null;
   forwardBrowserMessage(channel: string, payload: unknown): void;
   sendToAllBrowserTabs(channel: string, payload: unknown): void;
   session: typeof Electron.session;
@@ -174,6 +177,7 @@ const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY: Record<DownloadSpeedMode, { min: 
 
 let getAppSettings: () => AppSettings;
 let getDatabase: () => DownloadDataStore;
+let diagnosticsLogger: DiagnosticsEventLogger | null = null;
 let forwardBrowserMessage: (channel: string, payload: unknown) => void;
 let sendToAllBrowserTabs: (channel: string, payload: unknown) => void;
 let translate: (key: string, params?: TranslationParams | null) => string;
@@ -200,6 +204,7 @@ const localPlaybackPreviewController = createLocalPlaybackPreviewController({
   localPlaybackReadyFile: localPlaybackReadyFile,
   localPlaybackScheme: LOCAL_PLAYBACK_SCHEME,
   notifyDownloadsChanged: notifyDownloadsChanged,
+  reportError: logDownloadError,
   resolveManagedDownloadPath: resolveManagedDownloadPath
 });
 const localPlaybackServer = createLocalPlaybackServer({
@@ -213,6 +218,14 @@ const localPlaybackServer = createLocalPlaybackServer({
 
 function t(key: string, params?: TranslationParams | null): string {
   return translate(key, params);
+}
+
+function logDownloadEvent(level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) {
+  if (diagnosticsLogger) diagnosticsLogger.event(level, 'download', event, details);
+}
+
+function logDownloadError(event: string, error: unknown, details?: unknown) {
+  if (diagnosticsLogger) diagnosticsLogger.errorEvent('download', event, error, details);
 }
 
 function maxConcurrentDownloads() {
@@ -290,18 +303,28 @@ function cleanupQuarantinedDownloadDirectories(rootInfo: DownloadRootInfo = getD
 
 async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
   const result = await downloadEnvironmentController.chooseDownloadRoot();
+  logDownloadEvent('info', 'download-root-selected', {
+    canceled: result.canceled,
+    source: result.source
+  });
   cleanupQuarantinedDownloadDirectories(result);
   return result;
 }
 
 function setDownloadRoot(value: unknown): DownloadRootInfo {
   const result = downloadEnvironmentController.setDownloadRoot(value);
+  logDownloadEvent('info', 'download-root-set', {
+    path: result.path
+  });
   cleanupQuarantinedDownloadDirectories(result);
   return result;
 }
 
 function clearDownloadRoot(): DownloadRootInfo {
   const result = downloadEnvironmentController.clearDownloadRoot();
+  logDownloadEvent('info', 'download-root-cleared', {
+    path: result.path
+  });
   cleanupQuarantinedDownloadDirectories(result);
   return result;
 }
@@ -502,35 +525,58 @@ async function downloadHlsSegmentsWithPlaylistRefresh(
   runtime: ActiveDownloadRuntime,
   reuseExistingSegments: boolean
 ): Promise<string> {
-  return runDownloadHlsSegmentsWithPlaylistRefresh(
-    playlist,
-    videoUrl,
-    cookieHeader,
-    outputPath,
-    signal,
-    runtime,
-    reuseExistingSegments,
-    {
-      currentDownloadSegmentConcurrency: currentDownloadSegmentConcurrency,
-      downloadCanceledError: downloadCanceledError,
-      downloadFileSystemError: downloadFileSystemError,
-      downloadPausedError: downloadPausedError,
-      getDownloadEngine: getDownloadEngine,
-      helpers: downloadHelpers,
-      isCanceled: function (candidateVideoUrl) {
-        return canceledDownloadUrls.has(candidateVideoUrl);
-      },
-      isPaused: function (candidateVideoUrl) {
-        return pausedDownloadUrls.has(candidateVideoUrl);
-      },
-      progressNotifyIntervalMs: DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS,
-      resolveDownloadHlsSource: resolveDownloadHlsSource,
-      retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT,
-      sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT,
-      throwIfDownloadCanceled: throwIfDownloadCanceled,
-      updateDownloadRuntimeProgress: updateDownloadRuntimeProgress
-    }
-  );
+  const startedAt = Date.now();
+  logDownloadEvent('info', 'native-segments-started', {
+    videoUrl: videoUrl,
+    segmentCount: playlist.segments.length,
+    reuseExistingSegments: reuseExistingSegments,
+    concurrency: currentDownloadSegmentConcurrency()
+  });
+
+  try {
+    const localPlaylistPath = await runDownloadHlsSegmentsWithPlaylistRefresh(
+      playlist,
+      videoUrl,
+      cookieHeader,
+      outputPath,
+      signal,
+      runtime,
+      reuseExistingSegments,
+      {
+        currentDownloadSegmentConcurrency: currentDownloadSegmentConcurrency,
+        downloadCanceledError: downloadCanceledError,
+        downloadFileSystemError: downloadFileSystemError,
+        downloadPausedError: downloadPausedError,
+        getDownloadEngine: getDownloadEngine,
+        helpers: downloadHelpers,
+        isCanceled: function (candidateVideoUrl) {
+          return canceledDownloadUrls.has(candidateVideoUrl);
+        },
+        isPaused: function (candidateVideoUrl) {
+          return pausedDownloadUrls.has(candidateVideoUrl);
+        },
+        progressNotifyIntervalMs: DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS,
+        resolveDownloadHlsSource: resolveDownloadHlsSource,
+        retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT,
+        sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT,
+        throwIfDownloadCanceled: throwIfDownloadCanceled,
+        updateDownloadRuntimeProgress: updateDownloadRuntimeProgress
+      }
+    );
+    logDownloadEvent('info', 'native-segments-complete', {
+      videoUrl: videoUrl,
+      segmentCount: playlist.segments.length,
+      durationMs: Date.now() - startedAt
+    });
+    return localPlaylistPath;
+  } catch (error) {
+    logDownloadError('native-segments-failed', error, {
+      videoUrl: videoUrl,
+      segmentCount: playlist.segments.length,
+      durationMs: Date.now() - startedAt
+    });
+    throw error;
+  }
 }
 
 async function runQueuedDownload(record: DownloadRecord) {
@@ -573,6 +619,10 @@ function processDownloadQueue() {
         : runQueuedDownload(record);
     task
       .catch(function (error) {
+        logDownloadError('download-task-failed', error, {
+          videoUrl: record.videoUrl,
+          source: nextItem.source
+        });
         console.error(error);
       })
       .finally(function () {
@@ -677,8 +727,15 @@ function revealDownloadFile(value: unknown): RevealDownloadFileResult {
 
 function getDownloadEngine(): NativeDownloadEngineInstance {
   if (!downloadEngine) {
-    const nativeModule = nativeDownloadEngineModule.loadNativeDownloadEngine();
-    downloadEngine = new nativeModule.JableDownloadEngine();
+    logDownloadEvent('info', 'native-download-engine-load-started');
+    try {
+      const nativeModule = nativeDownloadEngineModule.loadNativeDownloadEngine();
+      downloadEngine = new nativeModule.JableDownloadEngine();
+      logDownloadEvent('info', 'native-download-engine-load-complete');
+    } catch (error) {
+      logDownloadError('native-download-engine-load-failed', error);
+      throw error;
+    }
   }
 
   return downloadEngine;
@@ -699,6 +756,7 @@ function confirmPauseDownloadsBeforeClose(): Promise<boolean> {
 export function createDownloadManager(context: DownloadManagerContext): DownloadManager {
   getAppSettings = context.getAppSettings;
   getDatabase = context.getDatabase;
+  diagnosticsLogger = context.logger || null;
   forwardBrowserMessage = context.forwardBrowserMessage;
   sendToAllBrowserTabs = context.sendToAllBrowserTabs;
   translate = context.t;
@@ -809,6 +867,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
       return pausedDownloadUrls.has(videoUrl);
     },
     localPlaybackReadyFile: localPlaybackReadyFile,
+    logger: diagnosticsLogger,
     notifyDownloadsChanged: notifyDownloadsChanged,
     path: path,
     removePartialDownloadFile: removePartialDownloadFile,
@@ -852,6 +911,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     notifyDownloadsChanged: notifyDownloadsChanged,
     openShellPath: openShellPath,
     reconcileDownloadRecordFileState: reconcileDownloadRecordFileState,
+    reportError: logDownloadError,
     removeDownloadWorkingFiles: removeDownloadWorkingFiles,
     removePersistedDownload: removePersistedDownload,
     removePreviewFiles: localPlaybackPreviewController.removeFiles,
@@ -907,6 +967,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     },
     queuedItem: queuedDownloadItem,
     recordWithRuntimeState: downloadRecordWithRuntimeState,
+    reportError: logDownloadError,
     removeDownloadWorkingFiles: removeDownloadWorkingFiles,
     removePartialDownloadFileForRecord: removePartialDownloadFileForRecord,
     removeQueuedDownload: removeQueuedDownload,

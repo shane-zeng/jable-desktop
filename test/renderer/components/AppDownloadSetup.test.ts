@@ -60,4 +60,62 @@ describe('App download setup actions', function () {
 
     wrapper.unmount();
   });
+
+  it('routes diagnostics settings actions through the preload API', async function () {
+    const api = createAppTestApi([]);
+    api.openLogFolder = vi.fn().mockResolvedValue({
+      opened: true,
+      path: '/tmp/jable/logs'
+    });
+    api.clearDiagnostics = vi
+      .fn()
+      .mockResolvedValueOnce({
+        canceled: true,
+        deletedFiles: 0,
+        failedFiles: 0
+      })
+      .mockResolvedValueOnce({
+        canceled: false,
+        deletedFiles: 2,
+        failedFiles: 1
+      })
+      .mockRejectedValueOnce(new Error('locked'));
+    api.reportRendererError = vi.fn();
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          BrowserPanel: true
+        }
+      }
+    });
+    await settle();
+    await clickButtonByText(wrapper, '設定');
+
+    await wrapper.get('[data-test="settings-open-log-folder"]').trigger('click');
+    await settle();
+    expect(api.openLogFolder).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('已開啟 Log 資料夾');
+
+    await wrapper.get('[data-test="settings-clear-diagnostics"]').trigger('click');
+    await settle();
+    expect(wrapper.text()).toContain('已取消清除診斷紀錄');
+
+    await wrapper.get('[data-test="settings-clear-diagnostics"]').trigger('click');
+    await settle();
+    expect(wrapper.text()).toContain('已清除 2 個診斷檔案，1 個檔案暫時無法刪除');
+
+    await wrapper.get('[data-test="settings-clear-diagnostics"]').trigger('click');
+    await settle();
+    expect(api.reportRendererError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'clear-diagnostics-failed'
+      })
+    );
+    expect(wrapper.text()).toContain('清除診斷紀錄失敗：locked');
+
+    wrapper.unmount();
+  });
 });

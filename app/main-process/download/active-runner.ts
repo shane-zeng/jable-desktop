@@ -11,6 +11,10 @@ import { removeDownloadSegmentTempDirectory } from './segment-workspace';
 import type { LocalPlaybackFile } from '../local-playback/preview';
 
 type TranslationParams = Record<string, string | number | boolean | null | undefined>;
+type DiagnosticsEventLogger = {
+  event(level: 'debug' | 'info' | 'warn' | 'error', domain: string, event: string, details?: unknown): void;
+  errorEvent(domain: string, event: string, error: unknown, details?: unknown): void;
+};
 
 export type DownloadQueueSource = 'normal' | 'playback_background';
 export type ActiveDownloadRuntime = {
@@ -44,6 +48,7 @@ type DownloadActiveRunnerOptions = {
   isDeleted(videoUrl: string): boolean;
   isPaused(videoUrl: string): boolean;
   localPlaybackReadyFile(videoUrl: string): LocalPlaybackFile | null;
+  logger?: DiagnosticsEventLogger | null;
   notifyDownloadsChanged(): void;
   path: typeof NodePath;
   removePartialDownloadFile(outputPath: string): void;
@@ -77,6 +82,14 @@ export type DownloadActiveRunner = {
 };
 
 export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions): DownloadActiveRunner {
+  function logDownloadEvent(level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) {
+    if (options.logger) options.logger.event(level, 'download', event, details);
+  }
+
+  function logDownloadError(event: string, error: unknown, details?: unknown) {
+    if (options.logger) options.logger.errorEvent('download', event, error, details);
+  }
+
   function markDownloadStarted(record: DownloadRecord) {
     options.upsertPersistedDownload({
       videoUrl: record.videoUrl,
@@ -112,20 +125,42 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
   ) {
     const outputPath = options.resolveManagedDownloadPath(record.localPath);
     let failurePhase: DownloadFailurePhase = 'ffmpeg_check';
+    const startedAt = Date.now();
     markDownloadStarted(record);
+    logDownloadEvent('info', 'active-download-started', {
+      videoUrl: record.videoUrl,
+      source: runtime.source,
+      reuseExistingSegments: reuseExistingSegments,
+      attemptCount: Math.max(0, record.attemptCount || 0) + 1
+    });
 
     try {
       failurePhase = 'file';
       if (!outputPath) throw new Error(options.t('status.downloadFileUnavailable'));
       throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
+      logDownloadEvent('info', 'download-file-prepare-started', {
+        videoUrl: record.videoUrl
+      });
       try {
         options.writeDirectory(options.path.dirname(outputPath));
       } catch (error) {
         throw options.downloadFileSystemError(error);
       }
+      logDownloadEvent('info', 'download-file-prepare-complete', {
+        videoUrl: record.videoUrl
+      });
       failurePhase = 'ffmpeg_check';
+      logDownloadEvent('info', 'download-ffmpeg-check-started', {
+        videoUrl: record.videoUrl
+      });
       const command = await options.ffmpegCommandForDownload();
+      logDownloadEvent('info', 'download-ffmpeg-check-complete', {
+        videoUrl: record.videoUrl
+      });
       throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
+      logDownloadEvent('info', 'download-source-resolve-started', {
+        videoUrl: record.videoUrl
+      });
       const source = await options.resolveDownloadHlsSource(
         record.videoUrl,
         runtime.abortController.signal,
@@ -141,12 +176,21 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
           options.notifyDownloadsChanged();
         }
       );
+      logDownloadEvent('info', 'download-source-resolve-complete', {
+        videoUrl: record.videoUrl,
+        segmentCount: source.playlist.segments.length,
+        sourcePageChineseSubtitleNotice: source.sourcePageChineseSubtitleNotice
+      });
       throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
       failurePhase = 'segments';
       if (beforeDownloadSegments) {
         await beforeDownloadSegments();
         throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
       }
+      logDownloadEvent('info', 'download-segments-started', {
+        videoUrl: record.videoUrl,
+        segmentCount: source.playlist.segments.length
+      });
       const localPlaylistPath = await options.downloadHlsSegmentsWithPlaylistRefresh(
         source.playlist,
         record.videoUrl,
@@ -156,9 +200,16 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
         runtime,
         reuseExistingSegments
       );
+      logDownloadEvent('info', 'download-segments-complete', {
+        videoUrl: record.videoUrl,
+        segmentCount: source.playlist.segments.length
+      });
       throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
 
       failurePhase = 'remux';
+      logDownloadEvent('info', 'download-remux-started', {
+        videoUrl: record.videoUrl
+      });
       await runFfmpegRemux(command, localPlaylistPath, record.videoUrl, outputPath, runtime, {
         downloadCanceledError: options.downloadCanceledError,
         downloadFileSystemError: options.downloadFileSystemError,
@@ -168,14 +219,24 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
         throwIfDownloadCanceled: throwIfDownloadCanceled,
         updateDownloadRuntimeProgress: options.updateDownloadRuntimeProgress
       });
+      logDownloadEvent('info', 'download-remux-complete', {
+        videoUrl: record.videoUrl
+      });
       throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
       let stats: NodeFs.Stats;
       try {
         failurePhase = 'file';
+        logDownloadEvent('info', 'download-file-verify-started', {
+          videoUrl: record.videoUrl
+        });
         stats = options.statFile(outputPath);
       } catch (error) {
         throw options.downloadFileSystemError(error);
       }
+      logDownloadEvent('info', 'download-file-verify-complete', {
+        videoUrl: record.videoUrl,
+        fileSizeBytes: stats.isFile() ? stats.size : null
+      });
 
       options.upsertPersistedDownload({
         videoUrl: record.videoUrl,
@@ -196,8 +257,25 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
 
       const readyFile = options.localPlaybackReadyFile(record.videoUrl);
       if (readyFile) options.schedulePreviewGeneration(readyFile);
+      logDownloadEvent('info', 'active-download-complete', {
+        videoUrl: record.videoUrl,
+        durationMs: Date.now() - startedAt
+      });
     } catch (error) {
       const paused = options.isPaused(record.videoUrl) || isDownloadPausedError(error);
+      if (paused) {
+        logDownloadEvent('info', 'active-download-paused', {
+          videoUrl: record.videoUrl,
+          durationMs: Date.now() - startedAt
+        });
+      } else {
+        logDownloadError('active-download-failed', error, {
+          videoUrl: record.videoUrl,
+          failurePhase: failurePhase,
+          failureCode: downloadFailureCode(error),
+          durationMs: Date.now() - startedAt
+        });
+      }
       if (!options.isDeleted(record.videoUrl)) {
         options.upsertPersistedDownload({
           videoUrl: record.videoUrl,

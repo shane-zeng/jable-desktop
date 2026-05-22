@@ -47,6 +47,7 @@ type WebViewEnhancementModule = {
 type WebViewContentPolicyModule = {
   applyWebViewContentPolicy(root: Document | Element, isSuppressedRemoteUrl: (value: unknown) => boolean): number;
 };
+type DiagnosticsLevel = 'debug' | 'info' | 'warn' | 'error';
 
 const electron: typeof Electron = require('electron');
 const ipcRenderer = electron.ipcRenderer as SendToHostIpcRenderer;
@@ -67,10 +68,58 @@ let trackpadHistoryLastSentAt = 0;
 let trackpadHistoryResetTimer: ReturnType<typeof setTimeout> | null = null;
 let webViewContentPolicyScanTimer: ReturnType<typeof setTimeout> | null = null;
 let webViewEnhancementMode = false;
+
+function serializedDiagnosticsError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return {
+      message: String(error)
+    };
+  }
+
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack || null
+  };
+}
+
+function reportWebviewDiagnostics(level: DiagnosticsLevel, event: string, details?: unknown) {
+  try {
+    ipcRenderer.send('diagnostics:webview-event', {
+      level: level,
+      event: event,
+      details: details
+    });
+  } catch (error) {}
+}
+
+function reportWebviewError(event: string, error: unknown, details?: unknown) {
+  reportWebviewDiagnostics('error', event, {
+    error: serializedDiagnosticsError(error),
+    details: details
+  });
+}
+
+window.addEventListener('error', function (event) {
+  reportWebviewError('window-error', event.error || event.message, {
+    filename: event.filename,
+    line: event.lineno,
+    column: event.colno,
+    url: location.href
+  });
+});
+
+window.addEventListener('unhandledrejection', function (event) {
+  reportWebviewError('unhandled-rejection', event.reason, {
+    url: location.href
+  });
+});
+
 const videoMetadataController = createVideoMetadataController({
   buttonHasIcon: buttonHasIcon,
   ipcRenderer: ipcRenderer,
-  isJablePage: isJablePage
+  isJablePage: isJablePage,
+  reportDiagnostics: reportWebviewDiagnostics
 });
 const browserSyncController = createBrowserSyncController({
   clickOrFetchPagerLink: clickOrFetchPagerLink,
@@ -78,6 +127,7 @@ const browserSyncController = createBrowserSyncController({
   fetchAjaxSyncPageForTemplate: fetchAjaxSyncPageForTemplate,
   ipcRenderer: ipcRenderer,
   readPagerLinks: readPagerLinks,
+  reportDiagnostics: reportWebviewDiagnostics,
   scrapeCurrentPage: scrapeCurrentPage,
   sendProgress: sendProgress,
   signature: signature,
@@ -88,6 +138,7 @@ const collectionActionController = createCollectionActionController({
   collectionKeyForCurrentLocation: collectionKeyForCurrentLocation,
   ipcRenderer: ipcRenderer,
   readCurrentVideoDetails: videoMetadataController.readCurrentVideoDetails,
+  reportDiagnostics: reportWebviewDiagnostics,
   scrapeVideoBox: scrapeVideoBox,
   siteOrderForVideoBox: siteOrderForVideoBox
 });
@@ -104,14 +155,16 @@ const hlsPlaybackController = createHlsPlaybackController({
     return target instanceof HTMLElement && target.matches(THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR);
   },
   readCurrentLocalPlaybackSourcePageNotice: videoMetadataController.readCurrentLocalPlaybackSourcePageNotice,
-  readCurrentVideoDetails: videoMetadataController.readCurrentVideoDetails
+  readCurrentVideoDetails: videoMetadataController.readCurrentVideoDetails,
+  reportDiagnostics: reportWebviewDiagnostics
 });
 const localPlaybackController = createLocalPlaybackController({
   absUrl: absUrl,
   currentVideoUrl: videoMetadataController.currentVideoUrl,
   ipcRenderer: ipcRenderer,
   mainVideoElement: mainVideoElement,
-  readCurrentLocalPlaybackSourcePageNotice: videoMetadataController.readCurrentLocalPlaybackSourcePageNotice
+  readCurrentLocalPlaybackSourcePageNotice: videoMetadataController.readCurrentLocalPlaybackSourcePageNotice,
+  reportDiagnostics: reportWebviewDiagnostics
 });
 
 function elementFromTarget(target: EventTarget | null): Element | null {
@@ -484,6 +537,10 @@ function sendPreloadResponse(requestId: string, result: unknown) {
 }
 
 function sendPreloadError(requestId: string, error: unknown) {
+  reportWebviewError('preload-request-failed', error, {
+    requestId: requestId,
+    url: location.href
+  });
   ipcRenderer.send('browser:preload-response', {
     requestId: requestId,
     ok: false,

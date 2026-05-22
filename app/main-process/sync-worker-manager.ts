@@ -85,6 +85,7 @@ export type SyncWorkerManagerContext = {
   shouldDenyWebViewEnhancementNavigation(url: unknown): boolean;
   t(key: string, params?: TranslationParams | null): string;
   webviewPreloadPath: string;
+  wireWebContentsDiagnostics?(webContents: Electron.WebContents, details: () => Record<string, unknown>): void;
 };
 
 export type SyncWorkerManager = {
@@ -124,6 +125,7 @@ let sessionPartition = '';
 let shouldDenyWebViewEnhancementNavigation: (url: unknown) => boolean;
 let translate: (key: string, params?: TranslationParams | null) => string;
 let webviewPreloadPath = '';
+let wireWebContentsDiagnostics: SyncWorkerManagerContext['wireWebContentsDiagnostics'] | null = null;
 
 const syncWorkersById: Record<string, SyncWorker> = {};
 const activeSyncRunsByCollection: Partial<Record<CollectionKey, ActiveSyncRun>> = {};
@@ -160,6 +162,18 @@ function createSyncWorker(collectionKey: CollectionKey, syncRunId: string): Sync
 }
 
 function wireSyncWorker(worker: SyncWorker) {
+  if (wireWebContentsDiagnostics) {
+    wireWebContentsDiagnostics(worker.webContents, function () {
+      return {
+        kind: 'sync-worker',
+        workerId: worker.id,
+        collectionKey: worker.collectionKey,
+        syncRunId: worker.syncRunId,
+        url: worker.webContents.getURL()
+      };
+    });
+  }
+
   worker.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url && shouldDenyWebViewEnhancementNavigation(details.url)) return { action: 'deny' };
     return { action: 'deny' };
@@ -644,6 +658,7 @@ export function createSyncWorkerManager(context: SyncWorkerManagerContext): Sync
   shouldDenyWebViewEnhancementNavigation = context.shouldDenyWebViewEnhancementNavigation;
   translate = context.t;
   webviewPreloadPath = context.webviewPreloadPath;
+  wireWebContentsDiagnostics = context.wireWebContentsDiagnostics || null;
 
   return {
     activeRunForCollection: syncRunForCollection,

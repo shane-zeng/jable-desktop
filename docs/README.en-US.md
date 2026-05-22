@@ -153,7 +153,7 @@ The Settings page controls:
 - Full Sync acceleration: Safe, Standard, or Fast
 - Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
 - FFmpeg status, Check Again, manual FFmpeg selection, download folder location, concurrent video downloads, and download speed mode
-- JSON import, JSON export, the local database path, and opening the local data folder in Finder or File Explorer
+- JSON import, JSON export, the local database path, opening the local data folder, opening the Log folder, and clearing diagnostics
 - Manual update checks
 
 Fast mode prefetches more pages at once and helps large lists. If it hits timeout, 403, or 429 responses, the app falls back to conservative page-by-page sync.

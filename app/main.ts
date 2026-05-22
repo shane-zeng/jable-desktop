@@ -16,6 +16,7 @@ import type { BrowserOriginController, BrowserOriginControllerContext } from './
 import type { BrowserRuntimeController, BrowserRuntimeControllerContext } from './main-process/browser/runtime';
 import type { ContextMenuManager, ContextMenuManagerContext } from './main-process/context-menu-manager';
 import type { DataEngine } from './data/data-engine';
+import type { DiagnosticsClearResult, DiagnosticsLogger } from './main-process/diagnostics/logger';
 import type {
   DownloadAppShutdownController,
   DownloadAppShutdownControllerContext
@@ -158,6 +159,19 @@ type HlsPlaybackCaptureModule = {
     webContentsFromId(webContentsId: number): Electron.WebContents | null;
   }): Promise<void>;
 };
+type DiagnosticsModule = {
+  createDiagnosticsLogger(
+    logDirectory: string,
+    options?: {
+      appVersion?: string | null;
+      crashDumpsDirectory?: string | null;
+      pathTokens?: () => Array<{ label: string; value: string | null | undefined }>;
+      processName?: string;
+    } | null
+  ): DiagnosticsLogger;
+  diagnosticsCrashDumpsDirectory(logDirectory: string): string;
+  diagnosticsLogDirectory(userDataPath: string): string;
+};
 const electron: typeof Electron = require('electron');
 const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
@@ -179,6 +193,7 @@ const contextMenuManagerModule = require('./main-process/context-menu-manager') 
   createContextMenuManager(context: ContextMenuManagerContext): ContextMenuManager;
 };
 const dataEngineModule = require('./data/data-engine') as DataEngineModule;
+const diagnosticsModule = require('./main-process/diagnostics/logger') as DiagnosticsModule;
 const downloadAppShutdownModule = require('./main-process/download-app-shutdown') as {
   createDownloadAppShutdownController(context: DownloadAppShutdownControllerContext): DownloadAppShutdownController;
 };
@@ -204,6 +219,7 @@ const COLLECTIONS = dataEngineModule.COLLECTIONS;
 const app = electron.app;
 const BrowserWindow = electron.BrowserWindow;
 const WebContentsView = electron.WebContentsView;
+const crashReporter = electron.crashReporter;
 const ipcMain = electron.ipcMain;
 const Menu = electron.Menu;
 const dialog = electron.dialog;
@@ -253,6 +269,8 @@ let browserRuntimeController: BrowserRuntimeController | null = null;
 let contextMenuManager: ContextMenuManager | null = null;
 let database: DataEngine | null = null;
 let databasePath: string | null = null;
+let diagnosticsLogger: DiagnosticsLogger | null = null;
+let diagnosticsIpcMain: typeof Electron.ipcMain | null = null;
 let downloadAppShutdownController: DownloadAppShutdownController | null = null;
 let downloadManager: DownloadManager | null = null;
 let syncWorkerManager: SyncWorkerManager | null = null;
@@ -274,13 +292,219 @@ function configureAppStorageForTests() {
   if (userDataDir) app.setPath('userData', path.resolve(userDataDir));
 }
 
+function safeAppPath(name: Parameters<Electron.App['getPath']>[0]): string | null {
+  try {
+    return app.getPath(name);
+  } catch (error) {
+    return null;
+  }
+}
+
+function diagnosticsPathTokens() {
+  let downloadRootPath: string | null = null;
+
+  try {
+    downloadRootPath = getAppSettings().downloadRoot || path.join(app.getPath('userData'), 'downloads');
+  } catch (error) {
+    downloadRootPath = null;
+  }
+
+  return [
+    { label: 'home', value: safeAppPath('home') },
+    { label: 'userData', value: safeAppPath('userData') },
+    { label: 'downloadRoot', value: downloadRootPath }
+  ];
+}
+
+function getDiagnosticsLogger(): DiagnosticsLogger {
+  if (!diagnosticsLogger) {
+    const logDirectory = diagnosticsModule.diagnosticsLogDirectory(app.getPath('userData'));
+    const crashDumpsDirectory = diagnosticsModule.diagnosticsCrashDumpsDirectory(logDirectory);
+    diagnosticsLogger = diagnosticsModule.createDiagnosticsLogger(logDirectory, {
+      appVersion: app.getVersion(),
+      crashDumpsDirectory: crashDumpsDirectory,
+      pathTokens: diagnosticsPathTokens,
+      processName: 'main'
+    });
+  }
+
+  return diagnosticsLogger;
+}
+
+function configureDiagnostics() {
+  const logDirectory = diagnosticsModule.diagnosticsLogDirectory(app.getPath('userData'));
+  const crashDumpsDirectory = diagnosticsModule.diagnosticsCrashDumpsDirectory(logDirectory);
+
+  app.setAppLogsPath(logDirectory);
+  app.setPath('crashDumps', crashDumpsDirectory);
+  getDiagnosticsLogger();
+
+  try {
+    crashReporter.start({
+      productName: 'Jable Desktop',
+      uploadToServer: false,
+      globalExtra: {
+        appVersion: app.getVersion(),
+        platform: process.platform,
+        arch: process.arch
+      }
+    });
+  } catch (error) {
+    getDiagnosticsLogger().errorEvent('electron', 'crash-reporter-start-failed', error);
+  }
+
+  getDiagnosticsLogger().event('info', 'app', 'startup', {
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch
+  });
+}
+
+function installProcessDiagnostics() {
+  process.on('uncaughtExceptionMonitor', function (error) {
+    getDiagnosticsLogger().errorEvent('process', 'uncaught-exception', error);
+  });
+  process.on('unhandledRejection', function (reason) {
+    getDiagnosticsLogger().errorEvent('process', 'unhandled-rejection', reason);
+  });
+  process.on('warning', function (warning) {
+    getDiagnosticsLogger().errorEvent('process', 'warning', warning);
+  });
+  app.on('child-process-gone', function (_event, details) {
+    getDiagnosticsLogger().event('error', 'electron', 'child-process-gone', details);
+  });
+}
+
+function logWebContentsContext(details: () => Record<string, unknown>) {
+  try {
+    return details();
+  } catch (error) {
+    return {};
+  }
+}
+
+function wireWebContentsDiagnostics(webContents: Electron.WebContents, details: () => Record<string, unknown>) {
+  webContents.on('render-process-gone', function (_event, goneDetails) {
+    getDiagnosticsLogger().event('error', 'electron', 'render-process-gone', {
+      webContentsId: webContents.id,
+      details: goneDetails,
+      context: logWebContentsContext(details)
+    });
+  });
+  webContents.on('preload-error', function (_event, preloadPath, error) {
+    getDiagnosticsLogger().errorEvent('electron', 'preload-error', error, {
+      webContentsId: webContents.id,
+      preload: path.basename(preloadPath || ''),
+      context: logWebContentsContext(details)
+    });
+  });
+  webContents.on('unresponsive', function () {
+    getDiagnosticsLogger().event('warn', 'electron', 'web-contents-unresponsive', {
+      webContentsId: webContents.id,
+      context: logWebContentsContext(details)
+    });
+  });
+  webContents.on('responsive', function () {
+    getDiagnosticsLogger().event('info', 'electron', 'web-contents-responsive', {
+      webContentsId: webContents.id,
+      context: logWebContentsContext(details)
+    });
+  });
+  webContents.on(
+    'did-fail-load',
+    function (
+      _event: Electron.Event,
+      errorCode: number,
+      errorDescription: string,
+      validatedURL: string,
+      isMainFrame: boolean
+    ) {
+      if (!isMainFrame) return;
+
+      getDiagnosticsLogger().event('warn', 'electron', 'web-contents-main-frame-load-failed', {
+        webContentsId: webContents.id,
+        errorCode: errorCode,
+        errorDescription: errorDescription,
+        url: validatedURL || webContents.getURL(),
+        context: logWebContentsContext(details)
+      });
+    }
+  );
+  webContents.on('console-message', function (eventDetails, level, message, line, sourceId) {
+    const normalizedLevel =
+      typeof eventDetails.level === 'string'
+        ? eventDetails.level
+        : level >= 3
+          ? 'error'
+          : level >= 2
+            ? 'warning'
+            : level <= 0
+              ? 'debug'
+              : 'info';
+    if (normalizedLevel !== 'warning' && normalizedLevel !== 'error') return;
+
+    getDiagnosticsLogger().event(
+      normalizedLevel === 'error' ? 'error' : 'warn',
+      'renderer-console',
+      'console-message',
+      {
+        webContentsId: webContents.id,
+        level: normalizedLevel,
+        message: eventDetails.message || message,
+        lineNumber: eventDetails.lineNumber || line,
+        sourceId: eventDetails.sourceId || sourceId,
+        context: logWebContentsContext(details)
+      }
+    );
+  });
+}
+
+function diagnosticsIpcMainWrapper(): typeof Electron.ipcMain {
+  if (diagnosticsIpcMain) return diagnosticsIpcMain;
+
+  const wrapped = Object.create(ipcMain) as typeof Electron.ipcMain;
+  wrapped.handle = function (channel, listener) {
+    return ipcMain.handle(channel, async function (event, ...args) {
+      const startedAt = Date.now();
+      try {
+        return await listener(event, ...args);
+      } catch (error) {
+        getDiagnosticsLogger().errorEvent('ipc', 'ipc-handle-failed', error, {
+          channel: channel,
+          durationMs: Date.now() - startedAt
+        });
+        throw error;
+      }
+    });
+  };
+  wrapped.on = function (channel, listener) {
+    return ipcMain.on(channel, function (event, ...args) {
+      const startedAt = Date.now();
+      try {
+        return listener(event, ...args);
+      } catch (error) {
+        getDiagnosticsLogger().errorEvent('ipc', 'ipc-event-failed', error, {
+          channel: channel,
+          durationMs: Date.now() - startedAt
+        });
+        throw error;
+      }
+    });
+  };
+  diagnosticsIpcMain = wrapped;
+  return diagnosticsIpcMain;
+}
+
 function shouldDenyWebViewEnhancementNavigation(url: unknown): boolean {
   if (!getAppSettings().webViewEnhancementMode) return false;
 
   const suppressed = webViewEnhancement.shouldSuppressWebViewNavigation(url);
 
   if (suppressed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
-    console.info('[webview-enhancement] suppressed navigation', url);
+    getDiagnosticsLogger().event('info', 'webview-enhancement', 'suppressed-navigation', { url: url });
   }
 
   return suppressed;
@@ -291,11 +515,12 @@ function installWebViewEnhancement() {
     enabled: function () {
       return getAppSettings().webViewEnhancementMode;
     },
-    debug: webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)
+    debug: webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env),
+    logger: getDiagnosticsLogger()
   });
 
   if (result.installed && webViewEnhancement.isWebViewEnhancementDebugEnabledByEnv(process.env)) {
-    console.info('[webview-enhancement] installed with ' + result.patterns.length + ' URL patterns');
+    getDiagnosticsLogger().event('info', 'webview-enhancement', 'installed', { patterns: result.patterns.length });
   }
 }
 
@@ -319,7 +544,7 @@ function installHlsPlaybackCapture(): Promise<void> {
     jablePrimaryOrigin: urlPolicy.JABLE_PRIMARY_ORIGIN,
     jableSession: session.fromPartition(JABLE_SESSION_PARTITION),
     ipcMain: ipcMain,
-    logger: console,
+    logger: getDiagnosticsLogger(),
     isAutoDownloadOnPlaybackEnabled: function () {
       return getAppSettings().autoDownloadOnPlayback;
     },
@@ -395,7 +620,7 @@ function getBrowserRuntime(): BrowserRuntimeController {
       getSettings: getAppSettings,
       homeUrl: JABLE_HOME_URL,
       isMacos: IS_MACOS,
-      logger: console,
+      logger: getDiagnosticsLogger(),
       mainErrorMessage: mainErrorMessage,
       normalizeNavigationUrl: normalizeBrowserNavigationUrl,
       saveDelayMs: BROWSER_SESSION_SAVE_DELAY_MS,
@@ -408,7 +633,8 @@ function getBrowserRuntime(): BrowserRuntimeController {
         return app.getPath('userData');
       },
       WebContentsView: WebContentsView,
-      webviewPreloadPath: path.join(__dirname, 'webview-preload.js')
+      webviewPreloadPath: path.join(__dirname, 'webview-preload.js'),
+      wireWebContentsDiagnostics: wireWebContentsDiagnostics
     });
   }
 
@@ -465,7 +691,7 @@ function saveMainWindowState(browserWindow: Electron.BrowserWindow) {
       maximized: browserWindow.isMaximized()
     });
   } catch (error) {
-    console.error(error);
+    getDiagnosticsLogger().errorEvent('window-state', 'save-failed', error);
   }
 }
 
@@ -497,6 +723,7 @@ function getDownloadManager(): DownloadManager {
       getMainWindow: function () {
         return mainWindow;
       },
+      logger: getDiagnosticsLogger(),
       forwardBrowserMessage: forwardBrowserMessage,
       sendToAllBrowserTabs: function (channel, payload) {
         getBrowserRuntime().sendToAllTabs(channel, payload);
@@ -515,6 +742,9 @@ function getDownloadManager(): DownloadManager {
 function updateAppSettings(patch: unknown): AppSettings {
   const previousSettings = getAppSettings();
   const settings = getSettingsStore().update(settingsModule.normalizeAppSettingsPatch(patch));
+  getDiagnosticsLogger().event('info', 'settings', 'settings-updated', {
+    keys: patch && typeof patch === 'object' ? Object.keys(patch as Record<string, unknown>) : []
+  });
   getBrowserRuntime().notifyChanged();
   forwardBrowserMessage('settings-changed', settings);
   getBrowserRuntime().sendToAllTabs('settings-changed', settings);
@@ -534,6 +764,7 @@ function updateAppSettings(patch: unknown): AppSettings {
 function getDatabase(): DataEngine {
   if (!database) {
     databasePath = path.join(app.getPath('userData'), 'jable-favourites.sqlite');
+    getDiagnosticsLogger().event('info', 'database', 'open', { path: databasePath });
     database = dataEngineModule.createDataEngine(databasePath);
   }
 
@@ -571,6 +802,51 @@ function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
   return getAppActions().openLocalDataFolder();
 }
 
+function openLogFolder(): Promise<{ opened: boolean; path: string }> {
+  const folderPath = getDiagnosticsLogger().logDirectory();
+  fs.mkdirSync(folderPath, { recursive: true });
+
+  if (process.env.JABLE_DESKTOP_TEST_BYPASS_SHELL_OPEN === '1') {
+    getDiagnosticsLogger().event('info', 'diagnostics', 'log-folder-opened', { path: folderPath });
+    return Promise.resolve({
+      opened: true,
+      path: folderPath
+    });
+  }
+
+  return shell.openPath(folderPath).then(function (errorMessage: string) {
+    if (errorMessage) throw new Error(errorMessage);
+    getDiagnosticsLogger().event('info', 'diagnostics', 'log-folder-opened', { path: folderPath });
+    return {
+      opened: true,
+      path: folderPath
+    };
+  });
+}
+
+function clearDiagnostics(): Promise<DiagnosticsClearResult> {
+  return showAppDialog({
+    type: 'warning',
+    buttons: [t('dialog.clearDiagnosticsConfirm'), t('dialog.cancel')],
+    defaultId: 0,
+    cancelId: 1,
+    title: t('dialog.clearDiagnosticsTitle'),
+    message: t('dialog.clearDiagnosticsMessage')
+  }).then(function (dialogResult: Electron.MessageBoxReturnValue) {
+    if (dialogResult.response !== 0) {
+      return {
+        canceled: true,
+        deletedFiles: 0,
+        failedFiles: 0
+      };
+    }
+
+    const result = getDiagnosticsLogger().clearDiagnostics();
+    getDiagnosticsLogger().event('info', 'diagnostics', 'diagnostics-cleared', result);
+    return result;
+  });
+}
+
 function openFfmpegGuide(): Promise<{ opened: boolean; url: string }> {
   return getAppActions().openFfmpegGuide();
 }
@@ -582,7 +858,7 @@ function getDownloadAppShutdownController(): DownloadAppShutdownController {
         app.quit();
       },
       getDownloadManager: getDownloadManager,
-      logger: console,
+      logger: getDiagnosticsLogger(),
       quitAfterWindowClose: process.platform !== 'darwin'
     });
   }
@@ -627,6 +903,12 @@ function createWindow() {
   mainWindow = new BrowserWindow(browserWindowOptions);
   if (placement.maximized) mainWindow.maximize();
 
+  wireWebContentsDiagnostics(mainWindow.webContents, function () {
+    return {
+      kind: 'main-window',
+      url: mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents.getURL() : ''
+    };
+  });
   getBrowserRuntime().registerAppShortcuts(mainWindow.webContents);
 
   mainWindow.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
@@ -769,7 +1051,8 @@ function getSyncWorkerManager(): SyncWorkerManager {
       sessionPartition: JABLE_SESSION_PARTITION,
       shouldDenyWebViewEnhancementNavigation: shouldDenyWebViewEnhancementNavigation,
       t: t,
-      webviewPreloadPath: path.join(__dirname, 'webview-preload.js')
+      webviewPreloadPath: path.join(__dirname, 'webview-preload.js'),
+      wireWebContentsDiagnostics: wireWebContentsDiagnostics
     });
   }
 
@@ -906,6 +1189,16 @@ function syncPayloadForEvent(event: Electron.IpcMainEvent | Electron.IpcMainInvo
   });
 }
 
+function diagnosticsLevel(value: unknown): 'debug' | 'info' | 'warn' | 'error' {
+  return value === 'debug' || value === 'info' || value === 'warn' || value === 'error' ? value : 'error';
+}
+
+function recordDiagnosticsEvent(source: 'renderer' | 'webview', payload: unknown) {
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+  const eventName = typeof record.event === 'string' && record.event ? record.event : source + '-event';
+  getDiagnosticsLogger().event(diagnosticsLevel(record.level), source, eventName, record);
+}
+
 function registerIpcHandlers() {
   ipcHandlers.registerIpcHandlers({
     activeSyncRunsState: activeSyncRunsState,
@@ -958,7 +1251,7 @@ function registerIpcHandlers() {
     goBrowserForward: function (tabId) {
       return getBrowserRuntime().goForward(tabId);
     },
-    ipcMain: ipcMain,
+    ipcMain: diagnosticsIpcMainWrapper(),
     mainErrorMessage: mainErrorMessage,
     markActiveSyncMutated: markActiveSyncMutated,
     navigateBrowser: function (payload) {
@@ -967,7 +1260,10 @@ function registerIpcHandlers() {
     notifyPendingCollectionOperationsChanged: notifyPendingCollectionOperationsChanged,
     openFfmpegGuide: openFfmpegGuide,
     openLocalDataFolder: openLocalDataFolder,
+    openLogFolder: openLogFolder,
     pendingCollectionOperationsState: pendingCollectionOperationsState,
+    clearDiagnostics: clearDiagnostics,
+    recordDiagnosticsEvent: recordDiagnosticsEvent,
     reloadBrowser: function (tabId) {
       return getBrowserRuntime().reload(tabId);
     },
@@ -1004,14 +1300,16 @@ function registerIpcHandlers() {
   });
 }
 
+configureAppStorageForTests();
+app.setName('Jable Desktop');
+configureDiagnostics();
+installProcessDiagnostics();
 registerIpcHandlers();
 
-configureAppStorageForTests();
-
 app.whenReady().then(async function () {
-  app.setName('Jable Desktop');
   currentLocale = i18n.normalizeLocale(app.getLocale());
   installApplicationMenu();
+  getDiagnosticsLogger().event('info', 'app', 'ready');
 
   getDatabase();
   installLocalPlaybackProtocol();
@@ -1026,10 +1324,12 @@ app.whenReady().then(async function () {
 });
 
 app.on('window-all-closed', function () {
+  getDiagnosticsLogger().event('info', 'app', 'window-all-closed');
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('before-quit', function (event: Electron.Event) {
+  getDiagnosticsLogger().event('info', 'app', 'before-quit');
   if (getDownloadAppShutdownController().handleBeforeQuit(event)) return;
 
   getBrowserRuntime().flushSession();
@@ -1037,9 +1337,11 @@ app.on('before-quit', function (event: Electron.Event) {
 });
 
 app.on('will-quit', function () {
+  getDiagnosticsLogger().event('info', 'app', 'will-quit');
   getBrowserRuntime().flushSession();
   closeAllSyncWorkers();
   if (database) {
+    getDiagnosticsLogger().event('info', 'database', 'close', { path: databasePath });
     database.close();
     database = null;
     databasePath = null;

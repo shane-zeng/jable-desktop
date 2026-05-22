@@ -6,6 +6,7 @@ type LocalPlaybackIpc = {
   invoke(channel: 'download:local-playback-source', payload: unknown): Promise<LocalPlaybackSourceResult>;
   on(channel: 'downloads-changed', listener: (_event: unknown, records: unknown) => void): void;
 };
+type DiagnosticsReporter = (level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) => void;
 
 type LocalPlaybackSourceSnapshot = {
   element: HTMLSourceElement;
@@ -49,6 +50,7 @@ type LocalPlaybackControllerOptions = {
   ipcRenderer: LocalPlaybackIpc;
   mainVideoElement(): HTMLVideoElement | null;
   readCurrentLocalPlaybackSourcePageNotice(): LocalPlaybackSourcePageNotice;
+  reportDiagnostics?: DiagnosticsReporter;
 };
 
 type LocalPlaybackController = {
@@ -74,6 +76,29 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
   const restoreStates = new WeakMap<HTMLVideoElement, LocalPlaybackRestoreState>();
   const errorHandlers = new WeakMap<HTMLVideoElement, LocalPlaybackErrorHandler>();
   const previewControllers = new WeakMap<HTMLVideoElement, LocalPlaybackPreviewController>();
+
+  function serializedError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return {
+        message: String(error)
+      };
+    }
+
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack || null
+    };
+  }
+
+  function reportLocalPlaybackFailure(event: string, error: unknown, details?: unknown) {
+    if (!options.reportDiagnostics) return;
+
+    options.reportDiagnostics('warn', event, {
+      error: serializedError(error),
+      details: details
+    });
+  }
 
   function localPlaybackSourceIsAvailable(
     value: LocalPlaybackSourceResult
@@ -310,6 +335,9 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
       if (!response.ok) return;
       text = await response.text();
     } catch (error) {
+      reportLocalPlaybackFailure('local-playback-preview-load-failed', error, {
+        videoUrl: activeVideoUrl
+      });
       return;
     }
 
@@ -372,6 +400,9 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
       activeThumbnailVttUrl = result.thumbnailVttUrl;
       await installLocalPlaybackPreview(video, result.thumbnailVttUrl);
     } catch (error) {
+      reportLocalPlaybackFailure('local-playback-preview-refresh-failed', error, {
+        videoUrl: videoUrl
+      });
     } finally {
       activePreviewRefreshInFlight = false;
     }
@@ -465,6 +496,13 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
     const videoUrl = activeVideoUrl || options.currentVideoUrl();
     if (sourceUrl) failedSources[sourceUrl] = true;
     if (videoUrl) failedVideoUrls[videoUrl] = true;
+    if (options.reportDiagnostics) {
+      options.reportDiagnostics('warn', 'local-playback-media-error', {
+        videoUrl: videoUrl,
+        networkState: video.networkState,
+        readyState: video.readyState
+      });
+    }
     restoreLocalPlaybackVideo(video);
   }
 
@@ -588,6 +626,9 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
         sourcePageSubtitleNoticeText: sourcePageNotice.sourcePageSubtitleNoticeText
       });
     } catch (error) {
+      reportLocalPlaybackFailure('local-playback-source-failed', error, {
+        videoUrl: videoUrl
+      });
       return;
     }
 

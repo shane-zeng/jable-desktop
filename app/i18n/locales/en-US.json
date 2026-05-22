@@ -418,7 +418,11 @@
       "exportAction": "Export",
       "databasePath": "Local Database Path",
       "databasePathUnavailable": "Database has not been created yet",
-      "openFolder": "Open Folder"
+      "openFolder": "Open Folder",
+      "diagnostics": "Diagnostics",
+      "diagnosticsDescription": "Logs are kept for 14 days, each file is capped at 5MB, total logs are capped at 100MB, and only the newest 10 crash dumps are kept.",
+      "openLogFolder": "Open Log Folder",
+      "clearDiagnostics": "Clear Diagnostics"
     }
   },
   "status": {
@@ -533,6 +537,12 @@
     "downloadFileOutsideRoot": "Downloaded file is outside the current download location",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
+    "logFolderOpened": "Opened the Log folder",
+    "logFolderOpenFailed": "Failed to open Log folder: {error}",
+    "clearDiagnosticsCanceled": "Diagnostics cleanup canceled",
+    "clearDiagnosticsComplete": "Cleared diagnostics: {deleted} files",
+    "clearDiagnosticsPartial": "Cleared {deleted} diagnostic files; {failed} files could not be removed yet",
+    "clearDiagnosticsFailed": "Failed to clear diagnostics: {error}",
     "checkingUpdates": "Checking for updates...",
     "updateCheckFailed": "Update check failed: {error}",
     "newTabFailed": "Failed to create tab: {error}",
@@ -618,6 +628,9 @@
     "pauseDownloadsBeforeQuitMessage": "Pause downloads before closing?",
     "pauseDownloadsAndClose": "Pause and Close",
     "returnToApp": "Return to App",
+    "clearDiagnosticsTitle": "Clear Diagnostics",
+    "clearDiagnosticsMessage": "This deletes local logs and crash dumps. It will not affect the local database, settings, or downloaded files.",
+    "clearDiagnosticsConfirm": "Clear",
     "cancel": "Cancel"
   },
   "errors": {

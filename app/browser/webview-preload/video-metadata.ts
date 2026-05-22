@@ -11,11 +11,13 @@ export type LocalPlaybackSourcePageNotice = {
 type VideoMetadataIpc = {
   invoke(channel: 'db:refresh-video-metadata', payload: unknown): Promise<unknown>;
 };
+type DiagnosticsReporter = (level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) => void;
 
 type VideoMetadataControllerOptions = {
   buttonHasIcon(button: Element | null, iconId: string): boolean;
   ipcRenderer: VideoMetadataIpc;
   isJablePage(): boolean;
+  reportDiagnostics?: DiagnosticsReporter;
 };
 
 type VideoMetadataController = {
@@ -32,6 +34,20 @@ const CHINESE_SUBTITLE_NOTICE_TOKEN = '中文字幕版';
 export function createVideoMetadataController(options: VideoMetadataControllerOptions): VideoMetadataController {
   let videoMetadataRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let lastVideoMetadataRefreshSignature = '';
+
+  function serializedError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return {
+        message: String(error)
+      };
+    }
+
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack || null
+    };
+  }
 
   function currentVideoUrl() {
     if (!options.isJablePage()) return null;
@@ -179,6 +195,12 @@ export function createVideoMetadataController(options: VideoMetadataControllerOp
     try {
       await options.ipcRenderer.invoke('db:refresh-video-metadata', video);
     } catch (error) {
+      if (options.reportDiagnostics) {
+        options.reportDiagnostics('warn', 'video-metadata-refresh-failed', {
+          error: serializedError(error),
+          videoUrl: video.url
+        });
+      }
       console.warn('[JableDesktopScraper] video metadata refresh failed', error);
     }
   }

@@ -58,6 +58,8 @@ const emit = defineEmits<{
   'clear-download-root': [];
   'open-download-root': [];
   'open-data-folder': [];
+  'open-log-folder': [];
+  'clear-diagnostics': [];
   'check-updates': [];
   'import-json': [payload: { collectionKey: CollectionKey; resource: ExportResource }];
   'export-json': [collectionKey: CollectionKey];
@@ -963,6 +965,33 @@ function shortcutTokenSeparator(tokenIndex: number) {
                   >
                     {{ t('settings.data.openFolder') }}
                   </button>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.data.diagnostics') }}</span>
+                <div class="grid gap-2">
+                  <p class="settings-help">{{ t('settings.data.diagnosticsDescription') }}</p>
+                  <div class="settings-actions">
+                    <button
+                      type="button"
+                      class="w-fit"
+                      data-test="settings-open-log-folder"
+                      :disabled="busy"
+                      @click="emit('open-log-folder')"
+                    >
+                      {{ t('settings.data.openLogFolder') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="w-fit"
+                      data-test="settings-clear-diagnostics"
+                      :disabled="busy"
+                      @click="emit('clear-diagnostics')"
+                    >
+                      {{ t('settings.data.clearDiagnostics') }}
+                    </button>
+                  </div>
                 </div>
               </div>
             </section>

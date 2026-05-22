@@ -90,6 +90,8 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('下載速度模式');
     expect(wrapper.text()).toContain('播放時自動下載');
     expect(wrapper.text()).toContain('資料');
+    expect(wrapper.text()).toContain('診斷紀錄');
+    expect(wrapper.text()).toContain('保留 14 天');
     expect(wrapper.text()).toContain('版本');
     expect(wrapper.get('[data-test="settings-app-version"]').text()).toBe('0.12.4');
     expect(wrapper.text()).toContain('檢查更新');
@@ -103,6 +105,12 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-open-data-folder"]').trigger('click');
     expect(wrapper.emitted('open-data-folder')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-open-log-folder"]').trigger('click');
+    expect(wrapper.emitted('open-log-folder')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-clear-diagnostics"]').trigger('click');
+    expect(wrapper.emitted('clear-diagnostics')).toEqual([[]]);
 
     await wrapper.get('[data-test="settings-auto-replay"]').setValue(true);
     expect(wrapper.emitted('update-settings')).toContainEqual([{ autoReplayDeferredSyncOperations: true }]);

@@ -1,6 +1,6 @@
 # IPC Contract Specification
 
-Last verified against implementation: 2026-05-20
+Last verified against implementation: 2026-05-22
 
 This document summarizes the current IPC boundary. `app/types/jable.ts` is the source of truth for exact TypeScript payload and response types.
 
@@ -28,6 +28,9 @@ Renderer API group:
 - `getSettings()`
 - `updateSettings(patch)`
 - `setLocale(locale)`
+- `openLogFolder()`
+- `clearDiagnostics()`
+- `reportRendererError(payload)`
 
 Current behavior:
 
@@ -37,6 +40,9 @@ Current behavior:
 - `restoreBrowserTabsOnStartup` defaults to `false`; when set to `true`, the main process stores and restores normal browser tab URLs, active tab, locked state, and muted state through an internal `browser-session.json` file. This does not add a renderer IPC method.
 - `autoDownloadOnPlayback` defaults to `false`; when set to `true`, Jable browser-tab HLS playback may be proxied through app-owned loopback URLs so playback and background completion share one managed segment cache. The download record is created only after webview preload reports actual video playback, not merely when the page preloads a playlist.
 - `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
+- `openLogFolder()` ensures Electron `userData/logs` exists and opens it through the OS file manager.
+- `clearDiagnostics()` shows a main-process confirmation dialog, then deletes only managed diagnostics JSONL files and crash dumps. It returns `{ canceled, deletedFiles, failedFiles }` so Windows file-lock partial failures can be surfaced without blocking the app.
+- `reportRendererError()` is a fire-and-forget diagnostics channel for renderer global errors and handled workflow failures. Main sanitizes payload content before JSONL persistence.
 
 ## Downloads And FFmpeg API
 

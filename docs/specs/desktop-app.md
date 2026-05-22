@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-21
+Last verified against implementation: 2026-05-22
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -119,6 +119,8 @@ This document specifies the current user-facing Electron desktop application beh
   - Export JSON
   - Display local database path
   - Open the local data folder in the OS file manager
+  - Open the local diagnostics log folder
+  - Clear local diagnostics logs and crash dumps after main-process confirmation
 - Maximum browser tabs are clamped from 4 to 30.
 - A warning is shown when the maximum browser tab count is above the warning threshold.
 - Startup tab restore defaults to off. When enabled, it restores normal browser tab URLs, active tab, locked state, and muted state, but not sync tabs or browser history.
@@ -126,6 +128,15 @@ This document specifies the current user-facing Electron desktop application beh
 - A warning is shown for the fastest sync acceleration option.
 - Automatic replay of deferred sync operations defaults to off.
 - Maximum active video downloads is clamped from 1 to 3 and defaults to 1.
+
+## Diagnostics
+
+- Local diagnostics are always enabled and stored under Electron `userData/logs` on macOS, Windows, and Linux.
+- Diagnostics JSONL logs retain 14 days, rotate at 5 MB per file, and enforce a 100 MB total managed-log cap by deleting the oldest managed log files.
+- Electron crash dumps are local-only and stored under `userData/logs/crashes`, with only the newest 10 dump files retained.
+- Diagnostics cover main process lifecycle, settings/database/update failures, IPC handler failures, renderer and webview global errors, WebContents crash/load failures, sync worker exits, and download/native/FFmpeg/file phases.
+- Diagnostics sanitization masks full remote URLs, HLS playlist/segment/key details, cookies, authorization headers, tokens, and user/download-root paths before writing.
+- Settings > Data can open the log folder and can clear diagnostics. Clearing diagnostics deletes only managed log and crash dump files, not SQLite data, settings, or downloaded videos.
 
 ## Import And Export UX
 
@@ -161,5 +172,6 @@ This document specifies the current user-facing Electron desktop application beh
 - `app/renderer-src/composables/useSyncWorkflow.ts`
 - `app/renderer-src/composables/useToastStatus.ts`
 - `app/app-contract.ts`
+- `app/main-process/diagnostics/logger.ts`
 - `app/main-process/window-options.ts`
 - `app/main-process/window-state.ts`

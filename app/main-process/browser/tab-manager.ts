@@ -72,6 +72,7 @@ export type BrowserTabManagerContext = {
   t(key: string, params?: TranslationParams | null): string;
   WebContentsView: typeof Electron.WebContentsView;
   webviewPreloadPath: string;
+  wireWebContentsDiagnostics?(webContents: Electron.WebContents, details: () => Record<string, unknown>): void;
 };
 
 export type BrowserTabManager = {
@@ -129,6 +130,7 @@ let showBrowserContextMenu: (tab: BrowserTab, params: Electron.ContextMenuParams
 let translate: (key: string, params?: TranslationParams | null) => string;
 let WebContentsView: typeof Electron.WebContentsView;
 let webviewPreloadPath = '';
+let wireWebContentsDiagnostics: BrowserTabManagerContext['wireWebContentsDiagnostics'] | null = null;
 
 const browserTabs: BrowserTab[] = [];
 const browserTabsById: Record<string, BrowserTab> = {};
@@ -227,6 +229,16 @@ function wireBrowserTab(tab: BrowserTab) {
   const webContentsId = tab.view.webContents.id;
 
   registerShortcuts(tab.view.webContents);
+  if (wireWebContentsDiagnostics) {
+    wireWebContentsDiagnostics(tab.view.webContents, function () {
+      return {
+        kind: 'browser-tab',
+        tabId: tab.id,
+        tabKind: tab.kind,
+        url: tab.url || tab.view.webContents.getURL()
+      };
+    });
+  }
 
   if (tab.muted) {
     tab.view.webContents.setAudioMuted(true);
@@ -926,6 +938,7 @@ export function createBrowserTabManager(context: BrowserTabManagerContext): Brow
   translate = context.t;
   WebContentsView = context.WebContentsView;
   webviewPreloadPath = context.webviewPreloadPath;
+  wireWebContentsDiagnostics = context.wireWebContentsDiagnostics || null;
 
   return {
     activeTabId: function () {

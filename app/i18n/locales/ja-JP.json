@@ -418,7 +418,11 @@
       "exportAction": "Export",
       "databasePath": "ローカルデータベースの場所",
       "databasePathUnavailable": "データベースはまだ作成されていません",
-      "openFolder": "フォルダーを開く"
+      "openFolder": "フォルダーを開く",
+      "diagnostics": "診断ログ",
+      "diagnosticsDescription": "ログは 14 日間保持され、1 ファイル最大 5MB、合計最大 100MB です。Crash dump は最新 10 件のみ保持します。",
+      "openLogFolder": "Log フォルダーを開く",
+      "clearDiagnostics": "診断ログを消去"
     }
   },
   "status": {
@@ -533,6 +537,12 @@
     "downloadFileOutsideRoot": "ダウンロードファイルは現在のダウンロード先の外にあります",
     "localDataFolderOpened": "ローカルデータフォルダーを開きました",
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
+    "logFolderOpened": "Log フォルダーを開きました",
+    "logFolderOpenFailed": "Log フォルダーを開けませんでした: {error}",
+    "clearDiagnosticsCanceled": "診断ログの消去をキャンセルしました",
+    "clearDiagnosticsComplete": "診断ログを消去しました: {deleted} ファイル",
+    "clearDiagnosticsPartial": "診断ファイル {deleted} 件を消去しました。{failed} 件はまだ削除できませんでした",
+    "clearDiagnosticsFailed": "診断ログを消去できませんでした: {error}",
     "checkingUpdates": "更新を確認しています...",
     "updateCheckFailed": "更新の確認に失敗しました: {error}",
     "newTabFailed": "タブを作成できませんでした: {error}",
@@ -618,6 +628,9 @@
     "pauseDownloadsBeforeQuitMessage": "閉じる前にダウンロードを一時停止しますか？",
     "pauseDownloadsAndClose": "一時停止して閉じる",
     "returnToApp": "App に戻る",
+    "clearDiagnosticsTitle": "診断ログを消去",
+    "clearDiagnosticsMessage": "ローカルのログと Crash dump を削除します。ローカルデータベース、設定、ダウンロード済みファイルには影響しません。",
+    "clearDiagnosticsConfirm": "消去",
     "cancel": "キャンセル"
   },
   "errors": {

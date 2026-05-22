@@ -52,6 +52,7 @@ export type BrowserRuntimeControllerContext = {
   userDataPath(): string;
   WebContentsView: typeof Electron.WebContentsView;
   webviewPreloadPath: string;
+  wireWebContentsDiagnostics?(webContents: Electron.WebContents, details: () => Record<string, unknown>): void;
 };
 
 export type BrowserRuntimeController = {
@@ -225,7 +226,8 @@ export function createBrowserRuntimeController(context: BrowserRuntimeController
         showBrowserContextMenu: context.showBrowserContextMenu,
         t: context.t,
         WebContentsView: context.WebContentsView,
-        webviewPreloadPath: context.webviewPreloadPath
+        webviewPreloadPath: context.webviewPreloadPath,
+        wireWebContentsDiagnostics: context.wireWebContentsDiagnostics
       });
     }
 

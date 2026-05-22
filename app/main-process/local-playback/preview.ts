@@ -38,6 +38,7 @@ type LocalPlaybackPreviewControllerOptions = {
   localPlaybackReadyFile(videoUrl: string): LocalPlaybackFile | null;
   localPlaybackScheme: string;
   notifyDownloadsChanged(): void;
+  reportError?(event: string, error: unknown, details?: unknown): void;
   resolveManagedDownloadPath(fileRelativePath: string | null): string | null;
 };
 
@@ -399,6 +400,11 @@ export function createLocalPlaybackPreviewController(
       }
     } catch (error) {
       previewFailedKeys.add(generationKey);
+      if (options.reportError) {
+        options.reportError('local-playback-preview-generation-failed', error, {
+          videoUrl: videoUrl
+        });
+      }
       console.warn('[local-playback-preview] ' + mainErrorMessage(error));
     }
   }

@@ -20,12 +20,14 @@ type PendingCollectionOperation = {
 type CollectionActionIpc = {
   invoke(channel: 'db:apply-collection-toggle', payload: unknown): Promise<unknown>;
 };
+type DiagnosticsReporter = (level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) => void;
 
 type CollectionActionControllerOptions = {
   buttonHasIcon(button: Element | null, iconId: string): boolean;
   collectionKeyForCurrentLocation(): CollectionKey | null;
   ipcRenderer: CollectionActionIpc;
   readCurrentVideoDetails(): ScrapedVideoRow | null;
+  reportDiagnostics?: DiagnosticsReporter;
   scrapeVideoBox(box: Element | null): ScrapedVideoRow | null;
   siteOrderForVideoBox(box: Element | null): number | null;
 };
@@ -49,6 +51,29 @@ export function createCollectionActionController(
 
   function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  function serializedError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return {
+        message: String(error)
+      };
+    }
+
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack || null
+    };
+  }
+
+  function reportCollectionFailure(event: string, error: unknown, details?: unknown) {
+    if (!options.reportDiagnostics) return;
+
+    options.reportDiagnostics('warn', event, {
+      error: serializedError(error),
+      details: details
+    });
   }
 
   function updateActiveSyncLocks(payload: unknown) {
@@ -475,6 +500,11 @@ export function createCollectionActionController(
         sourceUrl: location.href
       });
     } catch (error) {
+      reportCollectionFailure('collection-toggle-sync-failed', error, {
+        collectionKey: collectionKey,
+        action: action,
+        videoUrl: video.url
+      });
       console.warn('[JableDesktopScraper] collection toggle sync failed', error);
     }
   }
@@ -515,6 +545,12 @@ export function createCollectionActionController(
       });
     } catch (error) {
       applyQueuedCollectionVisualState(collectionKey, actionElement, rollbackAction);
+      reportCollectionFailure('collection-toggle-queue-failed', error, {
+        collectionKey: collectionKey,
+        action: action,
+        syncRunId: syncLock.syncRunId,
+        videoUrl: video.url
+      });
       console.warn('[JableDesktopScraper] collection toggle queue failed', error);
       return null;
     }

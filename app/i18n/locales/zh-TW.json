@@ -418,7 +418,11 @@
       "exportAction": "匯出",
       "databasePath": "本機資料庫位置",
       "databasePathUnavailable": "尚未建立資料庫",
-      "openFolder": "開啟資料夾"
+      "openFolder": "開啟資料夾",
+      "diagnostics": "診斷紀錄",
+      "diagnosticsDescription": "Log 保留 14 天，單檔最多 5MB，總容量最多 100MB；Crash dump 只保留最近 10 份。",
+      "openLogFolder": "開啟 Log 資料夾",
+      "clearDiagnostics": "清除診斷紀錄"
     }
   },
   "status": {
@@ -533,6 +537,12 @@
     "downloadFileOutsideRoot": "下載檔案不在目前下載位置內",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
+    "logFolderOpened": "已開啟 Log 資料夾",
+    "logFolderOpenFailed": "開啟 Log 資料夾失敗：{error}",
+    "clearDiagnosticsCanceled": "已取消清除診斷紀錄",
+    "clearDiagnosticsComplete": "已清除診斷紀錄：{deleted} 個檔案",
+    "clearDiagnosticsPartial": "已清除 {deleted} 個診斷檔案，{failed} 個檔案暫時無法刪除",
+    "clearDiagnosticsFailed": "清除診斷紀錄失敗：{error}",
     "checkingUpdates": "正在檢查更新…",
     "updateCheckFailed": "檢查更新失敗：{error}",
     "newTabFailed": "新增分頁失敗：{error}",
@@ -618,6 +628,9 @@
     "pauseDownloadsBeforeQuitMessage": "關閉前要先暫停下載嗎？",
     "pauseDownloadsAndClose": "暫停並關閉",
     "returnToApp": "回到 App",
+    "clearDiagnosticsTitle": "清除診斷紀錄",
+    "clearDiagnosticsMessage": "這會刪除本機 Log 與 Crash dump，不會影響本機資料庫、設定或下載檔案。",
+    "clearDiagnosticsConfirm": "清除",
     "cancel": "取消"
   },
   "errors": {

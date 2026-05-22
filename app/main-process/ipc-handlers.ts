@@ -17,6 +17,7 @@ import type {
   CollectionKey,
   CreateBrowserTabPayload,
   ExportJsonFileResult,
+  OpenLocalDataFolderResult,
   PendingRemoteOperationActionResult,
   SyncBrowserCollectionOptions,
   SyncMode,
@@ -82,7 +83,10 @@ export type IpcHandlersContext = {
   notifyPendingCollectionOperationsChanged(): void;
   openFfmpegGuide(): Promise<{ opened: boolean; url: string }>;
   openLocalDataFolder(): Promise<{ opened: boolean; path: string }>;
+  openLogFolder(): Promise<OpenLocalDataFolderResult>;
   pendingCollectionOperationsState(): PendingCollectionOperationOverlayState;
+  clearDiagnostics(): Promise<{ canceled: boolean; deletedFiles: number; failedFiles: number }>;
+  recordDiagnosticsEvent(source: 'renderer' | 'webview', payload: unknown): void;
   reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState>;
   removePendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult>;
   requestBrowserPreload<T>(
@@ -142,12 +146,28 @@ function registerAppHandlers(context: IpcHandlersContext) {
     return context.openLocalDataFolder();
   });
 
+  context.ipcMain.handle('app:open-log-folder', function () {
+    return context.openLogFolder();
+  });
+
+  context.ipcMain.handle('app:clear-diagnostics', function () {
+    return context.clearDiagnostics();
+  });
+
   context.ipcMain.handle('app:open-ffmpeg-guide', function () {
     return context.openFfmpegGuide();
   });
 
   context.ipcMain.handle('app:check-for-updates', function () {
     return context.checkForUpdates({ manual: true });
+  });
+
+  context.ipcMain.on('diagnostics:renderer-event', function (_event, payload) {
+    context.recordDiagnosticsEvent('renderer', payload);
+  });
+
+  context.ipcMain.on('diagnostics:webview-event', function (event, payload) {
+    context.recordDiagnosticsEvent('webview', context.syncPayloadForEvent(event, payload));
   });
 }
 

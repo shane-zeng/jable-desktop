@@ -501,6 +501,24 @@ export interface OpenLocalDataFolderResult {
   path: string;
 }
 
+export interface ClearDiagnosticsResult {
+  canceled: boolean;
+  deletedFiles: number;
+  failedFiles: number;
+}
+
+export interface DiagnosticsRendererEvent {
+  level?: 'debug' | 'info' | 'warn' | 'error';
+  event?: string;
+  message?: string;
+  error?: {
+    name?: string;
+    message?: string;
+    stack?: string | null;
+  } | null;
+  details?: unknown;
+}
+
 export interface UpdateCheckResult {
   available?: boolean;
   currentVersion?: string;
@@ -569,6 +587,9 @@ export interface JableAppApi {
   localPlaybackSource(videoUrl: string): Promise<LocalPlaybackSourceResult>;
   openFfmpegGuide(): Promise<OpenDocumentationResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
+  openLogFolder(): Promise<OpenLocalDataFolderResult>;
+  clearDiagnostics(): Promise<ClearDiagnosticsResult>;
+  reportRendererError(payload: DiagnosticsRendererEvent): void;
   checkForUpdates(): Promise<UpdateCheckResult>;
   listVideos(options: ListVideosOptions): Promise<VideoRow[]>;
   countVideos(options: ListVideosOptions): Promise<number>;

@@ -102,6 +102,15 @@ const jableApp: JableAppApi = {
   openLocalDataFolder: function () {
     return ipcRenderer.invoke('app:open-local-data-folder');
   },
+  openLogFolder: function () {
+    return ipcRenderer.invoke('app:open-log-folder');
+  },
+  clearDiagnostics: function () {
+    return ipcRenderer.invoke('app:clear-diagnostics');
+  },
+  reportRendererError: function (payload) {
+    ipcRenderer.send('diagnostics:renderer-event', payload);
+  },
   checkForUpdates: function () {
     return ipcRenderer.invoke('app:check-for-updates');
   },

@@ -78,6 +78,21 @@ let mainLocaleSynced = false;
 let locatedDownloadTimer: ReturnType<typeof setTimeout> | null = null;
 let locatedDownloadCard: HTMLElement | null = null;
 const LOCATED_DOWNLOAD_CLASS = 'download-card-located';
+
+function serializedError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return {
+      message: String(error)
+    };
+  }
+
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack || null
+  };
+}
+
 const sync = useSyncWorkflow({
   api: api,
   busy: busy,
@@ -726,6 +741,60 @@ async function openLocalDataFolder() {
   }
 }
 
+async function openLogFolder() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    await api.openLogFolder();
+    setStatus(i18n.t('status.logFolderOpened'), 'success');
+  } catch (error) {
+    console.error(error);
+    api.reportRendererError({
+      level: 'error',
+      event: 'open-log-folder-failed',
+      error: serializedError(error)
+    });
+    setStatus(i18n.t('status.logFolderOpenFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function clearDiagnostics() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    const result = await api.clearDiagnostics();
+    if (result.canceled) {
+      setStatus(i18n.t('status.clearDiagnosticsCanceled'), 'info');
+    } else if (result.failedFiles > 0) {
+      setStatus(
+        i18n.t('status.clearDiagnosticsPartial', {
+          deleted: result.deletedFiles,
+          failed: result.failedFiles
+        }),
+        'warning'
+      );
+    } else {
+      setStatus(i18n.t('status.clearDiagnosticsComplete', { deleted: result.deletedFiles }), 'success');
+    }
+  } catch (error) {
+    console.error(error);
+    api.reportRendererError({
+      level: 'error',
+      event: 'clear-diagnostics-failed',
+      error: serializedError(error)
+    });
+    setStatus(i18n.t('status.clearDiagnosticsFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function checkForUpdates() {
   if (busy.value || syncing.value) return;
 
@@ -967,6 +1036,8 @@ onBeforeUnmount(function () {
         @clear-download-root="clearDownloadRoot"
         @open-download-root="openDownloadRoot"
         @open-data-folder="openLocalDataFolder"
+        @open-log-folder="openLogFolder"
+        @clear-diagnostics="clearDiagnostics"
         @check-updates="checkForUpdates"
         @import-json="importJsonToCollection"
         @export-json="exportCollection"

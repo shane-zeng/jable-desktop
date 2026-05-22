@@ -6,6 +6,7 @@ type HlsPlaybackIpc = {
   invoke(channel: 'hls:playlist-proxy-url', payload: unknown): Promise<HlsPlaylistProxyUrlResult>;
   send(channel: 'hls:playback-started', payload: unknown): void;
 };
+type DiagnosticsReporter = (level: 'debug' | 'info' | 'warn' | 'error', event: string, details?: unknown) => void;
 
 type LocalPlaybackSourcePageNotice = {
   sourcePageChineseSubtitleNotice: boolean;
@@ -19,6 +20,7 @@ type HlsPlaybackControllerOptions = {
   isEditableUserGestureTarget(target: EventTarget | null): boolean;
   readCurrentLocalPlaybackSourcePageNotice(): LocalPlaybackSourcePageNotice;
   readCurrentVideoDetails(): ScrapedVideoRow | null;
+  reportDiagnostics?: DiagnosticsReporter;
 };
 
 type HlsPlaybackController = {
@@ -52,6 +54,20 @@ export function createHlsPlaybackController(options: HlsPlaybackControllerOption
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : String(Date.now()) + '-' + String(Math.random()).slice(2);
+
+  function serializedError(error: unknown) {
+    if (!(error instanceof Error)) {
+      return {
+        message: String(error)
+      };
+    }
+
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack || null
+    };
+  }
 
   function hlsProxyMessageData(value: unknown): Record<string, unknown> | null {
     return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -97,6 +113,14 @@ export function createHlsPlaybackController(options: HlsPlaybackControllerOption
           );
         })
         .catch(function (error) {
+          if (options.reportDiagnostics) {
+            options.reportDiagnostics('warn', 'hls-playlist-proxy-failed', {
+              error: serializedError(error),
+              pageLoadId: pageLoadId,
+              videoUrl: videoUrl,
+              playlistUrl: playlistUrl
+            });
+          }
           window.postMessage(
             {
               source: HLS_PROXY_MESSAGE_SOURCE,
