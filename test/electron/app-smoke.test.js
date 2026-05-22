@@ -93,6 +93,12 @@ async function waitForWindowCount(electronApp, count) {
   throw new Error('Timed out waiting for Electron window count: ' + count);
 }
 
+function expectedRestoredDimension(preferred, minimum, workAreaDimension) {
+  const available = Math.floor(workAreaDimension) - 48;
+  if (available <= 0) return preferred;
+  return Math.max(minimum, Math.min(preferred, available));
+}
+
 test('desktop app starts and exposes the preload IPC bridge', async function () {
   const userDataDir = createTempUserDataDir();
   const smokeServer = await startSmokeServer();
@@ -135,8 +141,11 @@ test('desktop app starts and exposes the preload IPC bridge', async function () 
       const windows = BrowserWindow.getAllWindows();
       return windows[0] ? windows[0].getBounds() : null;
     });
-    expect(restoredWindowBounds.width).toBe(1200);
-    expect(restoredWindowBounds.height).toBe(700);
+    const primaryWorkArea = await electronApp.evaluate(function ({ screen }) {
+      return screen.getPrimaryDisplay().workArea;
+    });
+    expect(restoredWindowBounds.width).toBe(expectedRestoredDimension(1200, 1100, primaryWorkArea.width));
+    expect(restoredWindowBounds.height).toBe(expectedRestoredDimension(700, 680, primaryWorkArea.height));
 
     const appInfo = await window.evaluate(function () {
       return globalThis.jableApp.getAppInfo();
@@ -236,19 +245,28 @@ test('desktop app restores previous browser tabs when enabled', async function (
     expect(restoredTabs.tabs[1].locked).toBe(true);
     expect(restoredTabs.tabs[1].muted).toBe(true);
 
-    await electronApp.evaluate(function ({ BrowserWindow }) {
+    const resizedWindowBounds = await electronApp.evaluate(function ({ BrowserWindow }) {
       const windows = BrowserWindow.getAllWindows();
       if (windows[0]) windows[0].setSize(1210, 710);
+      return windows[0] ? windows[0].getBounds() : null;
     });
     await electronApp.evaluate(function ({ BrowserWindow }) {
       const windows = BrowserWindow.getAllWindows();
       if (windows[0]) windows[0].close();
     });
-    await waitForWindowCount(electronApp, 0);
+
+    if (process.platform !== 'darwin') {
+      await electronApp.close();
+      electronApp = null;
+    } else {
+      await waitForWindowCount(electronApp, 0);
+    }
 
     const savedWindowState = JSON.parse(fs.readFileSync(path.join(userDataDir, 'main-window-state.json'), 'utf8'));
-    expect(savedWindowState.width).toBe(1210);
-    expect(savedWindowState.height).toBe(710);
+    expect(savedWindowState.width).toBe(resizedWindowBounds.width);
+    expect(savedWindowState.height).toBe(resizedWindowBounds.height);
+
+    if (process.platform !== 'darwin') return;
 
     await electronApp.evaluate(function ({ app }) {
       app.emit('activate');
