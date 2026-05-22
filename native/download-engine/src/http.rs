@@ -12,6 +12,17 @@ use std::time::Duration;
 
 const CHUNK_SIZE: usize = 64 * 1024;
 
+fn replace_output_file(partial_path: &Path, output_path: &Path) -> Result<()> {
+    #[cfg(windows)]
+    {
+        if output_path.exists() {
+            fs::remove_file(output_path).map_err(to_napi_error)?;
+        }
+    }
+
+    fs::rename(partial_path, output_path).map_err(to_napi_error)
+}
+
 pub(crate) fn header_map(headers: &HashMap<String, String>) -> Result<HeaderMap> {
     let mut header_map = HeaderMap::new();
     for (name, value) in headers {
@@ -99,6 +110,6 @@ fn fetch_to_file(
     }
 
     drop(file);
-    fs::rename(partial_path, output_path).map_err(to_napi_error)?;
+    replace_output_file(&partial_path, output_path)?;
     Ok(downloaded)
 }

@@ -72,7 +72,7 @@ type ManagedFile = {
 const SENSITIVE_KEY_PATTERN =
   /cookie|authorization|password|passwd|secret|token|session|headers?|playlist|segment|key/i;
 const HTTP_URL_PATTERN = /https?:\/\/[^\s"'<>]+/g;
-const WINDOWS_ABSOLUTE_PATH_PATTERN = /\b[A-Za-z]:\\[^\n\r"'<>|]+/g;
+const WINDOWS_ABSOLUTE_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\n\r"'<>|]+/g;
 const POSIX_HOME_PATH_PATTERN = /\/Users\/[^/\s"'<>]+|\/home\/[^/\s"'<>]+/g;
 const MANAGED_LOG_FILE_PATTERN = /^app-\d{4}-\d{2}-\d{2}(?:-\d+)?\.jsonl$/;
 
@@ -156,6 +156,16 @@ function replaceAllLiteral(value: string, needle: string, replacement: string): 
   return value.split(needle).join(replacement);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replacePathToken(value: string, needle: string, replacement: string): string {
+  if (!needle) return value;
+  if (process.platform !== 'win32') return replaceAllLiteral(value, needle, replacement);
+  return value.replace(new RegExp(escapeRegExp(needle), 'gi'), replacement);
+}
+
 function safeJsonStringify(value: unknown): string {
   const seen = new Set<unknown>();
 
@@ -224,7 +234,7 @@ export function createDiagnosticsLogger(
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
       for (const pattern of pathTokenPatterns(String(token.value || ''))) {
-        out = replaceAllLiteral(out, pattern, '[' + token.label + ']');
+        out = replacePathToken(out, pattern, '[' + token.label + ']');
       }
     }
 

@@ -24,7 +24,8 @@ import {
   hlsPlaylistProxyAssetResponseHeaders,
   hlsPlaylistProxyFallbackHeaders,
   hlsPlaylistProxyFetchHeaders,
-  hlsPlaylistProxyResponseHeaders
+  hlsPlaylistProxyResponseHeaders,
+  hlsPlaylistProxyUserAgent
 } from './proxy-headers';
 import {
   HLS_PLAYBACK_CAPTURE_ACTIVITY_TTL_MS,
@@ -52,6 +53,7 @@ const hlsPlaybackCaptureActivePages = new Map<string, HlsPlaybackCaptureActivePa
 const hlsPlaybackCapturePrefetches = new Set<string>();
 let hlsPlaylistProxyServer: NodeHttp.Server | null = null;
 let hlsPlaylistProxyPort: number | null = null;
+let hlsPlaylistProxyServerStartPromise: Promise<number> | null = null;
 
 function hlsPlaybackCaptureActivePageKey(webContentsId: number, videoUrl: string, pageLoadId: string | null): string {
   return String(webContentsId) + '\n' + videoUrl + '\n' + String(pageLoadId || '');
@@ -377,7 +379,7 @@ async function handleHlsPlaylistProxyAssetRequest(
   try {
     const upstream = await context.jableSession.fetch(asset.sourceUrl, {
       method: request.method,
-      headers: hlsPlaylistProxyAssetFetchHeaders(entry, request),
+      headers: hlsPlaylistProxyAssetFetchHeaders(entry, request, hlsPlaylistProxyUserAgent(context, entry)),
       signal: abort.signal
     });
     abort.cleanup();
@@ -490,7 +492,7 @@ async function handleHlsPlaylistProxyRequest(context: HlsPlaybackCaptureContext,
     );
     const upstream = await context.jableSession.fetch(entry.playlistUrl, {
       method: request.method,
-      headers: hlsPlaylistProxyFetchHeaders(entry),
+      headers: hlsPlaylistProxyFetchHeaders(entry, hlsPlaylistProxyUserAgent(context, entry)),
       signal: abort.signal
     });
     abort.cleanup();
@@ -665,8 +667,9 @@ async function handleHlsPlaylistProxyHttpRequest(
 
 function startHlsPlaylistProxyServer(context: HlsPlaybackCaptureContext): Promise<number> {
   if (hlsPlaylistProxyServer && hlsPlaylistProxyPort) return Promise.resolve(hlsPlaylistProxyPort);
+  if (hlsPlaylistProxyServerStartPromise) return hlsPlaylistProxyServerStartPromise;
 
-  return new Promise(function (resolve, reject) {
+  const startPromise = new Promise<number>(function (resolve, reject) {
     const server = http.createServer(function (request, response) {
       handleHlsPlaylistProxyHttpRequest(context, request, response).catch(function (error) {
         logger(context).info('[hls-proxy] loopback unhandled', 'error=' + mainErrorMessage(error));
@@ -693,24 +696,30 @@ function startHlsPlaylistProxyServer(context: HlsPlaybackCaptureContext): Promis
       logger(context).info('[hls-proxy] loopback listening', 'host=' + HLS_PLAYLIST_PROXY_HOST, 'port=' + address.port);
       resolve(address.port);
     });
+  }).finally(function () {
+    hlsPlaylistProxyServerStartPromise = null;
   });
+
+  hlsPlaylistProxyServerStartPromise = startPromise;
+  return startPromise;
+}
+
+async function ensureHlsPlaylistProxyServer(context: HlsPlaybackCaptureContext): Promise<number | null> {
+  try {
+    return await startHlsPlaylistProxyServer(context);
+  } catch (error) {
+    logger(context).info('[hls-proxy] unavailable', 'error=' + mainErrorMessage(error));
+    return null;
+  }
 }
 
 export async function installHlsPlaylistProxy(context: HlsPlaybackCaptureContext) {
-  try {
-    await startHlsPlaylistProxyServer(context);
-  } catch (error) {
-    logger(context).info('[hls-proxy] unavailable', 'error=' + mainErrorMessage(error));
-    return;
-  }
   installHlsPlaylistProxyIpc(context, {
     activePageKey: hlsPlaybackCaptureActivePageKey,
     activePages: hlsPlaybackCaptureActivePages,
     createTokenForVideo: createHlsPlaylistProxyTokenForVideo,
+    ensurePlaylistProxyServer: ensureHlsPlaylistProxyServer,
     ensureCapture: hlsPlaylistProxyEnsureCapture,
-    playlistProxyPort: function () {
-      return hlsPlaylistProxyPort;
-    },
     startCapturePrefetch: function (captureContext, entry) {
       startHlsPlaybackCapturePrefetch(
         captureContext,
@@ -740,7 +749,7 @@ export async function installHlsPlaylistProxy(context: HlsPlaybackCaptureContext
   });
 
   logger(context).info(
-    '[hls-proxy] installed loopback HLS proxy; playlist requests require Settings auto-download or debug env'
+    '[hls-proxy] installed lazy loopback HLS proxy; playlist requests require Settings auto-download or debug env'
   );
 }
 

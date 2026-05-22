@@ -2,7 +2,7 @@
 
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
-import { removeDirectoryAfterRename } from '../safe-directory-removal';
+import { removeDirectoryAfterRename, type DirectoryRemovalReportError } from '../safe-directory-removal';
 
 type DownloadSegmentWorkspaceKey = {
   method: string;
@@ -32,8 +32,11 @@ function downloadResumeManifestPath(outputPath: string): string {
   return path.join(downloadSegmentTempDirectory(outputPath), 'resume.json');
 }
 
-export function removeDownloadSegmentTempDirectory(outputPath: string) {
-  removeDirectoryAfterRename(downloadSegmentTempDirectory(outputPath));
+export function removeDownloadSegmentTempDirectory(
+  outputPath: string,
+  reportError?: DirectoryRemovalReportError | null
+) {
+  removeDirectoryAfterRename(downloadSegmentTempDirectory(outputPath), reportError);
 }
 
 function roundedDuration(value: number | null): number | null {
@@ -119,10 +122,11 @@ function shouldReuseDownloadSegmentTempDirectory(
 export function prepareDownloadSegmentTempDirectory(
   outputPath: string,
   playlist: DownloadSegmentWorkspacePlaylist,
-  reuseExistingSegments: boolean
+  reuseExistingSegments: boolean,
+  reportError?: DirectoryRemovalReportError | null
 ) {
   if (!shouldReuseDownloadSegmentTempDirectory(outputPath, playlist, reuseExistingSegments)) {
-    removeDownloadSegmentTempDirectory(outputPath);
+    removeDownloadSegmentTempDirectory(outputPath, reportError);
   }
 
   const tempDir = downloadSegmentTempDirectory(outputPath);

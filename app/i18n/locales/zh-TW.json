@@ -534,6 +534,7 @@
     "downloadDeleted": "已刪除下載項目",
     "downloadDeleteFailed": "刪除下載項目失敗：{error}",
     "downloadDeleteActiveBlocked": "下載進行中，無法刪除",
+    "downloadDeleteFileBusy": "檔案正在播放或被其他程式使用，請關閉後再刪除",
     "downloadFileOutsideRoot": "下載檔案不在目前下載位置內",
     "localDataFolderOpened": "已開啟本機資料夾",
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",

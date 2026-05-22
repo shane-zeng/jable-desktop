@@ -1623,6 +1623,7 @@ test('exportResourceToFile writes JSON equivalent to exportResource', async func
     ]
   });
 
+  fs.writeFileSync(filePath, 'previous export\n');
   const result = await db.exportResourceToFile('favourites', filePath);
   const written = readJson(filePath);
   const expected = db.exportResource('favourites');

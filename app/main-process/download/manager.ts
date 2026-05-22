@@ -298,7 +298,7 @@ function getDownloadRoot(): DownloadRootInfo {
 }
 
 function cleanupQuarantinedDownloadDirectories(rootInfo: DownloadRootInfo = getDownloadRoot()) {
-  cleanupQuarantinedDirectories(rootInfo.path);
+  cleanupQuarantinedDirectories(rootInfo.path, logDownloadError);
 }
 
 async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
@@ -493,7 +493,7 @@ function removeDownloadWorkingFiles(record: DownloadRecord) {
   const outputPath = resolveManagedDownloadPath(record.localPath);
   if (!outputPath) return;
   removePartialDownloadFile(outputPath);
-  removeDownloadSegmentTempDirectory(outputPath);
+  removeDownloadSegmentTempDirectory(outputPath, logDownloadError);
 }
 
 function removePartialDownloadFileForRecord(record: DownloadRecord) {
@@ -558,6 +558,7 @@ async function downloadHlsSegmentsWithPlaylistRefresh(
         progressNotifyIntervalMs: DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS,
         resolveDownloadHlsSource: resolveDownloadHlsSource,
         retryLimit: DOWNLOAD_SEGMENT_RETRY_LIMIT,
+        reportError: logDownloadError,
         sampleSegmentCount: DOWNLOAD_SEGMENT_SAMPLE_COUNT,
         throwIfDownloadCanceled: throwIfDownloadCanceled,
         updateDownloadRuntimeProgress: updateDownloadRuntimeProgress
@@ -623,7 +624,6 @@ function processDownloadQueue() {
           videoUrl: record.videoUrl,
           source: nextItem.source
         });
-        console.error(error);
       })
       .finally(function () {
         activeDownloadTasks.delete(record.videoUrl);
@@ -802,6 +802,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     notifyDownloadsChanged: notifyDownloadsChanged,
     parseHlsPlaylist: downloadHelpers.parseHlsPlaylist,
     queueDownloadRecord: queueDownloadRecord,
+    reportError: logDownloadError,
     resolveManagedDownloadPath: resolveManagedDownloadPath,
     upsertDownloadVideoMetadata: upsertDownloadVideoMetadata,
     upsertPersistedDownload: upsertPersistedDownload,

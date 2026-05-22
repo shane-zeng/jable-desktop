@@ -15,7 +15,16 @@ export function sanitizeDownloadErrorDetail(message: string, downloadRootPath?: 
   let sanitized = message.replace(/https?:\/\/[^\s"'<>]+/g, '[remote URL]');
   const rootPath = downloadRootPath || '';
   if (rootPath) {
-    sanitized = sanitized.replace(new RegExp(escapeRegExp(rootPath), 'g'), '[download root]');
+    const variants = [rootPath, rootPath.replace(/[\\/]+/g, '/'), rootPath.replace(/[\\/]+/g, '\\')];
+    const seen = new Set<string>();
+    for (const variant of variants) {
+      if (!variant || seen.has(variant)) continue;
+      seen.add(variant);
+      sanitized = sanitized.replace(
+        new RegExp(escapeRegExp(variant), process.platform === 'win32' ? 'gi' : 'g'),
+        '[download root]'
+      );
+    }
   }
   return sanitized;
 }

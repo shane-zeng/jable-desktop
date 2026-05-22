@@ -120,9 +120,53 @@ fn file_relative_path_is_safe(value: &str) -> bool {
         return false;
     }
 
-    value
-        .split(['/', '\\'])
-        .all(|part| !part.is_empty() && part != "." && part != ".." && !part.contains(':'))
+    value.split(['/', '\\']).all(|part| {
+        !part.is_empty()
+            && part != "."
+            && part != ".."
+            && !part.contains(':')
+            && file_relative_path_part_is_windows_safe(part)
+    })
+}
+
+fn file_relative_path_part_is_windows_safe(part: &str) -> bool {
+    if part.ends_with(' ') || part.ends_with('.') {
+        return false;
+    }
+
+    let stem = part.split('.').next().unwrap_or(part);
+    if stem.ends_with(' ') || stem.ends_with('.') {
+        return false;
+    }
+    if stem.is_empty() {
+        return true;
+    }
+
+    !matches!(
+        stem.to_ascii_uppercase().as_str(),
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    )
 }
 
 fn normalize_file_relative_path(value: Option<String>) -> Result<Option<String>> {

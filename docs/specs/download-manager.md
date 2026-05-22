@@ -70,7 +70,7 @@ This document specifies the current Download List and local video file managemen
 ```
 
 - Legacy records with nested relative paths remain resolvable as long as they stay inside the current download root.
-- The data engine rejects absolute, drive-root, traversal, empty-component, and colon-containing persisted file paths.
+- The data engine rejects absolute, drive-root, traversal, empty-component, colon-containing, Windows reserved-name, and trailing-dot/space persisted file paths.
 - Main process resolves persisted relative paths against the current download root before filesystem or shell operations.
 - A `.part` sibling file is used while FFmpeg is writing the output. On success it is renamed to the final `.mp4` path.
 - Deleting a download verifies that the managed path is inside the current download root before unlinking.

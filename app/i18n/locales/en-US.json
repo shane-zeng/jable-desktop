@@ -534,6 +534,7 @@
     "downloadDeleted": "Download item deleted",
     "downloadDeleteFailed": "Failed to delete download item: {error}",
     "downloadDeleteActiveBlocked": "Download is in progress and cannot be deleted",
+    "downloadDeleteFileBusy": "The file is playing or open in another app. Close it before deleting.",
     "downloadFileOutsideRoot": "Downloaded file is outside the current download location",
     "localDataFolderOpened": "Opened the local data folder",
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",

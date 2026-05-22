@@ -97,6 +97,47 @@ fn read_site_order_accepts_runtime_and_export_fields() {
 }
 
 #[test]
+fn export_resource_to_file_replaces_existing_file() {
+    let mut engine = test_engine("export-replace");
+    let mut file_path = std::env::temp_dir();
+    file_path.push(format!(
+        "jable-rust-export-{}-{}.json",
+        std::process::id(),
+        now_millis()
+    ));
+    fs::write(&file_path, "previous export\n").expect("existing export should write");
+
+    engine
+        .save_sync_page(json!({
+            "collectionKey": "watch_later",
+            "page": 1,
+            "rows": [
+                {
+                    "title": "Watch Rust",
+                    "url": "https://jable.tv/videos/watch-rust/",
+                    "siteOrder": 1
+                }
+            ]
+        }))
+        .expect("sync page should save");
+
+    let result = engine
+        .export_resource_to_file(json!({
+            "collectionKey": "watch_later",
+            "filePath": file_path.to_string_lossy().to_string()
+        }))
+        .expect("export should replace existing file");
+    let written = fs::read_to_string(&file_path).expect("export should be readable");
+
+    assert_eq!(result.get("total"), Some(&json!(1)));
+    assert!(written.contains("watch-rust"));
+    assert!(!written.contains("previous export"));
+
+    let _ = fs::remove_file(&file_path);
+    remove_temp_database(&mut engine);
+}
+
+#[test]
 fn search_text_matches_cjk_ascii_and_phrase_queries() {
     let search_text = build_video_search_text(
         Some("測試 ABC-123"),
@@ -186,6 +227,28 @@ fn download_assets_are_keyed_by_video_url_and_survive_collection_changes() {
     }));
     assert!(traversal_path.is_err());
     assert!(traversal_path
+        .unwrap_err()
+        .to_string()
+        .contains("relative to the download root"));
+
+    let reserved_path = engine.upsert_download_asset(json!({
+        "videoUrl": "https://jable.tv/videos/reserved-download-path/",
+        "localPath": "CON.mp4",
+        "state": "queued"
+    }));
+    assert!(reserved_path.is_err());
+    assert!(reserved_path
+        .unwrap_err()
+        .to_string()
+        .contains("relative to the download root"));
+
+    let trailing_path = engine.upsert_download_asset(json!({
+        "videoUrl": "https://jable.tv/videos/trailing-download-path/",
+        "localPath": "download-me.",
+        "state": "queued"
+    }));
+    assert!(trailing_path.is_err());
+    assert!(trailing_path
         .unwrap_err()
         .to_string()
         .contains("relative to the download root"));

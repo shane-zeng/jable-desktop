@@ -10,6 +10,17 @@ use crate::{now_iso, now_millis, to_napi_error, Engine};
 
 const PAGE_SIZE: usize = 24;
 
+fn replace_file_with_temp(temp_path: &str, file_path: &str) -> Result<()> {
+    #[cfg(windows)]
+    {
+        if Path::new(file_path).exists() {
+            fs::remove_file(file_path).map_err(to_napi_error)?;
+        }
+    }
+
+    fs::rename(temp_path, file_path).map_err(to_napi_error)
+}
+
 fn flatten_resource(resource: &Value) -> Result<Vec<Value>> {
     let mut rows = Vec::new();
     let Some(data) = object_field(resource, "data").and_then(|value| value.as_array()) else {
@@ -178,7 +189,10 @@ impl Engine {
         let temp_path = format!("{}.tmp-{}-{}", file_path, std::process::id(), now_millis());
         let serialized = serde_json::to_string(&resource).map_err(to_napi_error)? + "\n";
         fs::write(&temp_path, serialized).map_err(to_napi_error)?;
-        fs::rename(&temp_path, &file_path).map_err(to_napi_error)?;
+        if let Err(error) = replace_file_with_temp(&temp_path, &file_path) {
+            let _ = fs::remove_file(&temp_path);
+            return Err(error);
+        }
 
         Ok(json!({ "filePath": file_path, "total": total }))
     }

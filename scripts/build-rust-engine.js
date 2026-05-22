@@ -11,30 +11,53 @@ const nativeCrates = [
   {
     manifestPath: path.join(rootDir, 'native', 'local-data-engine', 'Cargo.toml'),
     libraryName: 'jable_data_engine',
-    outputName: 'jable_data_engine.' + process.platform + '-' + process.arch + '.node',
+    outputName: 'jable_data_engine.' + nativePlatform() + '-' + nativeArch() + '.node',
     label: 'native data engine'
   },
   {
     manifestPath: path.join(rootDir, 'native', 'download-engine', 'Cargo.toml'),
     libraryName: 'jable_download_engine',
-    outputName: 'jable_download_engine.' + process.platform + '-' + process.arch + '.node',
+    outputName: 'jable_download_engine.' + nativePlatform() + '-' + nativeArch() + '.node',
     label: 'native download engine'
   }
 ];
+
+function nativePlatform() {
+  if (/windows|msvc|mingw/i.test(targetTriple)) return 'win32';
+  if (/apple|darwin/i.test(targetTriple)) return 'darwin';
+  if (/linux/i.test(targetTriple)) return 'linux';
+  return process.env.JABLE_NATIVE_PLATFORM || process.platform;
+}
+
+function nativeArch() {
+  if (/^aarch64/i.test(targetTriple)) return 'arm64';
+  if (/^x86_64/i.test(targetTriple)) return 'x64';
+  if (/^i686/i.test(targetTriple)) return 'ia32';
+  return process.env.JABLE_NATIVE_ARCH || process.arch;
+}
 
 function cargoBinary() {
   const command = process.platform === 'win32' ? 'where cargo' : 'command -v cargo';
 
   try {
-    return childProcess.execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const output = childProcess.execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const candidates = output
+      .split(/\r?\n/)
+      .map(function (line) {
+        return line.trim();
+      })
+      .filter(Boolean);
+    if (candidates[0]) return candidates[0];
+    throw new Error('cargo was not found');
   } catch (error) {
     throw new Error('Rust cargo is required to build the native engines. Install Rust and rerun npm run build:rust.');
   }
 }
 
 function dynamicLibraryName(libraryName) {
-  if (process.platform === 'darwin') return 'lib' + libraryName + '.dylib';
-  if (process.platform === 'win32') return libraryName + '.dll';
+  const platform = nativePlatform();
+  if (platform === 'darwin') return 'lib' + libraryName + '.dylib';
+  if (platform === 'win32') return libraryName + '.dll';
   return 'lib' + libraryName + '.so';
 }
 
@@ -54,6 +77,7 @@ function runCargoBuild(manifestPath) {
   });
 }
 
+fs.rmSync(nativeDistDir, { force: true, recursive: true });
 fs.mkdirSync(nativeDistDir, { recursive: true });
 for (const nativeCrate of nativeCrates) {
   const crateDir = path.dirname(nativeCrate.manifestPath);
@@ -61,7 +85,7 @@ for (const nativeCrate of nativeCrates) {
 
   const outputPath = path.join(nativeDistDir, nativeCrate.outputName);
   fs.copyFileSync(path.join(releaseDir(crateDir), dynamicLibraryName(nativeCrate.libraryName)), outputPath);
-  if (process.platform === 'darwin') {
+  if (nativePlatform() === 'darwin' && process.platform === 'darwin') {
     childProcess.execFileSync('codesign', ['--force', '--sign', '-', outputPath], {
       cwd: rootDir,
       stdio: 'inherit'

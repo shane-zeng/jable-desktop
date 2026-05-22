@@ -4,7 +4,11 @@ import type * as NodeCrypto from 'node:crypto';
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
 import type * as NodeStream from 'node:stream';
-import { hlsPlaylistProxyAssetFetchHeaders, hlsPlaylistProxyResponseHeaders } from './proxy-headers';
+import {
+  hlsPlaylistProxyAssetFetchHeaders,
+  hlsPlaylistProxyResponseHeaders,
+  hlsPlaylistProxyUserAgent
+} from './proxy-headers';
 import {
   HLS_PLAYBACK_CAPTURE_PREFETCH_CONCURRENCY,
   hlsPlaybackDebugLog,
@@ -251,7 +255,11 @@ async function hlsPlaybackCaptureFetchAsset(
     try {
       const upstream = await context.jableSession.fetch(asset.sourceUrl, {
         method: 'GET',
-        headers: hlsPlaylistProxyAssetFetchHeaders(entry, new Request(asset.sourceUrl)),
+        headers: hlsPlaylistProxyAssetFetchHeaders(
+          entry,
+          new Request(asset.sourceUrl),
+          hlsPlaylistProxyUserAgent(context, entry)
+        ),
         signal: abortController.signal
       });
       if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) return false;

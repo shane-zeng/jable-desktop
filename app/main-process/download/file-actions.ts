@@ -55,6 +55,17 @@ type DownloadFileActionsControllerOptions = {
 
 const fs: typeof NodeFs = require('node:fs');
 
+function fileBusyErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('code' in error)) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}
+
+function isFileBusyError(error: unknown): boolean {
+  const code = fileBusyErrorCode(error);
+  return code === 'EBUSY' || code === 'EPERM' || code === 'EACCES';
+}
+
 export function createDownloadFileActionsController(
   options: DownloadFileActionsControllerOptions
 ): DownloadFileActionsController {
@@ -72,7 +83,12 @@ export function createDownloadFileActionsController(
 
     if (!stats.isFile()) throw new Error(options.t('status.downloadFileUnavailable'));
 
-    fs.unlinkSync(filePath);
+    try {
+      fs.unlinkSync(filePath);
+    } catch (error) {
+      if (isFileBusyError(error)) throw new Error(options.t('status.downloadDeleteFileBusy'));
+      throw error;
+    }
     return true;
   }
 
@@ -227,8 +243,9 @@ export function createDownloadFileActionsController(
           options.reportError('delete-download-file-failed', error, {
             videoUrl: videoUrl
           });
+        } else {
+          console.error(error);
         }
-        console.error(error);
       }
     }
 

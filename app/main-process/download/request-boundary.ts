@@ -26,6 +26,32 @@ const fs: typeof NodeFs = require('node:fs');
 const path: typeof NodePath = require('node:path');
 
 const CHINESE_SUBTITLE_NOTICE_TOKEN = '中文字幕版';
+const DOWNLOAD_FILE_EXTENSION = '.mp4';
+const MAX_DOWNLOAD_FILE_NAME_LENGTH = 120;
+const WINDOWS_RESERVED_FILE_STEMS = new Set([
+  'CON',
+  'PRN',
+  'AUX',
+  'NUL',
+  'COM1',
+  'COM2',
+  'COM3',
+  'COM4',
+  'COM5',
+  'COM6',
+  'COM7',
+  'COM8',
+  'COM9',
+  'LPT1',
+  'LPT2',
+  'LPT3',
+  'LPT4',
+  'LPT5',
+  'LPT6',
+  'LPT7',
+  'LPT8',
+  'LPT9'
+]);
 
 function decodeHtmlEntities(value: string): string {
   return value.replace(/&(#x[0-9a-f]+|#[0-9]+|amp|lt|gt|quot|apos|nbsp);/gi, function (_match, entity) {
@@ -78,7 +104,38 @@ export function sourcePageChineseSubtitleNoticeTextFromHtml(html: string): strin
   return null;
 }
 
-function sanitizeDownloadFileName(value: string): string {
+function trimUnsafeWindowsFileEnding(value: string): string {
+  return value.replace(/[. ]+$/g, '').trim();
+}
+
+function trimUnsafeWindowsFileStem(value: string): string {
+  const separatorIndex = value.indexOf('.');
+  if (separatorIndex === -1) return value;
+  const stem = trimUnsafeWindowsFileEnding(value.slice(0, separatorIndex));
+  return stem + value.slice(separatorIndex);
+}
+
+function isWindowsReservedFileStem(value: string): boolean {
+  return WINDOWS_RESERVED_FILE_STEMS.has(value.toUpperCase());
+}
+
+function fileNameStem(value: string): string {
+  const separatorIndex = value.indexOf('.');
+  return separatorIndex === -1 ? value : value.slice(0, separatorIndex);
+}
+
+function truncateDownloadBaseName(value: string, maxLength: number): string {
+  const truncated = trimUnsafeWindowsFileStem(trimUnsafeWindowsFileEnding(value.slice(0, Math.max(1, maxLength))));
+  return truncated || 'video';
+}
+
+function avoidWindowsReservedFileStem(value: string, maxLength: number): string {
+  const stem = fileNameStem(value);
+  if (!isWindowsReservedFileStem(stem)) return value;
+  return truncateDownloadBaseName(stem + ' video' + value.slice(stem.length), maxLength);
+}
+
+export function sanitizeWindowsSafeFileName(value: string): string {
   const sanitized = value
     .replace(/[<>:"/\\|?*]/g, ' ')
     .split('')
@@ -88,7 +145,31 @@ function sanitizeDownloadFileName(value: string): string {
     .join('')
     .replace(/\s+/g, ' ')
     .trim();
-  return (sanitized || 'video').slice(0, 120);
+  const maxBaseLength = MAX_DOWNLOAD_FILE_NAME_LENGTH - DOWNLOAD_FILE_EXTENSION.length;
+  const fileName = truncateDownloadBaseName(sanitized || 'video', maxBaseLength);
+  return avoidWindowsReservedFileStem(fileName, maxBaseLength);
+}
+
+function downloadCandidateBaseName(baseName: string, index: number): string {
+  const suffix = index === 1 ? '' : ' (' + index + ')';
+  const maxBaseLength = MAX_DOWNLOAD_FILE_NAME_LENGTH - DOWNLOAD_FILE_EXTENSION.length - suffix.length;
+  return truncateDownloadBaseName(baseName, maxBaseLength) + suffix;
+}
+
+function fileRelativePathPartIsWindowsSafe(part: string): boolean {
+  if (!part || part === '.' || part === '..' || part.includes(':')) return false;
+  if (/[. ]$/.test(part)) return false;
+
+  const stem = part.split('.')[0] || '';
+  if (/[. ]$/.test(stem)) return false;
+  if (!stem) return true;
+  return !isWindowsReservedFileStem(stem);
+}
+
+export function fileRelativePathIsWindowsSafe(value: string): boolean {
+  if (!value || value.includes('\0') || value.startsWith('/') || value.startsWith('\\')) return false;
+  if (/^[A-Za-z]:/.test(value)) return false;
+  return value.split(/[\\/]/).every(fileRelativePathPartIsWindowsSafe);
 }
 
 export function videoUrlSlug(videoUrl: string): string {
@@ -148,7 +229,9 @@ export function createDownloadRequestBoundary(options: DownloadRequestBoundaryOp
   }
 
   function resolveManagedDownloadPath(fileRelativePath: string | null): string | null {
-    if (!fileRelativePath || path.isAbsolute(fileRelativePath)) return null;
+    if (!fileRelativePath || path.isAbsolute(fileRelativePath) || !fileRelativePathIsWindowsSafe(fileRelativePath)) {
+      return null;
+    }
 
     const downloadRootPath = options.downloadRootPath();
     const filePath = path.resolve(downloadRootPath, fileRelativePath);
@@ -170,12 +253,12 @@ export function createDownloadRequestBoundary(options: DownloadRequestBoundaryOp
   }
 
   function downloadOutputRelativePath(payload: DownloadRequestPayload): string {
-    const name = sanitizeDownloadFileName(payload.video.title || videoUrlSlug(payload.video.url));
+    const name = sanitizeWindowsSafeFileName(payload.video.title || videoUrlSlug(payload.video.url));
     const usedPaths = usedDownloadRelativePaths(payload.video.url);
 
     for (let index = 1; index <= 9999; index++) {
-      const candidateName = index === 1 ? name : name + ' (' + index + ')';
-      const relativePath = candidateName + '.mp4';
+      const candidateName = downloadCandidateBaseName(name, index);
+      const relativePath = candidateName + DOWNLOAD_FILE_EXTENSION;
       const filePath = resolveManagedDownloadPath(relativePath);
       if (!filePath) continue;
       if (usedPaths.has(path.normalize(relativePath))) continue;

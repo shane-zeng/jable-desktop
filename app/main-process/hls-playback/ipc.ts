@@ -31,8 +31,8 @@ export type HlsPlaylistProxyIpcState = {
     metadata: HlsPlaybackCaptureMetadata,
     pageLoadId: string | null
   ) => string;
+  ensurePlaylistProxyServer: (context: HlsPlaybackCaptureContext) => Promise<number | null>;
   ensureCapture: (context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken) => HlsPlaybackCapturePlan | null;
-  playlistProxyPort: () => number | null;
   startCapturePrefetch: (context: HlsPlaybackCaptureContext, entry: HlsPlaylistProxyToken) => void;
   tokenUrl: (token: string) => string;
 };
@@ -149,14 +149,13 @@ function hlsPlaybackCaptureStartedForRenderer(
   );
 }
 
-function hlsPlaylistProxyUrlForRenderer(
+async function hlsPlaylistProxyUrlForRenderer(
   context: HlsPlaybackCaptureContext,
   state: HlsPlaylistProxyIpcState,
   event: Electron.IpcMainInvokeEvent,
   payload: unknown
-): HlsPlaylistProxyUrlResult {
+): Promise<HlsPlaylistProxyUrlResult> {
   if (!isHlsPlaylistProxyEnabled(context)) return unavailableHlsPlaylistProxyUrl('disabled');
-  if (!state.playlistProxyPort()) return unavailableHlsPlaylistProxyUrl('unavailable');
 
   const senderVideoUrl = context.canonicalJableVideoUrl(event.sender.getURL());
   const payloadVideoUrl = context.canonicalJableVideoUrl(hlsPlaylistProxyPayloadString(payload, 'videoUrl'));
@@ -178,6 +177,9 @@ function hlsPlaylistProxyUrlForRenderer(
   ) {
     return unavailableHlsPlaylistProxyUrl('disabled');
   }
+
+  const proxyPort = await state.ensurePlaylistProxyServer(context);
+  if (!proxyPort) return unavailableHlsPlaylistProxyUrl('unavailable');
 
   let tabId: string | null = null;
   try {

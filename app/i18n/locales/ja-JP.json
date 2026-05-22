@@ -534,6 +534,7 @@
     "downloadDeleted": "ダウンロード項目を削除しました",
     "downloadDeleteFailed": "ダウンロード項目を削除できませんでした: {error}",
     "downloadDeleteActiveBlocked": "ダウンロード中のため削除できません",
+    "downloadDeleteFileBusy": "ファイルは再生中か別のアプリで開かれています。閉じてから削除してください。",
     "downloadFileOutsideRoot": "ダウンロードファイルは現在のダウンロード先の外にあります",
     "localDataFolderOpened": "ローカルデータフォルダーを開きました",
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",

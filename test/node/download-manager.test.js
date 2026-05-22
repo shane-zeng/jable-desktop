@@ -1337,6 +1337,39 @@ test('download manager removes records after quarantining undeletable segment wo
   }
 });
 
+test('download manager keeps the record when a Windows file lock blocks deletion', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-download-delete-busy-'));
+  const originalUnlinkSync = fs.unlinkSync;
+
+  try {
+    const downloadRoot = path.join(userDataDir, 'downloads');
+    const videoUrl = 'https://jable.tv/videos/delete-busy/';
+    const localPath = 'busy.mp4';
+    const outputPath = path.join(downloadRoot, localPath);
+    fs.mkdirSync(downloadRoot, { recursive: true });
+    fs.writeFileSync(outputPath, 'ready');
+
+    fs.unlinkSync = function (target) {
+      if (target === outputPath) {
+        const error = new Error('simulated Windows file lock');
+        error.code = 'EPERM';
+        throw error;
+      }
+      return originalUnlinkSync.apply(this, arguments);
+    };
+
+    const harness = createHarness([{ videoUrl: videoUrl, localPath: localPath, state: 'ready' }], userDataDir);
+    await assert.rejects(async function () {
+      await harness.manager.deleteDownload(videoUrl);
+    }, /downloadDeleteFileBusy/);
+    assert.equal(harness.records.has(videoUrl), true);
+    assert.equal(fs.existsSync(outputPath), true);
+  } finally {
+    fs.unlinkSync = originalUnlinkSync;
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
 test('download manager retries quarantined workspace cleanup on startup', function () {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-download-startup-quarantine-'));
   const originalRm = fs.rm;

@@ -15,11 +15,24 @@ const REMOVE_RETRY_DELAYS_MS = [2000, 10000, 30000, 120000, 300000];
 const WINDOWS_REMOVE_ATTEMPTS = 60;
 const WINDOWS_REMOVE_RETRY_DELAY_SECONDS = 10;
 
+type DirectoryQuarantineResult = { status: 'moved'; path: string } | { status: 'missing' } | { status: 'failed' };
+export type DirectoryRemovalReportError = (event: string, error: unknown, details?: unknown) => void;
+
 function errorCode(error: unknown): string | null {
   return error && typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : null;
 }
 
-function warnRemovalFailure(message: string, error?: unknown) {
+function warnRemovalFailure(
+  reportError: DirectoryRemovalReportError | null | undefined,
+  event: string,
+  message: string,
+  error?: unknown
+) {
+  if (reportError) {
+    reportError(event, error || new Error(message), { message: message });
+    return;
+  }
+
   const code = errorCode(error);
   console.warn(code ? message + ' (' + code + ')' : message);
 }
@@ -30,26 +43,38 @@ function quarantineDirectoryPath(dirPath: string, attempt: number): string {
   return path.join(path.dirname(dirPath), path.basename(dirPath) + suffix);
 }
 
-function moveDirectoryOutOfWay(dirPath: string): string | null {
+function moveDirectoryOutOfWay(
+  dirPath: string,
+  reportError?: DirectoryRemovalReportError | null
+): DirectoryQuarantineResult {
   for (let attempt = 0; attempt < MAX_QUARANTINE_RENAME_ATTEMPTS; attempt++) {
     try {
       const deletionPath = quarantineDirectoryPath(dirPath, attempt);
       fs.renameSync(dirPath, deletionPath);
-      return deletionPath;
+      return { status: 'moved', path: deletionPath };
     } catch (error) {
       const code = errorCode(error);
-      if (code === 'ENOENT') return null;
+      if (code === 'ENOENT') return { status: 'missing' };
       if (code === 'EEXIST') continue;
-      warnRemovalFailure('Unable to quarantine directory for removal', error);
-      return null;
+      warnRemovalFailure(
+        reportError,
+        'directory-quarantine-failed',
+        'Unable to quarantine directory for removal',
+        error
+      );
+      return { status: 'failed' };
     }
   }
 
-  warnRemovalFailure('Unable to choose quarantine path for directory removal');
-  return null;
+  warnRemovalFailure(
+    reportError,
+    'directory-quarantine-path-exhausted',
+    'Unable to choose quarantine path for directory removal'
+  );
+  return { status: 'failed' };
 }
 
-function removeDirectoryInDetachedProcess(dirPath: string) {
+function removeDirectoryInDetachedProcess(dirPath: string, reportError?: DirectoryRemovalReportError | null) {
   const command = [
     '$path = $env:JABLE_DELETE_DIR',
     'for ($attempt = 0; $attempt -lt ' + String(WINDOWS_REMOVE_ATTEMPTS) + '; $attempt++) {',
@@ -72,33 +97,46 @@ function removeDirectoryInDetachedProcess(dirPath: string) {
     );
     child.unref();
   } catch (error) {
-    warnRemovalFailure('Unable to start detached directory removal', error);
+    warnRemovalFailure(
+      reportError,
+      'detached-directory-removal-start-failed',
+      'Unable to start detached directory removal',
+      error
+    );
   }
 }
 
-function retryRemoveDirectoryInBackground(dirPath: string, attempt: number) {
+function retryRemoveDirectoryInBackground(
+  dirPath: string,
+  attempt: number,
+  reportError?: DirectoryRemovalReportError | null
+) {
   const delayMs = REMOVE_RETRY_DELAYS_MS[attempt];
   if (typeof delayMs !== 'number') {
-    warnRemovalFailure('Unable to remove directory after cleanup retries');
+    warnRemovalFailure(
+      reportError,
+      'directory-removal-retries-exhausted',
+      'Unable to remove directory after cleanup retries'
+    );
     return;
   }
 
   const timer = setTimeout(function () {
-    removeDirectoryInBackground(dirPath, attempt + 1);
+    removeDirectoryInBackground(dirPath, attempt + 1, reportError);
   }, delayMs);
   timer.unref();
 }
 
-function removeDirectoryInBackground(dirPath: string, attempt = 0) {
+function removeDirectoryInBackground(dirPath: string, attempt = 0, reportError?: DirectoryRemovalReportError | null) {
   if (process.platform === 'win32') {
-    removeDirectoryInDetachedProcess(dirPath);
+    removeDirectoryInDetachedProcess(dirPath, reportError);
     return;
   }
 
   fs.rm(dirPath, { recursive: true, force: true }, function (error) {
     if (error) {
-      warnRemovalFailure('Unable to remove directory in background', error);
-      retryRemoveDirectoryInBackground(dirPath, attempt);
+      warnRemovalFailure(reportError, 'directory-removal-failed', 'Unable to remove directory in background', error);
+      retryRemoveDirectoryInBackground(dirPath, attempt, reportError);
     }
   });
 }
@@ -107,7 +145,7 @@ function isQuarantinedDirectoryName(name: string): boolean {
   return DELETE_SUFFIX_PATTERN.test(name);
 }
 
-export function cleanupQuarantinedDirectories(rootPath: string) {
+export function cleanupQuarantinedDirectories(rootPath: string, reportError?: DirectoryRemovalReportError | null) {
   let entries: NodeFs.Dirent[];
   try {
     entries = fs.readdirSync(rootPath, { withFileTypes: true });
@@ -118,12 +156,17 @@ export function cleanupQuarantinedDirectories(rootPath: string) {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (!isQuarantinedDirectoryName(entry.name)) continue;
-    removeDirectoryInBackground(path.join(rootPath, entry.name));
+    removeDirectoryInBackground(path.join(rootPath, entry.name), 0, reportError);
   }
 }
 
-export function removeDirectoryAfterRename(dirPath: string) {
-  const deletionPath = moveDirectoryOutOfWay(dirPath);
-  if (!deletionPath) return;
-  removeDirectoryInBackground(deletionPath);
+export function removeDirectoryAfterRename(dirPath: string, reportError?: DirectoryRemovalReportError | null) {
+  const result = moveDirectoryOutOfWay(dirPath, reportError);
+  if (result.status === 'moved') {
+    removeDirectoryInBackground(result.path, 0, reportError);
+    return;
+  }
+  if (result.status === 'failed' && process.platform === 'win32') {
+    removeDirectoryInBackground(dirPath, 0, reportError);
+  }
 }

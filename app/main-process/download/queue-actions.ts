@@ -99,8 +99,9 @@ export function createDownloadQueueActionsController(
       options.reportError('bulk-download-action-failed', error, {
         videoUrl: videoUrl || null
       });
+    } else {
+      console.error(error);
     }
-    console.error(error);
   }
 
   async function runAsyncBulkDownloadAction(

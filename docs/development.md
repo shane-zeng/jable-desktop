@@ -220,7 +220,7 @@ Test coverage map:
 - `test/renderer/composables/*.test.ts`: BrowserView geometry/tab state, library pagination/filter state, sync workflow status, pending remote actions, and toast status.
 - `test/electron/app-smoke.test.js`: desktop app startup through Electron, `window.jableApp` preload bridge exposure, `app:info`, settings IPC reachability, diagnostics path/API reachability, and initial browser tab state.
 
-GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
+GitHub Actions read Node.js from `.node-version`, then run `npm run format:check` and `npm run check` for pushes and pull requests. Pull requests also run Windows readiness checks on `windows-latest`, including `npm run check` and the Electron startup smoke test. Release packaging runs the same formatting and quality checks before building unsigned macOS and Windows artifacts.
 
 ### Desktop Validation
 

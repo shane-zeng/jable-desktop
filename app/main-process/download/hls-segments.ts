@@ -36,6 +36,7 @@ type DownloadHlsSegmentsOptions = {
   isCanceled(videoUrl: string): boolean;
   isPaused(videoUrl: string): boolean;
   progressNotifyIntervalMs: number;
+  reportError?(event: string, error: unknown, details?: unknown): void;
   resolveDownloadHlsSource(
     videoUrl: string,
     signal: AbortSignal
@@ -100,7 +101,7 @@ async function downloadHlsSegmentsWithNative(
   try {
     options.throwIfDownloadCanceled(videoUrl);
     try {
-      prepareDownloadSegmentTempDirectory(outputPath, playlist, reuseExistingSegments);
+      prepareDownloadSegmentTempDirectory(outputPath, playlist, reuseExistingSegments, options.reportError);
     } catch (error) {
       throw options.downloadFileSystemError(error);
     }

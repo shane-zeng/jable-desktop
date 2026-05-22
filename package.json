@@ -35,7 +35,7 @@
     "prestart": "npm run check:node",
     "start": "npm run build && electron .",
     "prestart:dev": "npm run check:node",
-    "start:dev": "npm run build:rust && npm run build:electron && JABLE_RENDERER_DEV_URL=http://127.0.0.1:5173 electron .",
+    "start:dev": "node scripts/start-dev.js",
     "pretest": "npm run check:node",
     "test": "npm run build:rust && npm run build:electron && node --test test/node/*.test.js",
     "pretest:renderer": "npm run check:node",

@@ -229,6 +229,9 @@ test('main process delegates browser runtime and app side-effect boundaries', fu
   assert.match(appActionsSource, /openLocalDataFolder/);
   assert.match(downloadAppShutdownSource, /downloadShutdownInProgress/);
   assert.match(downloadAppShutdownSource, /pauseDownloadsForShutdown/);
+  assert.match(mainSource, /requestSingleInstanceLock/);
+  assert.match(mainSource, /second-instance/);
+  assert.match(mainSource, /setAppUserModelId\(APP_USER_MODEL_ID\)/);
 });
 
 test('browser tab webContents receive the same app shortcut wiring', function () {
@@ -406,13 +409,16 @@ test('main process persists managed-root-relative download paths', function () {
 
   assert.match(requestBoundarySource, /function downloadOutputRelativePath/);
   assert.match(requestBoundarySource, /function usedDownloadRelativePaths/);
-  assert.match(requestBoundarySource, /const candidateName = index === 1 \? name : name \+ ' \(' \+ index \+ '\)'/);
-  assert.match(requestBoundarySource, /const relativePath = candidateName \+ '\.mp4'/);
+  assert.match(requestBoundarySource, /function downloadCandidateBaseName/);
+  assert.match(requestBoundarySource, /function fileRelativePathIsWindowsSafe/);
+  assert.match(requestBoundarySource, /function sanitizeWindowsSafeFileName/);
+  assert.match(requestBoundarySource, /const relativePath = candidateName \+ DOWNLOAD_FILE_EXTENSION/);
   assert.equal(requestBoundarySource.includes("path.join(payload.collectionKey, candidateName + '.mp4')"), false);
   assert.match(requestBoundarySource, /fs\.existsSync\(filePath\) \|\| fs\.existsSync\(filePath \+ '\.part'\)/);
   assert.equal(requestBoundarySource.includes("createHash('sha1')"), false);
   assert.match(requestBoundarySource, /function resolveManagedDownloadPath/);
   assert.match(requestBoundarySource, /path\.isAbsolute\(fileRelativePath\)/);
+  assert.match(requestBoundarySource, /fileRelativePathIsWindowsSafe\(fileRelativePath\)/);
   assert.match(requestBoundarySource, /path\.resolve\(downloadRootPath, fileRelativePath\)/);
   assert.match(requestBoundarySource, /isPathInsideDirectory\(filePath, downloadRootPath\)/);
   assert.match(queueActionsSource, /localPath: options\.downloadOutputRelativePath\(payload\)/);
@@ -640,6 +646,9 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsSharedSource, /const HLS_PLAYLIST_PROXY_HOST = '127\.0\.0\.1'/);
   assert.match(hlsProxySource, /http\.createServer/);
   assert.match(hlsProxySource, /startHlsPlaylistProxyServer/);
+  assert.match(hlsProxySource, /hlsPlaylistProxyServerStartPromise/);
+  assert.match(hlsProxySource, /ensureHlsPlaylistProxyServer/);
+  assert.match(hlsIpcSource, /ensurePlaylistProxyServer\(context\)/);
   assert.match(hlsIpcSource, /ipcMain\.handle\('hls:playlist-proxy-url'/);
   assert.match(hlsIpcSource, /\[hls-proxy\] token/);
   assert.match(hlsIpcSource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-proxy\] token'/);
@@ -703,6 +712,9 @@ test('HLS playback probe is debug-only and keeps HLS URLs out of logs', function
   assert.match(hlsProxySource, /hlsPlaybackDebugLog\(\s*context,\s*'\[hls-proxy\] asset served'/);
   assert.match(hlsProxySource, /hlsPlaylistProxyFallbackRedirect/);
   assert.match(hlsProxyHeadersSource, /referer: entry\.origin \+ '\/'/);
+  assert.match(hlsProxyHeadersSource, /webContents\.getUserAgent\(\)/);
+  assert.match(hlsProxySource, /hlsPlaylistProxyUserAgent\(context, entry\)/);
+  assert.match(hlsCaptureWritesSource, /hlsPlaylistProxyUserAgent\(context, entry\)/);
   assert.match(hlsProxyHeadersSource, /access-control-allow-credentials/);
   assert.match(hlsProxyHeadersSource, /access-control-allow-private-network/);
   assert.match(hlsSharedSource, /HLS_PLAYLIST_PROXY_FETCH_TIMEOUT_MS/);

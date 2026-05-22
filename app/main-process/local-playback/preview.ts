@@ -91,7 +91,7 @@ export function createLocalPlaybackPreviewController(
   }
 
   function removeDirectoryIfPresent(dirPath: string) {
-    removeDirectoryAfterRename(dirPath);
+    removeDirectoryAfterRename(dirPath, options.reportError);
   }
 
   function cancelActivePreviewGeneration(active: ActivePreviewGeneration) {
@@ -259,6 +259,10 @@ export function createLocalPlaybackPreviewController(
     return entries.filter(isPreviewImageFileName).sort();
   }
 
+  function shouldRunCommandThroughShell(command: string): boolean {
+    return process.platform === 'win32' && /\.(?:bat|cmd)$/i.test(command);
+  }
+
   function writeMetadata(file: LocalPlaybackFile, tempDir: string, fileNames: string[]) {
     const metadata = metadataForFiles(file, fileNames);
     fs.writeFileSync(previewMetadataPath(tempDir), JSON.stringify(metadata, null, 2));
@@ -306,6 +310,7 @@ export function createLocalPlaybackPreviewController(
           path.join(tempDir, 'thumb-%06d.jpg')
         ],
         {
+          shell: shouldRunCommandThroughShell(command),
           windowsHide: true
         }
       );
@@ -404,8 +409,9 @@ export function createLocalPlaybackPreviewController(
         options.reportError('local-playback-preview-generation-failed', error, {
           videoUrl: videoUrl
         });
+      } else {
+        console.warn('[local-playback-preview] ' + mainErrorMessage(error));
       }
-      console.warn('[local-playback-preview] ' + mainErrorMessage(error));
     }
   }
 

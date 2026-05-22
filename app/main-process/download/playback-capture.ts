@@ -84,6 +84,7 @@ type DownloadPlaybackCaptureControllerOptions = {
     source: 'normal' | 'playback_background',
     worker?: HlsPlaybackBackgroundCompletionWorker
   ): void;
+  reportError?(event: string, error: unknown, details?: unknown): void;
   resolveManagedDownloadPath(fileRelativePath: string | null): string | null;
   upsertDownloadVideoMetadata(payload: DownloadRequestPayload): void;
   upsertPersistedDownload(patch: DownloadRecordPatch): DownloadRecord;
@@ -276,8 +277,13 @@ export function createDownloadPlaybackCaptureController(
     if (!outputPath) return null;
 
     try {
-      prepareDownloadSegmentTempDirectory(outputPath, playlist, true);
+      prepareDownloadSegmentTempDirectory(outputPath, playlist, true, options.reportError);
     } catch (error) {
+      if (options.reportError) {
+        options.reportError('playback-capture-workspace-prepare-failed', error, {
+          videoUrl: videoUrl
+        });
+      }
       return null;
     }
 

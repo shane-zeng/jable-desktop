@@ -456,6 +456,20 @@ for (const kind of ENGINE_KINDS) {
           state: 'queued'
         });
       }, /relative to the download root/);
+      assert.throws(function () {
+        engine.upsertDownloadAsset({
+          videoUrl: 'https://jable.tv/videos/reserved-download-path/',
+          localPath: 'CON.mp4',
+          state: 'queued'
+        });
+      }, /relative to the download root/);
+      assert.throws(function () {
+        engine.upsertDownloadAsset({
+          videoUrl: 'https://jable.tv/videos/trailing-download-path/',
+          localPath: 'download-me.',
+          state: 'queued'
+        });
+      }, /relative to the download root/);
 
       const failed = engine.upsertDownloadAsset({
         videoUrl: 'https://jable.tv/videos/download-me/',
@@ -582,6 +596,7 @@ for (const kind of ENGINE_KINDS) {
     );
 
     const expected = engine.exportResource('watch_later');
+    fs.writeFileSync(filePath, 'previous export\n');
     const result = await engine.exportResourceToFile('watch_later', filePath);
     const actual = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 

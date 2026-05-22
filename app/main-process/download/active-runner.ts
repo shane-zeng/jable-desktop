@@ -292,7 +292,7 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
       const paused = options.isPaused(record.videoUrl);
       if (outputPath) {
         options.removePartialDownloadFile(outputPath);
-        if (!paused) removeDownloadSegmentTempDirectory(outputPath);
+        if (!paused) removeDownloadSegmentTempDirectory(outputPath, logDownloadError);
       }
       options.clearRuntimeProgress(record.videoUrl);
       options.clearPlaybackCaptureAfterActiveDownload(record.videoUrl);

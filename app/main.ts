@@ -232,6 +232,7 @@ const LOCAL_PLAYBACK_SCHEME = downloadManagerModule.LOCAL_PLAYBACK_SCHEME;
 const DEFAULT_JABLE_HOME_URL = urlPolicy.JABLE_PRIMARY_ORIGIN + '/';
 const JABLE_HOME_URL = configuredHomeUrl();
 const JABLE_SESSION_PARTITION = 'persist:jable-session';
+const APP_USER_MODEL_ID = 'io.github.shane-zeng.jable-desktop';
 const BACKGROUND_UPDATE_CHECK_DELAY_MS = 5000;
 const BROWSER_DIAGNOSE_REQUEST_TIMEOUT_MS = 5000;
 const BROWSER_THEATER_MODE_REQUEST_TIMEOUT_MS = 5000;
@@ -290,6 +291,17 @@ function configuredHomeUrl() {
 function configureAppStorageForTests() {
   const userDataDir = String(process.env.JABLE_DESKTOP_TEST_USER_DATA_DIR || '').trim();
   if (userDataDir) app.setPath('userData', path.resolve(userDataDir));
+}
+
+function configureWindowsAppIdentity() {
+  if (process.platform === 'win32') app.setAppUserModelId(APP_USER_MODEL_ID);
+}
+
+function focusMainWindowFromSecondInstance() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
 }
 
 function safeAppPath(name: Parameters<Electron.App['getPath']>[0]): string | null {
@@ -433,33 +445,27 @@ function wireWebContentsDiagnostics(webContents: Electron.WebContents, details: 
       });
     }
   );
-  webContents.on('console-message', function (eventDetails, level, message, line, sourceId) {
-    const normalizedLevel =
-      typeof eventDetails.level === 'string'
-        ? eventDetails.level
-        : level >= 3
-          ? 'error'
-          : level >= 2
-            ? 'warning'
-            : level <= 0
-              ? 'debug'
-              : 'info';
-    if (normalizedLevel !== 'warning' && normalizedLevel !== 'error') return;
+  webContents.on(
+    'console-message',
+    function (eventDetails: Electron.Event<Electron.WebContentsConsoleMessageEventParams>) {
+      const normalizedLevel = eventDetails.level;
+      if (normalizedLevel !== 'warning' && normalizedLevel !== 'error') return;
 
-    getDiagnosticsLogger().event(
-      normalizedLevel === 'error' ? 'error' : 'warn',
-      'renderer-console',
-      'console-message',
-      {
-        webContentsId: webContents.id,
-        level: normalizedLevel,
-        message: eventDetails.message || message,
-        lineNumber: eventDetails.lineNumber || line,
-        sourceId: eventDetails.sourceId || sourceId,
-        context: logWebContentsContext(details)
-      }
-    );
-  });
+      getDiagnosticsLogger().event(
+        normalizedLevel === 'error' ? 'error' : 'warn',
+        'renderer-console',
+        'console-message',
+        {
+          webContentsId: webContents.id,
+          level: normalizedLevel,
+          message: eventDetails.message,
+          lineNumber: eventDetails.lineNumber,
+          sourceId: eventDetails.sourceId,
+          context: logWebContentsContext(details)
+        }
+      );
+    }
+  );
 }
 
 function diagnosticsIpcMainWrapper(): typeof Electron.ipcMain {
@@ -1302,48 +1308,56 @@ function registerIpcHandlers() {
 
 configureAppStorageForTests();
 app.setName('Jable Desktop');
+configureWindowsAppIdentity();
 configureDiagnostics();
 installProcessDiagnostics();
-registerIpcHandlers();
+const singleInstanceLock = app.requestSingleInstanceLock();
 
-app.whenReady().then(async function () {
-  currentLocale = i18n.normalizeLocale(app.getLocale());
-  installApplicationMenu();
-  getDiagnosticsLogger().event('info', 'app', 'ready');
+if (!singleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', focusMainWindowFromSecondInstance);
+  registerIpcHandlers();
 
-  getDatabase();
-  installLocalPlaybackProtocol();
-  installWebViewEnhancement();
-  await installHlsPlaybackCapture();
-  createWindow();
-  scheduleBackgroundUpdateCheck();
+  app.whenReady().then(async function () {
+    currentLocale = i18n.normalizeLocale(app.getLocale());
+    installApplicationMenu();
+    getDiagnosticsLogger().event('info', 'app', 'ready');
 
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    getDatabase();
+    installLocalPlaybackProtocol();
+    installWebViewEnhancement();
+    await installHlsPlaybackCapture();
+    createWindow();
+    scheduleBackgroundUpdateCheck();
+
+    app.on('activate', function () {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
 
-app.on('window-all-closed', function () {
-  getDiagnosticsLogger().event('info', 'app', 'window-all-closed');
-  if (process.platform !== 'darwin') app.quit();
-});
+  app.on('window-all-closed', function () {
+    getDiagnosticsLogger().event('info', 'app', 'window-all-closed');
+    if (process.platform !== 'darwin') app.quit();
+  });
 
-app.on('before-quit', function (event: Electron.Event) {
-  getDiagnosticsLogger().event('info', 'app', 'before-quit');
-  if (getDownloadAppShutdownController().handleBeforeQuit(event)) return;
+  app.on('before-quit', function (event: Electron.Event) {
+    getDiagnosticsLogger().event('info', 'app', 'before-quit');
+    if (getDownloadAppShutdownController().handleBeforeQuit(event)) return;
 
-  getBrowserRuntime().flushSession();
-  closeAllSyncWorkers();
-});
+    getBrowserRuntime().flushSession();
+    closeAllSyncWorkers();
+  });
 
-app.on('will-quit', function () {
-  getDiagnosticsLogger().event('info', 'app', 'will-quit');
-  getBrowserRuntime().flushSession();
-  closeAllSyncWorkers();
-  if (database) {
-    getDiagnosticsLogger().event('info', 'database', 'close', { path: databasePath });
-    database.close();
-    database = null;
-    databasePath = null;
-  }
-});
+  app.on('will-quit', function () {
+    getDiagnosticsLogger().event('info', 'app', 'will-quit');
+    getBrowserRuntime().flushSession();
+    closeAllSyncWorkers();
+    if (database) {
+      getDiagnosticsLogger().event('info', 'database', 'close', { path: databasePath });
+      database.close();
+      database = null;
+      databasePath = null;
+    }
+  });
+}
