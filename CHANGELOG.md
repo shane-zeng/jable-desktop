@@ -6,6 +6,15 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.12.10] - 2026-05-23
+
+### Changed
+
+- Update artifact action versions
+- Pin Windows GitHub Actions runners
+- Fix playback deletion and auto-download guards
+- Bump version to 0.12.10
+
 ## [v0.12.9] - 2026-05-23
 
 ### Changed
@@ -397,7 +406,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.9...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.10...HEAD
+[v0.12.10]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.9...v0.12.10
 [v0.12.9]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.7...v0.12.9
 [v0.12.7]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.6...v0.12.7
 [v0.12.6]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.5...v0.12.6
