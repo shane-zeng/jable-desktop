@@ -51,7 +51,8 @@ jobs:
 
   windows-tests:
     name: Windows release readiness checks
-    runs-on: windows-latest
+    # Keep the release readiness check on the stable VS 2022 image while GitHub migrates latest labels to VS 2026.
+    runs-on: windows-2022
     timeout-minutes: 45
 
     steps:

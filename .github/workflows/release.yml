@@ -59,7 +59,8 @@ jobs:
 
   build-win:
     name: Build unsigned Windows artifacts
-    runs-on: windows-latest
+    # Keep release packaging on the stable VS 2022 image while GitHub migrates latest labels to VS 2026.
+    runs-on: windows-2022
     timeout-minutes: 60
 
     steps:
@@ -169,16 +170,16 @@ jobs:
 
       - name: Update changelog for released tag
         env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          git fetch --force --tags
+          git fetch --force --tags origin "$DEFAULT_BRANCH"
+          git rebase "origin/$DEFAULT_BRANCH"
 
           tag_commit="$(git rev-list -n 1 "$GITHUB_REF_NAME")"
-          default_commit="$(git rev-parse HEAD)"
-
-          if [ "$tag_commit" != "$default_commit" ]; then
-            echo "::error::Release tag $GITHUB_REF_NAME must point at the current default branch head before the changelog can be committed automatically."
+          if ! git merge-base --is-ancestor "$tag_commit" HEAD; then
+            echo "::error::Release tag $GITHUB_REF_NAME must be reachable from the current default branch before the changelog can be committed automatically."
             exit 1
           fi
 
@@ -201,4 +202,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md
           git commit -m "Update changelog for $RELEASE_TAG"
+          git fetch origin "$DEFAULT_BRANCH"
+          git rebase "origin/$DEFAULT_BRANCH"
           git push origin "HEAD:$DEFAULT_BRANCH"
