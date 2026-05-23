@@ -267,6 +267,11 @@
       "restoreTabsOnStartupDescription": "Open them automatically next time.",
       "webViewEnhancementMode": "WebView Enhancement Mode",
       "webViewEnhancementModeDescription": "Applies extra WebView loading and page cleanup rules. Turn it off if a site renders unexpectedly.",
+      "cache": {
+        "label": "Browser Cache",
+        "description": "Clears the Jable embedded browser HTTP cache, including remote image and preview resources. This does not clear cookies, login state, or local playback thumbnail cache.",
+        "clear": "Clear Browser Cache"
+      },
       "tabWidth": "Tab Rail Width",
       "resetTabWidth": "Reset Width"
     },
@@ -574,6 +579,8 @@
     "localDataFolderOpenFailed": "Failed to open local data folder: {error}",
     "logFolderOpened": "Opened the Log folder",
     "logFolderOpenFailed": "Failed to open Log folder: {error}",
+    "clearBrowserCacheComplete": "Cleared browser cache; reload tabs to fetch remote resources again",
+    "clearBrowserCacheFailed": "Failed to clear browser cache: {error}",
     "clearDiagnosticsCanceled": "Diagnostics cleanup canceled",
     "clearDiagnosticsComplete": "Cleared diagnostics: {deleted} files",
     "clearDiagnosticsPartial": "Cleared {deleted} diagnostic files; {failed} files could not be removed yet",

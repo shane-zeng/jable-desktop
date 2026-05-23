@@ -168,6 +168,7 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(ipcHandlersSource, /app:update-settings/);
   assert.match(ipcHandlersSource, /app:open-local-data-folder/);
   assert.match(ipcHandlersSource, /app:open-log-folder/);
+  assert.match(ipcHandlersSource, /app:clear-browser-cache/);
   assert.match(ipcHandlersSource, /app:clear-diagnostics/);
   assert.match(ipcHandlersSource, /diagnostics:renderer-event/);
   assert.match(ipcHandlersSource, /diagnostics:webview-event/);
@@ -180,6 +181,7 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(preloadSource, /openFfmpegGuide/);
   assert.match(preloadSource, /openLocalDataFolder/);
   assert.match(preloadSource, /openLogFolder/);
+  assert.match(preloadSource, /clearBrowserCache/);
   assert.match(preloadSource, /clearDiagnostics/);
   assert.match(preloadSource, /reportRendererError/);
   assert.match(preloadSource, /checkForUpdates/);
@@ -187,6 +189,7 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(preloadSource, /importAppBackup/);
   assert.match(typesSource, /openFfmpegGuide\(\): Promise<OpenDocumentationResult>/);
   assert.match(typesSource, /openLogFolder\(\): Promise<OpenLocalDataFolderResult>/);
+  assert.match(typesSource, /clearBrowserCache\(\): Promise<ClearBrowserCacheResult>/);
   assert.match(typesSource, /clearDiagnostics\(\): Promise<ClearDiagnosticsResult>/);
   assert.match(typesSource, /exportAppBackup\(payload: ExportAppBackupPayload\)/);
   assert.match(typesSource, /importAppBackup\(\): Promise<ImportAppBackupResult>/);

@@ -503,6 +503,10 @@ export interface OpenLocalDataFolderResult {
   path: string;
 }
 
+export interface ClearBrowserCacheResult {
+  cleared: boolean;
+}
+
 export interface ClearDiagnosticsResult {
   canceled: boolean;
   deletedFiles: number;
@@ -640,6 +644,7 @@ export interface JableAppApi {
   openFfmpegGuide(): Promise<OpenDocumentationResult>;
   openLocalDataFolder(): Promise<OpenLocalDataFolderResult>;
   openLogFolder(): Promise<OpenLocalDataFolderResult>;
+  clearBrowserCache(): Promise<ClearBrowserCacheResult>;
   clearDiagnostics(): Promise<ClearDiagnosticsResult>;
   reportRendererError(payload: DiagnosticsRendererEvent): void;
   checkForUpdates(): Promise<UpdateCheckResult>;

@@ -1016,6 +1016,27 @@ async function openLogFolder() {
   }
 }
 
+async function clearBrowserCache() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    await api.clearBrowserCache();
+    setStatus(i18n.t('status.clearBrowserCacheComplete'), 'success');
+  } catch (error) {
+    console.error(error);
+    api.reportRendererError({
+      level: 'error',
+      event: 'clear-browser-cache-failed',
+      error: serializedError(error)
+    });
+    setStatus(i18n.t('status.clearBrowserCacheFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function clearDiagnostics() {
   if (busy.value || syncing.value) return;
 
@@ -1316,6 +1337,7 @@ onBeforeUnmount(function () {
         @open-download-root="openDownloadRoot"
         @open-data-folder="openLocalDataFolder"
         @open-log-folder="openLogFolder"
+        @clear-browser-cache="clearBrowserCache"
         @clear-diagnostics="clearDiagnostics"
         @check-updates="checkForUpdates"
         @import-json="importJsonToCollection"

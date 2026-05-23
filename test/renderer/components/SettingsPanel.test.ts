@@ -82,6 +82,8 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('分頁列顯示方式');
     expect(wrapper.text()).toContain('記住開啟的分頁');
     expect(wrapper.text()).toContain('WebView 增強模式');
+    expect(wrapper.text()).toContain('瀏覽器快取');
+    expect(wrapper.text()).toContain('不會清除 cookies、登入狀態或本機播放縮圖快取');
     expect(wrapper.text()).toContain('快捷鍵');
     expect(wrapper.text()).toContain('新增瀏覽器分頁');
     expect(wrapper.text()).toContain('同步');
@@ -111,6 +113,9 @@ describe('SettingsPanel', function () {
 
     await wrapper.get('[data-test="settings-open-log-folder"]').trigger('click');
     expect(wrapper.emitted('open-log-folder')).toEqual([[]]);
+
+    await wrapper.get('[data-test="settings-clear-browser-cache"]').trigger('click');
+    expect(wrapper.emitted('clear-browser-cache')).toEqual([[]]);
 
     await wrapper.get('[data-test="settings-clear-diagnostics"]').trigger('click');
     expect(wrapper.emitted('clear-diagnostics')).toEqual([[]]);

@@ -61,12 +61,16 @@ describe('App download setup actions', function () {
     wrapper.unmount();
   });
 
-  it('routes diagnostics settings actions through the preload API', async function () {
+  it('routes maintenance settings actions through the preload API', async function () {
     const api = createAppTestApi([]);
     api.openLogFolder = vi.fn().mockResolvedValue({
       opened: true,
       path: '/tmp/jable/logs'
     });
+    api.clearBrowserCache = vi
+      .fn()
+      .mockResolvedValueOnce({ cleared: true })
+      .mockRejectedValueOnce(new Error('cache locked'));
     api.clearDiagnostics = vi
       .fn()
       .mockResolvedValueOnce({
@@ -98,6 +102,20 @@ describe('App download setup actions', function () {
     await settle();
     expect(api.openLogFolder).toHaveBeenCalledTimes(1);
     expect(wrapper.text()).toContain('已開啟 Log 資料夾');
+
+    await wrapper.get('[data-test="settings-clear-browser-cache"]').trigger('click');
+    await settle();
+    expect(api.clearBrowserCache).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('已清除瀏覽器快取');
+
+    await wrapper.get('[data-test="settings-clear-browser-cache"]').trigger('click');
+    await settle();
+    expect(api.reportRendererError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'clear-browser-cache-failed'
+      })
+    );
+    expect(wrapper.text()).toContain('清除瀏覽器快取失敗：cache locked');
 
     await wrapper.get('[data-test="settings-clear-diagnostics"]').trigger('click');
     await settle();

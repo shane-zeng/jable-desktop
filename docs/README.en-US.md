@@ -150,6 +150,7 @@ The Settings page controls:
 - Interface language
 - Maximum open browser tabs, with a memory and playback warning above the recommended range
 - WebView Enhancement Mode, off by default; when enabled, it applies extra WebView loading and page cleanup rules
+- Browser HTTP cache clearing without affecting Jable login state or local playback thumbnail caches
 - Full Sync acceleration: Safe, Standard, or Fast; Fast prefetches more pages at once for large lists, and falls back to conservative page-by-page sync if it hits timeout, 403, or 429 responses
 - Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
 - FFmpeg status, Check Again, manual FFmpeg selection, download folder location, concurrent video downloads, and download speed mode

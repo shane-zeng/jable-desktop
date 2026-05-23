@@ -267,6 +267,11 @@
       "restoreTabsOnStartupDescription": "下次開啟 App 時自動打開。",
       "webViewEnhancementMode": "WebView 增強模式",
       "webViewEnhancementModeDescription": "啟用額外的 WebView 載入與畫面整理規則；若網站顯示異常，請關閉後重試。",
+      "cache": {
+        "label": "瀏覽器快取",
+        "description": "清除 Jable 內嵌瀏覽器的 HTTP 快取，包含遠端圖片與 preview 資源；不會清除 cookies、登入狀態或本機播放縮圖快取。",
+        "clear": "清除瀏覽器快取"
+      },
       "tabWidth": "分頁列寬度",
       "resetTabWidth": "重設寬度"
     },
@@ -574,6 +579,8 @@
     "localDataFolderOpenFailed": "開啟本機資料夾失敗：{error}",
     "logFolderOpened": "已開啟 Log 資料夾",
     "logFolderOpenFailed": "開啟 Log 資料夾失敗：{error}",
+    "clearBrowserCacheComplete": "已清除瀏覽器快取；重新整理分頁後會重新載入遠端資源",
+    "clearBrowserCacheFailed": "清除瀏覽器快取失敗：{error}",
     "clearDiagnosticsCanceled": "已取消清除診斷紀錄",
     "clearDiagnosticsComplete": "已清除診斷紀錄：{deleted} 個檔案",
     "clearDiagnosticsPartial": "已清除 {deleted} 個診斷檔案，{failed} 個檔案暫時無法刪除",

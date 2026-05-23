@@ -14,6 +14,7 @@ import type {
   BrowserTabMenuPayload,
   BrowserTabMutedPayload,
   BrowserTabsState,
+  ClearBrowserCacheResult,
   CollectionKey,
   CreateBrowserTabPayload,
   ExportAppBackupPayload,
@@ -90,6 +91,7 @@ export type IpcHandlersContext = {
   openLocalDataFolder(): Promise<{ opened: boolean; path: string }>;
   openLogFolder(): Promise<OpenLocalDataFolderResult>;
   pendingCollectionOperationsState(): PendingCollectionOperationOverlayState;
+  clearBrowserCache(): Promise<ClearBrowserCacheResult>;
   clearDiagnostics(): Promise<{ canceled: boolean; deletedFiles: number; failedFiles: number }>;
   recordDiagnosticsEvent(source: 'renderer' | 'webview', payload: unknown): void;
   reloadBrowser(tabId?: string | null): Promise<BrowserNavigationState>;
@@ -153,6 +155,10 @@ function registerAppHandlers(context: IpcHandlersContext) {
 
   context.ipcMain.handle('app:open-log-folder', function () {
     return context.openLogFolder();
+  });
+
+  context.ipcMain.handle('app:clear-browser-cache', function () {
+    return context.clearBrowserCache();
   });
 
   context.ipcMain.handle('app:clear-diagnostics', function () {

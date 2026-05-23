@@ -91,6 +91,7 @@ export function createAppTestApi(
     openFfmpegGuide: vi.fn(),
     openLocalDataFolder: vi.fn(),
     openLogFolder: vi.fn(),
+    clearBrowserCache: vi.fn(),
     clearDiagnostics: vi.fn(),
     reportRendererError: vi.fn(),
     checkForUpdates: vi.fn(),

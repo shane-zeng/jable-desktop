@@ -267,6 +267,11 @@
       "restoreTabsOnStartupDescription": "次回 App 起動時に自動で開きます。",
       "webViewEnhancementMode": "WebView 拡張モード",
       "webViewEnhancementModeDescription": "追加の WebView 読み込みと画面整理ルールを適用します。表示が不安定な場合はオフにしてください。",
+      "cache": {
+        "label": "ブラウザーキャッシュ",
+        "description": "Jable 内蔵ブラウザーの HTTP キャッシュを消去します。リモート画像と preview リソースを含みます。Cookie、ログイン状態、ローカル再生サムネイルキャッシュは消去しません。",
+        "clear": "ブラウザーキャッシュを消去"
+      },
       "tabWidth": "タブレール幅",
       "resetTabWidth": "幅をリセット"
     },
@@ -574,6 +579,8 @@
     "localDataFolderOpenFailed": "ローカルデータフォルダーを開けませんでした: {error}",
     "logFolderOpened": "Log フォルダーを開きました",
     "logFolderOpenFailed": "Log フォルダーを開けませんでした: {error}",
+    "clearBrowserCacheComplete": "ブラウザーキャッシュを消去しました。タブを再読み込みするとリモートリソースを再取得します",
+    "clearBrowserCacheFailed": "ブラウザーキャッシュを消去できませんでした: {error}",
     "clearDiagnosticsCanceled": "診断ログの消去をキャンセルしました",
     "clearDiagnosticsComplete": "診断ログを消去しました: {deleted} ファイル",
     "clearDiagnosticsPartial": "診断ファイル {deleted} 件を消去しました。{failed} 件はまだ削除できませんでした",

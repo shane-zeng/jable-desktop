@@ -29,6 +29,7 @@ Renderer API group:
 - `updateSettings(patch)`
 - `setLocale(locale)`
 - `openLogFolder()`
+- `clearBrowserCache()`
 - `clearDiagnostics()`
 - `exportAppBackup(payload)`
 - `importAppBackup()`
@@ -43,6 +44,7 @@ Current behavior:
 - `autoDownloadOnPlayback` defaults to `false`; when set to `true`, Jable browser-tab HLS playback may be proxied through app-owned loopback URLs so playback and background completion share one managed segment cache. The download record is created only after webview preload reports actual video playback, not merely when the page preloads a playlist.
 - `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
 - `openLogFolder()` ensures Electron `userData/logs` exists and opens it through the OS file manager.
+- `clearBrowserCache()` clears only the embedded Jable browser session's HTTP cache. It may remove cached remote images, preview media, scripts, and styles, but it does not clear cookies, login state, local storage, the SQLite database, downloads, or generated local playback thumbnail caches.
 - `clearDiagnostics()` shows a main-process confirmation dialog, then deletes only managed diagnostics JSONL files and crash dumps. It returns `{ canceled, deletedFiles, failedFiles }` so Windows file-lock partial failures can be surfaced without blocking the app.
 - `exportAppBackup({ kind, rendererPreferences })` opens a native save dialog and writes either a settings backup or full logical app backup. Full export is blocked while sync or downloads are active.
 - `importAppBackup()` opens a native JSON file dialog, auto-detects settings/full backup kind, validates format version, applies settings and renderer preferences, and returns import counts plus warnings. All imports are blocked while sync or downloads are active.

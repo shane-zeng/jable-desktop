@@ -36,6 +36,7 @@ import type {
   AppSettings,
   AppSettingsPatch,
   AppPlatform,
+  ClearBrowserCacheResult,
   ExportAppBackupPayload,
   ExportAppBackupResult,
   ImportAppBackupResult,
@@ -892,6 +893,17 @@ function openLogFolder(): Promise<{ opened: boolean; path: string }> {
   });
 }
 
+async function clearBrowserCache(): Promise<ClearBrowserCacheResult> {
+  await session.fromPartition(JABLE_SESSION_PARTITION).clearCache();
+  getDiagnosticsLogger().event('info', 'browser', 'browser-cache-cleared', {
+    partition: JABLE_SESSION_PARTITION
+  });
+
+  return {
+    cleared: true
+  };
+}
+
 function clearDiagnostics(): Promise<DiagnosticsClearResult> {
   return showAppDialog({
     type: 'warning',
@@ -1346,6 +1358,7 @@ function registerIpcHandlers() {
     openFfmpegGuide: openFfmpegGuide,
     openLocalDataFolder: openLocalDataFolder,
     openLogFolder: openLogFolder,
+    clearBrowserCache: clearBrowserCache,
     pendingCollectionOperationsState: pendingCollectionOperationsState,
     clearDiagnostics: clearDiagnostics,
     recordDiagnosticsEvent: recordDiagnosticsEvent,

@@ -105,6 +105,9 @@ const jableApp: JableAppApi = {
   openLogFolder: function () {
     return ipcRenderer.invoke('app:open-log-folder');
   },
+  clearBrowserCache: function () {
+    return ipcRenderer.invoke('app:clear-browser-cache');
+  },
   clearDiagnostics: function () {
     return ipcRenderer.invoke('app:clear-diagnostics');
   },

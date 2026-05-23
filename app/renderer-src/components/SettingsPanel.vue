@@ -59,6 +59,7 @@ const emit = defineEmits<{
   'open-download-root': [];
   'open-data-folder': [];
   'open-log-folder': [];
+  'clear-browser-cache': [];
   'clear-diagnostics': [];
   'check-updates': [];
   'import-json': [payload: { collectionKey: CollectionKey; resource: ExportResource }];
@@ -561,6 +562,22 @@ function shortcutTokenSeparator(tokenIndex: number) {
                   />
                   <span>{{ t('settings.browser.webViewEnhancementModeDescription') }}</span>
                 </label>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.browser.cache.label') }}</span>
+                <div class="grid gap-2">
+                  <p class="settings-help">{{ t('settings.browser.cache.description') }}</p>
+                  <button
+                    type="button"
+                    class="w-fit"
+                    data-test="settings-clear-browser-cache"
+                    :disabled="busy"
+                    @click="emit('clear-browser-cache')"
+                  >
+                    {{ t('settings.browser.cache.clear') }}
+                  </button>
+                </div>
               </div>
 
               <div class="settings-row settings-row-center">
