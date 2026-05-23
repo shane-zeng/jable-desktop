@@ -48,6 +48,8 @@ type DownloadHlsSegmentsOptions = {
 };
 
 function refreshedPlaylistMatchesDownloadWork(outputPath: string, playlist: HlsPlaylist): boolean {
+  // Refreshing signed HLS URLs is safe only when the existing work still matches
+  // the stable local segment identity.
   return (
     resumeManifestMatches(outputPath, playlist) ||
     (playlist.segments.length > 0 && reusableSegmentFileCount(outputPath, playlist) === playlist.segments.length)
@@ -107,6 +109,8 @@ async function downloadHlsSegmentsWithNative(
     }
     runtime.nativeId = downloadId;
     options.updateDownloadRuntimeProgress(videoUrl, downloadSegmentDirectorySize(tempDir));
+    // The native addon does not push progress events; poll the segment directory
+    // so JS cancellation and UI progress stay decoupled from Rust worker threads.
     progressTimer = startNativeDownloadProgress(videoUrl, tempDir, options);
     const concurrency = options.currentDownloadSegmentConcurrency();
     const result = parseNativeDownloadSegmentsResult(
@@ -162,6 +166,8 @@ export async function downloadHlsSegmentsWithPlaylistRefresh(
     if (!isSegmentRefreshCandidate(error)) throw error;
     options.throwIfDownloadCanceled(videoUrl);
 
+    // Segment failures caused by expired signed URLs get one source refresh. If
+    // the refreshed playlist shape diverges, keep the original causal error.
     let refreshed: { cookieHeader: string; playlist: HlsPlaylist };
     try {
       refreshed = await options.resolveDownloadHlsSource(videoUrl, signal);

@@ -176,6 +176,8 @@ function wireSyncWorker(worker: SyncWorker) {
 
   worker.webContents.setWindowOpenHandler(function (details: Electron.HandlerDetails) {
     if (details.url && shouldDenyWebViewEnhancementNavigation(details.url)) return { action: 'deny' };
+    // Hidden sync workers should never open user-visible tabs or popups; the
+    // worker exists only to execute the authenticated collection page.
     return { action: 'deny' };
   });
 
@@ -361,6 +363,8 @@ function pendingCollectionOperationsState(): PendingCollectionOperationOverlaySt
 
     for (let n = 0; n < operations.length; n++) {
       const operation = operations[n];
+      // The overlay mirrors the latest queued local intent per URL; manual
+      // pending-remote handling still keeps the full operation sequence.
       latestByUrl[operation.videoUrl] = {
         action: operation.action,
         videoUrl: operation.videoUrl,
@@ -454,6 +458,8 @@ async function applyDeferredSyncOperationsInWorker(
 
   for (let i = 0; i < operations.length; i++) {
     const operation = operations[i];
+    // Send one item per preload round-trip so a page-side failure can mark the
+    // remaining outbox entries blocked without reordering remote mutations.
     const result = await requestWebContentsPreload<DeferredSyncOperationApplyResult>(
       worker.webContents,
       'browser:apply-deferred-sync-operations-request',
@@ -618,10 +624,14 @@ async function syncBrowserCollectionInWorker(payload: {
     const resultWithWorker = Object.assign({}, result, { syncWorkerId: worker.id });
 
     if (payload.options.mode === 'full' && activeRun && activeRun.mutated) {
+      // A user mutation during full sync invalidates the missing-row decision,
+      // so finish_sync must not treat this run as authoritative.
       resultWithWorker.completed = false;
       resultWithWorker.incompleteReason = 'collection-mutated-during-sync';
     }
 
+    // Batch-limited full syncs keep the hidden worker alive so the next batch
+    // continues from the same authenticated page and syncRunId.
     keepWorker = resultWithWorker.completed === false && resultWithWorker.incompleteReason === 'batch-limit';
 
     if (!keepWorker && shouldApplyDeferredSyncOperations(resultWithWorker) && getAutoReplayDeferredSyncOperations()) {

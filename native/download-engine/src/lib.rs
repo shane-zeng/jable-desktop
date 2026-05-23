@@ -50,6 +50,8 @@ impl JableDownloadEngine {
             return Err(Error::from_reason("segments are required".to_string()));
         }
 
+        // The JS-facing download id is the only handle available for cancellation
+        // after this N-API task leaves the main thread.
         let cancel_flag = Arc::new(AtomicBool::new(false));
         self.cancellations
             .lock()
@@ -91,6 +93,8 @@ impl Task for DownloadSegmentsTask {
 
     fn compute(&mut self) -> Result<Self::Output> {
         let result = download_hls_segments(&self.request, Arc::clone(&self.cancel_flag));
+        // Cleanup is best-effort so a poisoned cancellation map cannot hide the
+        // original download result from JS.
         if let Ok(mut cancellations) = self.cancellations.lock() {
             cancellations.remove(&self.request.download_id);
         }

@@ -184,6 +184,8 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
       throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
       failurePhase = 'segments';
       if (beforeDownloadSegments) {
+        // Playback-background downloads may finish capture work here; normal
+        // downloads intentionally skip this hook.
         await beforeDownloadSegments();
         throwIfActiveDownloadStopped(record.videoUrl, runtime.abortController.signal);
       }

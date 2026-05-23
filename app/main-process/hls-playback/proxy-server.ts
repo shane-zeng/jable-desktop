@@ -79,6 +79,8 @@ function hlsPlaybackCaptureActivePage(
   if (!isAutoDownloadOnPlaybackSettingEnabled(context) || !entry.videoUrl) return null;
 
   purgeExpiredHlsPlaybackCaptureActivePages();
+  // Capture is tied to a recent user playback signal so background playlist
+  // probes do not silently start downloads.
   const activePage = hlsPlaybackCaptureActivePages.get(
     hlsPlaybackCaptureActivePageKey(entry.webContentsId, entry.videoUrl, entry.pageLoadId)
   );
@@ -144,6 +146,8 @@ function createHlsPlaylistProxyTokenForVideo(
   } catch (error) {}
 
   const token = nodeCrypto.randomBytes(18).toString('base64url');
+  // Tokens carry the remote playlist context because asset URLs are rewritten
+  // into loopback paths that no longer expose their original host or referer.
   hlsPlaylistProxyTokens.set(token, {
     assets: {},
     capturePlan: null,
@@ -230,6 +234,8 @@ function hlsPlaylistProxyFallbackRedirect(context: HlsPlaybackCaptureContext, en
     'tabId=' + String(entry.tabId),
     'videoUrl=' + String(entry.videoUrl)
   );
+  // Playback should continue even when capture/proxying fails; redirecting back
+  // to the upstream playlist is safer than surfacing a broken local proxy.
   const headers = hlsPlaylistProxyResponseHeaders(entry);
   headers.set('location', entry.playlistUrl);
   return new Response(null, {
@@ -326,6 +332,8 @@ function hlsPlaylistProxyFetchAbort(request: Request): HlsPlaylistProxyAbort {
   if (request.signal.aborted) abortFromClient();
   else request.signal.addEventListener('abort', abortFromClient, { once: true });
 
+  // session.fetch can hang independently of the media element; use a local
+  // timeout while still distinguishing user/client aborts from upstream errors.
   const timeout = setTimeout(function () {
     abortController.abort();
   }, HLS_PLAYLIST_PROXY_FETCH_TIMEOUT_MS);
@@ -609,6 +617,8 @@ function hlsPlaylistProxyLoopbackAbort(
     if (!response.writableEnded) abortFromClient();
   }
 
+  // Node's request and response close signals arrive on different edges of the
+  // media pipeline, so listen to both to avoid leaking upstream fetches.
   request.once('aborted', abortFromClient);
   response.once('close', abortFromClosedResponse);
 
@@ -669,6 +679,8 @@ function startHlsPlaylistProxyServer(context: HlsPlaybackCaptureContext): Promis
   if (hlsPlaylistProxyServer && hlsPlaylistProxyPort) return Promise.resolve(hlsPlaylistProxyPort);
   if (hlsPlaylistProxyServerStartPromise) return hlsPlaylistProxyServerStartPromise;
 
+  // The proxy starts lazily and concurrent tabs can request it at once; share the
+  // in-flight start promise so only one loopback server binds a random port.
   const startPromise = new Promise<number>(function (resolve, reject) {
     const server = http.createServer(function (request, response) {
       handleHlsPlaylistProxyHttpRequest(context, request, response).catch(function (error) {
@@ -748,6 +760,8 @@ export async function installHlsPlaylistProxy(context: HlsPlaybackCaptureContext
     );
   });
 
+  // The proxy hooks diagnostics only; actual playlist proxying remains opt-in
+  // through rewritten loopback URLs from the preload side.
   logger(context).info(
     '[hls-proxy] installed lazy loopback HLS proxy; playlist requests require Settings auto-download or debug env'
   );

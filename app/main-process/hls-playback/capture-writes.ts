@@ -125,6 +125,8 @@ async function hlsPlaybackCaptureCommitTempFile(
 ): Promise<boolean> {
   try {
     if (hlsPlaybackCaptureFileExists(filePath)) return false;
+    // Link-then-remove gives competing capture paths an atomic winner without
+    // truncating a segment another request already committed.
     await fs.promises.link(tempPath, filePath);
     return true;
   } catch (error) {
@@ -256,6 +258,8 @@ function writeHlsPlaybackCaptureStream(
   if (hlsPlaybackCaptureFileExists(asset.captureFilePath)) return Promise.resolve(false);
   if (!hlsPlaybackCaptureCanContinue(context, entry)) return Promise.resolve(false);
 
+  // Active writes are keyed by final path so playback and prefetch requests share
+  // the same in-flight file instead of racing duplicate temp files.
   const active = activeFiles.get(asset.captureFilePath);
   if (active) return active;
 
@@ -279,6 +283,8 @@ async function hlsPlaybackCaptureFetchAsset(
   if (hlsPlaybackCaptureFileExists(asset.captureFilePath)) return false;
   if (!hlsPlaybackCaptureCanContinue(context, entry, signal)) return false;
 
+  // Prefetch uses the same activeFiles gate as streamed playback so the first
+  // request to commit the segment wins regardless of source.
   const active = activeFiles.get(asset.captureFilePath);
   if (active) return active;
 
@@ -382,6 +388,8 @@ export function hlsPlaylistProxyAssetBody(
     return body;
   }
 
+  // tee() lets Chromium keep consuming the original media response while the
+  // second branch opportunistically writes a resumable segment.
   const streams = body.tee();
   writeHlsPlaybackCaptureStream(context, entry, asset, streams[1], activeFiles).catch(function (error) {
     hlsPlaybackDebugLog(
@@ -454,6 +462,8 @@ async function runHlsPlaybackCapturePrefetchWithCompletion(
     });
   } finally {
     activePrefetches.delete(key);
+    // Completion is tied to the playlist prefetch run, not individual segment
+    // success, so normal download queueing can decide how to resume gaps.
     if (entry.videoUrl && context.completeHlsPlaybackCapture) {
       context.completeHlsPlaybackCapture({ videoUrl: entry.videoUrl, pageLoadId: entry.pageLoadId });
     }

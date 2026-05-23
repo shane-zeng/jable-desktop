@@ -15,6 +15,8 @@ const CHUNK_SIZE: usize = 64 * 1024;
 fn replace_output_file(partial_path: &Path, output_path: &Path) -> Result<()> {
     #[cfg(windows)]
     {
+        // Windows rename cannot atomically replace an existing file, while Unix
+        // rename can. Remove first so resumed segment writes behave consistently.
         if output_path.exists() {
             fs::remove_file(output_path).map_err(to_napi_error)?;
         }
@@ -61,6 +63,8 @@ pub(crate) fn fetch_with_retry(
                 }
                 last_error = Some(error);
                 if attempt < retry_limit {
+                    // Backoff is deliberately linear; segment downloads already
+                    // run in parallel, so exponential delays make pause/resume feel stuck.
                     thread::sleep(Duration::from_millis((attempt as u64) * 500));
                 }
             }

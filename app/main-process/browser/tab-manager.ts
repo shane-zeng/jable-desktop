@@ -535,6 +535,8 @@ function closeAllBrowserTabs() {
 function focusBrowserTab(tab: BrowserTab | null | undefined) {
   if (!tab || !browserBounds.visible || !currentMainWindow()) return;
 
+  // WebContentsView focus can be lost while Electron is attaching the view;
+  // defer until the active tab and bounds are stable.
   setImmediate(function () {
     const mainWindow = currentMainWindow();
     if (!mainWindow) return;
@@ -564,6 +566,8 @@ function attachActiveBrowserTab() {
   if (!browserBounds.visible || !mainWindow) return;
 
   if (!activeTab.attached) {
+    // Only the active WebContentsView is attached; hidden tabs keep state in
+    // memory without participating in layout, focus, or fullscreen sizing.
     mainWindow.contentView.addChildView(activeTab.view);
     activeTab.attached = true;
   }
@@ -592,6 +596,8 @@ function sendBrowserTheaterModeMessage(tab: BrowserTab | null | undefined, chann
 function scheduleBrowserTheaterModeApply(tab: BrowserTab | null | undefined) {
   if (!tab || !tab.theaterMode) return;
 
+  // Jable can rebuild its player shortly after navigation, so replay theater
+  // mode once after the immediate renderer tick.
   setImmediate(function () {
     sendBrowserTheaterModeMessage(tab, 'browser:apply-theater-mode');
   });
@@ -622,6 +628,7 @@ function browserTabBounds(tab: BrowserTab): BrowserBoundsState {
 function scheduleBrowserHtmlFullScreenResize() {
   if (!browserHtmlFullScreenTabId) return;
 
+  // Electron emits fullscreen transitions before the content size settles.
   setImmediate(function () {
     if (!browserHtmlFullScreenTabId) return;
     attachActiveBrowserTab();

@@ -113,6 +113,8 @@ export function useBrowserBounds(api: JableAppApi, activeView: Ref<AppView>) {
   function scheduleResize() {
     nextTick(function () {
       resize();
+      // Vue layout, tab rail transitions, and Electron WebContentsView bounds
+      // settle on different ticks; replaying avoids stale embedded-browser size.
       setTimeout(resize, 50);
       setTimeout(resize, 250);
       setTimeout(resize, 1000);

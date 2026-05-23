@@ -93,6 +93,8 @@ export function useSyncWorkflow(options: {
   }
 
   function handleSyncPage(payload: SyncPagePayload) {
+    // Hidden workers from a continued or canceled sync can still emit late
+    // progress; syncRunId keeps the visible toast tied to the active run.
     if (activeSyncRunId.value && payload.syncRunId !== activeSyncRunId.value) return;
     options.setStatus(options.t('status.syncPage', { page: payload.page, count: payload.rows.length }));
   }
@@ -250,6 +252,8 @@ export function useSyncWorkflow(options: {
         options.library.fullSyncContinuation.value.collectionKey === collectionKey
           ? options.library.fullSyncContinuation.value
           : null;
+      // Full sync continuation preserves syncRunId and siteOrderOffset so a
+      // paused batch cannot be finalized as an unrelated authoritative run.
       const usedContinuation = Boolean(continuation && continuation.tabId);
       syncTabId = usedContinuation && continuation ? continuation.tabId : null;
       const syncRunId =
@@ -306,6 +310,8 @@ export function useSyncWorkflow(options: {
         options.t('status.syncReturningLibrary', { collection: collectionName(collectionKey) }),
         'info'
       );
+      // Leave the finalizing state visible briefly before switching panes; the
+      // library refresh can otherwise make completion feel like a lost click.
       await waitForSyncReturningNotice();
       options.setActiveView('library');
       await options.library.refreshVideos();

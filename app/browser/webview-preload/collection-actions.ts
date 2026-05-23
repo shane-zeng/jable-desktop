@@ -380,6 +380,8 @@ export function createCollectionActionController(
     if (typeof MutationObserver === 'undefined') return;
 
     const target = document.documentElement || document;
+    // Jable pagination swaps video cards after AJAX responses; reapply overlays
+    // after DOM changes so queued local intent stays visible.
     const observer = new MutationObserver(function (records) {
       for (let i = 0; i < records.length; i++) {
         if (records[i].type === 'childList' && (records[i].addedNodes.length || records[i].removedNodes.length)) {
@@ -487,6 +489,8 @@ export function createCollectionActionController(
         childList: true,
         subtree: true
       });
+      // Some Jable handlers update classes without a matching mutation on the
+      // original button, so polling backs up the observer.
       setTimeout(check, 0);
     });
   }

@@ -147,6 +147,8 @@ impl Engine {
 
 #[napi]
 pub struct JableDataEngine {
+    // The native connection is intentionally serialized. SQLite state machines
+    // here rely on transaction order, and N-API calls may arrive concurrently.
     inner: Mutex<Engine>,
 }
 

@@ -17,8 +17,10 @@ Use this skill when working in the Jable Desktop repo on implementation, refacto
    - Add a new subdirectory only when related files form a small subsystem with a composition point, internal helpers, and a stable public entrypoint.
 3. Keep behavior stable unless the user explicitly asks for a behavior change.
 4. Avoid abstraction unless it reduces cognitive load now. Prefer explicit readable code over speculative indirection.
-5. When moving modules, update imports, tests, generated-runtime test paths, and architecture docs in the same change.
-6. Self-review before finalizing: check stale paths, ownership drift, accidental behavior changes, and missing tests.
+5. Keep comments high-value. Add or update comments only when they explain safety invariants, async races, platform/framework limits, performance tradeoffs, API/IPC caveats, ownership/concurrency rationale, or domain intent that code structure cannot express clearly.
+6. Do not add comments that repeat assignments, function names, branch conditions, type/interface fields, or behavior already obvious from names and IDE hover.
+7. When moving modules, update imports, tests, generated-runtime test paths, and architecture docs in the same change.
+8. Self-review before finalizing: check stale paths, ownership drift, accidental behavior changes, missing tests, and missing high-value comments around newly introduced sync, download, browser, filesystem, IPC, migration, or async state behavior.
 
 ## Repo Anchors
 

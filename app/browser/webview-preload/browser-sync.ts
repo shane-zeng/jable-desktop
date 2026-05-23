@@ -219,6 +219,8 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
       if (!next || !next.ajaxUrl || !next.pageParamName || !lastPage || lastPage <= (logicalPage || 1)) return false;
 
       try {
+        // AJAX prefetch is an optimization only. Validate page 1 and page shape
+        // before trusting offscreen responses over normal pagination.
         const pages = await fetchAjaxPagesWithWindow({
           end: lastPage,
           fetchPage: function (pageNumber) {
@@ -469,6 +471,8 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
       const operation = operations[i];
 
       try {
+        // Replay one operation at a time to preserve Jable's remote sequence and
+        // keep the first failing item as the durable blocker.
         await applyDeferredSyncOperationWithSingleRetry(operation, baseUrl);
         applied.push(operation.id);
       } catch (error) {
@@ -481,6 +485,8 @@ export function createBrowserSyncController(options: BrowserSyncControllerOption
           deferredSyncOperationFailure(operation, error instanceof Error ? error.message : String(error), false)
         );
 
+        // Later operations may depend on the failed remote state; report them as
+        // blocked instead of attempting to infer a new final intent.
         for (let blocked = i + 1; blocked < operations.length; blocked++) {
           failed.push(deferredSyncOperationFailure(operations[blocked], 'Blocked by earlier failed operation', true));
         }

@@ -69,6 +69,8 @@ function moveDirectoryOutOfWay(
   for (let attempt = 0; attempt < MAX_QUARANTINE_RENAME_ATTEMPTS; attempt++) {
     try {
       const deletionPath = quarantineDirectoryPath(dirPath, attempt);
+      // Rename first so the user-visible workspace is released before slow or
+      // locked recursive deletion finishes.
       fs.renameSync(dirPath, deletionPath);
       return { status: 'moved', path: deletionPath };
     } catch (error) {
@@ -105,6 +107,8 @@ function removeDirectoryInDetachedProcess(
   reportError?: DirectoryRemovalReportError | null,
   reportEvent?: DirectoryRemovalReportEvent | null
 ) {
+  // Windows can keep media segment directories locked after Chromium/FFmpeg
+  // releases app state. A detached process keeps retrying after this app exits.
   const command = [
     '$path = $env:JABLE_DELETE_DIR',
     'for ($attempt = 0; $attempt -lt ' + String(WINDOWS_REMOVE_ATTEMPTS) + '; $attempt++) {',
@@ -175,6 +179,8 @@ function removeDirectoryInBackground(
   fs.rm(dirPath, { recursive: true, force: true }, function (error) {
     if (error) {
       if (process.platform === 'win32') {
+        // Do not keep the Electron process alive for locked Windows paths; the
+        // detached retry loop is the recovery path.
         reportRemovalEvent(reportEvent, 'info', 'directory-removal-deferred', {
           path: dirPath,
           attempt: attempt,
@@ -213,6 +219,8 @@ export function cleanupQuarantinedDirectories(
   let count = 0;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    // Only names produced by quarantineDirectoryPath are eligible; never scan
+    // arbitrary user folders for background deletion.
     if (!isQuarantinedDirectoryName(entry.name)) continue;
     count++;
     removeDirectoryInBackground(path.join(rootPath, entry.name), 0, reportError, reportEvent);

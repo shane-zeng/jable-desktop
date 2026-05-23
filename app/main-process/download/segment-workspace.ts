@@ -66,6 +66,8 @@ export function downloadSegmentFilePath(outputPath: string, index: number, url: 
 }
 
 function playlistResumeIdentity(playlist: DownloadSegmentWorkspacePlaylist) {
+  // Signed URLs are intentionally excluded; duration, key shape, and stable
+  // local extension are enough to decide whether existing segment files are reusable.
   return {
     version: 2,
     targetDuration: roundedDuration(playlist.targetDuration),
@@ -150,6 +152,8 @@ function downloadResumeManifestSegments(outputPath: string): DownloadSegmentWork
   const segments = manifest && typeof manifest === 'object' ? (manifest as { segments?: unknown }).segments : null;
   if (!Array.isArray(segments)) return [];
 
+  // Captured playback segments are already local files, so rebuild only the
+  // minimum pseudo-playlist needed for reusableSegmentFileCount.
   return segments.map(function (segment, index) {
     const record = segment && typeof segment === 'object' ? (segment as { extension?: unknown }) : {};
     const extension = typeof record.extension === 'string' && record.extension ? record.extension : 'ts';

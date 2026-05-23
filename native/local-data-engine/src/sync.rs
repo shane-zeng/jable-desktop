@@ -255,6 +255,8 @@ impl Engine {
             .filter_map(normalize_video)
             .collect::<Vec<NormalizedVideo>>();
         let timestamp = now_iso();
+        // Once a run contains local mutations, scraped page order should not
+        // overwrite explicit user intent unless the pending add needs placement.
         let preserve_existing_site_order = if let Some(sync_run_id) = sync_run_id.as_deref() {
             self
         .conn()?
@@ -360,6 +362,8 @@ impl Engine {
         let Some(sync_run_id) = sync_run_id else {
             return Ok(false);
         };
+        // A deferred local add has no reliable site_order until the scraped page
+        // later shows where Jable placed it; earlier removes cancel that assumption.
         let row: Option<i64> = self
             .conn()?
             .query_row(
@@ -422,6 +426,8 @@ impl Engine {
             && sync_run_id.is_some();
 
         if defer_local {
+            // During an active sync the renderer has already shown a pending
+            // overlay, so keep the durable local list unchanged until replay succeeds.
             let current_visible = self
                 .conn()?
                 .query_row(
@@ -709,6 +715,8 @@ impl Engine {
         };
 
         if changes > 0 {
+            // Deferred operations must replay in original order. Once one fails,
+            // later operations may rely on state that no longer exists remotely.
             if let Some(sync_run_id) = sync_run_id.as_deref() {
                 self.conn()?
                     .execute(
@@ -823,6 +831,8 @@ impl Engine {
             let Some(group) = grouped.get_mut(&group_id) else {
                 continue;
             };
+            // The UI needs the whole sequence for manual handling; do not collapse
+            // add/remove pairs into a guessed final state.
             group.sequence.push(json!({
               "id": row.id,
               "action": row.action,
@@ -927,6 +937,8 @@ impl Engine {
         };
 
         let timestamp = now_iso();
+        // Manual Add means "make the local row visible now"; it is not derived
+        // from the group's add/remove history.
         let result = self.with_immediate_transaction(|| {
             let changes =
                 self.resolve_pending_remote_group(&collection_key, &video_url, &timestamp)?;
@@ -967,6 +979,8 @@ impl Engine {
         };
 
         let timestamp = now_iso();
+        // Manual Remove mirrors the user's explicit resolution even if an earlier
+        // queued add exists in the same unresolved group.
         let result = self.with_immediate_transaction(|| {
             let changes =
                 self.resolve_pending_remote_group(&collection_key, &video_url, &timestamp)?;
@@ -1031,6 +1045,8 @@ impl Engine {
         sync_run_id: &str,
         timestamp: &str,
     ) -> Result<usize> {
+        // A clean full sync is authoritative for remote state. Older unresolved
+        // remote work should no longer block future manual handling.
         self.conn()?
             .execute(
                 "UPDATE sync_operations
@@ -1078,6 +1094,8 @@ impl Engine {
         }
 
         let mut latest_by_url: HashMap<String, OperationRow> = HashMap::new();
+        // Reconcile one durable local outcome per URL, but only from local
+        // mutations or remote-deferred operations confirmed by Jable.
         for operation in &operations {
             latest_by_url.insert(operation.video_url.clone(), operation.clone());
         }
@@ -1168,6 +1186,8 @@ impl Engine {
         let mut hidden = 0usize;
         if mode.as_deref() == Some("full") && completed {
             if let Some(sync_run_id) = sync_run_id.as_deref() {
+                // Only a completed full run can hide missing rows; paused or failed
+                // runs must leave older local entries visible.
                 hidden = self
                     .conn()?
                     .execute(
@@ -1186,6 +1206,8 @@ impl Engine {
             self.reconcile_sync_operations(&collection_key, sync_run_id.as_deref(), &timestamp)?;
         if mode.as_deref() == Some("full") && completed && queued_operations_failed == 0 {
             if let Some(sync_run_id) = sync_run_id.as_deref() {
+                // Keep failed queued work visible when auto-replay had failures;
+                // otherwise the successful full sync supersedes stale remote attempts.
                 self.supersede_pending_remote_operations(&collection_key, sync_run_id, &timestamp)?;
             }
         }

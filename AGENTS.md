@@ -71,7 +71,9 @@ Use Node.js 24. The repository enforces this through `.node-version`, `.npmrc`, 
 
 ESLint and Prettier are conservative guardrails, not a rewrite mandate. Keep the existing style unless there is a clear reason to change it: CommonJS in Electron main/preload modules and Vue SFCs plus TypeScript in the renderer. Do not introduce broad style-only refactors outside a deliberate formatting baseline.
 
-Avoid dependencies, bundlers, or broad abstractions unless the desktop app grows enough to justify them. Comment only non-obvious browser, pagination, DOM, sync, or data-migration behavior.
+Avoid dependencies, bundlers, or broad abstractions unless the desktop app grows enough to justify them.
+
+Future code changes must keep comments high-value rather than high-volume. Add or update comments when they explain why a decision exists, a safety invariant, an async race, a platform or framework limitation, a performance tradeoff, or a business/domain rule that types and names cannot fully express. Do not add comments that merely restate assignments, function names, branch conditions, interface fields, or code that IDE hover/type information already explains. For Rust, prefer expressive types, ownership, and compiler constraints first; comment safety invariants, unsafe rationale if unsafe is introduced, lifetime/ownership rationale that is not obvious, concurrency assumptions, performance tradeoffs, and domain intent. For TypeScript and Vue, let types and interfaces carry ordinary documentation; comment workarounds, browser/Electron compatibility limits, state synchronization, async ordering, and IPC/API contract caveats.
 
 Before implementing new behavior, first make a placement decision: existing file, new file, nearest domain folder, or new subdirectory. Use the `jable-desktop-maintenance` skill for the detailed workflow around placement, no-spec-change refactors, module moves, validation selection, and architecture-doc alignment.
 

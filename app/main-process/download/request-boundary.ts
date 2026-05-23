@@ -136,6 +136,8 @@ function avoidWindowsReservedFileStem(value: string, maxLength: number): string 
 }
 
 export function sanitizeWindowsSafeFileName(value: string): string {
+  // Use Windows-safe names for every platform so backups and download records
+  // can be moved between macOS and Windows without path repair.
   const sanitized = value
     .replace(/[<>:"/\\|?*]/g, ' ')
     .split('')
@@ -167,6 +169,8 @@ function fileRelativePathPartIsWindowsSafe(part: string): boolean {
 }
 
 export function fileRelativePathIsWindowsSafe(value: string): boolean {
+  // Persisted paths are relative contracts, not display text. Reject drive roots,
+  // traversal, device names, and unsafe Windows components before resolution.
   if (!value || value.includes('\0') || value.startsWith('/') || value.startsWith('\\')) return false;
   if (/^[A-Za-z]:/.test(value)) return false;
   return value.split(/[\\/]/).every(fileRelativePathPartIsWindowsSafe);
@@ -235,6 +239,8 @@ export function createDownloadRequestBoundary(options: DownloadRequestBoundaryOp
 
     const downloadRootPath = options.downloadRootPath();
     const filePath = path.resolve(downloadRootPath, fileRelativePath);
+    // Check containment after resolve so dot segments cannot escape the
+    // configured download root.
     if (!isPathInsideDirectory(filePath, downloadRootPath)) return null;
 
     return filePath;

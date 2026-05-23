@@ -202,6 +202,8 @@ const deletedDownloadUrls = new Set<string>();
 const pausedDownloadUrls = new Set<string>();
 const resumedDownloadUrls = new Set<string>();
 const activeDownloads = new Map<string, ActiveDownloadRuntime>();
+// Promise tracking is separate from activeDownloads so cleanup can trigger the
+// next queue pass even if the runtime was removed by pause/cancel handling.
 const activeDownloadTasks = new Map<string, Promise<void>>();
 const localPlaybackPreviewController = createLocalPlaybackPreviewController({
   ffmpegCommandForDownload: ffmpegCommandForDownload,
@@ -671,6 +673,8 @@ async function runQueuedPlaybackBackgroundDownload(
 ) {
   const runtime = createActiveDownloadRuntime('playback_background');
   activeDownloads.set(record.videoUrl, runtime);
+  // Playback completion has already captured segment data; the worker runs just
+  // before native segment download so normal downloads do not depend on page state.
   await downloadActiveRunner.runActiveDownload(record, runtime, true, function () {
     return worker(runtime.abortController.signal);
   });
@@ -706,6 +710,8 @@ function processDownloadQueue() {
       })
       .finally(function () {
         activeDownloadTasks.delete(record.videoUrl);
+        // Queue processing is re-entrant by design; finishing one task may free
+        // capacity for several paused or stale queue entries.
         processDownloadQueue();
       });
     activeDownloadTasks.set(record.videoUrl, task);

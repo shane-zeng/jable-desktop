@@ -131,6 +131,8 @@ pub(crate) fn download_segments_with_concurrency_fallback(
                 if !is_concurrency_rejection_error(&message) {
                     return Err(error);
                 }
+                // Some HLS hosts reject bursty segment traffic. Step down and
+                // keep the same local segment names so completed files remain reusable.
                 concurrency = next_concurrency;
                 thread::sleep(Duration::from_millis(CONCURRENCY_REJECTION_BACKOFF_MS));
             }
@@ -170,6 +172,8 @@ fn download_segments(
 
     for _ in 0..worker_count {
         let worker = worker.clone();
+        // Workers share only atomics and immutable segment metadata; file paths
+        // are unique by stable segment index, so no per-file mutex is needed.
         handles.push(thread::spawn(move || worker.run()));
     }
 
@@ -197,6 +201,8 @@ impl SegmentWorker {
                 break;
             }
 
+            // Atomic index allocation preserves exactly-once ownership of each
+            // segment even when workers exit early after cancellation or failure.
             let index = self.next_index.fetch_add(1, Ordering::SeqCst);
             if index >= self.segments.len() {
                 break;
@@ -210,6 +216,8 @@ impl SegmentWorker {
     }
 
     fn should_stop(&self) -> bool {
+        // SeqCst keeps the cancellation, stop flag, and byte counter easy to
+        // reason about across native worker threads and the JS cancellation call.
         self.cancel_flag.load(Ordering::SeqCst)
             || self.stop_flag.load(Ordering::SeqCst)
             || !self
@@ -222,6 +230,8 @@ impl SegmentWorker {
     fn download_or_skip(&self, index: usize) -> Result<()> {
         let segment = &self.segments[index];
         let output_path = self.temp_dir.join(segment_file_name(index, &segment.url));
+        // Resume trusts only non-empty completed segment files; partial writes
+        // keep the temporary extension used by fetch_to_file.
         if let Some(size) = completed_file_size(&output_path) {
             self.downloaded_bytes.fetch_add(size, Ordering::SeqCst);
             return Ok(());
@@ -241,6 +251,8 @@ impl SegmentWorker {
     }
 
     fn record_error(&self, error: Error) {
+        // First failure wins: later workers should stop quickly so JS receives
+        // the causal error instead of a cascade of follow-on network failures.
         self.stop_flag.store(true, Ordering::SeqCst);
         if let Ok(mut errors) = self.errors.lock() {
             errors.push(error.to_string());

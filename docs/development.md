@@ -153,6 +153,16 @@ Licensing and attribution:
 - Download workflow design is acknowledged in README as referencing `hcjohn463/JableDownload`. If future changes copy code, assets, or substantial implementation text from that or any other project, verify license compatibility and preserve required copyright, attribution, and NOTICE material.
 - Do not add a root `NOTICE` file unless there is a concrete notice obligation or project-level attribution that downstream redistributors must preserve.
 
+High-value code comments:
+
+- Treat comments as maintainability guardrails, not line-count coverage. Add a comment only when the code would be easy to mis-change without knowing the reason behind it.
+- Good comments explain safety invariants, async race handling, platform or framework limitations, performance tradeoffs, API/IPC contract caveats, and Jable/domain rules that cannot be expressed cleanly through types, names, or tests.
+- Avoid comments that repeat the code, restate function or type names, describe obvious assignments, duplicate interface fields, or document behavior already clear from IDE hover/type information.
+- Rust code should first rely on types, ownership, and compiler constraints. Comment only non-obvious safety invariants, unsafe rationale if unsafe is introduced, lifetime or ownership rationale, concurrency assumptions, performance tradeoffs, and domain intent.
+- TypeScript and Vue code should use types and interfaces as the ordinary documentation layer. Comment workarounds, browser/Electron compatibility limits, state synchronization, async ordering, and IPC/API contract caveats.
+- Place comments directly above the branch, state transition, retry/fallback, constant, or side-effect boundary they protect. Prefer one to three concise lines; use a module-level comment only for invariants spanning multiple functions.
+- During self-review, remove low-value comments and add missing high-value comments near newly introduced sync, download, HLS playback, filesystem, IPC, migration, or browser-runtime behavior.
+
 Desktop app files:
 
 - `app/app-contract.ts`: shared user-facing contract constants such as page size, app settings defaults, and settings limit ranges.
