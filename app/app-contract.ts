@@ -14,6 +14,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
   autoDownloadOnPlayback: false,
+  downloadSidebarEnabled: false,
   downloadRoot: null,
   downloadStateFilters: ['all'],
   downloadSpeedMode: 'balanced',

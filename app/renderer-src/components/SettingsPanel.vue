@@ -237,6 +237,10 @@ function updateAutoDownloadOnPlayback(event: Event) {
   updateSettings({ autoDownloadOnPlayback: eventChecked(event) });
 }
 
+function updateDownloadSidebarEnabled(event: Event) {
+  updateSettings({ downloadSidebarEnabled: eventChecked(event) });
+}
+
 function updateLocale(event: Event) {
   emit('change-locale', i18n.normalizeLocale(eventValue(event)));
 }
@@ -824,6 +828,21 @@ function shortcutTokenSeparator(tokenIndex: number) {
                     @change="updateAutoDownloadOnPlayback"
                   />
                   <span>{{ t('settings.downloads.playback.description') }}</span>
+                </label>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.downloads.sidebar.label') }}</span>
+                <label class="flex max-w-[680px] items-start gap-3 text-sm leading-6 text-[var(--muted)]">
+                  <input
+                    class="mt-1"
+                    data-test="settings-download-sidebar-enabled"
+                    type="checkbox"
+                    :checked="settings.downloadSidebarEnabled"
+                    :disabled="busy"
+                    @change="updateDownloadSidebarEnabled"
+                  />
+                  <span>{{ t('settings.downloads.sidebar.description') }}</span>
                 </label>
               </div>
 

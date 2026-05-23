@@ -129,6 +129,12 @@
     "chooseFfmpeg": "Choose FFmpeg",
     "readFfmpegGuide": "Read Setup Guide",
     "empty": "No downloads yet",
+    "sidebarTitle": "Download Progress",
+    "sidebarCount": "{count} items",
+    "sidebarEmpty": "No active or recently completed downloads",
+    "sidebarExpand": "Expand download progress sidebar",
+    "sidebarResize": "Drag to resize the download progress sidebar; click to collapse",
+    "sidebarCurrentVideo": "Current video",
     "unknownCollection": "Unknown list",
     "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "Search download title or URL",
@@ -282,7 +288,7 @@
       "items": {
         "switchBrowserView": {
           "label": "Switch to Browser",
-          "description": "Switches to the Browser view."
+          "description": "Switches to the Browser page."
         },
         "switchLocalDataView": {
           "label": "Switch to Local Data",
@@ -318,11 +324,15 @@
         },
         "toggleCompactTabs": {
           "label": "Toggle Floating Tab Rail",
-          "description": "Toggles the floating tab rail while the Browser view is active."
+          "description": "Toggles the floating tab rail while the Browser page is active."
         },
         "toggleSharedTabs": {
           "label": "Toggle Shared Tab Rail",
           "description": "Toggles the shared tab rail while Browser or Local Data is active."
+        },
+        "toggleDownloadSidebar": {
+          "label": "Toggle Download Sidebar",
+          "description": "Collapses or expands the download progress sidebar while Browser is active and the sidebar feature is enabled in Settings."
         },
         "toggleTheaterMode": {
           "label": "Toggle Theater Mode",
@@ -388,6 +398,10 @@
       "playback": {
         "label": "Auto-download while playing",
         "description": "When enabled, videos are added to the Download List and downloaded automatically while you play them."
+      },
+      "sidebar": {
+        "label": "Browser download progress sidebar",
+        "description": "When enabled, the browser page shows a right download progress sidebar. When off, no sidebar space is reserved on the right."
       },
       "root": {
         "label": "Download Location",

@@ -3,9 +3,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BrowserPanel from './components/BrowserPanel.vue';
 import BrowserTabRail from './components/BrowserTabRail.vue';
 import DownloadErrorLogModal from './components/DownloadErrorLogModal.vue';
+import DownloadProgressSidebar from './components/DownloadProgressSidebar.vue';
 import LibraryPanel from './components/LibraryPanel.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
 import TopBar from './components/TopBar.vue';
+import { canonicalJableVideoUrl } from '../browser/url-policy';
 import {
   BROWSER_TABS_DEFAULT_WIDTH,
   BROWSER_TABS_COMPACT_STORAGE_KEY,
@@ -28,6 +30,7 @@ import {
   downloadFailurePhaseLabel as displayDownloadFailurePhaseLabel,
   optionalDownloadDetail as displayOptionalDownloadDetail
 } from './download-display';
+import { downloadSidebarRecords } from './download-sidebar';
 import { useI18n } from './i18n';
 import type {
   AppSettings,
@@ -65,6 +68,13 @@ const busy = ref(false);
 const browserTabsMode = ref<BrowserTabsMode>(DEFAULT_APP_SETTINGS.browserTabsMode);
 const browserTabsWidth = ref(BROWSER_TABS_DEFAULT_WIDTH);
 const appInfo = ref<AppInfo | null>(null);
+const DOWNLOAD_SIDEBAR_COLLAPSED_STORAGE_KEY = 'jable-desktop:download-sidebar-collapsed';
+const DOWNLOAD_SIDEBAR_WIDTH_STORAGE_KEY = 'jable-desktop:download-sidebar-width';
+const DOWNLOAD_SIDEBAR_CLOCK_INTERVAL_MS = 60 * 1000;
+const DOWNLOAD_SIDEBAR_DEFAULT_WIDTH = 320;
+const DOWNLOAD_SIDEBAR_MIN_WIDTH = 260;
+const DOWNLOAD_SIDEBAR_MAX_WIDTH = 520;
+const DOWNLOAD_SIDEBAR_COLLAPSE_THRESHOLD = 220;
 const appSettings = ref<AppSettings>(
   Object.assign({}, DEFAULT_APP_SETTINGS, {
     downloadStateFilters: DEFAULT_APP_SETTINGS.downloadStateFilters.slice()
@@ -77,7 +87,11 @@ const library = useLibraryState(api);
 let mainLocaleSynced = false;
 let locatedDownloadTimer: ReturnType<typeof setTimeout> | null = null;
 let locatedDownloadCard: HTMLElement | null = null;
+let downloadSidebarClockTimer: ReturnType<typeof setInterval> | null = null;
 const LOCATED_DOWNLOAD_CLASS = 'download-card-located';
+const downloadSidebarCollapsed = ref(true);
+const downloadSidebarWidth = ref(DOWNLOAD_SIDEBAR_DEFAULT_WIDTH);
+const downloadSidebarNow = ref(Date.now());
 
 function serializedError(error: unknown) {
   if (!(error instanceof Error)) {
@@ -175,6 +189,14 @@ const showSharedBrowserTabs = computed(function () {
   return browserTabsShared.value && activeView.value !== 'settings';
 });
 
+const activeBrowserVideoUrl = computed(function () {
+  return canonicalJableVideoUrl(browser.activeTab.value ? browser.activeTab.value.url : null);
+});
+
+const browserDownloadSidebarRecords = computed(function () {
+  return downloadSidebarRecords(library.downloadRecords.value, downloadSidebarNow.value, activeBrowserVideoUrl.value);
+});
+
 const sharedBrowserLayoutStyle = computed(function () {
   return {
     gridTemplateColumns: browserTabsWidth.value + 'px 6px minmax(0, 1fr)'
@@ -222,6 +244,94 @@ function setBrowserTabsWidth(value: number) {
   browserTabsWidth.value = clampBrowserTabsWidth(value);
   localStorage.setItem(BROWSER_TABS_WIDTH_STORAGE_KEY, String(browserTabsWidth.value));
   browser.scheduleResize();
+}
+
+function loadDownloadSidebarCollapsed() {
+  const value = localStorage.getItem(DOWNLOAD_SIDEBAR_COLLAPSED_STORAGE_KEY);
+  return value === null ? true : value === 'true';
+}
+
+function clampDownloadSidebarWidth(value: unknown) {
+  const width = Number(value) || DOWNLOAD_SIDEBAR_DEFAULT_WIDTH;
+  return Math.max(DOWNLOAD_SIDEBAR_MIN_WIDTH, Math.min(DOWNLOAD_SIDEBAR_MAX_WIDTH, Math.round(width)));
+}
+
+function loadDownloadSidebarWidth() {
+  return clampDownloadSidebarWidth(localStorage.getItem(DOWNLOAD_SIDEBAR_WIDTH_STORAGE_KEY));
+}
+
+function setDownloadSidebarCollapsed(value: boolean) {
+  downloadSidebarCollapsed.value = value;
+  localStorage.setItem(DOWNLOAD_SIDEBAR_COLLAPSED_STORAGE_KEY, String(value));
+  browser.scheduleResize();
+}
+
+function setDownloadSidebarWidth(value: number) {
+  downloadSidebarWidth.value = clampDownloadSidebarWidth(value);
+  localStorage.setItem(DOWNLOAD_SIDEBAR_WIDTH_STORAGE_KEY, String(downloadSidebarWidth.value));
+  browser.scheduleResize();
+}
+
+function toggleDownloadSidebar() {
+  if (!appSettings.value.downloadSidebarEnabled) return;
+  if (activeView.value !== 'browser') return;
+  setDownloadSidebarCollapsed(!downloadSidebarCollapsed.value);
+}
+
+function resizeDownloadSidebarWidth(width: number, final: boolean) {
+  if (!appSettings.value.downloadSidebarEnabled) return;
+  if (final && width < DOWNLOAD_SIDEBAR_COLLAPSE_THRESHOLD) {
+    setDownloadSidebarCollapsed(true);
+    return;
+  }
+
+  setDownloadSidebarWidth(width);
+}
+
+function resetDownloadSidebarWidth() {
+  setDownloadSidebarWidth(DOWNLOAD_SIDEBAR_DEFAULT_WIDTH);
+  if (appSettings.value.downloadSidebarEnabled) setDownloadSidebarCollapsed(false);
+}
+
+function reportDownloadSidebarCancelSkipped(reason: string, record?: DownloadRecord | null) {
+  try {
+    api.reportRendererError({
+      level: 'warn',
+      event: 'download-sidebar-current-cancel-skipped',
+      message: 'Download sidebar current playback cancel was ignored.',
+      details: {
+        reason: reason,
+        hasActiveVideoUrl: Boolean(activeBrowserVideoUrl.value),
+        state: record ? record.state : null,
+        downloadSource: record ? record.downloadSource : null
+      }
+    });
+  } catch {}
+}
+
+async function cancelCurrentPlaybackDownload(videoUrl: string) {
+  if (!activeBrowserVideoUrl.value || videoUrl !== activeBrowserVideoUrl.value) {
+    reportDownloadSidebarCancelSkipped('not-current-video');
+    return;
+  }
+
+  const record = library.downloadRecords.value.find(function (downloadRecord) {
+    return downloadRecord.videoUrl === videoUrl;
+  });
+  if (!record) {
+    reportDownloadSidebarCancelSkipped('record-not-found');
+    return;
+  }
+  if (record.downloadSource !== 'playback_auto') {
+    reportDownloadSidebarCancelSkipped('not-playback-auto', record);
+    return;
+  }
+  if (record.state !== 'queued' && record.state !== 'downloading') {
+    reportDownloadSidebarCancelSkipped('not-cancellable-state', record);
+    return;
+  }
+
+  await cancelDownload(videoUrl);
 }
 
 function setActiveView(view: AppView) {
@@ -353,10 +463,14 @@ function handleBrowserMessage(message: BrowserMessage) {
 
   if (message.channel === 'downloads-changed') {
     const records = Array.isArray(message.args[0]) ? (message.args[0] as DownloadRecord[]) : null;
-    if (records) downloadWorkflow.applyDownloadNotifications(records);
-    library.refreshDownloads().catch(function (error) {
-      console.error(error);
-    });
+    if (records) {
+      downloadWorkflow.applyDownloadNotifications(records);
+      library.applyDownloadRecords(records);
+    } else {
+      library.refreshDownloads().catch(function (error) {
+        console.error(error);
+      });
+    }
   }
 
   if (message.channel === 'browser-tabs-compact-mode') {
@@ -370,6 +484,10 @@ function handleBrowserMessage(message: BrowserMessage) {
 
   if (message.channel === 'browser-tabs-shared-toggle-shortcut' && activeView.value !== 'settings') {
     setBrowserTabsMode(browserTabsShared.value ? 'standard' : 'shared');
+  }
+
+  if (message.channel === 'browser-download-sidebar-toggle-shortcut') {
+    toggleDownloadSidebar();
   }
 
   if (message.channel === 'browser-tab-shortcut') {
@@ -828,6 +946,11 @@ watch(i18n.locale, function (locale) {
 onMounted(async function () {
   downloadErrorLog.registerShortcut();
   browserTabsWidth.value = loadBrowserTabsWidth();
+  downloadSidebarCollapsed.value = loadDownloadSidebarCollapsed();
+  downloadSidebarWidth.value = loadDownloadSidebarWidth();
+  downloadSidebarClockTimer = setInterval(function () {
+    downloadSidebarNow.value = Date.now();
+  }, DOWNLOAD_SIDEBAR_CLOCK_INTERVAL_MS);
   appInfo.value = await api.getAppInfo();
   applyAppSettings(await api.getSettings());
   ffmpegStatus.value = await api.getFfmpegStatus();
@@ -852,6 +975,7 @@ onMounted(async function () {
 
 onBeforeUnmount(function () {
   clearLocatedDownloadHighlight();
+  if (downloadSidebarClockTimer) clearInterval(downloadSidebarClockTimer);
   downloadErrorLog.unregisterShortcut();
 });
 </script>
@@ -934,6 +1058,9 @@ onBeforeUnmount(function () {
           :compact="showSharedBrowserTabs ? false : browserTabsCompact"
           :external-rail="showSharedBrowserTabs"
           :tab-width="browserTabsWidth"
+          :show-download-sidebar="appSettings.downloadSidebarEnabled"
+          :download-sidebar-collapsed="downloadSidebarCollapsed"
+          :download-sidebar-width="downloadSidebarWidth"
           @host="browser.setHost"
           @new-tab="newBrowserTab"
           @activate-tab="activateBrowserTab"
@@ -942,7 +1069,20 @@ onBeforeUnmount(function () {
           @tab-context-menu="showBrowserTabMenu"
           @resize-tabs="setBrowserTabsWidth"
           @layout-change="browser.scheduleResize"
-        />
+        >
+          <template #download-sidebar>
+            <DownloadProgressSidebar
+              :collapsed="downloadSidebarCollapsed"
+              :current-playback-video-url="activeBrowserVideoUrl"
+              :records="browserDownloadSidebarRecords"
+              :width="downloadSidebarWidth"
+              @cancel-current-playback-download="cancelCurrentPlaybackDownload"
+              @reset-width="resetDownloadSidebarWidth"
+              @resize-width="resizeDownloadSidebarWidth"
+              @toggle="toggleDownloadSidebar"
+            />
+          </template>
+        </BrowserPanel>
 
         <LibraryPanel
           :active="activeView === 'library'"

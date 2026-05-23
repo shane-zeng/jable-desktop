@@ -129,6 +129,12 @@
     "chooseFfmpeg": "FFmpeg を選択",
     "readFfmpegGuide": "インストール手順を読む",
     "empty": "ダウンロードはまだありません",
+    "sidebarTitle": "ダウンロード進行状況",
+    "sidebarCount": "{count} 件",
+    "sidebarEmpty": "進行中または最近完了したダウンロードはありません",
+    "sidebarExpand": "ダウンロード進行状況サイドバーを展開",
+    "sidebarResize": "ドラッグしてダウンロード進行状況サイドバーの幅を調整、クリックで折りたたみ",
+    "sidebarCurrentVideo": "現在の動画",
     "unknownCollection": "不明なリスト",
     "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "ダウンロードのタイトルまたは URL を検索",
@@ -324,6 +330,10 @@
           "label": "共有タブレールを切り替え",
           "description": "ブラウザーまたはローカルデータ表示中に共有タブレールを切り替えます。"
         },
+        "toggleDownloadSidebar": {
+          "label": "ダウンロードサイドバーを切り替え",
+          "description": "設定でサイドバー機能が有効な場合、ブラウザー表示中にダウンロード進行状況サイドバーを折りたたみ、または展開します。"
+        },
         "toggleTheaterMode": {
           "label": "シアターモードを切り替え",
           "description": "信頼済みの Jable 動画ページでシアターモードを切り替えます。"
@@ -388,6 +398,10 @@
       "playback": {
         "label": "再生中に自動ダウンロード",
         "description": "有効にすると、再生した動画をダウンロードリストに追加して自動でダウンロードします。"
+      },
+      "sidebar": {
+        "label": "ブラウザーのダウンロード進行状況サイドバー",
+        "description": "有効にすると、ブラウザーページの右側にダウンロード進行状況サイドバーを表示します。無効の場合、右側にサイドバー用の領域は残りません。"
       },
       "root": {
         "label": "ダウンロード先",

@@ -108,3 +108,32 @@ test('browser shortcut manager forwards tab rail display mode shortcuts', functi
     { channel: 'browser-tabs-shared-toggle-shortcut', payload: {} }
   ]);
 });
+
+test('browser shortcut manager forwards download sidebar shortcut', async function () {
+  const macosHarness = createHarness({ isMacos: true });
+
+  assert.equal(macosHarness.press({ key: 'd', meta: true, shift: true }), true);
+  assert.deepEqual(macosHarness.forwardedMessages, [
+    { channel: 'browser-download-sidebar-toggle-shortcut', payload: {} }
+  ]);
+
+  await new Promise(function (resolve) {
+    setTimeout(resolve, 160);
+  });
+
+  const windowsHarness = createHarness({ isMacos: false });
+
+  assert.equal(windowsHarness.press({ key: 'd', control: true, shift: true }), true);
+  assert.deepEqual(windowsHarness.forwardedMessages, [
+    { channel: 'browser-download-sidebar-toggle-shortcut', payload: {} }
+  ]);
+});
+
+test('browser shortcut manager ignores download sidebar shortcut with unrelated modifiers', function () {
+  const macosHarness = createHarness({ isMacos: true });
+
+  assert.equal(macosHarness.press({ key: 'd', meta: true }), false);
+  assert.equal(macosHarness.press({ key: 'd', meta: true, shift: true, alt: true }), false);
+  assert.equal(macosHarness.press({ key: 'd', control: true, shift: true }), false);
+  assert.deepEqual(macosHarness.forwardedMessages, []);
+});

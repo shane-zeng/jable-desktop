@@ -970,6 +970,23 @@ button:focus {
     var(--shadow);
 }
 
+.download-card-current-video {
+  position: relative;
+  background: color-mix(in srgb, var(--card) 82%, #fff 18%);
+}
+
+.download-card-current-video::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: color-mix(in srgb, #fff 86%, var(--focus) 14%);
+  box-shadow: 0 0 12px color-mix(in srgb, #fff 34%, transparent);
+}
+
 .download-card-formalizing {
   border-color: color-mix(in srgb, var(--intent-success-hover) 62%, var(--panel-border) 38%);
   animation: download-card-formalize 900ms ease-out;

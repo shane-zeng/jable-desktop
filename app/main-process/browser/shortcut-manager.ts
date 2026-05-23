@@ -37,6 +37,7 @@ export type BrowserShortcutManager = {
   registerAppShortcuts(webContents: Electron.WebContents): void;
   reloadActiveTabFromShortcut(ignoreCache?: boolean): void;
   toggleCompactTabsFromShortcut(): void;
+  toggleDownloadSidebarFromShortcut(): void;
   toggleSharedTabsFromShortcut(): void;
 };
 
@@ -101,6 +102,10 @@ function isToggleCompactTabsShortcut(input: BrowserTabShortcutInput | null | und
 
 function isToggleSharedTabsShortcut(input: BrowserTabShortcutInput | null | undefined) {
   return isPrimaryShortcut(input, 's', undefined, { shift: true });
+}
+
+function isToggleDownloadSidebarShortcut(input: BrowserTabShortcutInput | null | undefined) {
+  return isPrimaryShortcut(input, 'd', undefined, { shift: true });
 }
 
 function runShortcutAction(name: string, action: () => void) {
@@ -180,6 +185,12 @@ function toggleSharedTabsFromShortcut() {
   });
 }
 
+function toggleDownloadSidebarFromShortcut() {
+  runShortcutAction('toggle-download-sidebar', function () {
+    forwardBrowserMessage('browser-download-sidebar-toggle-shortcut', {});
+  });
+}
+
 function switchAppViewFromShortcut(view: AppView) {
   runShortcutAction('app-view-' + view, function () {
     if (!currentMainWindow()) return;
@@ -232,6 +243,12 @@ function registerAppShortcuts(webContents: Electron.WebContents) {
     if (isToggleSharedTabsShortcut(input)) {
       event.preventDefault();
       toggleSharedTabsFromShortcut();
+      return;
+    }
+
+    if (isToggleDownloadSidebarShortcut(input)) {
+      event.preventDefault();
+      toggleDownloadSidebarFromShortcut();
     }
   });
 }
@@ -254,6 +271,7 @@ export function createBrowserShortcutManager(context: BrowserShortcutManagerCont
     registerAppShortcuts: registerAppShortcuts,
     reloadActiveTabFromShortcut: reloadActiveTabFromShortcut,
     toggleCompactTabsFromShortcut: toggleCompactTabsFromShortcut,
+    toggleDownloadSidebarFromShortcut: toggleDownloadSidebarFromShortcut,
     toggleSharedTabsFromShortcut: toggleSharedTabsFromShortcut
   };
 }

@@ -7,6 +7,7 @@ import type { BrowserTabMenuPayload, BrowserTabState } from '../../types/jable';
 
 const COMPACT_TRIGGER_WIDTH = 18;
 const COMPACT_DISMISS_WIDTH = 26;
+const DOWNLOAD_SIDEBAR_COLLAPSED_WIDTH = 18;
 
 const props = withDefaults(
   defineProps<{
@@ -17,11 +18,17 @@ const props = withDefaults(
     compact: boolean;
     externalRail?: boolean;
     tabWidth?: number;
+    showDownloadSidebar?: boolean;
+    downloadSidebarCollapsed?: boolean;
+    downloadSidebarWidth?: number;
   }>(),
   {
     activeTabId: null,
     externalRail: false,
-    tabWidth: BROWSER_TABS_DEFAULT_WIDTH
+    tabWidth: BROWSER_TABS_DEFAULT_WIDTH,
+    showDownloadSidebar: false,
+    downloadSidebarCollapsed: true,
+    downloadSidebarWidth: 320
   }
 );
 
@@ -38,15 +45,35 @@ const emit = defineEmits<{
 const browserHost = ref<HTMLElement | null>(null);
 const compactTabsVisible = ref(false);
 
+const downloadSidebarWidth = computed(function () {
+  if (!props.showDownloadSidebar) return 0;
+  return props.downloadSidebarCollapsed ? DOWNLOAD_SIDEBAR_COLLAPSED_WIDTH : props.downloadSidebarWidth;
+});
+
 const panelStyle = computed(function () {
+  const columns = [];
+  if (!props.externalRail) {
+    columns.push(props.tabWidth + 'px');
+    columns.push('6px');
+  }
+  columns.push('minmax(0, 1fr)');
+  if (props.showDownloadSidebar) columns.push(downloadSidebarWidth.value + 'px');
+
   return {
-    gridTemplateColumns: props.tabWidth + 'px 6px minmax(0, 1fr)'
+    gridTemplateColumns: columns.join(' ')
   };
 });
 
 const compactHostStyle = computed(function () {
   return {
-    left: compactTabsVisible.value ? props.tabWidth + COMPACT_DISMISS_WIDTH + 'px' : COMPACT_TRIGGER_WIDTH + 'px'
+    left: compactTabsVisible.value ? props.tabWidth + COMPACT_DISMISS_WIDTH + 'px' : COMPACT_TRIGGER_WIDTH + 'px',
+    right: downloadSidebarWidth.value + 'px'
+  };
+});
+
+const downloadSidebarHostStyle = computed(function () {
+  return {
+    width: downloadSidebarWidth.value + 'px'
   };
 });
 
@@ -58,8 +85,8 @@ onMounted(function () {
 <template>
   <section
     class="relative min-h-0 min-w-0 overflow-hidden bg-[var(--browser-bg)]"
-    :class="active ? (externalRail ? 'block h-full' : [compact ? 'block h-full' : 'grid h-full']) : 'hidden'"
-    :style="active && !compact && !externalRail ? panelStyle : null"
+    :class="active ? (compact ? 'block h-full' : 'grid h-full') : 'hidden'"
+    :style="active && !compact ? panelStyle : null"
     :aria-label="t('browser.aria')"
   >
     <BrowserTabRail
@@ -82,6 +109,7 @@ onMounted(function () {
     <div
       ref="browserHost"
       class="block"
+      data-test="browser-host"
       :class="
         externalRail
           ? 'h-full min-h-0 w-full'
@@ -91,5 +119,15 @@ onMounted(function () {
       "
       :style="compact && !externalRail ? compactHostStyle : null"
     ></div>
+
+    <div
+      v-if="showDownloadSidebar"
+      class="download-progress-sidebar-host"
+      :class="compact ? 'absolute inset-y-0 right-0 min-h-0' : 'h-full min-h-0 w-full'"
+      :style="compact ? downloadSidebarHostStyle : null"
+      data-test="download-sidebar-host"
+    >
+      <slot name="download-sidebar"></slot>
+    </div>
   </section>
 </template>

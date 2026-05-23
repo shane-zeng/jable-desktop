@@ -129,6 +129,12 @@
     "chooseFfmpeg": "選擇 FFmpeg",
     "readFfmpegGuide": "閱讀安裝教學",
     "empty": "目前沒有下載項目",
+    "sidebarTitle": "下載進度",
+    "sidebarCount": "{count} 筆",
+    "sidebarEmpty": "沒有進行中或最近完成的下載",
+    "sidebarExpand": "展開下載進度側邊欄",
+    "sidebarResize": "拖曳調整下載進度側邊欄寬度，點一下收合",
+    "sidebarCurrentVideo": "目前影片",
     "unknownCollection": "未知清單",
     "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "搜尋下載標題或 URL",
@@ -324,6 +330,10 @@
           "label": "切換跨頁分頁列",
           "description": "在瀏覽器或本機資料頁面切換跨頁分頁列。"
         },
+        "toggleDownloadSidebar": {
+          "label": "切換下載側邊欄",
+          "description": "下載側邊欄功能已在設定開啟時，可於瀏覽器頁面收合或展開下載進度側邊欄。"
+        },
         "toggleTheaterMode": {
           "label": "切換劇院模式",
           "description": "在可信任的 Jable 影片頁面切換劇院模式。"
@@ -388,6 +398,10 @@
       "playback": {
         "label": "播放時自動下載",
         "description": "開啟後，播放影片時會自動加入下載清單並完成下載。"
+      },
+      "sidebar": {
+        "label": "瀏覽器下載進度側邊欄",
+        "description": "開啟後，瀏覽器頁面右側會顯示下載進度側邊欄；關閉此功能時右側不會保留任何側邊欄空間。"
       },
       "root": {
         "label": "下載位置",

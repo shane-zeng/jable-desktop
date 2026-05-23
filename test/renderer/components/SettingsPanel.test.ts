@@ -14,6 +14,7 @@ const settings: AppSettings = {
   autoReplayDeferredSyncOperations: false,
   ffmpegPath: null,
   autoDownloadOnPlayback: false,
+  downloadSidebarEnabled: false,
   downloadRoot: null,
   downloadStateFilters: ['all'],
   downloadSpeedMode: 'balanced',
@@ -89,6 +90,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('最多同時下載數');
     expect(wrapper.text()).toContain('下載速度模式');
     expect(wrapper.text()).toContain('播放時自動下載');
+    expect(wrapper.text()).toContain('瀏覽器下載進度側邊欄');
     expect(wrapper.text()).toContain('資料');
     expect(wrapper.text()).toContain('診斷紀錄');
     expect(wrapper.text()).toContain('保留 14 天');
@@ -148,6 +150,9 @@ describe('SettingsPanel', function () {
     await wrapper.get('[data-test="settings-auto-download-on-playback"]').setValue(true);
     expect(wrapper.emitted('update-settings')).toContainEqual([{ autoDownloadOnPlayback: true }]);
 
+    await wrapper.get('[data-test="settings-download-sidebar-enabled"]').setValue(true);
+    expect(wrapper.emitted('update-settings')).toContainEqual([{ downloadSidebarEnabled: true }]);
+
     await wrapper.get('#settings-locale').setValue('en-US');
     expect(wrapper.emitted('change-locale')).toEqual([['en-US']]);
   });
@@ -188,6 +193,7 @@ describe('SettingsPanel', function () {
     expect(macWrapper.get('[data-test="settings-shortcut-keys-new-browser-tab"]').text()).not.toContain('Ctrl+T');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-next-browser-tab"]').text()).toContain('⌥⌘→');
     expect(macWrapper.get('[data-test="settings-shortcut-keys-toggle-shared-tabs"]').text()).toContain('⇧⌘S');
+    expect(macWrapper.get('[data-test="settings-shortcut-keys-toggle-download-sidebar"]').text()).toContain('⇧⌘D');
 
     const windowsWrapper = mountPanel(undefined, '/tmp/jable-favourites.sqlite', 'windows');
 
@@ -205,6 +211,9 @@ describe('SettingsPanel', function () {
     );
     expect(windowsWrapper.get('[data-test="settings-shortcut-keys-toggle-shared-tabs"]').text()).toContain(
       'Ctrl+Shift+S'
+    );
+    expect(windowsWrapper.get('[data-test="settings-shortcut-keys-toggle-download-sidebar"]').text()).toContain(
+      'Ctrl+Shift+D'
     );
 
     await windowsWrapper.get('[data-test="settings-shortcut-search"]').setValue('劇院');

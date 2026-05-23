@@ -228,6 +228,7 @@ This document specifies the current Download List and local video file managemen
 - The Download List toolbar exposes Retry Failed, Queue Actions, and Delete Selected.
 - Queue Actions contains Pause All, Resume All, and Cancel Queued with per-action counts and disabled states.
 - Retry Failed is global to all download records and queues only `failed` and `missing` records. It does not duplicate `ready`, `queued`, or `downloading` records.
+
 - Pause All is global to `queued` and `downloading` records and moves them to `paused` through the segment-preserving pause path.
 - Resume All is global to `paused` records and reuses the same segment-level resume path as single-card Resume.
 - Cancel Queued is global to `queued` records and uses the same semantics as single queued cancel: the record becomes `failed` with the localized canceled message and ready MP4 files are not deleted.
@@ -238,6 +239,19 @@ This document specifies the current Download List and local video file managemen
 - Error Log defaults to the most recent 100 records sorted by `lastErrorAt`, then `updatedAt`, then `createdAt`, with an explicit Show All control when more records exist.
 - Error Log shows title, video URL, state, short reason, failure phase/code, attempt count, last started time, and last error time.
 - Error Log detail follows the same sanitization rules as download errors: signed remote URLs and the managed download root are masked; cookies, HLS keys, signed segment URLs, and full local paths are not stored or shown.
+
+## Browser Download Sidebar
+
+- Browser view can show a right download progress sidebar when **Settings > Downloads > Browser download progress sidebar** is enabled. The feature defaults off; when off, Browser view reserves no right-side sidebar width or collapsed trigger.
+- The sidebar is visible only in Browser view and, when enabled, can be toggled with `Command+Shift+D` on macOS or `Ctrl+Shift+D` on Windows/Linux.
+- Expanded/collapsed state and custom width are renderer-local `localStorage` layout preferences. The sidebar defaults collapsed when the feature is first enabled.
+- The expanded sidebar can be resized from its left edge. Dragging below the collapse threshold collapses the sidebar without disabling the feature.
+- The sidebar shows `downloading`, `queued`, `paused`, and `failed` records, plus at most 5 `ready` records completed in the last 30 minutes.
+- Recently completed eligibility uses `completedAt`, falling back to `updatedAt` when `completedAt` is absent.
+- Sidebar rows show thumbnail, title, state, compact progress/status, downloaded size/speed or concise failure text, and time. `playback_auto` rows use the existing distinct border treatment instead of a text source badge.
+- The row matching the current browser page is additionally marked with a bright left rail and a slightly lifted background. This marker is separate from the `playback_auto` border treatment.
+- Sidebar rows do not expose per-row download actions except for the current browser page's `playback_auto` `queued` or `downloading` record. That current-video row is pinned first, marked separately as the current video, keeps the playback-auto border treatment, and exposes one large `Cancel` action using the same cancel semantics as the Download List.
+- Canceling that current-video playback auto download stays on the browser page and uses playback-capture suppression so the same page load does not immediately enqueue the video again.
 
 ## Download Pipeline
 

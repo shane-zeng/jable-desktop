@@ -17,6 +17,7 @@ export type ShortcutKeyToken =
   | 'Command'
   | 'Control'
   | 'Ctrl'
+  | 'D'
   | 'Esc'
   | 'F5'
   | 'Left'
@@ -203,6 +204,18 @@ export const SHORTCUT_CATALOG: ShortcutCatalogItem[] = [
     sources: ['browser/shortcut-manager']
   },
   {
+    id: 'toggle-download-sidebar',
+    category: 'browserTabs',
+    labelKey: 'settings.shortcuts.items.toggleDownloadSidebar.label',
+    descriptionKey: 'settings.shortcuts.items.toggleDownloadSidebar.description',
+    scopeKey: 'settings.shortcuts.scope.browser',
+    keys: {
+      macos: [['Shift', 'Command', 'D']],
+      windowsLinux: [['Ctrl', 'Shift', 'D']]
+    },
+    sources: ['browser/shortcut-manager']
+  },
+  {
     id: 'toggle-theater-mode',
     category: 'videoPage',
     labelKey: 'settings.shortcuts.items.toggleTheaterMode.label',
@@ -261,6 +274,7 @@ const MACOS_KEY_LABELS: Record<ShortcutKeyToken, string> = {
   Command: '⌘',
   Control: '⌃',
   Ctrl: 'Ctrl',
+  D: 'D',
   Esc: 'Esc',
   F5: 'F5',
   Left: '←',
@@ -288,6 +302,7 @@ const TEXT_KEY_LABELS: Record<ShortcutKeyToken, string> = {
   Command: 'Command',
   Control: 'Control',
   Ctrl: 'Ctrl',
+  D: 'D',
   Esc: 'Esc',
   F5: 'F5',
   Left: 'Left',

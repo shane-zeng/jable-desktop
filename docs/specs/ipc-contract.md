@@ -90,7 +90,7 @@ Current behavior:
 - Main forwards `downloads-changed` browser messages with the current download list after download state changes, and also sends the same direct message to browser-tab preloads so pages already using local playback can detect removal/state changes and refresh preview metadata. A page that previously found no ready local source does not switch to local playback from a later `downloads-changed` message until it is opened or refreshed again.
 - Active `downloads-changed` records may include runtime-only `downloadedBytes`, `downloadSpeedBytesPerSecond`, or playback-capture `progress` fields while work is running. Download speed and active playback-capture progress are sampled from completed reusable segment bytes and are not persisted.
 - Download records include the internal persisted `playbackAutoResumeBlocked` boolean. Renderer UI does not expose it, but main uses it to keep a user-paused normal downloader from being silently restarted by later playback-triggered capture.
-- The renderer uses `downloads-changed` to refresh Download List/source-card state and to show completion/failure toasts.
+- The renderer applies full `downloads-changed` record payloads directly to Download List, source-card, and Browser sidebar state, and uses them to show completion/failure toasts.
 
 ## Local Data API
 

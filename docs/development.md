@@ -40,7 +40,7 @@ npm install
 npm start
 ```
 
-Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has standard, compact, and shared tab rail modes, a persisted draggable-width left tab rail, native tab context actions, and a web-content context menu for links, media URLs, selection copy, Google search in the system default browser, and navigation. In shared mode, Local Data can show the browser tab rail while keeping new tabs opened from Local Data in the background. If `https://jable.tv` fails to load, the app automatically falls back to `https://fs1.app` for the current session. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
+Log in inside the tabbed embedded browser, choose **影片收藏** or **稍後觀看** in the local data view, then click **快速同步** or **完整同步**. The browser has standard, compact, and shared tab rail modes, a persisted draggable-width left tab rail, an optional settings-controlled right download progress sidebar with renderer-local collapsed state and width, native tab context actions, and a web-content context menu for links, media URLs, selection copy, Google search in the system default browser, and navigation. In shared mode, Local Data can show the browser tab rail while keeping new tabs opened from Local Data in the background. If `https://jable.tv` fails to load, the app automatically falls back to `https://fs1.app` for the current session. Jable cookies are kept in the isolated `persist:jable-session` Electron partition, but Jable can still expire or revoke the server-side session. The SQLite database path is shown in the local data view.
 
 `npm start` builds the Rust native addons into `app/native-dist/`, compiles the Electron runtime into `app/runtime-dist/`, and builds the Vue renderer into `app/renderer-dist/` before Electron starts. For renderer development, run Vite in one terminal and Electron in another:
 
@@ -131,7 +131,7 @@ Renderer behavior:
 - `useSyncWorkflow` owns quick/full sync orchestration, queue progress status, AJAX retry/fallback status, finalization, and full-sync continuation updates.
 - `usePendingRemoteActions` owns Pending Sync Add/Remove/Resolved renderer actions and their refresh/status side effects.
 - `useToastStatus` owns toast filtering, tone inference, sticky state, and auto-hide timing.
-- Browser tab rail display mode is stored in shared app settings. Tab rail width remains a renderer-local `localStorage` preference because it only affects layout.
+- Browser tab rail display mode and the Browser download progress sidebar feature toggle are stored in shared app settings. Tab rail width, download sidebar expanded/collapsed state, and download sidebar width remain renderer-local `localStorage` preferences because they only affect layout.
 - The renderer stylesheet is intentionally dark-mode-only. If appearance modes are reintroduced, keep `styles.css`, persisted preferences, and any docs in sync.
 
 Localization behavior:
@@ -239,7 +239,7 @@ For targeted checks, use `npm test` for SQLite/import/export/search behavior, `n
 Manual checks:
 
 - Restart the app and confirm the embedded browser keeps local Jable cookies when the server-side session is still valid.
-- Open, switch, close, right-click, toggle tab rail display modes from settings and shortcuts, hover to reveal close buttons, and drag-resize browser tabs. In shared mode, confirm Local Data shows the same tab rail and its new-tab actions create background tabs without switching away from Local Data. Confirm Jable `target=_blank` links open a new app tab.
+- Open, switch, close, right-click, toggle tab rail display modes from settings and shortcuts, hover to reveal close buttons, and drag-resize browser tabs. Enable the Browser download progress sidebar in Settings, then confirm the Browser view can toggle it with `Command+Shift+D` / `Ctrl+Shift+D`, resize it from the left edge, collapse it by dragging below the threshold, and remove the right-side sidebar/trigger completely when the setting is off. In shared mode, confirm Local Data shows the same tab rail and its new-tab actions create background tabs without switching away from Local Data. Confirm Jable `target=_blank` links open a new app tab.
 - Enter and leave fullscreen from a Jable video player. Confirm fullscreen covers the tab rail and top bar, then restores the normal browser layout after exit.
 - Toggle theater mode from a Jable video page context menu and with plain `T`. Confirm it fills only the browser content area, preserves the top bar and tab rail, exits with `Esc` and the in-content `x` button, leaves `Command+T` / `Ctrl+T` as new-tab shortcuts, survives tab switches/reload/video-to-video navigation, and is absent from non-video pages.
 - Verify keyboard tab switching shortcuts from [`docs/shortcuts.md`](shortcuts.md), including repeated previous/next switching without clicking the page between keystrokes.

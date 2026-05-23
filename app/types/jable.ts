@@ -146,6 +146,7 @@ export interface AppSettings {
   autoReplayDeferredSyncOperations: boolean;
   ffmpegPath: string | null;
   autoDownloadOnPlayback: boolean;
+  downloadSidebarEnabled: boolean;
   downloadRoot: string | null;
   downloadStateFilters: DownloadStateFilters;
   downloadSpeedMode: DownloadSpeedMode;

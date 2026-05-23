@@ -164,6 +164,47 @@ describe('BrowserPanel', function () {
     expect(wrapper.find('aside').attributes('style')).toContain('display: none');
   });
 
+  it('reserves browser host width for the right download sidebar', function () {
+    const expandedWrapper = mount(BrowserPanel, {
+      props: {
+        active: true,
+        tabs: makeTabs(),
+        activeTabId: 'tab-1',
+        canCreateTab: true,
+        compact: false,
+        tabWidth: 220,
+        showDownloadSidebar: true,
+        downloadSidebarCollapsed: false,
+        downloadSidebarWidth: 360
+      },
+      slots: {
+        'download-sidebar': '<aside data-test="stub-download-sidebar"></aside>'
+      }
+    });
+
+    expect(expandedWrapper.get('section').attributes('style')).toContain('220px 6px minmax(0, 1fr) 360px');
+    expect(expandedWrapper.get('[data-test="download-sidebar-host"]').classes()).toContain('w-full');
+
+    const compactWrapper = mount(BrowserPanel, {
+      props: {
+        active: true,
+        tabs: makeTabs(),
+        activeTabId: 'tab-1',
+        canCreateTab: true,
+        compact: true,
+        tabWidth: 220,
+        showDownloadSidebar: true,
+        downloadSidebarCollapsed: true
+      },
+      slots: {
+        'download-sidebar': '<aside data-test="stub-download-sidebar"></aside>'
+      }
+    });
+
+    expect(compactWrapper.get('[data-test="browser-host"]').attributes('style')).toContain('right: 18px');
+    expect(compactWrapper.get('[data-test="download-sidebar-host"]').attributes('style')).toContain('width: 18px');
+  });
+
   it('emits tab context menu coordinates', async function () {
     const wrapper = mount(BrowserPanel, {
       props: {

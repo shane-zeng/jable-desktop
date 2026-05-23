@@ -26,6 +26,7 @@ test('app settings store returns defaults and persists updates', function () {
     autoReplayDeferredSyncOperations: false,
     ffmpegPath: null,
     autoDownloadOnPlayback: false,
+    downloadSidebarEnabled: false,
     downloadRoot: null,
     downloadStateFilters: ['all'],
     downloadSpeedMode: 'balanced',
@@ -42,6 +43,7 @@ test('app settings store returns defaults and persists updates', function () {
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
       autoDownloadOnPlayback: true,
+      downloadSidebarEnabled: true,
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilters: ['downloading', 'failed'],
       downloadSpeedMode: 'fast',
@@ -57,6 +59,7 @@ test('app settings store returns defaults and persists updates', function () {
       autoReplayDeferredSyncOperations: true,
       ffmpegPath: '/usr/local/bin/ffmpeg',
       autoDownloadOnPlayback: true,
+      downloadSidebarEnabled: true,
       downloadRoot: '/Users/example/Jable Downloads',
       downloadStateFilters: ['downloading', 'failed'],
       downloadSpeedMode: 'fast',
@@ -74,6 +77,7 @@ test('app settings store returns defaults and persists updates', function () {
   assert.equal(secondStore.get().autoReplayDeferredSyncOperations, true);
   assert.equal(secondStore.get().ffmpegPath, '/usr/local/bin/ffmpeg');
   assert.equal(secondStore.get().autoDownloadOnPlayback, true);
+  assert.equal(secondStore.get().downloadSidebarEnabled, true);
   assert.equal(secondStore.get().downloadRoot, '/Users/example/Jable Downloads');
   assert.deepEqual(secondStore.get().downloadStateFilters, ['downloading', 'failed']);
   assert.equal(secondStore.get().downloadSpeedMode, 'fast');
@@ -172,6 +176,17 @@ test('app settings normalize playback-triggered download setting', function () {
   });
   assert.deepEqual(settings.normalizeAppSettingsPatch({ autoDownloadOnPlayback: 0 }), {
     autoDownloadOnPlayback: false
+  });
+});
+
+test('app settings normalize Browser download sidebar feature setting', function () {
+  assert.equal(settings.normalizeAppSettings({ downloadSidebarEnabled: true }).downloadSidebarEnabled, true);
+  assert.equal(settings.normalizeAppSettings({ downloadSidebarEnabled: false }).downloadSidebarEnabled, false);
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadSidebarEnabled: 1 }), {
+    downloadSidebarEnabled: true
+  });
+  assert.deepEqual(settings.normalizeAppSettingsPatch({ downloadSidebarEnabled: 0 }), {
+    downloadSidebarEnabled: false
   });
 });
 

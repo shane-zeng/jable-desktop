@@ -237,6 +237,10 @@ export function useLibraryState(api: JableAppApi) {
 
     if (token !== downloadRefreshToken) return;
 
+    applyDownloadRecords(records);
+  }
+
+  function applyDownloadRecords(records: DownloadRecord[]) {
     downloadRecords.value = Array.isArray(records) ? records : [];
   }
 
@@ -406,6 +410,7 @@ export function useLibraryState(api: JableAppApi) {
     direction: direction,
     fullSyncContinuation: fullSyncContinuation,
     fullSyncButtonLabel: fullSyncButtonLabel,
+    applyDownloadRecords: applyDownloadRecords,
     refreshVideos: refreshVideos,
     refreshDownloads: refreshDownloads,
     refreshPendingGroups: refreshPendingGroups,
