@@ -1,6 +1,6 @@
 ---
 name: jable-desktop-maintenance
-description: Use for Jable Desktop maintenance work: no-spec-change refactors, architecture boundary decisions, adding or moving modules, choosing validation commands, and keeping repo docs/tests aligned without over-engineering.
+description: "Use for Jable Desktop maintenance work: no-spec-change refactors, architecture boundary decisions, adding or moving modules, choosing validation commands, and keeping repo docs/tests aligned without over-engineering."
 ---
 
 # Jable Desktop Maintenance
