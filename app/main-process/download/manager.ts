@@ -73,7 +73,7 @@ import { createDownloadRuntimeProgressController, type DownloadRuntimeProgressCo
 import { createLocalPlaybackPreviewController, type LocalPlaybackFile } from '../local-playback/preview';
 import { createLocalPlaybackServer } from '../local-playback/server';
 import { createDownloadShutdownController, type DownloadShutdownController } from './shutdown';
-import { cleanupQuarantinedDirectories } from '../safe-directory-removal';
+import { cleanupQuarantinedDirectories, removeDirectoryAfterRename } from '../safe-directory-removal';
 
 export {
   downloadFailureCode,
@@ -169,6 +169,9 @@ export const LOCAL_PLAYBACK_SCHEME = 'jable-local-video';
 const DOWNLOAD_PROGRESS_NOTIFY_INTERVAL_MS = 1000;
 const DOWNLOAD_SEGMENT_SAMPLE_COUNT = 3;
 const DOWNLOAD_SEGMENT_RETRY_LIMIT = 3;
+const DOWNLOAD_SEGMENT_WORKSPACE_SUFFIX = '.segments';
+const DOWNLOAD_PREVIEW_WORKSPACE_SUFFIX = '.preview';
+const DOWNLOAD_PREVIEW_TEMP_WORKSPACE_SUFFIX = '.preview.tmp';
 const DOWNLOAD_SPEED_MODE_SEGMENT_CONCURRENCY: Record<DownloadSpeedMode, { min: number; max: number }> = {
   stable: { min: 4, max: 8 },
   balanced: { min: 8, max: 32 },
@@ -205,6 +208,7 @@ const localPlaybackPreviewController = createLocalPlaybackPreviewController({
   localPlaybackScheme: LOCAL_PLAYBACK_SCHEME,
   notifyDownloadsChanged: notifyDownloadsChanged,
   reportError: logDownloadError,
+  reportEvent: logDownloadEvent,
   resolveManagedDownloadPath: resolveManagedDownloadPath
 });
 const localPlaybackServer = createLocalPlaybackServer({
@@ -298,7 +302,70 @@ function getDownloadRoot(): DownloadRootInfo {
 }
 
 function cleanupQuarantinedDownloadDirectories(rootInfo: DownloadRootInfo = getDownloadRoot()) {
-  cleanupQuarantinedDirectories(rootInfo.path, logDownloadError);
+  cleanupQuarantinedDirectories(rootInfo.path, logDownloadError, logDownloadEvent);
+}
+
+function workspaceBaseName(entryName: string, suffix: string): string | null {
+  if (!entryName.endsWith(suffix)) return null;
+  return entryName.slice(0, -suffix.length);
+}
+
+function downloadWorkspaceCleanupKind(
+  entryName: string,
+  recordsByLocalPath: Map<string, DownloadRecord>
+): string | null {
+  const segmentBaseName = workspaceBaseName(entryName, DOWNLOAD_SEGMENT_WORKSPACE_SUFFIX);
+  if (segmentBaseName) {
+    const record = recordsByLocalPath.get(segmentBaseName);
+    if (!record) return 'orphan-segments';
+    if (record.state === 'queued' || record.state === 'downloading' || record.state === 'paused') return null;
+    return 'stale-segments';
+  }
+
+  const previewTempBaseName = workspaceBaseName(entryName, DOWNLOAD_PREVIEW_TEMP_WORKSPACE_SUFFIX);
+  if (previewTempBaseName) {
+    return recordsByLocalPath.has(previewTempBaseName) ? 'stale-preview-temp' : 'orphan-preview-temp';
+  }
+
+  const previewBaseName = workspaceBaseName(entryName, DOWNLOAD_PREVIEW_WORKSPACE_SUFFIX);
+  if (previewBaseName && !recordsByLocalPath.has(previewBaseName)) return 'orphan-preview';
+
+  return null;
+}
+
+function cleanupStaleDownloadWorkspaceDirectories(rootInfo: DownloadRootInfo = getDownloadRoot()) {
+  let entries: NodeFs.Dirent[];
+  try {
+    entries = fs.readdirSync(rootInfo.path, { withFileTypes: true });
+  } catch (error) {
+    return;
+  }
+
+  const recordsByLocalPath = new Map<string, DownloadRecord>();
+  for (const record of listPersistedDownloads()) {
+    if (record.localPath) recordsByLocalPath.set(path.basename(record.localPath), record);
+  }
+
+  let count = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const cleanupKind = downloadWorkspaceCleanupKind(entry.name, recordsByLocalPath);
+    if (!cleanupKind) continue;
+    count++;
+    logDownloadEvent('info', 'download-workspace-cleanup-target', {
+      kind: cleanupKind
+    });
+    removeDirectoryAfterRename(path.join(rootInfo.path, entry.name), logDownloadError, logDownloadEvent);
+  }
+
+  logDownloadEvent(count > 0 ? 'info' : 'debug', 'download-workspace-cleanup-scan', {
+    count: count
+  });
+}
+
+function cleanupDownloadWorkspaceDirectories(rootInfo: DownloadRootInfo = getDownloadRoot()) {
+  cleanupQuarantinedDownloadDirectories(rootInfo);
+  cleanupStaleDownloadWorkspaceDirectories(rootInfo);
 }
 
 async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
@@ -307,7 +374,7 @@ async function chooseDownloadRoot(): Promise<DownloadRootSelectionResult> {
     canceled: result.canceled,
     source: result.source
   });
-  cleanupQuarantinedDownloadDirectories(result);
+  cleanupDownloadWorkspaceDirectories(result);
   return result;
 }
 
@@ -316,7 +383,7 @@ function setDownloadRoot(value: unknown): DownloadRootInfo {
   logDownloadEvent('info', 'download-root-set', {
     path: result.path
   });
-  cleanupQuarantinedDownloadDirectories(result);
+  cleanupDownloadWorkspaceDirectories(result);
   return result;
 }
 
@@ -325,7 +392,7 @@ function clearDownloadRoot(): DownloadRootInfo {
   logDownloadEvent('info', 'download-root-cleared', {
     path: result.path
   });
-  cleanupQuarantinedDownloadDirectories(result);
+  cleanupDownloadWorkspaceDirectories(result);
   return result;
 }
 
@@ -493,7 +560,7 @@ function removeDownloadWorkingFiles(record: DownloadRecord) {
   const outputPath = resolveManagedDownloadPath(record.localPath);
   if (!outputPath) return;
   removePartialDownloadFile(outputPath);
-  removeDownloadSegmentTempDirectory(outputPath, logDownloadError);
+  removeDownloadSegmentTempDirectory(outputPath, logDownloadError, logDownloadEvent);
 }
 
 function removePartialDownloadFileForRecord(record: DownloadRecord) {
@@ -1008,7 +1075,7 @@ export function createDownloadManager(context: DownloadManagerContext): Download
     t: context.t,
     upsertPersistedDownload: upsertPersistedDownload
   });
-  cleanupQuarantinedDownloadDirectories();
+  cleanupDownloadWorkspaceDirectories();
 
   return {
     cancelDownload: cancelDownload,

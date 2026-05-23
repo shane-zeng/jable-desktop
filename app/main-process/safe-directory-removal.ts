@@ -17,6 +17,11 @@ const WINDOWS_REMOVE_RETRY_DELAY_SECONDS = 10;
 
 type DirectoryQuarantineResult = { status: 'moved'; path: string } | { status: 'missing' } | { status: 'failed' };
 export type DirectoryRemovalReportError = (event: string, error: unknown, details?: unknown) => void;
+export type DirectoryRemovalReportEvent = (
+  level: 'debug' | 'info' | 'warn' | 'error',
+  event: string,
+  details?: unknown
+) => void;
 
 function errorCode(error: unknown): string | null {
   return error && typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : null;
@@ -31,6 +36,18 @@ function warnRemovalFailure(
   if (!reportError) return;
   try {
     reportError(event, error || new Error(message), { message: message });
+  } catch {}
+}
+
+function reportRemovalEvent(
+  reportEvent: DirectoryRemovalReportEvent | null | undefined,
+  level: 'debug' | 'info' | 'warn' | 'error',
+  event: string,
+  details?: unknown
+) {
+  if (!reportEvent) return;
+  try {
+    reportEvent(level, event, details);
   } catch {}
 }
 
@@ -71,7 +88,11 @@ function moveDirectoryOutOfWay(
   return { status: 'failed' };
 }
 
-function removeDirectoryInDetachedProcess(dirPath: string, reportError?: DirectoryRemovalReportError | null) {
+function removeDirectoryInDetachedProcess(
+  dirPath: string,
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
+) {
   const command = [
     '$path = $env:JABLE_DELETE_DIR',
     'for ($attempt = 0; $attempt -lt ' + String(WINDOWS_REMOVE_ATTEMPTS) + '; $attempt++) {',
@@ -92,6 +113,10 @@ function removeDirectoryInDetachedProcess(dirPath: string, reportError?: Directo
         windowsHide: true
       }
     );
+    reportRemovalEvent(reportEvent, 'info', 'detached-directory-removal-started', {
+      path: dirPath,
+      pid: child.pid || null
+    });
     child.unref();
   } catch (error) {
     warnRemovalFailure(
@@ -106,7 +131,8 @@ function removeDirectoryInDetachedProcess(dirPath: string, reportError?: Directo
 function retryRemoveDirectoryInBackground(
   dirPath: string,
   attempt: number,
-  reportError?: DirectoryRemovalReportError | null
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
 ) {
   const delayMs = REMOVE_RETRY_DELAYS_MS[attempt];
   if (typeof delayMs !== 'number') {
@@ -119,22 +145,35 @@ function retryRemoveDirectoryInBackground(
   }
 
   const timer = setTimeout(function () {
-    removeDirectoryInBackground(dirPath, attempt + 1, reportError);
+    removeDirectoryInBackground(dirPath, attempt + 1, reportError, reportEvent);
   }, delayMs);
   timer.unref();
 }
 
-function removeDirectoryInBackground(dirPath: string, attempt = 0, reportError?: DirectoryRemovalReportError | null) {
-  if (process.platform === 'win32') {
-    removeDirectoryInDetachedProcess(dirPath, reportError);
-    return;
-  }
-
+function removeDirectoryInBackground(
+  dirPath: string,
+  attempt = 0,
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
+) {
+  reportRemovalEvent(reportEvent, attempt === 0 ? 'info' : 'debug', 'directory-removal-started', {
+    path: dirPath,
+    attempt: attempt
+  });
   fs.rm(dirPath, { recursive: true, force: true }, function (error) {
     if (error) {
       warnRemovalFailure(reportError, 'directory-removal-failed', 'Unable to remove directory in background', error);
-      retryRemoveDirectoryInBackground(dirPath, attempt, reportError);
+      if (process.platform === 'win32') {
+        removeDirectoryInDetachedProcess(dirPath, reportError, reportEvent);
+        return;
+      }
+      retryRemoveDirectoryInBackground(dirPath, attempt, reportError, reportEvent);
+      return;
     }
+    reportRemovalEvent(reportEvent, 'info', 'directory-removal-complete', {
+      path: dirPath,
+      attempt: attempt
+    });
   });
 }
 
@@ -142,7 +181,11 @@ function isQuarantinedDirectoryName(name: string): boolean {
   return DELETE_SUFFIX_PATTERN.test(name);
 }
 
-export function cleanupQuarantinedDirectories(rootPath: string, reportError?: DirectoryRemovalReportError | null) {
+export function cleanupQuarantinedDirectories(
+  rootPath: string,
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
+) {
   let entries: NodeFs.Dirent[];
   try {
     entries = fs.readdirSync(rootPath, { withFileTypes: true });
@@ -150,20 +193,34 @@ export function cleanupQuarantinedDirectories(rootPath: string, reportError?: Di
     return;
   }
 
+  let count = 0;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (!isQuarantinedDirectoryName(entry.name)) continue;
-    removeDirectoryInBackground(path.join(rootPath, entry.name), 0, reportError);
+    count++;
+    removeDirectoryInBackground(path.join(rootPath, entry.name), 0, reportError, reportEvent);
   }
+  reportRemovalEvent(reportEvent, count > 0 ? 'info' : 'debug', 'quarantined-directory-cleanup-scan', {
+    rootPath: rootPath,
+    count: count
+  });
 }
 
-export function removeDirectoryAfterRename(dirPath: string, reportError?: DirectoryRemovalReportError | null) {
+export function removeDirectoryAfterRename(
+  dirPath: string,
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
+) {
   const result = moveDirectoryOutOfWay(dirPath, reportError);
   if (result.status === 'moved') {
-    removeDirectoryInBackground(result.path, 0, reportError);
+    reportRemovalEvent(reportEvent, 'info', 'directory-quarantined', {
+      path: dirPath,
+      quarantinePath: result.path
+    });
+    removeDirectoryInBackground(result.path, 0, reportError, reportEvent);
     return;
   }
   if (result.status === 'failed' && process.platform === 'win32') {
-    removeDirectoryInBackground(dirPath, 0, reportError);
+    removeDirectoryInBackground(dirPath, 0, reportError, reportEvent);
   }
 }

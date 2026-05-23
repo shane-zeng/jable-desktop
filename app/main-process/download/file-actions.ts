@@ -56,6 +56,8 @@ type DownloadFileActionsControllerOptions = {
 
 const fs: typeof NodeFs = require('node:fs');
 
+const DELETE_FILE_BUSY_RETRY_DELAYS_MS = [100, 250, 500, 1000];
+
 function fileBusyErrorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('code' in error)) return null;
   const code = (error as { code?: unknown }).code;
@@ -70,7 +72,7 @@ function isFileBusyError(error: unknown): boolean {
 export function createDownloadFileActionsController(
   options: DownloadFileActionsControllerOptions
 ): DownloadFileActionsController {
-  function deleteManagedDownloadFile(record: DownloadRecord): boolean {
+  async function deleteManagedDownloadFile(record: DownloadRecord): Promise<boolean> {
     if (!record.localPath) return false;
     const filePath = options.resolveManagedDownloadPath(record.localPath);
     if (!filePath) throw new Error(options.t('status.downloadFileOutsideRoot'));
@@ -84,13 +86,22 @@ export function createDownloadFileActionsController(
 
     if (!stats.isFile()) throw new Error(options.t('status.downloadFileUnavailable'));
 
-    try {
-      fs.unlinkSync(filePath);
-    } catch (error) {
-      if (isFileBusyError(error)) throw new Error(options.t('status.downloadDeleteFileBusy'));
-      throw error;
+    for (let attempt = 0; attempt <= DELETE_FILE_BUSY_RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        fs.unlinkSync(filePath);
+        return true;
+      } catch (error) {
+        if (fileBusyErrorCode(error) === 'ENOENT') return false;
+        if (!isFileBusyError(error)) throw error;
+        const retryDelayMs = DELETE_FILE_BUSY_RETRY_DELAYS_MS[attempt];
+        if (typeof retryDelayMs !== 'number') throw new Error(options.t('status.downloadDeleteFileBusy'));
+        await new Promise(function (resolve) {
+          setTimeout(resolve, retryDelayMs);
+        });
+      }
     }
-    return true;
+
+    throw new Error(options.t('status.downloadDeleteFileBusy'));
   }
 
   function downloadRecordHasManagedFile(record: DownloadRecord): boolean {
@@ -137,13 +148,13 @@ export function createDownloadFileActionsController(
       });
   }
 
-  function deleteDownloadRecord(visibleRecord: DownloadRecord): { deleted: boolean; removed: boolean } {
+  async function deleteDownloadRecord(visibleRecord: DownloadRecord): Promise<{ deleted: boolean; removed: boolean }> {
     options.removeQueuedDownload(visibleRecord.videoUrl);
     options.clearDownloadFlags(visibleRecord.videoUrl);
     options.suppressPlaybackCapture(visibleRecord.videoUrl);
     options.removeQueuedPreviewGeneration(visibleRecord.videoUrl);
 
-    const deleted = deleteManagedDownloadFile(visibleRecord);
+    const deleted = await deleteManagedDownloadFile(visibleRecord);
     options.removeDownloadWorkingFiles(visibleRecord);
     options.removePreviewFiles(visibleRecord);
     const removed = options.removePersistedDownload(visibleRecord.videoUrl);
@@ -189,7 +200,7 @@ export function createDownloadFileActionsController(
       if (activeRuntime.nativeId) options.cancelNativeDownload(activeRuntime.nativeId);
       if (activeRuntime.process) terminateChildProcess(activeRuntime.process);
     }
-    const result = deleteDownloadRecord(visibleRecord);
+    const result = await deleteDownloadRecord(visibleRecord);
     options.notifyDownloadsChanged();
 
     return {
@@ -235,7 +246,7 @@ export function createDownloadFileActionsController(
       }
 
       try {
-        const deleted = deleteDownloadRecord(visibleRecord);
+        const deleted = await deleteDownloadRecord(visibleRecord);
         if (deleted.deleted) result.deletedFiles += 1;
         if (deleted.removed) result.removedRecords += 1;
       } catch (error) {

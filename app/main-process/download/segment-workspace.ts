@@ -2,7 +2,11 @@
 
 import type * as NodeFs from 'node:fs';
 import type * as NodePath from 'node:path';
-import { removeDirectoryAfterRename, type DirectoryRemovalReportError } from '../safe-directory-removal';
+import {
+  removeDirectoryAfterRename,
+  type DirectoryRemovalReportError,
+  type DirectoryRemovalReportEvent
+} from '../safe-directory-removal';
 
 type DownloadSegmentWorkspaceKey = {
   method: string;
@@ -34,9 +38,10 @@ function downloadResumeManifestPath(outputPath: string): string {
 
 export function removeDownloadSegmentTempDirectory(
   outputPath: string,
-  reportError?: DirectoryRemovalReportError | null
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
 ) {
-  removeDirectoryAfterRename(downloadSegmentTempDirectory(outputPath), reportError);
+  removeDirectoryAfterRename(downloadSegmentTempDirectory(outputPath), reportError, reportEvent);
 }
 
 function roundedDuration(value: number | null): number | null {

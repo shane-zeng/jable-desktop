@@ -6,7 +6,7 @@ import type * as NodePath from 'node:path';
 import type { DownloadRecord } from '../../types/jable';
 import { terminateChildProcess } from '../child-process-termination';
 import { FfmpegDownloadError, mainErrorMessage } from '../download/errors';
-import { removeDirectoryAfterRename } from '../safe-directory-removal';
+import { removeDirectoryAfterRename, type DirectoryRemovalReportEvent } from '../safe-directory-removal';
 
 const childProcess: typeof NodeChildProcess = require('node:child_process');
 const fs: typeof NodeFs = require('node:fs');
@@ -40,6 +40,7 @@ type LocalPlaybackPreviewControllerOptions = {
   localPlaybackScheme: string;
   notifyDownloadsChanged(): void;
   reportError?(event: string, error: unknown, details?: unknown): void;
+  reportEvent?: DirectoryRemovalReportEvent;
   resolveManagedDownloadPath(fileRelativePath: string | null): string | null;
 };
 
@@ -92,7 +93,7 @@ export function createLocalPlaybackPreviewController(
   }
 
   function removeDirectoryIfPresent(dirPath: string) {
-    removeDirectoryAfterRename(dirPath, options.reportError);
+    removeDirectoryAfterRename(dirPath, options.reportError, options.reportEvent);
   }
 
   function cancelActivePreviewGeneration(active: ActivePreviewGeneration) {
