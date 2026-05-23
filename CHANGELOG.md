@@ -6,6 +6,16 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.12.9] - 2026-05-23
+
+### Changed
+
+- Fix Windows download cleanup
+- Bump version to 0.12.8
+- Fix Windows cleanup test assertion
+- Update GitHub action versions
+- Bump version to 0.12.9
+
 ## [v0.12.7] - 2026-05-23
 
 ### Changed
@@ -387,7 +397,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.7...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.9...HEAD
+[v0.12.9]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.7...v0.12.9
 [v0.12.7]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.6...v0.12.7
 [v0.12.6]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.5...v0.12.6
 [v0.12.5]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.4...v0.12.5
