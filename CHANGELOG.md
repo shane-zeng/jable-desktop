@@ -6,6 +6,19 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 ## [Unreleased]
 
+## [v0.13.0] - 2026-05-24
+
+### Changed
+
+- Add browser download progress sidebar
+- Optimize diagnostics log noise
+- Refine download sidebar behavior
+- Simplify download list interactions
+- Pin current download sidebar video
+- Fix maintenance skill frontmatter
+- Add app backup import export
+- Bump version to 0.13.0
+
 ## [v0.12.10] - 2026-05-23
 
 ### Changed
@@ -406,7 +419,8 @@ The entries through `v0.7.0` were reconstructed from the repository tag history 
 
 - Clarify documentation and centralize the persistent Jable session partition constant.
 
-[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.10...HEAD
+[Unreleased]: https://github.com/shane-zeng/jable-desktop/compare/v0.13.0...HEAD
+[v0.13.0]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.10...v0.13.0
 [v0.12.10]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.9...v0.12.10
 [v0.12.9]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.7...v0.12.9
 [v0.12.7]: https://github.com/shane-zeng/jable-desktop/compare/v0.12.6...v0.12.7
