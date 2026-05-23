@@ -37,8 +37,8 @@ function readyCompletedTime(record: DownloadRecord): number {
   return parseTime(record.completedAt) || parseTime(record.updatedAt);
 }
 
-function isCurrentPlaybackAutoRecord(record: DownloadRecord, currentVideoUrl?: string | null): boolean {
-  return Boolean(currentVideoUrl && record.videoUrl === currentVideoUrl && record.downloadSource === 'playback_auto');
+function isCurrentVideoRecord(record: DownloadRecord, currentVideoUrl?: string | null): boolean {
+  return Boolean(currentVideoUrl && record.videoUrl === currentVideoUrl);
 }
 
 function isCanceledFailure(record: DownloadRecord): boolean {
@@ -51,8 +51,8 @@ function isActiveSidebarRecord(record: DownloadRecord): boolean {
 }
 
 function compareSidebarRecords(a: DownloadRecord, b: DownloadRecord, currentVideoUrl?: string | null): number {
-  const aCurrent = isCurrentPlaybackAutoRecord(a, currentVideoUrl);
-  const bCurrent = isCurrentPlaybackAutoRecord(b, currentVideoUrl);
+  const aCurrent = isCurrentVideoRecord(a, currentVideoUrl);
+  const bCurrent = isCurrentVideoRecord(b, currentVideoUrl);
   if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
 
   const aRank = DOWNLOAD_SIDEBAR_ACTIVE_STATE_RANK[a.state] ?? 4;
@@ -69,6 +69,18 @@ function isRecentReady(record: DownloadRecord, now: number): boolean {
   if (!completedTime) return false;
 
   return now - completedTime <= DOWNLOAD_SIDEBAR_RECENT_COMPLETED_MS;
+}
+
+function pinCurrentVideoRecord(records: DownloadRecord[], currentVideoUrl?: string | null): DownloadRecord[] {
+  const currentIndex = records.findIndex(function (record) {
+    return isCurrentVideoRecord(record, currentVideoUrl);
+  });
+  if (currentIndex <= 0) return records;
+
+  const nextRecords = records.slice();
+  const currentRecord = nextRecords.splice(currentIndex, 1)[0];
+  nextRecords.unshift(currentRecord);
+  return nextRecords;
 }
 
 export function downloadSidebarRecords(
@@ -109,7 +121,7 @@ export function downloadSidebarRecordSet(
   const hiddenActiveCount = Math.max(0, activeRecords.length - visibleActiveRecords.length);
 
   return {
-    records: visibleActiveRecords.concat(recentReadyRecords),
+    records: pinCurrentVideoRecord(visibleActiveRecords.concat(recentReadyRecords), currentVideoUrl),
     hiddenActiveCount: hiddenActiveCount,
     hasMoreActive: hiddenActiveCount > 0
   };

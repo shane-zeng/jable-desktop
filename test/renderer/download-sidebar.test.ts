@@ -118,7 +118,7 @@ describe('download-sidebar', function () {
     expect(result.map((record) => record.title)).not.toContain('Ready 0');
   });
 
-  it('pins the current playback auto download before other matching state records', function () {
+  it('pins the current video download before other matching state records', function () {
     const now = new Date('2026-05-23T10:00:00.000Z').getTime();
     const currentVideoUrl = 'https://jable.tv/videos/current-playback/';
     const result = downloadSidebarRecords(
@@ -131,10 +131,10 @@ describe('download-sidebar', function () {
           lastStartedAt: '2026-05-23T09:58:00.000Z'
         }),
         makeRecord({
-          title: 'Current Playback',
+          title: 'Current Formal',
           videoUrl: currentVideoUrl,
           state: 'downloading',
-          downloadSource: 'playback_auto',
+          downloadSource: 'normal',
           lastStartedAt: '2026-05-23T09:30:00.000Z'
         })
       ],
@@ -142,7 +142,34 @@ describe('download-sidebar', function () {
       currentVideoUrl
     );
 
-    expect(result.map((record) => record.title)).toEqual(['Current Playback', 'Newer Download']);
+    expect(result.map((record) => record.title)).toEqual(['Current Formal', 'Newer Download']);
+  });
+
+  it('pins the current recent ready record above active downloads', function () {
+    const now = new Date('2026-05-23T10:00:00.000Z').getTime();
+    const currentVideoUrl = 'https://jable.tv/videos/current-ready/';
+    const result = downloadSidebarRecords(
+      [
+        makeRecord({
+          title: 'Active Download',
+          videoUrl: 'https://jable.tv/videos/active-download/',
+          state: 'downloading',
+          lastStartedAt: '2026-05-23T09:58:00.000Z'
+        }),
+        makeRecord({
+          title: 'Current Ready',
+          videoUrl: currentVideoUrl,
+          state: 'ready',
+          downloadSource: 'normal',
+          completedAt: '2026-05-23T09:50:00.000Z',
+          updatedAt: '2026-05-23T09:50:00.000Z'
+        })
+      ],
+      now,
+      currentVideoUrl
+    );
+
+    expect(result.map((record) => record.title)).toEqual(['Current Ready', 'Active Download']);
   });
 
   it('excludes canceled failures from the sidebar records', function () {
