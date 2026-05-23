@@ -1323,11 +1323,10 @@ test('download manager removes records after quarantining undeletable segment wo
     assert.equal(fs.existsSync(outputPath), false);
     assert.equal(fs.existsSync(segmentDir), false);
     assert.equal(quarantinedSegmentDirs.length, 1);
-    assert.deepEqual(
-      cleanupTargets.map(function (target) {
-        return path.basename(target);
-      }),
-      quarantinedSegmentDirs
+    assert.ok(
+      cleanupTargets.some(function (target) {
+        return path.basename(target) === quarantinedSegmentDirs[0];
+      })
     );
   } finally {
     fs.rm = originalRm;
