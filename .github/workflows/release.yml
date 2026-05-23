@@ -48,7 +48,7 @@ jobs:
         run: npm run dist:mac:unsigned:built
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos
           if-no-files-found: error
@@ -96,7 +96,7 @@ jobs:
         run: npm run dist:win:unsigned:built
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows
           if-no-files-found: error
@@ -114,7 +114,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
