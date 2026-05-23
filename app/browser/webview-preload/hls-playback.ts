@@ -18,6 +18,7 @@ type HlsPlaybackControllerOptions = {
   currentVideoUrl(): string | null;
   ipcRenderer: HlsPlaybackIpc;
   isEditableUserGestureTarget(target: EventTarget | null): boolean;
+  mainVideoElement(): HTMLVideoElement | null;
   readCurrentLocalPlaybackSourcePageNotice(): LocalPlaybackSourcePageNotice;
   readCurrentVideoDetails(): ScrapedVideoRow | null;
   reportDiagnostics?: DiagnosticsReporter;
@@ -45,6 +46,42 @@ const HLS_PROXY_REQUEST_MESSAGE = 'jable-hls-proxy-url-request';
 const HLS_PROXY_RESPONSE_MESSAGE = 'jable-hls-proxy-url-response';
 const HLS_PROXY_PAGE_REQUEST_TIMEOUT_MS = 1500;
 const HLS_PLAYBACK_USER_GESTURE_TTL_MS = 8000;
+const HLS_PLAYBACK_PLAYER_GESTURE_SELECTOR = [
+  'video',
+  '#player',
+  '#video-player',
+  '#player-container',
+  '.player',
+  '.video-player',
+  '.video-player-wrapper',
+  '.video-container',
+  '.embed-responsive',
+  '.video-js',
+  '.jwplayer',
+  '.flowplayer',
+  '.fp-player',
+  '.fluid_video_wrapper',
+  '.fluid_player_layout',
+  '.dplayer',
+  '.xgplayer',
+  '.art-video-player',
+  '.mejs__container',
+  '.mejs-container',
+  '.plyr',
+  '.plyr__video-wrapper',
+  '.vjs-control-bar',
+  '.jw-controls',
+  '.jw-controlbar',
+  '.plyr__controls',
+  '.fp-controls',
+  '.fp-ui',
+  '.fluid_controls_container',
+  '.dplayer-controller',
+  '.xgplayer-controls',
+  '.art-controls',
+  '.mejs__controls',
+  '.mejs-controls'
+].join(',');
 
 export function createHlsPlaybackController(options: HlsPlaybackControllerOptions): HlsPlaybackController {
   let lastPlaybackStartedVideoUrl = '';
@@ -368,12 +405,43 @@ export function createHlsPlaybackController(options: HlsPlaybackControllerOption
   }
 
   function markHlsPlaybackUserGesture(event: Event) {
+    if (event.isTrusted !== true) return;
     if (options.isEditableUserGestureTarget(event.target)) return;
     lastPlaybackUserGestureAt = Date.now();
   }
 
   function hlsPlaybackWasUserInitiated() {
     return Date.now() - lastPlaybackUserGestureAt <= HLS_PLAYBACK_USER_GESTURE_TTL_MS;
+  }
+
+  function elementFromGestureTarget(target: EventTarget | null): Element | null {
+    if (target instanceof Element) return target;
+    if (target instanceof Node && target.parentElement) return target.parentElement;
+    return null;
+  }
+
+  function hlsPlaybackGestureTargetsPlayer(event: Event): boolean {
+    const element = elementFromGestureTarget(event.target);
+    const player = currentHlsPlaybackPlayerElement();
+    return Boolean(element && player && (element === player || player.contains(element)));
+  }
+
+  function hlsPlaybackGestureUsesPrimaryButton(event: Event): boolean {
+    if (event instanceof MouseEvent && event.button !== 0) return false;
+    return true;
+  }
+
+  function currentHlsPlaybackPlayerElement(): Element | null {
+    const video = options.mainVideoElement();
+    if (!video) return null;
+
+    let element: Element | null = video.parentElement;
+    while (element && element !== document.documentElement) {
+      if (element.matches(HLS_PLAYBACK_PLAYER_GESTURE_SELECTOR)) return element;
+      element = element.parentElement;
+    }
+
+    return video;
   }
 
   function notifyHlsPlaybackStarted() {
@@ -405,10 +473,38 @@ export function createHlsPlaybackController(options: HlsPlaybackControllerOption
   }
 
   function installHlsPlaybackStartedObserver() {
-    document.addEventListener('pointerdown', markHlsPlaybackUserGesture, true);
-    document.addEventListener('click', markHlsPlaybackUserGesture, true);
-    document.addEventListener('touchstart', markHlsPlaybackUserGesture, true);
-    document.addEventListener('keydown', markHlsPlaybackUserGesture, true);
+    document.addEventListener(
+      'pointerdown',
+      function (event) {
+        if (!hlsPlaybackGestureUsesPrimaryButton(event) || !hlsPlaybackGestureTargetsPlayer(event)) return;
+        markHlsPlaybackUserGesture(event);
+      },
+      true
+    );
+    document.addEventListener(
+      'click',
+      function (event) {
+        if (!hlsPlaybackGestureUsesPrimaryButton(event) || !hlsPlaybackGestureTargetsPlayer(event)) return;
+        markHlsPlaybackUserGesture(event);
+      },
+      true
+    );
+    document.addEventListener(
+      'touchstart',
+      function (event) {
+        if (!hlsPlaybackGestureTargetsPlayer(event)) return;
+        markHlsPlaybackUserGesture(event);
+      },
+      true
+    );
+    document.addEventListener(
+      'keydown',
+      function (event) {
+        if (!hlsPlaybackGestureTargetsPlayer(event)) return;
+        markHlsPlaybackUserGesture(event);
+      },
+      true
+    );
     document.addEventListener(
       'play',
       function (event) {

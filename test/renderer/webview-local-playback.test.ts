@@ -26,6 +26,7 @@ function unavailableResult(reason: LocalPlaybackUnavailableReason): LocalPlaybac
 
 function createHarness(results: LocalPlaybackSourceResult[]) {
   const listeners: Array<(_event: unknown, records: unknown) => void> = [];
+  const reloadPage = vi.fn();
   const invoke = vi.fn(function () {
     const result = results.shift();
     if (!result) throw new Error('Unexpected local playback source request');
@@ -53,13 +54,15 @@ function createHarness(results: LocalPlaybackSourceResult[]) {
         sourcePageChineseSubtitleNotice: false,
         sourcePageSubtitleNoticeText: null
       };
-    }
+    },
+    reloadPage: reloadPage
   });
 
   return {
     controller: controller,
     invoke: invoke,
-    listeners: listeners
+    listeners: listeners,
+    reloadPage: reloadPage
   };
 }
 
@@ -109,5 +112,39 @@ describe('webview local playback replacement', function () {
     expect(harness.invoke).toHaveBeenCalledTimes(1);
     expect(video?.dataset.jableLocalPlayback).toBeUndefined();
     expect(video?.getAttribute('src')).toBeNull();
+  });
+
+  it('reloads the page when the active local playback record is removed', async function () {
+    const harness = createHarness([localPlaybackResult()]);
+
+    harness.controller.install();
+    await runScheduledLocalPlaybackScan();
+
+    const video = document.querySelector('video');
+    expect(video?.dataset.jableLocalPlayback).toBe('true');
+
+    harness.listeners[0]?.({}, []);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(harness.reloadPage).toHaveBeenCalledTimes(1);
+    expect(video?.dataset.jableLocalPlayback).toBe('true');
+    expect(video?.getAttribute('src')).toBe(LOCAL_SOURCE_URL);
+  });
+
+  it('reloads the page when the active local playback source fails', async function () {
+    const harness = createHarness([localPlaybackResult()]);
+
+    harness.controller.install();
+    await runScheduledLocalPlaybackScan();
+
+    const video = document.querySelector('video');
+    expect(video?.dataset.jableLocalPlayback).toBe('true');
+
+    video?.dispatchEvent(new Event('error'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(harness.reloadPage).toHaveBeenCalledTimes(1);
+    expect(video?.dataset.jableLocalPlayback).toBe('true');
+    expect(video?.getAttribute('src')).toBe(LOCAL_SOURCE_URL);
   });
 });

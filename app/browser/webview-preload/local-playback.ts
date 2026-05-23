@@ -51,6 +51,7 @@ type LocalPlaybackControllerOptions = {
   mainVideoElement(): HTMLVideoElement | null;
   readCurrentLocalPlaybackSourcePageNotice(): LocalPlaybackSourcePageNotice;
   reportDiagnostics?: DiagnosticsReporter;
+  reloadPage?(): void;
 };
 
 type LocalPlaybackController = {
@@ -481,7 +482,8 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
 
     pageReloadScheduled = true;
     setTimeout(function () {
-      window.location.reload();
+      if (options.reloadPage) options.reloadPage();
+      else window.location.reload();
     }, 0);
     return true;
   }
@@ -503,6 +505,7 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
         readyState: video.readyState
       });
     }
+    if (videoUrl && reloadAfterActiveLocalPlaybackRemoved(videoUrl)) return;
     restoreLocalPlaybackVideo(video);
   }
 
@@ -668,7 +671,7 @@ export function createLocalPlaybackController(options: LocalPlaybackControllerOp
       if (activeVideoUrl && activeSourceUrl) {
         const state = downloadRecordStateForVideo(downloadRecordStateSnapshots(records), activeVideoUrl);
         if (Array.isArray(records) && state !== 'ready') {
-          restoreLocalPlaybackVideos();
+          if (!reloadAfterActiveLocalPlaybackRemoved(activeVideoUrl)) restoreLocalPlaybackVideos();
           return;
         }
 

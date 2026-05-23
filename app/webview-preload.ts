@@ -154,6 +154,7 @@ const hlsPlaybackController = createHlsPlaybackController({
   isEditableUserGestureTarget: function (target) {
     return target instanceof HTMLElement && target.matches(THEATER_MODE_EDITABLE_SHORTCUT_SELECTOR);
   },
+  mainVideoElement: mainVideoElement,
   readCurrentLocalPlaybackSourcePageNotice: videoMetadataController.readCurrentLocalPlaybackSourcePageNotice,
   readCurrentVideoDetails: videoMetadataController.readCurrentVideoDetails,
   reportDiagnostics: reportWebviewDiagnostics
