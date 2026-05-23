@@ -9,6 +9,7 @@ import type {
   SyncResult,
   SyncState
 } from '../../types/jable';
+import { reportRendererWorkflowError } from '../diagnostics';
 import type { useLibraryState } from './useLibraryState';
 import type { ToastTone } from './useToastStatus';
 
@@ -320,7 +321,10 @@ export function useSyncWorkflow(options: {
         }
       );
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'sync-collection-failed', error, {
+        mode: mode,
+        syncTabId: syncTabId
+      });
       syncQueueProgress.value = null;
       options.setStatus(
         options.t('status.syncFailed', { mode: syncModeName(mode), error: options.errorMessage(error) }),

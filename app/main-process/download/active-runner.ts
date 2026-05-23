@@ -264,16 +264,24 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
       });
     } catch (error) {
       const paused = options.isPaused(record.videoUrl) || isDownloadPausedError(error);
+      const failureCode = downloadFailureCode(error);
       if (paused) {
         logDownloadEvent('info', 'active-download-paused', {
           videoUrl: record.videoUrl,
+          durationMs: Date.now() - startedAt
+        });
+      } else if (failureCode === 'download_canceled') {
+        logDownloadEvent('info', 'active-download-canceled', {
+          videoUrl: record.videoUrl,
+          failurePhase: failurePhase,
+          failureCode: failureCode,
           durationMs: Date.now() - startedAt
         });
       } else {
         logDownloadError('active-download-failed', error, {
           videoUrl: record.videoUrl,
           failurePhase: failurePhase,
-          failureCode: downloadFailureCode(error),
+          failureCode: failureCode,
           durationMs: Date.now() - startedAt
         });
       }
@@ -284,7 +292,7 @@ export function createDownloadActiveRunner(options: DownloadActiveRunnerOptions)
           progress: null,
           error: paused ? options.t('status.downloadPaused') : options.downloadErrorMessage(error),
           failurePhase: paused ? null : failurePhase,
-          failureCode: paused ? null : downloadFailureCode(error),
+          failureCode: paused ? null : failureCode,
           lastErrorAt: paused ? null : options.downloadTimestamp()
         });
         options.notifyDownloadsChanged();

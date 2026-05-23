@@ -12,6 +12,7 @@ import {
   downloadRequestVideo as buildDownloadRequestVideo,
   isDownloadDeleteSelectable
 } from '../download-display';
+import { reportRendererWorkflowError } from '../diagnostics';
 import type { CollectionKey, DownloadRecord, JableAppApi, VideoRow } from '../../types/jable';
 import type { ToastTone } from './useToastStatus';
 
@@ -113,7 +114,7 @@ export function useDownloadWorkflow(options: {
 
   async function refreshDownloadsAfterFailure() {
     options.library.refreshDownloads().catch(function (refreshError) {
-      console.error(refreshError);
+      reportRendererWorkflowError(options.api, 'download-refresh-after-failure-failed', refreshError);
     });
   }
 
@@ -124,7 +125,7 @@ export function useDownloadWorkflow(options: {
       await options.api.openDownloadFile(videoUrl);
       options.setStatus(options.t('status.downloadFileOpened'), 'success');
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-open-file-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadFileOpenFailed', { error: options.errorMessage(error) }), 'error');
       refreshDownloadsAfterFailure();
     }
@@ -137,7 +138,7 @@ export function useDownloadWorkflow(options: {
       await options.api.revealDownloadFile(videoUrl);
       options.setStatus(options.t('status.downloadFileRevealed'), 'success');
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-reveal-file-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadFileRevealFailed', { error: options.errorMessage(error) }), 'error');
       refreshDownloadsAfterFailure();
     }
@@ -157,7 +158,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-enqueue-failed', error, { videoUrl: video.url });
       options.setStatus(options.t('status.downloadStartFailed', { error: options.errorMessage(error) }), 'error');
     }
   }
@@ -194,7 +195,7 @@ export function useDownloadWorkflow(options: {
           else skipped += 1;
         } catch (error) {
           failed += 1;
-          console.error(error);
+          reportRendererWorkflowError(options.api, 'download-batch-item-failed', error, { videoUrl: video.url });
         }
       }
 
@@ -224,7 +225,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-retry-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadRetryFailed', { error: options.errorMessage(error) }), 'error');
     }
   }
@@ -245,7 +246,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-retry-failed-downloads-failed', error);
       options.setStatus(options.t('status.downloadRetryFailed', { error: options.errorMessage(error) }), 'error');
     } finally {
       options.busy.value = false;
@@ -263,7 +264,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-resume-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadResumeFailed', { error: options.errorMessage(error) }), 'error');
     }
   }
@@ -276,7 +277,7 @@ export function useDownloadWorkflow(options: {
       options.setStatus(options.t('status.downloadPaused'), 'success');
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-pause-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadPauseFailed', { error: options.errorMessage(error) }), 'error');
     }
   }
@@ -297,7 +298,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-pause-all-failed', error);
       options.setStatus(options.t('status.downloadPauseFailed', { error: options.errorMessage(error) }), 'error');
     } finally {
       options.busy.value = false;
@@ -320,7 +321,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-resume-paused-failed', error);
       options.setStatus(options.t('status.downloadResumeFailed', { error: options.errorMessage(error) }), 'error');
     } finally {
       options.busy.value = false;
@@ -337,7 +338,7 @@ export function useDownloadWorkflow(options: {
       await options.library.refreshDownloads();
     } catch (error) {
       suppressedDownloadFailureUrls.delete(videoUrl);
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-cancel-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadCancelFailed', { error: options.errorMessage(error) }), 'error');
     }
   }
@@ -362,7 +363,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-cancel-queued-failed', error);
       options.setStatus(options.t('status.downloadCancelFailed', { error: options.errorMessage(error) }), 'error');
     } finally {
       options.busy.value = false;
@@ -378,7 +379,7 @@ export function useDownloadWorkflow(options: {
       options.setStatus(options.t('status.downloadDeleted'), 'success');
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-delete-failed', error, { videoUrl: videoUrl });
       options.setStatus(options.t('status.downloadDeleteFailed', { error: options.errorMessage(error) }), 'error');
     }
   }
@@ -410,7 +411,7 @@ export function useDownloadWorkflow(options: {
       );
       await options.library.refreshDownloads();
     } catch (error) {
-      console.error(error);
+      reportRendererWorkflowError(options.api, 'download-delete-selected-failed', error, { videoUrls: videoUrls });
       options.setStatus(options.t('status.downloadDeleteFailed', { error: options.errorMessage(error) }), 'error');
     } finally {
       options.busy.value = false;

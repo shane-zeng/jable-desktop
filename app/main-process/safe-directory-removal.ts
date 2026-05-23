@@ -27,6 +27,10 @@ function errorCode(error: unknown): string | null {
   return error && typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : null;
 }
 
+function isBusyFileSystemCode(code: string | null): boolean {
+  return code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
+}
+
 function warnRemovalFailure(
   reportError: DirectoryRemovalReportError | null | undefined,
   event: string,
@@ -59,7 +63,8 @@ function quarantineDirectoryPath(dirPath: string, attempt: number): string {
 
 function moveDirectoryOutOfWay(
   dirPath: string,
-  reportError?: DirectoryRemovalReportError | null
+  reportError?: DirectoryRemovalReportError | null,
+  reportEvent?: DirectoryRemovalReportEvent | null
 ): DirectoryQuarantineResult {
   for (let attempt = 0; attempt < MAX_QUARANTINE_RENAME_ATTEMPTS; attempt++) {
     try {
@@ -70,6 +75,13 @@ function moveDirectoryOutOfWay(
       const code = errorCode(error);
       if (code === 'ENOENT') return { status: 'missing' };
       if (code === 'EEXIST') continue;
+      if (process.platform === 'win32' && isBusyFileSystemCode(code)) {
+        reportRemovalEvent(reportEvent, 'info', 'directory-quarantine-busy', {
+          path: dirPath,
+          code: code
+        });
+        return { status: 'failed' };
+      }
       warnRemovalFailure(
         reportError,
         'directory-quarantine-failed',
@@ -162,11 +174,16 @@ function removeDirectoryInBackground(
   });
   fs.rm(dirPath, { recursive: true, force: true }, function (error) {
     if (error) {
-      warnRemovalFailure(reportError, 'directory-removal-failed', 'Unable to remove directory in background', error);
       if (process.platform === 'win32') {
+        reportRemovalEvent(reportEvent, 'info', 'directory-removal-deferred', {
+          path: dirPath,
+          attempt: attempt,
+          code: errorCode(error)
+        });
         removeDirectoryInDetachedProcess(dirPath, reportError, reportEvent);
         return;
       }
+      warnRemovalFailure(reportError, 'directory-removal-failed', 'Unable to remove directory in background', error);
       retryRemoveDirectoryInBackground(dirPath, attempt, reportError, reportEvent);
       return;
     }
@@ -211,7 +228,7 @@ export function removeDirectoryAfterRename(
   reportError?: DirectoryRemovalReportError | null,
   reportEvent?: DirectoryRemovalReportEvent | null
 ) {
-  const result = moveDirectoryOutOfWay(dirPath, reportError);
+  const result = moveDirectoryOutOfWay(dirPath, reportError, reportEvent);
   if (result.status === 'moved') {
     reportRemovalEvent(reportEvent, 'info', 'directory-quarantined', {
       path: dirPath,

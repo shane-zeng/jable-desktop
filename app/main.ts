@@ -17,6 +17,7 @@ import type { BrowserRuntimeController, BrowserRuntimeControllerContext } from '
 import type { ContextMenuManager, ContextMenuManagerContext } from './main-process/context-menu-manager';
 import type { DataEngine } from './data/data-engine';
 import type { DiagnosticsClearResult, DiagnosticsLogger } from './main-process/diagnostics/logger';
+import type { WebContentsDiagnosticsDecision } from './main-process/diagnostics/web-contents';
 import type {
   DownloadAppShutdownController,
   DownloadAppShutdownControllerContext
@@ -197,6 +198,20 @@ const contextMenuManagerModule = require('./main-process/context-menu-manager') 
 };
 const dataEngineModule = require('./data/data-engine') as DataEngineModule;
 const diagnosticsModule = require('./main-process/diagnostics/logger') as DiagnosticsModule;
+const webContentsDiagnostics = require('./main-process/diagnostics/web-contents') as {
+  classifyWebContentsLoadFailure(details: {
+    errorCode: number;
+    errorDescription?: string;
+    url?: string;
+    context?: Record<string, unknown> | null;
+  }): WebContentsDiagnosticsDecision | null;
+  classifyWebContentsConsoleMessage(details: {
+    level: string;
+    message?: string;
+    sourceId?: string;
+    context?: Record<string, unknown> | null;
+  }): WebContentsDiagnosticsDecision | null;
+};
 const downloadAppShutdownModule = require('./main-process/download-app-shutdown') as {
   createDownloadAppShutdownController(context: DownloadAppShutdownControllerContext): DownloadAppShutdownController;
 };
@@ -439,34 +454,45 @@ function wireWebContentsDiagnostics(webContents: Electron.WebContents, details: 
     ) {
       if (!isMainFrame) return;
 
-      getDiagnosticsLogger().event('warn', 'electron', 'web-contents-main-frame-load-failed', {
+      const context = logWebContentsContext(details);
+      const url = validatedURL || webContents.getURL();
+      const decision = webContentsDiagnostics.classifyWebContentsLoadFailure({
+        errorCode: errorCode,
+        errorDescription: errorDescription,
+        url: url,
+        context: context
+      });
+      if (!decision) return;
+
+      getDiagnosticsLogger().event(decision.level, 'electron', decision.event, {
         webContentsId: webContents.id,
         errorCode: errorCode,
         errorDescription: errorDescription,
-        url: validatedURL || webContents.getURL(),
-        context: logWebContentsContext(details)
+        url: url,
+        context: context
       });
     }
   );
   webContents.on(
     'console-message',
     function (eventDetails: Electron.Event<Electron.WebContentsConsoleMessageEventParams>) {
-      const normalizedLevel = eventDetails.level;
-      if (normalizedLevel !== 'warning' && normalizedLevel !== 'error') return;
+      const context = logWebContentsContext(details);
+      const decision = webContentsDiagnostics.classifyWebContentsConsoleMessage({
+        level: eventDetails.level,
+        message: eventDetails.message,
+        sourceId: eventDetails.sourceId,
+        context: context
+      });
+      if (!decision) return;
 
-      getDiagnosticsLogger().event(
-        normalizedLevel === 'error' ? 'error' : 'warn',
-        'renderer-console',
-        'console-message',
-        {
-          webContentsId: webContents.id,
-          level: normalizedLevel,
-          message: eventDetails.message,
-          lineNumber: eventDetails.lineNumber,
-          sourceId: eventDetails.sourceId,
-          context: logWebContentsContext(details)
-        }
-      );
+      getDiagnosticsLogger().event(decision.level, 'renderer-console', decision.event, {
+        webContentsId: webContents.id,
+        level: eventDetails.level,
+        message: eventDetails.message,
+        lineNumber: eventDetails.lineNumber,
+        sourceId: eventDetails.sourceId,
+        context: context
+      });
     }
   );
 }

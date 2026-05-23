@@ -19,6 +19,12 @@ function createWorkflow(
   } = {}
 ) {
   const scope = effectScope();
+  const api = Object.assign(
+    {
+      reportRendererError: vi.fn()
+    },
+    overrides.api || {}
+  );
   const library = Object.assign(
     {
       activeCollection: ref<CollectionKey>('favourites'),
@@ -36,7 +42,7 @@ function createWorkflow(
     };
   const state = scope.run(function () {
     return useSyncWorkflow({
-      api: (overrides.api || {}) as JableAppApi,
+      api: api as JableAppApi,
       busy: { value: false },
       errorMessage: function (error: unknown) {
         return error instanceof Error ? error.message : String(error);
@@ -53,6 +59,7 @@ function createWorkflow(
   if (!state) throw new Error('Failed to create sync workflow');
 
   return {
+    api: api,
     library: library,
     setActiveView: setActiveView,
     state: state,
@@ -147,6 +154,38 @@ describe('useSyncWorkflow', function () {
       expect(finalStatus).not.toContain('"rows":999');
     } finally {
       vi.useRealTimers();
+      setup.stop();
+    }
+  });
+
+  it('reports handled sync workflow failures through diagnostics', async function () {
+    const setStatus = vi.fn();
+    const setup = createWorkflow(setStatus, {
+      api: {
+        syncBrowserCollection: vi.fn().mockRejectedValue(new Error('login expired'))
+      }
+    });
+
+    try {
+      await setup.state.syncCollection('quick');
+
+      expect(setup.api.reportRendererError).toHaveBeenCalledWith({
+        level: 'error',
+        event: 'sync-collection-failed',
+        error: expect.objectContaining({
+          name: 'Error',
+          message: 'login expired'
+        }),
+        details: {
+          mode: 'quick',
+          syncTabId: null
+        }
+      });
+      expect(setStatus).toHaveBeenCalledWith(
+        'status.syncFailed:{"mode":"sync.quick","error":"login expired"}',
+        'error'
+      );
+    } finally {
       setup.stop();
     }
   });

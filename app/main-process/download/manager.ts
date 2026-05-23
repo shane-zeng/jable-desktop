@@ -31,6 +31,7 @@ import {
   DownloadCanceledError,
   DownloadFileSystemError,
   DownloadPausedError,
+  downloadFailureCode,
   downloadErrorMessage as formatDownloadErrorMessage
 } from './errors';
 import {
@@ -638,11 +639,22 @@ async function downloadHlsSegmentsWithPlaylistRefresh(
     });
     return localPlaylistPath;
   } catch (error) {
-    logDownloadError('native-segments-failed', error, {
-      videoUrl: videoUrl,
-      segmentCount: playlist.segments.length,
-      durationMs: Date.now() - startedAt
-    });
+    const failureCode = downloadFailureCode(error);
+    if (failureCode === 'download_canceled') {
+      logDownloadEvent('info', 'native-segments-canceled', {
+        videoUrl: videoUrl,
+        segmentCount: playlist.segments.length,
+        failureCode: failureCode,
+        durationMs: Date.now() - startedAt
+      });
+    } else {
+      logDownloadError('native-segments-failed', error, {
+        videoUrl: videoUrl,
+        segmentCount: playlist.segments.length,
+        failureCode: failureCode,
+        durationMs: Date.now() - startedAt
+      });
+    }
     throw error;
   }
 }

@@ -344,6 +344,122 @@ test('download active runner formalizes completed playback background downloads'
   }
 });
 
+test('download active runner logs canceled downloads as info diagnostics', async function () {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-active-cancel-log-'));
+  try {
+    const videoUrl = 'https://jable.tv/videos/active-cancel-log/';
+    const events = [];
+    const errors = [];
+    let record = downloadRecord({
+      videoUrl: videoUrl,
+      localPath: 'active-cancel-log.mp4',
+      state: 'queued'
+    });
+
+    const runner = createDownloadActiveRunner({
+      clearActiveDownload: function () {},
+      clearDownloadFlags: function () {},
+      clearPlaybackCaptureAfterActiveDownload: function () {},
+      clearRuntimeProgress: function () {},
+      downloadCanceledError: function () {
+        const error = new Error('The operation was aborted');
+        error.name = 'AbortError';
+        return error;
+      },
+      downloadErrorMessage: function () {
+        return 'status.downloadCanceled';
+      },
+      downloadFileSystemError: function (error) {
+        return error instanceof Error ? error : new Error(String(error));
+      },
+      downloadHlsSegmentsWithPlaylistRefresh: async function () {
+        throw new Error('should not download segments after cancellation');
+      },
+      downloadPausedError: function () {
+        return new Error('paused');
+      },
+      downloadTimestamp: function () {
+        return '2026-05-20T00:00:00.000Z';
+      },
+      ffmpegCommandForDownload: async function () {
+        return 'ffmpeg';
+      },
+      isCanceled: function () {
+        return true;
+      },
+      isDeleted: function () {
+        return false;
+      },
+      isPaused: function () {
+        return false;
+      },
+      localPlaybackReadyFile: function () {
+        return null;
+      },
+      logger: {
+        event: function (level, domain, event, details) {
+          events.push({ level, domain, event, details });
+        },
+        errorEvent: function (domain, event, error, details) {
+          errors.push({ domain, event, error, details });
+        }
+      },
+      notifyDownloadsChanged: function () {},
+      path: path,
+      removePartialDownloadFile: function () {},
+      resolveDownloadHlsSource: async function () {
+        throw new Error('should not resolve source after cancellation');
+      },
+      resolveManagedDownloadPath: function (fileRelativePath) {
+        return fileRelativePath ? path.join(userDataDir, 'downloads', fileRelativePath) : null;
+      },
+      schedulePreviewGeneration: function () {},
+      statFile: function () {
+        throw new Error('should not stat after cancellation');
+      },
+      t: function (key) {
+        return key;
+      },
+      updateDownloadRuntimeProgress: function () {},
+      upsertPersistedDownload: function (patch) {
+        record = Object.assign({}, record, patch);
+        return record;
+      },
+      writeDirectory: function () {
+        throw new Error('should not prepare file after cancellation');
+      }
+    });
+
+    await runner.runActiveDownload(
+      record,
+      {
+        abortController: new AbortController(),
+        nativeId: null,
+        process: null,
+        source: 'normal'
+      },
+      false
+    );
+
+    assert.equal(record.state, 'failed');
+    assert.equal(record.failureCode, 'download_canceled');
+    assert.equal(
+      events.some(function (entry) {
+        return entry.level === 'info' && entry.domain === 'download' && entry.event === 'active-download-canceled';
+      }),
+      true
+    );
+    assert.equal(
+      errors.some(function (entry) {
+        return entry.domain === 'download' && entry.event === 'active-download-failed';
+      }),
+      false
+    );
+  } finally {
+    fs.rmSync(userDataDir, { recursive: true, force: true });
+  }
+});
+
 test('download manager captures proxied HLS playback segments for later resume', function () {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jable-hls-capture-'));
   try {

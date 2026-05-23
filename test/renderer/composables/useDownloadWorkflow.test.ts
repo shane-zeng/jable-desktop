@@ -71,7 +71,8 @@ function createWorkflow(options: {
       openDownloadFile: vi.fn(),
       revealDownloadFile: vi.fn(),
       deleteDownload: vi.fn(),
-      deleteDownloads: vi.fn()
+      deleteDownloads: vi.fn(),
+      reportRendererError: vi.fn()
     },
     options.api || {}
   );
@@ -222,6 +223,35 @@ describe('useDownloadWorkflow', function () {
           return String(call[0]).indexOf('status.downloadFailed') !== -1;
         })
       ).toBe(false);
+    } finally {
+      setup.stop();
+    }
+  });
+
+  it('reports handled download workflow failures through diagnostics', async function () {
+    const videoUrl = 'https://jable.tv/videos/open-failed/';
+    const setup = createWorkflow({
+      api: {
+        openDownloadFile: vi.fn().mockRejectedValue(new Error('file locked'))
+      }
+    });
+
+    try {
+      await setup.workflow.openDownloadFile(videoUrl);
+
+      expect(setup.api.reportRendererError).toHaveBeenCalledWith({
+        level: 'error',
+        event: 'download-open-file-failed',
+        error: expect.objectContaining({
+          name: 'Error',
+          message: 'file locked'
+        }),
+        details: {
+          videoUrl: videoUrl
+        }
+      });
+      expect(setup.setStatus).toHaveBeenCalledWith('status.downloadFileOpenFailed:{"error":"file locked"}', 'error');
+      expect(setup.library.refreshDownloads).toHaveBeenCalled();
     } finally {
       setup.stop();
     }
