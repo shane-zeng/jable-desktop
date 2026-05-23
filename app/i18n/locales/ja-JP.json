@@ -135,6 +135,8 @@
     "sidebarExpand": "ダウンロード進行状況サイドバーを展開",
     "sidebarResize": "ドラッグしてダウンロード進行状況サイドバーの幅を調整、クリックで折りたたみ",
     "sidebarCurrentVideo": "現在の動画",
+    "sidebarShowMore": "もっと見る",
+    "sidebarShowMoreLabel": "もっと見る、ほか {count} 件",
     "unknownCollection": "不明なリスト",
     "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "ダウンロードのタイトルまたは URL を検索",

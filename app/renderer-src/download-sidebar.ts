@@ -2,6 +2,13 @@ import type { DownloadRecord, DownloadState } from '../types/jable';
 
 export const DOWNLOAD_SIDEBAR_RECENT_COMPLETED_MS = 30 * 60 * 1000;
 export const DOWNLOAD_SIDEBAR_RECENT_COMPLETED_LIMIT = 5;
+export const DOWNLOAD_SIDEBAR_ACTIVE_LIMIT = 20;
+
+export type DownloadSidebarRecordSet = {
+  records: DownloadRecord[];
+  hiddenActiveCount: number;
+  hasMoreActive: boolean;
+};
 
 const DOWNLOAD_SIDEBAR_ACTIVE_STATE_RANK: Partial<Record<DownloadState, number>> = {
   downloading: 0,
@@ -34,6 +41,15 @@ function isCurrentPlaybackAutoRecord(record: DownloadRecord, currentVideoUrl?: s
   return Boolean(currentVideoUrl && record.videoUrl === currentVideoUrl && record.downloadSource === 'playback_auto');
 }
 
+function isCanceledFailure(record: DownloadRecord): boolean {
+  return record.state === 'failed' && record.failureCode === 'download_canceled';
+}
+
+function isActiveSidebarRecord(record: DownloadRecord): boolean {
+  if (isCanceledFailure(record)) return false;
+  return Object.prototype.hasOwnProperty.call(DOWNLOAD_SIDEBAR_ACTIVE_STATE_RANK, record.state);
+}
+
 function compareSidebarRecords(a: DownloadRecord, b: DownloadRecord, currentVideoUrl?: string | null): number {
   const aCurrent = isCurrentPlaybackAutoRecord(a, currentVideoUrl);
   const bCurrent = isCurrentPlaybackAutoRecord(b, currentVideoUrl);
@@ -58,11 +74,22 @@ function isRecentReady(record: DownloadRecord, now: number): boolean {
 export function downloadSidebarRecords(
   records: DownloadRecord[],
   now: number = Date.now(),
-  currentVideoUrl?: string | null
+  currentVideoUrl?: string | null,
+  activeLimit: number = DOWNLOAD_SIDEBAR_ACTIVE_LIMIT
 ): DownloadRecord[] {
+  return downloadSidebarRecordSet(records, now, currentVideoUrl, activeLimit).records;
+}
+
+export function downloadSidebarRecordSet(
+  records: DownloadRecord[],
+  now: number = Date.now(),
+  currentVideoUrl?: string | null,
+  activeLimit: number = DOWNLOAD_SIDEBAR_ACTIVE_LIMIT
+): DownloadSidebarRecordSet {
+  const visibleLimit = Math.max(0, Math.round(activeLimit) || DOWNLOAD_SIDEBAR_ACTIVE_LIMIT);
   const activeRecords = records
     .filter(function (record) {
-      return Object.prototype.hasOwnProperty.call(DOWNLOAD_SIDEBAR_ACTIVE_STATE_RANK, record.state);
+      return isActiveSidebarRecord(record);
     })
     .slice()
     .sort(function (a, b) {
@@ -78,5 +105,12 @@ export function downloadSidebarRecords(
     })
     .slice(0, DOWNLOAD_SIDEBAR_RECENT_COMPLETED_LIMIT);
 
-  return activeRecords.concat(recentReadyRecords);
+  const visibleActiveRecords = activeRecords.slice(0, visibleLimit);
+  const hiddenActiveCount = Math.max(0, activeRecords.length - visibleActiveRecords.length);
+
+  return {
+    records: visibleActiveRecords.concat(recentReadyRecords),
+    hiddenActiveCount: hiddenActiveCount,
+    hasMoreActive: hiddenActiveCount > 0
+  };
 }

@@ -188,6 +188,9 @@ export function createBrowserRuntimeController(context: BrowserRuntimeController
         getMainWindow: context.getMainWindow,
         homeUrl: context.homeUrl,
         isMacos: context.isMacos,
+        isDownloadSidebarEnabled: function () {
+          return context.getSettings().downloadSidebarEnabled;
+        },
         reloadBrowser: reload
       });
     }

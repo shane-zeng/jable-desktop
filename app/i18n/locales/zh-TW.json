@@ -135,6 +135,8 @@
     "sidebarExpand": "展開下載進度側邊欄",
     "sidebarResize": "拖曳調整下載進度側邊欄寬度，點一下收合",
     "sidebarCurrentVideo": "目前影片",
+    "sidebarShowMore": "查看更多",
+    "sidebarShowMoreLabel": "查看更多，還有 {count} 筆",
     "unknownCollection": "未知清單",
     "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "搜尋下載標題或 URL",

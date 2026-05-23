@@ -135,6 +135,8 @@
     "sidebarExpand": "Expand download progress sidebar",
     "sidebarResize": "Drag to resize the download progress sidebar; click to collapse",
     "sidebarCurrentVideo": "Current video",
+    "sidebarShowMore": "Show more",
+    "sidebarShowMoreLabel": "Show more, {count} more",
     "unknownCollection": "Unknown list",
     "chineseSubtitle": "中文字幕",
     "searchPlaceholder": "Search download title or URL",

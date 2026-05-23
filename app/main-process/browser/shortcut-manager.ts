@@ -27,6 +27,7 @@ export type BrowserShortcutManagerContext = {
   getMainWindow(): Electron.BrowserWindow | null;
   homeUrl: string;
   isMacos: boolean;
+  isDownloadSidebarEnabled(): boolean;
   reloadBrowser(tabId?: string | null, options?: BrowserReloadOptions | null): Promise<BrowserNavigationState>;
 };
 
@@ -53,6 +54,7 @@ let forwardBrowserMessage: (channel: string, payload: unknown) => void;
 let getMainWindow: () => Electron.BrowserWindow | null;
 let homeUrl = '';
 let isMacos = false;
+let isDownloadSidebarEnabled = () => false;
 let lastShortcutAction = { name: '', at: 0 };
 let reloadBrowser: (tabId?: string | null, options?: BrowserReloadOptions | null) => Promise<BrowserNavigationState>;
 
@@ -106,6 +108,14 @@ function isToggleSharedTabsShortcut(input: BrowserTabShortcutInput | null | unde
 
 function isToggleDownloadSidebarShortcut(input: BrowserTabShortcutInput | null | undefined) {
   return isPrimaryShortcut(input, 'd', undefined, { shift: true });
+}
+
+function canHandleDownloadSidebarShortcut() {
+  try {
+    return isDownloadSidebarEnabled();
+  } catch (error) {
+    return false;
+  }
 }
 
 function runShortcutAction(name: string, action: () => void) {
@@ -247,6 +257,8 @@ function registerAppShortcuts(webContents: Electron.WebContents) {
     }
 
     if (isToggleDownloadSidebarShortcut(input)) {
+      if (!canHandleDownloadSidebarShortcut()) return;
+
       event.preventDefault();
       toggleDownloadSidebarFromShortcut();
     }
@@ -262,6 +274,7 @@ export function createBrowserShortcutManager(context: BrowserShortcutManagerCont
   getMainWindow = context.getMainWindow;
   homeUrl = context.homeUrl;
   isMacos = context.isMacos;
+  isDownloadSidebarEnabled = context.isDownloadSidebarEnabled;
   reloadBrowser = context.reloadBrowser;
 
   return {

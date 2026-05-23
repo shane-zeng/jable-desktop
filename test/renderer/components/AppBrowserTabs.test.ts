@@ -354,6 +354,49 @@ describe('App browser tab behavior', function () {
     wrapper.unmount();
   });
 
+  it('shows more Browser sidebar records on demand', async function () {
+    const downloads: DownloadRecord[] = [];
+    for (let i = 0; i < 21; i++) {
+      downloads.push(
+        makeDownloadRecord({
+          title: 'Sidebar Download ' + i,
+          videoUrl: 'https://jable.tv/videos/sidebar-more-' + i + '/',
+          state: 'queued',
+          updatedAt: '2026-05-23T09:' + String(i).padStart(2, '0') + ':00.000Z'
+        })
+      );
+    }
+    const api = createAppTestApi(downloads, {
+      downloadSidebarEnabled: true
+    });
+    window.jableApp = api;
+
+    const wrapper = mount(App, {
+      attachTo: document.body,
+      global: {
+        stubs: {
+          SettingsPanel: true
+        }
+      }
+    });
+    await settle();
+
+    const browserMessageCallback = vi.mocked(api.onBrowserMessage).mock.calls[0][0];
+    browserMessageCallback({ channel: 'browser-download-sidebar-toggle-shortcut', args: [{}] });
+    await settle();
+
+    expect(wrapper.findAll('[data-test="download-sidebar-record"]')).toHaveLength(20);
+    expect(wrapper.get('[data-test="download-sidebar-show-more"]').text()).toBe('查看更多');
+
+    await wrapper.get('[data-test="download-sidebar-show-more"]').trigger('click');
+    await settle();
+
+    expect(wrapper.findAll('[data-test="download-sidebar-record"]')).toHaveLength(21);
+    expect(wrapper.find('[data-test="download-sidebar-show-more"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
   it('reports a sanitized diagnostic when the Browser sidebar quick cancel guard blocks the action', async function () {
     const currentVideoUrl = 'https://jable.tv/videos/current-formal/';
     const api = createAppTestApi(

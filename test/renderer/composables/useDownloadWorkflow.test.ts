@@ -116,6 +116,7 @@ function createWorkflow(options: {
     library: library,
     selectedVideos: selectedVideos,
     setStatus: setStatus,
+    syncing: syncing,
     stop: function () {
       scope.stop();
     },
@@ -223,6 +224,27 @@ describe('useDownloadWorkflow', function () {
           return String(call[0]).indexOf('status.downloadFailed') !== -1;
         })
       ).toBe(false);
+    } finally {
+      setup.stop();
+    }
+  });
+
+  it('allows explicit cancel bypass while app workflows are blocked', async function () {
+    const videoUrl = 'https://jable.tv/videos/forced-cancel/';
+    const setup = createWorkflow({});
+
+    try {
+      setup.busy.value = true;
+      setup.syncing.value = true;
+
+      await setup.workflow.cancelDownload(videoUrl);
+      expect(setup.api.cancelDownload).not.toHaveBeenCalled();
+
+      await setup.workflow.cancelDownload(videoUrl, { ignoreBlocked: true });
+
+      expect(setup.api.cancelDownload).toHaveBeenCalledWith(videoUrl);
+      expect(setup.setStatus).toHaveBeenCalledWith('status.downloadCanceled', 'success');
+      expect(setup.library.refreshDownloads).toHaveBeenCalled();
     } finally {
       setup.stop();
     }

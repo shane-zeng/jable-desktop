@@ -328,8 +328,8 @@ export function useDownloadWorkflow(options: {
     }
   }
 
-  async function cancelDownload(videoUrl: string) {
-    if (!videoUrl || isBlocked()) return;
+  async function cancelDownload(videoUrl: string, cancelOptions?: { ignoreBlocked?: boolean }) {
+    if (!videoUrl || (!cancelOptions?.ignoreBlocked && isBlocked())) return;
 
     suppressedDownloadFailureUrls.add(videoUrl);
     try {

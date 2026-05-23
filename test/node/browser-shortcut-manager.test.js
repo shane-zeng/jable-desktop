@@ -28,6 +28,9 @@ function createHarness(options = {}) {
     },
     homeUrl: 'https://jable.tv/',
     isMacos: Boolean(options.isMacos),
+    isDownloadSidebarEnabled: function () {
+      return options.downloadSidebarEnabled !== false;
+    },
     reloadBrowser: function () {
       return Promise.resolve({ locked: false, canGoBack: false, canGoForward: false });
     }
@@ -136,4 +139,16 @@ test('browser shortcut manager ignores download sidebar shortcut with unrelated 
   assert.equal(macosHarness.press({ key: 'd', meta: true, shift: true, alt: true }), false);
   assert.equal(macosHarness.press({ key: 'd', control: true, shift: true }), false);
   assert.deepEqual(macosHarness.forwardedMessages, []);
+});
+
+test('browser shortcut manager does not intercept download sidebar shortcut when feature is disabled', function () {
+  const macosHarness = createHarness({ isMacos: true, downloadSidebarEnabled: false });
+
+  assert.equal(macosHarness.press({ key: 'd', meta: true, shift: true }), false);
+  assert.deepEqual(macosHarness.forwardedMessages, []);
+
+  const windowsHarness = createHarness({ isMacos: false, downloadSidebarEnabled: false });
+
+  assert.equal(windowsHarness.press({ key: 'd', control: true, shift: true }), false);
+  assert.deepEqual(windowsHarness.forwardedMessages, []);
 });

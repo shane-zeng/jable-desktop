@@ -30,7 +30,7 @@ import {
   downloadFailurePhaseLabel as displayDownloadFailurePhaseLabel,
   optionalDownloadDetail as displayOptionalDownloadDetail
 } from './download-display';
-import { downloadSidebarRecords } from './download-sidebar';
+import { DOWNLOAD_SIDEBAR_ACTIVE_LIMIT, downloadSidebarRecordSet } from './download-sidebar';
 import { useI18n } from './i18n';
 import type {
   AppSettings,
@@ -90,6 +90,7 @@ let locatedDownloadCard: HTMLElement | null = null;
 let downloadSidebarClockTimer: ReturnType<typeof setInterval> | null = null;
 const LOCATED_DOWNLOAD_CLASS = 'download-card-located';
 const downloadSidebarCollapsed = ref(true);
+const downloadSidebarActiveLimit = ref(DOWNLOAD_SIDEBAR_ACTIVE_LIMIT);
 const downloadSidebarWidth = ref(DOWNLOAD_SIDEBAR_DEFAULT_WIDTH);
 const downloadSidebarNow = ref(Date.now());
 
@@ -193,8 +194,29 @@ const activeBrowserVideoUrl = computed(function () {
   return canonicalJableVideoUrl(browser.activeTab.value ? browser.activeTab.value.url : null);
 });
 
+const browserDownloadSidebar = computed(function () {
+  return downloadSidebarRecordSet(
+    library.downloadRecords.value,
+    downloadSidebarNow.value,
+    activeBrowserVideoUrl.value,
+    downloadSidebarActiveLimit.value
+  );
+});
+
 const browserDownloadSidebarRecords = computed(function () {
-  return downloadSidebarRecords(library.downloadRecords.value, downloadSidebarNow.value, activeBrowserVideoUrl.value);
+  return browserDownloadSidebar.value.records;
+});
+
+const browserDownloadSidebarHiddenActiveCount = computed(function () {
+  return browserDownloadSidebar.value.hiddenActiveCount;
+});
+
+const browserDownloadSidebarHasMoreActive = computed(function () {
+  return browserDownloadSidebar.value.hasMoreActive;
+});
+
+watch(activeBrowserVideoUrl, function () {
+  resetDownloadSidebarActiveLimit();
 });
 
 const sharedBrowserLayoutStyle = computed(function () {
@@ -263,12 +285,21 @@ function loadDownloadSidebarWidth() {
 function setDownloadSidebarCollapsed(value: boolean) {
   downloadSidebarCollapsed.value = value;
   localStorage.setItem(DOWNLOAD_SIDEBAR_COLLAPSED_STORAGE_KEY, String(value));
+  if (value) resetDownloadSidebarActiveLimit();
   browser.scheduleResize();
 }
 
-function setDownloadSidebarWidth(value: number) {
+function resetDownloadSidebarActiveLimit() {
+  downloadSidebarActiveLimit.value = DOWNLOAD_SIDEBAR_ACTIVE_LIMIT;
+}
+
+function showMoreDownloadSidebarRecords() {
+  downloadSidebarActiveLimit.value += DOWNLOAD_SIDEBAR_ACTIVE_LIMIT;
+}
+
+function setDownloadSidebarWidth(value: number, persist = true) {
   downloadSidebarWidth.value = clampDownloadSidebarWidth(value);
-  localStorage.setItem(DOWNLOAD_SIDEBAR_WIDTH_STORAGE_KEY, String(downloadSidebarWidth.value));
+  if (persist) localStorage.setItem(DOWNLOAD_SIDEBAR_WIDTH_STORAGE_KEY, String(downloadSidebarWidth.value));
   browser.scheduleResize();
 }
 
@@ -285,7 +316,7 @@ function resizeDownloadSidebarWidth(width: number, final: boolean) {
     return;
   }
 
-  setDownloadSidebarWidth(width);
+  setDownloadSidebarWidth(width, final);
 }
 
 function resetDownloadSidebarWidth() {
@@ -331,7 +362,7 @@ async function cancelCurrentPlaybackDownload(videoUrl: string) {
     return;
   }
 
-  await cancelDownload(videoUrl);
+  await cancelDownload(videoUrl, { ignoreBlocked: true });
 }
 
 function setActiveView(view: AppView) {
@@ -1074,9 +1105,12 @@ onBeforeUnmount(function () {
             <DownloadProgressSidebar
               :collapsed="downloadSidebarCollapsed"
               :current-playback-video-url="activeBrowserVideoUrl"
+              :hidden-active-count="browserDownloadSidebarHiddenActiveCount"
+              :has-more-active="browserDownloadSidebarHasMoreActive"
               :records="browserDownloadSidebarRecords"
               :width="downloadSidebarWidth"
               @cancel-current-playback-download="cancelCurrentPlaybackDownload"
+              @show-more="showMoreDownloadSidebarRecords"
               @reset-width="resetDownloadSidebarWidth"
               @resize-width="resizeDownloadSidebarWidth"
               @toggle="toggleDownloadSidebar"

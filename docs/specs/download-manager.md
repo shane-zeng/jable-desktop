@@ -243,14 +243,14 @@ This document specifies the current Download List and local video file managemen
 ## Browser Download Sidebar
 
 - Browser view can show a right download progress sidebar when **Settings > Downloads > Browser download progress sidebar** is enabled. The feature defaults off; when off, Browser view reserves no right-side sidebar width or collapsed trigger.
-- The sidebar is visible only in Browser view and, when enabled, can be toggled with `Command+Shift+D` on macOS or `Ctrl+Shift+D` on Windows/Linux.
+- The sidebar is visible only in Browser view and, when enabled, can be toggled with `Command+Shift+D` on macOS or `Ctrl+Shift+D` on Windows/Linux. When the feature is disabled, the app does not intercept that shortcut.
 - Expanded/collapsed state and custom width are renderer-local `localStorage` layout preferences. The sidebar defaults collapsed when the feature is first enabled.
 - The expanded sidebar can be resized from its left edge. Dragging below the collapse threshold collapses the sidebar without disabling the feature.
-- The sidebar shows `downloading`, `queued`, `paused`, and `failed` records, plus at most 5 `ready` records completed in the last 30 minutes.
+- The sidebar initially shows up to 20 active `downloading`, `queued`, `paused`, and non-canceled `failed` records, plus at most 5 `ready` records completed in the last 30 minutes. If more active records match, the footer shows a compact `Show more` control that reveals the next 20 records.
 - Recently completed eligibility uses `completedAt`, falling back to `updatedAt` when `completedAt` is absent.
 - Sidebar rows show thumbnail, title, state, compact progress/status, downloaded size/speed or concise failure text, and time. `playback_auto` rows use the existing distinct border treatment instead of a text source badge.
 - The row matching the current browser page is additionally marked with a bright left rail and a slightly lifted background. This marker is separate from the `playback_auto` border treatment.
-- Sidebar rows do not expose per-row download actions except for the current browser page's `playback_auto` `queued` or `downloading` record. That current-video row is pinned first, marked separately as the current video, keeps the playback-auto border treatment, and exposes one large `Cancel` action using the same cancel semantics as the Download List.
+- Sidebar rows do not expose per-row download actions except for the current browser page's `playback_auto` `queued` or `downloading` record. That current-video row is pinned first, marked separately as the current video, keeps the playback-auto border treatment, and exposes one large `Cancel` action using the same cancel semantics as the Download List while bypassing renderer busy/syncing guards.
 - Canceling that current-video playback auto download stays on the browser page and uses playback-capture suppression so the same page load does not immediately enqueue the video again.
 
 ## Download Pipeline

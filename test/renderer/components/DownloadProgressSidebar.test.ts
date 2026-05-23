@@ -1,8 +1,10 @@
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DownloadProgressSidebar from '@/components/DownloadProgressSidebar.vue';
 import { setLocale } from '@/i18n';
 import type { DownloadRecord } from '../../../app/types/jable';
+
+type ResizeFrameCallback = (time: number) => void;
 
 function makeRecord(patch: Partial<DownloadRecord>): DownloadRecord {
   return Object.assign(
@@ -105,6 +107,26 @@ describe('DownloadProgressSidebar', function () {
     expect(emptyWrapper.get('[data-test="download-sidebar-empty"]').text()).toBe('沒有進行中或最近完成的下載');
   });
 
+  it('shows a compact show more control for hidden active records', async function () {
+    const wrapper = mount(DownloadProgressSidebar, {
+      props: {
+        collapsed: false,
+        hasMoreActive: true,
+        hiddenActiveCount: 3,
+        width: 320,
+        records: [makeRecord({ title: 'Visible Download' })]
+      }
+    });
+
+    const button = wrapper.get('[data-test="download-sidebar-show-more"]');
+    expect(button.text()).toBe('查看更多');
+    expect(button.attributes('aria-label')).toBe('查看更多，還有 3 筆');
+
+    await button.trigger('click');
+
+    expect(wrapper.emitted('show-more')).toEqual([[]]);
+  });
+
   it('marks the current video and only cancels the current playback auto download', async function () {
     const currentVideoUrl = 'https://jable.tv/videos/sidebar-current/';
     const wrapper = mount(DownloadProgressSidebar, {
@@ -171,6 +193,16 @@ describe('DownloadProgressSidebar', function () {
   });
 
   it('uses the edge handle for resize and collapse gestures', async function () {
+    const frameCallbacks: Array<ResizeFrameCallback | null> = [];
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    window.requestAnimationFrame = vi.fn(function (callback: ResizeFrameCallback) {
+      frameCallbacks.push(callback);
+      return frameCallbacks.length;
+    });
+    window.cancelAnimationFrame = vi.fn(function (frameId: number) {
+      frameCallbacks[frameId - 1] = null;
+    });
     const wrapper = mount(DownloadProgressSidebar, {
       props: {
         collapsed: false,
@@ -180,17 +212,32 @@ describe('DownloadProgressSidebar', function () {
     });
 
     const handle = wrapper.get('[data-test="download-sidebar-resize"]');
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    Object.assign(handle.element, {
+      setPointerCapture: setPointerCapture,
+      releasePointerCapture: releasePointerCapture
+    });
     expect(handle.attributes('aria-label')).toBe('拖曳調整下載進度側邊欄寬度，點一下收合');
     expect(handle.attributes('data-width')).toBe('320');
+    expect(handle.classes()).toContain('browser-tab-resize-handle');
 
-    await handle.trigger('pointerdown', { clientX: 400 });
+    await handle.trigger('pointerdown', { clientX: 400, pointerId: 7 });
     window.dispatchEvent(new MouseEvent('pointermove', { clientX: 360 }));
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 340 }));
+
+    expect(setPointerCapture).toHaveBeenCalledWith(7);
+    expect(wrapper.emitted('resize-width')).toBeUndefined();
+    frameCallbacks[0]?.(0);
+    expect(wrapper.emitted('resize-width')).toEqual([[380, false]]);
+
     window.dispatchEvent(new MouseEvent('pointerup', { clientX: 360 }));
 
     expect(wrapper.emitted('resize-width')).toEqual([
-      [360, false],
+      [380, false],
       [360, true]
     ]);
+    expect(releasePointerCapture).toHaveBeenCalledWith(7);
 
     await handle.trigger('dblclick');
     expect(wrapper.emitted('reset-width')).toEqual([[]]);
@@ -198,5 +245,8 @@ describe('DownloadProgressSidebar', function () {
     await handle.trigger('pointerdown', { clientX: 400 });
     window.dispatchEvent(new MouseEvent('pointerup', { clientX: 400 }));
     expect(wrapper.emitted('toggle')).toEqual([[]]);
+
+    window.requestAnimationFrame = originalRequestAnimationFrame;
+    window.cancelAnimationFrame = originalCancelAnimationFrame;
   });
 });

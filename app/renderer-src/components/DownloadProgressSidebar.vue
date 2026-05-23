@@ -4,17 +4,28 @@ import { isIndeterminateProgress, progressStyle, recordTimeLabel, secondaryInfoL
 import { t } from '../i18n';
 import type { DownloadRecord, DownloadState } from '../../types/jable';
 
-const props = defineProps<{
-  collapsed: boolean;
-  currentPlaybackVideoUrl?: string | null;
-  records: DownloadRecord[];
-  width: number;
-}>();
+type ResizeFrameCallback = (time: number) => void;
+
+const props = withDefaults(
+  defineProps<{
+    collapsed: boolean;
+    currentPlaybackVideoUrl?: string | null;
+    hasMoreActive?: boolean;
+    hiddenActiveCount?: number;
+    records: DownloadRecord[];
+    width: number;
+  }>(),
+  {
+    hasMoreActive: false,
+    hiddenActiveCount: 0
+  }
+);
 
 const emit = defineEmits<{
   'cancel-current-playback-download': [videoUrl: string];
   'reset-width': [];
   'resize-width': [width: number, final: boolean];
+  'show-more': [];
   toggle: [];
 }>();
 
@@ -22,8 +33,12 @@ const resizing = ref(false);
 const resizeStart = ref({
   x: 0,
   width: 0,
-  moved: false
+  moved: false,
+  pointerId: null as number | null,
+  target: null as HTMLElement | null
 });
+let pendingResizeFrame: number | null = null;
+let pendingResizeWidth: number | null = null;
 
 function stateClass(state: DownloadState) {
   if (state === 'ready') return 'download-state-ready';
@@ -65,13 +80,61 @@ function canCancelCurrentPlaybackAutoRecord(record: DownloadRecord) {
   );
 }
 
+function requestResizeFrame(callback: ResizeFrameCallback): number {
+  if (typeof window.requestAnimationFrame === 'function') return window.requestAnimationFrame(callback);
+  return window.setTimeout(callback, 16);
+}
+
+function cancelResizeFrame(frameId: number) {
+  if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(frameId);
+  else window.clearTimeout(frameId);
+}
+
+function flushPendingResize() {
+  const width = pendingResizeWidth;
+  pendingResizeFrame = null;
+  pendingResizeWidth = null;
+  if (width !== null && resizing.value) emit('resize-width', width, false);
+}
+
+function scheduleResize(width: number) {
+  pendingResizeWidth = width;
+  if (pendingResizeFrame !== null) return;
+  pendingResizeFrame = requestResizeFrame(flushPendingResize);
+}
+
+function cancelPendingResize() {
+  if (pendingResizeFrame !== null) cancelResizeFrame(pendingResizeFrame);
+  pendingResizeFrame = null;
+  pendingResizeWidth = null;
+}
+
+function releaseResizePointerCapture() {
+  const target = resizeStart.value.target;
+  const pointerId = resizeStart.value.pointerId;
+  if (!target || pointerId === null || typeof target.releasePointerCapture !== 'function') return;
+
+  try {
+    target.releasePointerCapture(pointerId);
+  } catch {}
+}
+
 function startResize(event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement | null;
+  const pointerId = typeof event.pointerId === 'number' ? event.pointerId : null;
   resizing.value = true;
   resizeStart.value = {
     x: event.clientX,
-    width: Number((event.currentTarget as HTMLElement | null)?.dataset.width) || 0,
-    moved: false
+    width: Number(target?.dataset.width) || 0,
+    moved: false,
+    pointerId: pointerId,
+    target: target
   };
+  if (target && pointerId !== null && typeof target.setPointerCapture === 'function') {
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {}
+  }
   event.preventDefault();
   window.addEventListener('pointermove', resizeSidebar);
   window.addEventListener('pointerup', stopResize);
@@ -82,7 +145,7 @@ function resizeSidebar(event: PointerEvent) {
 
   const nextWidth = resizeStart.value.width + resizeStart.value.x - event.clientX;
   if (Math.abs(event.clientX - resizeStart.value.x) > 3) resizeStart.value.moved = true;
-  emit('resize-width', nextWidth, false);
+  scheduleResize(nextWidth);
 }
 
 function cleanupResizeListeners() {
@@ -96,7 +159,9 @@ function stopResize(event?: PointerEvent) {
   const wasMoved = resizeStart.value.moved;
   const nextWidth = event ? resizeStart.value.width + resizeStart.value.x - event.clientX : resizeStart.value.width;
   resizing.value = false;
+  releaseResizePointerCapture();
   cleanupResizeListeners();
+  cancelPendingResize();
 
   if (wasMoved) {
     emit('resize-width', nextWidth, true);
@@ -107,7 +172,9 @@ function stopResize(event?: PointerEvent) {
 
 onBeforeUnmount(function () {
   resizing.value = false;
+  releaseResizePointerCapture();
   cleanupResizeListeners();
+  cancelPendingResize();
 });
 </script>
 
@@ -132,7 +199,7 @@ onBeforeUnmount(function () {
 
     <template v-else>
       <div
-        class="absolute inset-y-0 left-[-5px] z-20 w-3 cursor-col-resize"
+        class="browser-tab-resize-handle absolute inset-y-0 left-[-5px] z-20 w-3 cursor-col-resize"
         role="separator"
         tabindex="0"
         aria-orientation="vertical"
@@ -248,6 +315,17 @@ onBeforeUnmount(function () {
             </button>
           </div>
         </article>
+
+        <button
+          v-if="props.hasMoreActive"
+          type="button"
+          class="secondary w-full justify-center text-xs"
+          :aria-label="t('downloadList.sidebarShowMoreLabel', { count: props.hiddenActiveCount })"
+          data-test="download-sidebar-show-more"
+          @click="emit('show-more')"
+        >
+          {{ t('downloadList.sidebarShowMore') }}
+        </button>
       </div>
     </template>
   </aside>
