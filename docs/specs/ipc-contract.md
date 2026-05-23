@@ -158,6 +158,7 @@ Current behavior:
 - `setBrowserTabMuted()` toggles audio mute state through `webContents`.
 - `setBrowserBounds()` stores renderer-provided BrowserView geometry and attaches the active BrowserView when visible.
 - Native tab and library-video context menus return whether a menu was shown.
+- `showLibraryVideoMenu(payload)` accepts `url`, optional `title`, menu coordinates, and optional `downloadFileActions`. Ready download records set `downloadFileActions` so the menu can also forward `open-download-file` and `reveal-download-file` actions through `library-video-menu-action`.
 
 ## Browser Navigation API
 
@@ -200,7 +201,7 @@ Important browser message channels:
 - `sync-progress`
 - `sync-queue-progress`
 - `collection-toggle`
-- `library-video-menu-action`
+- `library-video-menu-action` (`open-current`, `open-new`, `open-download-file`, `reveal-download-file`)
 - `browser-tabs-compact-mode`
 - `jable-origin-fallback`
 - `browser-error`

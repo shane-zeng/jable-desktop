@@ -374,10 +374,12 @@ export function normalizeLibraryVideoMenuPayload(payload: unknown): LibraryVideo
     url: optionalStringField(record, 'url', channel) || ''
   };
   const title = optionalStringField(record, 'title', channel);
+  const downloadFileActions = optionalBooleanField(record, 'downloadFileActions', channel);
   const x = optionalNumberField(record, 'x', channel);
   const y = optionalNumberField(record, 'y', channel);
 
   if (typeof title !== 'undefined') normalized.title = title;
+  if (typeof downloadFileActions !== 'undefined') normalized.downloadFileActions = downloadFileActions;
   if (typeof x !== 'undefined') normalized.x = x;
   if (typeof y !== 'undefined') normalized.y = y;
 

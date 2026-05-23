@@ -413,15 +413,38 @@ function showLibraryVideoMenu(payload?: LibraryVideoMenuPayload | null): { shown
           url: url
         });
       }
-    },
-    { type: 'separator' },
-    {
-      label: t('context.copyUrl'),
-      click: function () {
-        copyText(url);
-      }
     }
   ];
+
+  if (normalizedPayload.downloadFileActions) {
+    pushSeparator(items);
+    items.push({
+      label: t('context.openDownloadFile'),
+      click: function () {
+        forwardBrowserMessage('library-video-menu-action', {
+          action: 'open-download-file',
+          url: url
+        });
+      }
+    });
+    items.push({
+      label: t('context.revealDownloadFile'),
+      click: function () {
+        forwardBrowserMessage('library-video-menu-action', {
+          action: 'reveal-download-file',
+          url: url
+        });
+      }
+    });
+  }
+
+  pushSeparator(items);
+  items.push({
+    label: t('context.copyUrl'),
+    click: function () {
+      copyText(url);
+    }
+  });
   const popupOptions: PopupOptions = { window: mainWindow };
 
   if (typeof normalizedPayload.x === 'number' && typeof normalizedPayload.y === 'number') {

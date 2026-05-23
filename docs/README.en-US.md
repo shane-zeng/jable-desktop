@@ -117,7 +117,7 @@ winget install Gyan.FFmpeg
 
 You can also download an FFmpeg build, extract it, add its `bin` folder to `PATH`, or manually choose `ffmpeg.exe` in the app settings page.
 
-Downloaded videos appear in the Download List tab under Local Data. Ready items can be opened with the system default player, revealed in the file manager, opened back on Jable, retried after failure, or explicitly deleted from local storage. The Download List also supports persisted multi-select state filtering, bulk retry for failed items, Queue Actions for Pause All / Resume All / Cancel Queued, and Delete Selected.
+Downloaded videos appear in the Download List tab under Local Data. A download item's title, cover, and preview open the Jable source page with the same new-tab and context-menu gestures as collection cards. Ready items can be played with the system default player, revealed in the file manager, or explicitly deleted from local storage; failed items can be retried. The Download List also supports persisted multi-select state filtering, bulk retry for failed items, Queue Actions for Pause All / Resume All / Cancel Queued, and Delete Selected.
 
 ## Installation
 

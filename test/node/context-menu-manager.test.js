@@ -256,3 +256,43 @@ test('browser context menu forwards theater mode errors', async function () {
     }
   ]);
 });
+
+test('library video context menu can include download file actions', function () {
+  const harness = createHarness();
+
+  harness.manager.showLibraryVideoMenu({
+    url: 'https://jable.tv/videos/ready/',
+    title: 'Ready Video',
+    downloadFileActions: true,
+    x: 11,
+    y: 22
+  });
+
+  const openFileItem = menuItemByLabel(harness.menuItems(), 'context.openDownloadFile');
+  const revealFileItem = menuItemByLabel(harness.menuItems(), 'context.revealDownloadFile');
+
+  assert.ok(openFileItem);
+  assert.ok(revealFileItem);
+  assert.deepEqual(harness.popupOptions().x, 11);
+  assert.deepEqual(harness.popupOptions().y, 22);
+
+  openFileItem.click();
+  revealFileItem.click();
+
+  assert.deepEqual(harness.forwardedMessages, [
+    {
+      channel: 'library-video-menu-action',
+      payload: {
+        action: 'open-download-file',
+        url: 'https://jable.tv/videos/ready/'
+      }
+    },
+    {
+      channel: 'library-video-menu-action',
+      payload: {
+        action: 'reveal-download-file',
+        url: 'https://jable.tv/videos/ready/'
+      }
+    }
+  ]);
+});

@@ -175,6 +175,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
           :selected="selectedDownloadUrlSet.has(record.videoUrl)"
           @open="emit('open-download', $event)"
           @open-page="emit('open-video', $event)"
+          @open-page-new="emit('open-video-new-tab', $event)"
           @reveal="emit('reveal-download', $event)"
           @retry="emit('retry-download', $event)"
           @pause="emit('pause-download', $event)"
@@ -182,6 +183,7 @@ function isVideoSelectedForDownload(video: VideoRow) {
           @cancel="emit('cancel-download', $event)"
           @delete="emit('delete-download', $event)"
           @toggle-select="emit('toggle-download-record-selection', $event)"
+          @context-menu="emit('video-context-menu', $event)"
         />
       </template>
     </template>

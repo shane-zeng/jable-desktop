@@ -8,7 +8,7 @@ import {
   secondaryInfoLabel as downloadSecondaryInfoLabel
 } from '../download-display';
 import { t } from '../i18n';
-import type { CollectionKey, DownloadRecord, DownloadState } from '../../types/jable';
+import type { CollectionKey, DownloadRecord, DownloadState, LibraryVideoMenuPayload } from '../../types/jable';
 import VideoPreviewThumb from './VideoPreviewThumb.vue';
 
 const props = defineProps<{
@@ -20,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   open: [videoUrl: string];
   'open-page': [videoUrl: string];
+  'open-page-new': [videoUrl: string];
   reveal: [videoUrl: string];
   retry: [videoUrl: string];
   pause: [videoUrl: string];
@@ -27,6 +28,7 @@ const emit = defineEmits<{
   cancel: [videoUrl: string];
   delete: [videoUrl: string];
   'toggle-select': [payload: { videoUrl: string; selected: boolean }];
+  'context-menu': [payload: LibraryVideoMenuPayload];
 }>();
 
 const collectionKeys = computed(function () {
@@ -92,10 +94,47 @@ function secondaryInfoLabel(record: DownloadRecord) {
   return downloadSecondaryInfoLabel(record, t);
 }
 
-function openCardTarget(event: MouseEvent, record: DownloadRecord) {
+function isMacPlatform() {
+  return /Mac|iPhone|iPad|iPod/.test(window.navigator.platform || '');
+}
+
+function openPage(event: MouseEvent) {
   event.preventDefault();
-  if (record.state !== 'ready') return;
-  emit('open', record.videoUrl);
+
+  const macPlatform = isMacPlatform();
+
+  if (event.metaKey || (!macPlatform && event.ctrlKey)) {
+    emit('open-page-new', props.record.videoUrl);
+    return;
+  }
+
+  if (macPlatform && event.ctrlKey) return;
+
+  emit('open-page', props.record.videoUrl);
+}
+
+function openPageAux(event: MouseEvent) {
+  if (event.button !== 1) return;
+
+  event.preventDefault();
+  emit('open-page-new', props.record.videoUrl);
+}
+
+function openContextMenu(event: MouseEvent) {
+  event.preventDefault();
+
+  const payload: LibraryVideoMenuPayload = {
+    url: props.record.videoUrl,
+    title: props.record.title || props.record.videoUrl,
+    x: event.clientX,
+    y: event.clientY
+  };
+
+  if (props.record.state === 'ready') {
+    payload.downloadFileActions = true;
+  }
+
+  emit('context-menu', payload);
 }
 
 function toggleSelected(event: Event) {
@@ -116,6 +155,7 @@ function toggleSelected(event: Event) {
     data-test="download-record-card"
     :data-video-url="record.videoUrl"
     tabindex="-1"
+    @contextmenu="openContextMenu"
   >
     <label
       v-if="selectable"
@@ -136,18 +176,18 @@ function toggleSelected(event: Event) {
       :title="record.title || record.videoUrl"
       :img="record.img"
       :preview="record.preview"
-      :disabled="record.state !== 'ready'"
-      :open-new-gestures="false"
-      @open="emit('open', $event)"
+      data-test="download-record-thumb-link"
+      @open="emit('open-page', $event)"
+      @open-new="emit('open-page-new', $event)"
     />
 
     <div class="flex min-h-[178px] min-w-0 flex-col gap-2">
       <a
         class="min-h-[4.05em] overflow-hidden rounded-none border-0 bg-transparent p-0 text-left font-bold leading-[1.35] text-[var(--text)] no-underline shadow-none outline-none [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] hover:text-[var(--accent)] focus-visible:text-[var(--accent)]"
-        :class="record.state === 'ready' ? 'cursor-pointer' : 'cursor-default'"
+        data-test="download-record-title-link"
         :href="record.videoUrl"
-        :aria-disabled="record.state !== 'ready'"
-        @click="openCardTarget($event, record)"
+        @click="openPage"
+        @auxclick="openPageAux"
       >
         {{ record.title || record.videoUrl }}
       </a>
@@ -217,15 +257,16 @@ function toggleSelected(event: Event) {
           </span>
         </div>
 
-        <div class="mt-auto grid grid-cols-3 gap-2">
+        <div class="mt-auto grid gap-2" :class="record.state === 'ready' ? 'grid-cols-3' : 'grid-cols-2'">
           <button
+            v-if="record.state === 'ready'"
             type="button"
             class="min-h-8 w-full whitespace-nowrap px-2 py-1 text-xs"
-            data-test="download-record-open-page"
-            :title="t('downloadList.openPage')"
-            @click="emit('open-page', record.videoUrl)"
+            data-test="download-record-play"
+            :title="t('downloadList.play')"
+            @click="emit('open', record.videoUrl)"
           >
-            {{ t('downloadList.openPageShort') }}
+            {{ t('downloadList.play') }}
           </button>
           <button
             v-if="record.state === 'paused'"

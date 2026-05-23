@@ -611,6 +611,9 @@ describe('LibraryPanel', function () {
     expect(wrapper.find('[data-test="download-error-log"]').exists()).toBe(false);
     expect(cards[0].find('[data-test="download-record-select"]').exists()).toBe(true);
     expect(cards[1].find('[data-test="download-record-select"]').exists()).toBe(true);
+    expect(cards[0].find('[data-test="download-record-open-page"]').exists()).toBe(false);
+    expect(cards[0].get('[data-test="download-record-play"]').text()).toBe('播放');
+    expect(cards[1].find('[data-test="download-record-play"]').exists()).toBe(false);
     expect(cards[0].get('[data-test="download-record-delete"]').classes()).toContain('danger-secondary');
     expect(cards[0].get('[data-test="download-record-delete"]').classes()).not.toContain('danger');
 
@@ -618,18 +621,21 @@ describe('LibraryPanel', function () {
     await wrapper.setProps({ selectedDownloadUrls: ['https://jable.tv/videos/missing/'] });
     expect((wrapper.get('[data-test="download-delete-selected"]').element as HTMLButtonElement).disabled).toBe(false);
 
-    await cards[0].get('a').trigger('click');
-    await cards[1].get('a').trigger('click');
+    await cards[0].get('[data-test="download-record-title-link"]').trigger('click');
+    await cards[1].get('[data-test="download-record-title-link"]').trigger('click');
+    await cards[0].get('[data-test="download-record-play"]').trigger('click');
     await cards[0].get('[data-test="download-record-reveal"]').trigger('click');
     await cards[0].get('[data-test="download-record-delete"]').trigger('click');
-    await cards[1].get('[data-test="download-record-open-page"]').trigger('click');
     await cards[1].get('[data-test="download-record-retry"]').trigger('click');
     await cards[1].get('[data-test="download-record-delete"]').trigger('click');
     await wrapper.get('[data-test="download-retry-failed"]').trigger('click');
     await wrapper.get('[data-test="download-delete-selected"]').trigger('click');
 
     expect(wrapper.emitted('open-download')).toEqual([['https://jable.tv/videos/ready/']]);
-    expect(wrapper.emitted('open-video')).toEqual([['https://jable.tv/videos/missing/']]);
+    expect(wrapper.emitted('open-video')).toEqual([
+      ['https://jable.tv/videos/ready/'],
+      ['https://jable.tv/videos/missing/']
+    ]);
     expect(wrapper.emitted('reveal-download')).toEqual([['https://jable.tv/videos/ready/']]);
     expect(wrapper.emitted('retry-download')).toEqual([['https://jable.tv/videos/missing/']]);
     expect(wrapper.emitted('delete-download')).toEqual([

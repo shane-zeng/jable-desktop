@@ -413,6 +413,10 @@ function handleLibraryVideoMenuAction(payload: LibraryVideoMenuAction | null | u
     openInBrowser(payload.url);
   } else if (payload.action === 'open-new') {
     openInNewBrowserTab(payload.url);
+  } else if (payload.action === 'open-download-file') {
+    openDownloadFile(payload.url);
+  } else if (payload.action === 'reveal-download-file') {
+    revealDownloadFile(payload.url);
   }
 }
 

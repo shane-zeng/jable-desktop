@@ -341,12 +341,13 @@ export interface BrowserTabMenuPayload extends BrowserTabPayload {
 export interface LibraryVideoMenuPayload {
   url: string;
   title?: string;
+  downloadFileActions?: boolean;
   x?: number;
   y?: number;
 }
 
 export interface LibraryVideoMenuAction {
-  action: 'open-current' | 'open-new';
+  action: 'open-current' | 'open-new' | 'open-download-file' | 'reveal-download-file';
   url: string;
 }
 
