@@ -103,6 +103,8 @@ export function createAppTestApi(
     importJson: vi.fn(),
     exportJson: vi.fn(),
     exportJsonFile: vi.fn(),
+    exportAppBackup: vi.fn(),
+    importAppBackup: vi.fn(),
     listPendingRemoteOperationGroups: vi.fn().mockResolvedValue([]),
     addPendingRemoteOperationGroup: vi.fn(),
     removePendingRemoteOperationGroup: vi.fn(),

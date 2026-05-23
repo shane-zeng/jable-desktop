@@ -1,6 +1,6 @@
 # Desktop App Specification
 
-Last verified against implementation: 2026-05-22
+Last verified against implementation: 2026-05-24
 
 This document specifies the current user-facing Electron desktop application behavior.
 
@@ -117,6 +117,9 @@ This document specifies the current user-facing Electron desktop application beh
 - Data settings:
   - Import JSON
   - Export JSON
+  - Export settings backup
+  - Export full app backup
+  - Import app backup
   - Display local database path
   - Open the local data folder in the OS file manager
   - Open the local diagnostics log folder
@@ -149,6 +152,10 @@ This document specifies the current user-facing Electron desktop application beh
 - The user chooses the collection before export.
 - Native save dialog output uses the collection's default filename.
 - Canceling the native save dialog returns a canceled result without writing a file.
+- App backup import/export is initiated from Settings > Data and uses native open/save dialogs in the main process.
+- Settings backup includes app settings plus renderer-local UI preferences. Full backup additionally includes complete logical local data and download records, but not cookies, login session, diagnostics, browser session, window placement, or downloaded media files.
+- Full backup import is blocked while sync or downloads are active. If Pending Sync exists, main shows a confirmation because full import clears `sync_operations`.
+- App backup import applies settings only after full data import succeeds. Paths such as FFmpeg and download root are kept only when they match the current platform's absolute-path convention.
 
 ## Status And Feedback
 

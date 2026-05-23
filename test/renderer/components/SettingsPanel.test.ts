@@ -52,7 +52,7 @@ function mountPanel(
   });
 }
 
-async function selectImportFile(wrapper: ReturnType<typeof mount>, resource: ExportResource, filename: string) {
+async function selectImportFile(wrapper: ReturnType<typeof mount>, resource: unknown, filename: string) {
   const input = wrapper.get('[data-test="settings-import-file"]').element as HTMLInputElement;
   const file = new File([JSON.stringify(resource)], filename, { type: 'application/json' });
 
@@ -92,6 +92,7 @@ describe('SettingsPanel', function () {
     expect(wrapper.text()).toContain('播放時自動下載');
     expect(wrapper.text()).toContain('瀏覽器下載進度側邊欄');
     expect(wrapper.text()).toContain('資料');
+    expect(wrapper.text()).toContain('App 備份');
     expect(wrapper.text()).toContain('診斷紀錄');
     expect(wrapper.text()).toContain('保留 14 天');
     expect(wrapper.text()).toContain('版本');
@@ -346,5 +347,45 @@ describe('SettingsPanel', function () {
     await wrapper.get('[data-test="settings-export-button"]').trigger('click');
 
     expect(wrapper.emitted('export-json')).toEqual([['watch_later']]);
+  });
+
+  it('emits app backup actions from the data section', async function () {
+    const wrapper = mountPanel();
+
+    await wrapper.get('[data-test="settings-export-settings-backup"]').trigger('click');
+    await wrapper.get('[data-test="settings-export-full-backup"]').trigger('click');
+    await wrapper.get('[data-test="settings-import-app-backup"]').trigger('click');
+
+    expect(wrapper.emitted('export-settings-backup')).toEqual([[]]);
+    expect(wrapper.emitted('export-full-backup')).toEqual([[]]);
+    expect(wrapper.emitted('import-app-backup')).toEqual([[]]);
+  });
+
+  it('disables app backup actions while busy', async function () {
+    const wrapper = mountPanel();
+    await wrapper.setProps({ busy: true });
+
+    expect(wrapper.get('[data-test="settings-export-settings-backup"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[data-test="settings-export-full-backup"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[data-test="settings-import-app-backup"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('rejects app backup files in the collection JSON importer', async function () {
+    const wrapper = mountPanel();
+
+    await selectImportFile(
+      wrapper,
+      {
+        kind: 'jable-desktop-full-backup',
+        format_version: 1,
+        settings: {},
+        renderer_preferences: {},
+        data: {}
+      },
+      'jable_desktop_full_backup.json'
+    );
+
+    expect(wrapper.text()).toContain('這是 App 備份檔');
+    expect(wrapper.find('[data-test="settings-import-confirm"]').exists()).toBe(false);
   });
 });

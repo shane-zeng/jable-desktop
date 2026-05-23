@@ -603,6 +603,77 @@ for (const kind of ENGINE_KINDS) {
     assert.equal(result.total, 2);
     assert.deepEqual(withoutExportedAt(actual), withoutExportedAt(expected));
   });
+
+  test('data engine contract: full backup data merge import (' + kind + ')', function (t) {
+    const source = createEngine(t).engine;
+    const target = createEngine(t).engine;
+
+    source.saveSyncPage({
+      collectionKey: 'favourites',
+      mode: 'full',
+      syncRunId: 'backup-source',
+      page: 1,
+      url: 'https://jable.tv/my/favourites/videos/',
+      rows: [
+        { title: 'Imported Alpha', url: 'https://jable.tv/videos/imported-alpha/', siteOrder: 1 },
+        { title: 'Hidden Beta', url: 'https://jable.tv/videos/hidden-beta/', siteOrder: 2 }
+      ]
+    });
+    source.applyCollectionToggle({
+      collectionKey: 'favourites',
+      action: 'remove',
+      syncRunId: 'backup-source',
+      video: { title: 'Hidden Beta', url: 'https://jable.tv/videos/hidden-beta/' }
+    });
+    source.upsertDownloadAsset({
+      videoUrl: 'https://jable.tv/videos/imported-alpha/',
+      state: 'downloading',
+      localPath: 'Imported/imported-alpha.mp4',
+      title: 'Imported Alpha'
+    });
+
+    target.saveSyncPage({
+      collectionKey: 'favourites',
+      mode: 'full',
+      syncRunId: 'target-existing',
+      page: 1,
+      url: 'https://jable.tv/my/favourites/videos/',
+      rows: [{ title: 'Existing', url: 'https://jable.tv/videos/existing/', siteOrder: 9 }]
+    });
+    target.applyCollectionToggle({
+      collectionKey: 'watch_later',
+      action: 'add',
+      syncRunId: 'target-pending',
+      deferRemote: true,
+      video: { title: 'Pending', url: 'https://jable.tv/videos/pending/' }
+    });
+    assert.equal(target.listPendingRemoteOperationGroups().length, 1);
+
+    const backupData = source.exportBackupData();
+    const result = target.importBackupData(backupData);
+
+    assert.equal(result.imported.videos, 2);
+    assert.equal(result.imported.collectionItems, 2);
+    assert.equal(result.imported.clearedSyncOperations, 1);
+    assert.equal(target.listPendingRemoteOperationGroups().length, 0);
+    assert.deepEqual(
+      target.listVideos('favourites').map(function (row) {
+        return row.url;
+      }),
+      ['https://jable.tv/videos/imported-alpha/', 'https://jable.tv/videos/existing/']
+    );
+    assert.deepEqual(
+      target.listVideos('favourites', { includeHidden: true }).map(function (row) {
+        return row.url + ':' + row.is_visible;
+      }),
+      [
+        'https://jable.tv/videos/imported-alpha/:1',
+        'https://jable.tv/videos/hidden-beta/:0',
+        'https://jable.tv/videos/existing/:1'
+      ]
+    );
+    assert.equal(target.getDownloadAsset('https://jable.tv/videos/imported-alpha/').state, 'paused');
+  });
 }
 
 test('data engine defaults to rust when the native addon is available', function (t) {

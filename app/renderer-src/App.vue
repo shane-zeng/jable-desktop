@@ -35,6 +35,7 @@ import { useI18n } from './i18n';
 import type {
   AppSettings,
   AppSettingsPatch,
+  AppBackupKind,
   AppInfo,
   AppView,
   BrowserMessage,
@@ -51,6 +52,7 @@ import type {
   FfmpegStatus,
   LibraryVideoMenuAction,
   LibraryVideoMenuPayload,
+  RendererPreferencesBackup,
   SyncPagePayload,
   SyncProgressPayload,
   SyncQueueProgressPayload,
@@ -594,6 +596,88 @@ async function importJsonToCollection(payload: { collectionKey: CollectionKey; r
   }
 }
 
+async function exportAppBackup(kind: AppBackupKind) {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    const result = await api.exportAppBackup({
+      kind: kind,
+      rendererPreferences: currentRendererPreferences()
+    });
+
+    if (result.canceled) {
+      setStatus(i18n.t('status.appBackupExportCanceled'));
+      return;
+    }
+
+    if (kind === 'full' && result.totals) {
+      setStatus(
+        i18n.t('status.appBackupFullExported', {
+          filename: result.filename,
+          videos: result.totals.videos,
+          downloads: result.totals.downloadAssets
+        }),
+        'success'
+      );
+      return;
+    }
+
+    setStatus(i18n.t('status.appBackupSettingsExported', { filename: result.filename }), 'success');
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.appBackupExportFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function importAppBackup() {
+  if (busy.value || syncing.value) return;
+
+  busy.value = true;
+
+  try {
+    const result = await api.importAppBackup();
+    if (result.canceled) {
+      setStatus(i18n.t('status.appBackupImportCanceled'));
+      return;
+    }
+
+    applyAppSettings(result.settings);
+    await applyRendererPreferences(result.rendererPreferences);
+    ffmpegStatus.value = await api.getFfmpegStatus();
+    downloadRoot.value = await api.getDownloadRoot();
+    library.currentPage.value = 1;
+    await library.refreshVideos();
+    await library.refreshDownloads();
+    await library.refreshPendingGroups();
+    browser.scheduleResize();
+
+    const tone: 'warning' | 'success' = result.warnings.length > 0 ? 'warning' : 'success';
+    if (result.kind === 'full' && result.imported) {
+      setStatus(
+        i18n.t('status.appBackupFullImported', {
+          videos: result.imported.videos,
+          collectionItems: result.imported.collectionItems,
+          downloads: result.imported.downloadAssets,
+          warnings: result.warnings.length
+        }),
+        tone
+      );
+      return;
+    }
+
+    setStatus(i18n.t('status.appBackupSettingsImported', { warnings: result.warnings.length }), tone);
+  } catch (error) {
+    console.error(error);
+    setStatus(i18n.t('status.appBackupImportFailed', { error: errorMessage(error) }), 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
 async function diagnoseLayout() {
   setStatus(await browser.diagnose());
 }
@@ -761,6 +845,23 @@ function changeLocale(locale: string) {
 function resetBrowserTabsWidth() {
   setBrowserTabsWidth(BROWSER_TABS_DEFAULT_WIDTH);
   setStatus(i18n.t('status.settingsSaved'), 'success');
+}
+
+function currentRendererPreferences(): RendererPreferencesBackup {
+  return {
+    locale: i18n.locale.value,
+    browserTabsWidth: browserTabsWidth.value,
+    downloadSidebarCollapsed: downloadSidebarCollapsed.value,
+    downloadSidebarWidth: downloadSidebarWidth.value
+  };
+}
+
+async function applyRendererPreferences(preferences: RendererPreferencesBackup) {
+  if (preferences.locale) i18n.setLocale(preferences.locale);
+  if (preferences.browserTabsWidth !== null) setBrowserTabsWidth(preferences.browserTabsWidth);
+  if (preferences.downloadSidebarWidth !== null) setDownloadSidebarWidth(preferences.downloadSidebarWidth);
+  if (preferences.downloadSidebarCollapsed !== null) setDownloadSidebarCollapsed(preferences.downloadSidebarCollapsed);
+  if (preferences.locale) await syncMainLocale(preferences.locale);
 }
 
 function ffmpegStatusTone(status: FfmpegStatus | null) {
@@ -1219,6 +1320,9 @@ onBeforeUnmount(function () {
         @check-updates="checkForUpdates"
         @import-json="importJsonToCollection"
         @export-json="exportCollection"
+        @export-settings-backup="exportAppBackup('settings')"
+        @export-full-backup="exportAppBackup('full')"
+        @import-app-backup="importAppBackup"
       />
 
       <Transition name="app-modal">

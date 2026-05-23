@@ -173,6 +173,8 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(ipcHandlersSource, /diagnostics:webview-event/);
   assert.match(ipcHandlersSource, /app:open-ffmpeg-guide/);
   assert.match(ipcHandlersSource, /app:check-for-updates/);
+  assert.match(ipcHandlersSource, /app:export-backup/);
+  assert.match(ipcHandlersSource, /app:import-backup/);
   assert.match(preloadSource, /getSettings/);
   assert.match(preloadSource, /updateSettings/);
   assert.match(preloadSource, /openFfmpegGuide/);
@@ -181,9 +183,13 @@ test('main process uses preload IPC for browser page requests', function () {
   assert.match(preloadSource, /clearDiagnostics/);
   assert.match(preloadSource, /reportRendererError/);
   assert.match(preloadSource, /checkForUpdates/);
+  assert.match(preloadSource, /exportAppBackup/);
+  assert.match(preloadSource, /importAppBackup/);
   assert.match(typesSource, /openFfmpegGuide\(\): Promise<OpenDocumentationResult>/);
   assert.match(typesSource, /openLogFolder\(\): Promise<OpenLocalDataFolderResult>/);
   assert.match(typesSource, /clearDiagnostics\(\): Promise<ClearDiagnosticsResult>/);
+  assert.match(typesSource, /exportAppBackup\(payload: ExportAppBackupPayload\)/);
+  assert.match(typesSource, /importAppBackup\(\): Promise<ImportAppBackupResult>/);
   assert.match(source, /README\.zh-TW\.md#/);
   assert.match(source, /README\.en-US\.md#download-list-and-ffmpeg/);
   assert.match(source, /README\.ja-JP\.md#/);

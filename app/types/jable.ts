@@ -535,6 +535,56 @@ export interface ImportJsonPayload {
   resource: ExportResource;
 }
 
+export type AppBackupKind = 'settings' | 'full';
+export type AppBackupEnvelopeKind = 'jable-desktop-settings-backup' | 'jable-desktop-full-backup';
+
+export interface RendererPreferencesBackup {
+  locale: SupportedLocale | null;
+  browserTabsWidth: number | null;
+  downloadSidebarCollapsed: boolean | null;
+  downloadSidebarWidth: number | null;
+}
+
+export interface AppBackupData {
+  videos: unknown[];
+  collection_items: unknown[];
+  sync_states: unknown[];
+  download_assets: unknown[];
+}
+
+export interface AppBackupTotals {
+  videos: number;
+  collectionItems: number;
+  syncStates: number;
+  downloadAssets: number;
+  clearedSyncOperations?: number;
+}
+
+export interface ExportAppBackupPayload {
+  kind: AppBackupKind;
+  rendererPreferences: RendererPreferencesBackup;
+}
+
+export type ExportAppBackupResult =
+  | { canceled: true }
+  | {
+      canceled: false;
+      kind: AppBackupKind;
+      filename: string;
+      totals: AppBackupTotals | null;
+    };
+
+export type ImportAppBackupResult =
+  | { canceled: true }
+  | {
+      canceled: false;
+      kind: AppBackupKind;
+      settings: AppSettings;
+      rendererPreferences: RendererPreferencesBackup;
+      imported: AppBackupTotals | null;
+      warnings: string[];
+    };
+
 export type ExportJsonFileResult =
   | { canceled: true }
   | {
@@ -602,6 +652,8 @@ export interface JableAppApi {
   importJson(payload: ImportJsonPayload): Promise<{ imported: number; collectionKey: CollectionKey }>;
   exportJson(collectionKey: CollectionKey): Promise<ExportResource>;
   exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult>;
+  exportAppBackup(payload: ExportAppBackupPayload): Promise<ExportAppBackupResult>;
+  importAppBackup(): Promise<ImportAppBackupResult>;
   listPendingRemoteOperationGroups(): Promise<PendingRemoteOperationGroup[]>;
   addPendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult>;
   removePendingRemoteOperationGroup(groupId: string): Promise<PendingRemoteOperationActionResult>;

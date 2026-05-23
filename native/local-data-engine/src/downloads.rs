@@ -169,7 +169,7 @@ fn file_relative_path_part_is_windows_safe(part: &str) -> bool {
     )
 }
 
-fn normalize_file_relative_path(value: Option<String>) -> Result<Option<String>> {
+pub(crate) fn normalize_file_relative_path(value: Option<String>) -> Result<Option<String>> {
     match value {
         Some(path) if file_relative_path_is_safe(&path) => Ok(Some(path)),
         Some(_) => Err(Error::from_reason(

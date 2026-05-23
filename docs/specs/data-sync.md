@@ -1,8 +1,8 @@
 # Data And Sync Specification
 
-Last verified against implementation: 2026-05-21
+Last verified against implementation: 2026-05-24
 
-This document specifies local data, search, sync, outbox, and JSON import/export behavior.
+This document specifies local data, search, sync, outbox, JSON import/export, and app backup behavior.
 
 ## Collections
 
@@ -24,7 +24,7 @@ Collection metadata exists in both TypeScript and Rust and must stay aligned:
 - The data engine is loaded through `app/data/data-engine.ts`.
 - The database file is named `jable-favourites.sqlite` under Electron `userData`.
 - SQLite uses WAL mode.
-- Rust data-engine runtime behavior is split by concern: `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts/resequencing, `src/sync.rs` owns sync and outbox state transitions, `src/resource.rs` owns JSON import/export, `src/payload.rs` owns payload coercion and URL normalization, and `src/lib.rs` keeps the N-API bridge and method dispatch.
+- Rust data-engine runtime behavior is split by concern: `src/schema.rs` owns migrations and FTS setup, `src/search.rs` owns search tokenization, `src/store.rs` owns local list queries/upserts/resequencing, `src/sync.rs` owns sync and outbox state transitions, `src/resource.rs` owns collection JSON import/export, `src/backup.rs` owns full logical app backup data snapshots/import, `src/payload.rs` owns payload coercion and URL normalization, and `src/lib.rs` keeps the N-API bridge and method dispatch.
 
 ## Core Data Model
 
@@ -35,6 +35,7 @@ The local store tracks:
 - `collection_items`: collection membership, visibility, ordering, and sync timestamps.
 - `sync_states`: latest sync completion state per collection.
 - `sync_operations`: local and deferred remote operations recorded during sync.
+- `download_assets`: persisted Download List records keyed by canonical video URL.
 - `video_search`: SQLite FTS5 table for local search.
 
 Important collection item fields:
@@ -214,6 +215,18 @@ Important outbox fields:
 - File export yields between batches.
 - File export atomically renames the temporary file after a complete write.
 - Cleanup removes the temporary file after write failure where possible.
+
+## App Backup
+
+- App backups are versioned logical JSON files, separate from collection JSON resources.
+- Settings backup kind is `jable-desktop-settings-backup`; full backup kind is `jable-desktop-full-backup`; current `format_version` is `1`.
+- Settings backup includes normalized app settings and renderer-local UI preferences for locale, tab rail width, download sidebar collapsed state, and download sidebar width.
+- Full backup additionally includes all `videos`, all `collection_items` including hidden/missing rows, `sync_states`, and `download_assets`.
+- Full backup intentionally excludes `sync_operations`, `video_search`, cookies/login session, diagnostics logs, browser startup session, main-window state, and downloaded media files.
+- Full backup import is merge/upsert: rows present in the backup overwrite matching local rows, while local rows absent from the backup remain.
+- Full backup import clears `sync_operations` in the same database transaction so old Pending Sync operations cannot be replayed to Jable after restore.
+- Backup import canonicalizes supported fallback-origin video URLs, rebuilds video search text from imported title/URL data, and normalizes `queued` or `downloading` download records to `paused`.
+- Download record paths in backup import must remain download-root-relative and pass the same Windows-safe path validation as normal download records.
 
 ## Download Records
 

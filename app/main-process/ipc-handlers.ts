@@ -16,7 +16,10 @@ import type {
   BrowserTabsState,
   CollectionKey,
   CreateBrowserTabPayload,
+  ExportAppBackupPayload,
+  ExportAppBackupResult,
   ExportJsonFileResult,
+  ImportAppBackupResult,
   OpenLocalDataFolderResult,
   PendingRemoteOperationActionResult,
   SyncBrowserCollectionOptions,
@@ -63,6 +66,7 @@ export type IpcHandlersContext = {
   closeBrowserTab(tabId: string | null): BrowserTabsState;
   createBrowserTab(options?: CreateBrowserTabPayload | null): BrowserTabsState;
   currentLocale(): string;
+  exportAppBackup(payload: ExportAppBackupPayload): Promise<ExportAppBackupResult>;
   exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonFileResult>;
   forwardBrowserMessage(channel: string, payload: unknown): void;
   getAppSettings(): AppSettings;
@@ -77,6 +81,7 @@ export type IpcHandlersContext = {
   goBrowserBack(tabId?: string | null): Promise<BrowserNavigationState>;
   goBrowserForward(tabId?: string | null): Promise<BrowserNavigationState>;
   ipcMain: typeof Electron.ipcMain;
+  importAppBackup(): Promise<ImportAppBackupResult>;
   mainErrorMessage(error: unknown): string;
   markActiveSyncMutated(collectionKey: CollectionKey): void;
   navigateBrowser(payload?: BrowserNavigatePayload | null): Promise<string>;
@@ -160,6 +165,14 @@ function registerAppHandlers(context: IpcHandlersContext) {
 
   context.ipcMain.handle('app:check-for-updates', function () {
     return context.checkForUpdates({ manual: true });
+  });
+
+  context.ipcMain.handle('app:export-backup', function (_event, payload) {
+    return context.exportAppBackup(payload as ExportAppBackupPayload);
+  });
+
+  context.ipcMain.handle('app:import-backup', function () {
+    return context.importAppBackup();
   });
 
   context.ipcMain.on('diagnostics:renderer-event', function (_event, payload) {

@@ -10,6 +10,7 @@ use std::sync::Mutex;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
+mod backup;
 mod collections;
 mod downloads;
 mod payload;
@@ -135,6 +136,8 @@ impl Engine {
             "importResource" => self.import_resource(payload),
             "exportResource" => self.export_resource(payload),
             "exportResourceToFile" => self.export_resource_to_file(payload),
+            "exportBackupData" => self.export_backup_data(),
+            "importBackupData" => self.import_backup_data(payload),
             _ => Err(Error::from_reason(format!(
                 "Unknown native data engine method: {method}"
             ))),

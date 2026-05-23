@@ -1,6 +1,6 @@
 # Download Manager Specification
 
-Last verified against implementation: 2026-05-20
+Last verified against implementation: 2026-05-24
 
 This document specifies the current Download List and local video file management behavior.
 
@@ -14,6 +14,7 @@ This document specifies the current Download List and local video file managemen
 - Download state is independent from Favourites and Watch Later membership.
 - Removing a video from a local collection does not delete a downloaded file.
 - Collection JSON import/export does not include download records or downloaded media files.
+- Full app backup includes `download_assets` records but still does not include downloaded media files. Imported `queued` or `downloading` records are restored as `paused`, and ready records are reconciled against the current download root when listed.
 
 ## Local Playback In Browser Tabs
 

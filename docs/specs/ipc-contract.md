@@ -1,6 +1,6 @@
 # IPC Contract Specification
 
-Last verified against implementation: 2026-05-22
+Last verified against implementation: 2026-05-24
 
 This document summarizes the current IPC boundary. `app/types/jable.ts` is the source of truth for exact TypeScript payload and response types.
 
@@ -30,6 +30,8 @@ Renderer API group:
 - `setLocale(locale)`
 - `openLogFolder()`
 - `clearDiagnostics()`
+- `exportAppBackup(payload)`
+- `importAppBackup()`
 - `reportRendererError(payload)`
 
 Current behavior:
@@ -42,6 +44,8 @@ Current behavior:
 - `setLocale()` normalizes locale, updates main-process locale, rebuilds native menus, and returns the normalized locale.
 - `openLogFolder()` ensures Electron `userData/logs` exists and opens it through the OS file manager.
 - `clearDiagnostics()` shows a main-process confirmation dialog, then deletes only managed diagnostics JSONL files and crash dumps. It returns `{ canceled, deletedFiles, failedFiles }` so Windows file-lock partial failures can be surfaced without blocking the app.
+- `exportAppBackup({ kind, rendererPreferences })` opens a native save dialog and writes either a settings backup or full logical app backup. Full export is blocked while sync or downloads are active.
+- `importAppBackup()` opens a native JSON file dialog, auto-detects settings/full backup kind, validates format version, applies settings and renderer preferences, and returns import counts plus warnings. All imports are blocked while sync or downloads are active.
 - `reportRendererError()` is a fire-and-forget diagnostics channel for renderer global errors and handled workflow failures. Main sanitizes payload content before JSONL persistence.
 
 ## Downloads And FFmpeg API
@@ -116,6 +120,7 @@ Current behavior:
 - `importJson()` imports an already parsed JSON resource into an explicit collection.
 - `exportJson()` returns an in-memory export resource.
 - `exportJsonFile()` opens a native save dialog and streams export JSON to disk when not canceled.
+- Native data-engine boundary methods `exportBackupData()` and `importBackupData(data)` are used only by main-process app backup actions; they are not exposed through `window.jableApp`.
 - WebView preload may call `db:refresh-video-metadata` directly for Jable video pages. This IPC is not exposed through `window.jableApp`; it canonicalizes trusted Jable video URLs and refreshes only existing local video metadata without changing collection membership.
 
 ## Pending Remote Operation API

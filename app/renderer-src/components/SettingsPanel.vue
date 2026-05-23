@@ -63,6 +63,9 @@ const emit = defineEmits<{
   'check-updates': [];
   'import-json': [payload: { collectionKey: CollectionKey; resource: ExportResource }];
   'export-json': [collectionKey: CollectionKey];
+  'export-settings-backup': [];
+  'export-full-backup': [];
+  'import-app-backup': [];
 }>();
 
 const i18n = useI18n();
@@ -278,6 +281,15 @@ function countImportRows(resource: ExportResource) {
   return total;
 }
 
+function isAppBackupResource(value: unknown) {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    ((value as { kind?: unknown }).kind === 'jable-desktop-settings-backup' ||
+      (value as { kind?: unknown }).kind === 'jable-desktop-full-backup')
+  );
+}
+
 function chooseImportFile() {
   if (importFile.value) importFile.value.click();
 }
@@ -290,6 +302,7 @@ async function handleImportFile(event: Event) {
 
   try {
     const resource = JSON.parse(await file.text()) as ExportResource;
+    if (isAppBackupResource(resource)) throw new Error(t('settings.data.importJsonIsAppBackup'));
     const detection = detectImportCollection(resource, file.name);
     importFileName.value = file.name;
     importResource.value = resource;
@@ -965,6 +978,37 @@ function shortcutTokenSeparator(tokenIndex: number) {
                     @click="emit('export-json', exportCollection)"
                   >
                     {{ t('settings.data.exportAction') }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <span class="settings-label">{{ t('settings.data.appBackup') }}</span>
+                <div class="settings-actions">
+                  <button
+                    type="button"
+                    data-test="settings-export-settings-backup"
+                    :disabled="busy"
+                    @click="emit('export-settings-backup')"
+                  >
+                    {{ t('settings.data.exportSettingsBackup') }}
+                  </button>
+                  <button
+                    type="button"
+                    data-test="settings-export-full-backup"
+                    :disabled="busy"
+                    @click="emit('export-full-backup')"
+                  >
+                    {{ t('settings.data.exportFullBackup') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="primary"
+                    data-test="settings-import-app-backup"
+                    :disabled="busy"
+                    @click="emit('import-app-backup')"
+                  >
+                    {{ t('settings.data.importAppBackup') }}
                   </button>
                 </div>
               </div>

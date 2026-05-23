@@ -153,15 +153,17 @@ The Settings page controls:
 - Full Sync acceleration: Safe, Standard, or Fast
 - Whether sync-time favourite and watch-later changes are sent automatically in original operation order after sync
 - FFmpeg status, Check Again, manual FFmpeg selection, download folder location, concurrent video downloads, and download speed mode
-- JSON import, JSON export, the local database path, opening the local data folder, opening the Log folder, and clearing diagnostics
+- JSON import, JSON export, settings backup, full app backup, the local database path, opening the local data folder, opening the Log folder, and clearing diagnostics
 - Manual update checks
 
 Fast mode prefetches more pages at once and helps large lists. If it hits timeout, 403, or 429 responses, the app falls back to conservative page-by-page sync.
 
 ## Import And Export
 
-- Export JSON backups from Settings > Data
-- Import JSON backups from Settings > Data
+- Export or import single-list JSON backups from Settings > Data
+- Export a settings backup, or export a full app backup that includes all local list rows, hidden state, sync state, and download records
+- Full app backup does not include Jable cookies/login session, logs, browser tab restore state, window placement, or downloaded video files
+- Importing a full app backup merges data and clears Pending Sync so old operations are not sent to Jable later; queued or downloading records are restored as paused
 - Preserve `site_order`
 - When a JSON file includes source metadata, the app preselects Favourites or Watch Later; if the source cannot be detected, choose the import target manually
 

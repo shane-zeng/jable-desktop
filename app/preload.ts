@@ -114,6 +114,12 @@ const jableApp: JableAppApi = {
   checkForUpdates: function () {
     return ipcRenderer.invoke('app:check-for-updates');
   },
+  exportAppBackup: function (payload) {
+    return ipcRenderer.invoke('app:export-backup', payload);
+  },
+  importAppBackup: function () {
+    return ipcRenderer.invoke('app:import-backup');
+  },
   listVideos: function (options) {
     return ipcRenderer.invoke('db:list-videos', options);
   },

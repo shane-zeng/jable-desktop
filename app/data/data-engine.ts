@@ -1,6 +1,8 @@
 'use strict';
 
 import type {
+  AppBackupData,
+  AppBackupTotals,
   CollectionKey,
   CollectionToggleResult,
   DownloadRecord,
@@ -95,6 +97,8 @@ export type DataEngine = {
   ): { imported: number; collectionKey: CollectionKey };
   exportResource(collectionKey: CollectionKey): ExportResource;
   exportResourceToFile(collectionKey: CollectionKey, filePath: string): Promise<{ filePath: string; total: number }>;
+  exportBackupData(): AppBackupData;
+  importBackupData(data: AppBackupData): { imported: AppBackupTotals; warnings: unknown[] };
 };
 
 export { COLLECTIONS };
@@ -243,6 +247,14 @@ class RustDataEngine implements DataEngine {
     return Promise.resolve(
       this.callNative('exportResourceToFile', { collectionKey: collectionKey, filePath: filePath })
     );
+  }
+
+  exportBackupData(): AppBackupData {
+    return this.callNative('exportBackupData', {});
+  }
+
+  importBackupData(data: AppBackupData): { imported: AppBackupTotals; warnings: unknown[] } {
+    return this.callNative('importBackupData', data);
   }
 }
 

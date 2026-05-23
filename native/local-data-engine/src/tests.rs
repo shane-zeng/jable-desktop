@@ -65,6 +65,15 @@ fn visible_urls(engine: &Engine, collection_key: &str) -> Vec<String> {
         .expect("visible URLs should collect")
 }
 
+fn table_count(engine: &Engine, table: &str) -> i64 {
+    let sql = format!("SELECT COUNT(*) FROM {table}");
+    engine
+        .conn()
+        .expect("connection should be open")
+        .query_row(&sql, [], |row| row.get(0))
+        .expect("table count should query")
+}
+
 fn remove_temp_database(engine: &mut Engine) {
     let path = PathBuf::from(
         engine
@@ -87,6 +96,227 @@ fn normalize_video_url_canonicalizes_supported_origins() {
         ))),
         Some("https://jable.tv/videos/example-video/".to_string())
     );
+}
+
+#[test]
+fn backup_export_includes_complete_logical_state_without_sync_operations() {
+    let mut engine = test_engine("backup-export");
+
+    engine
+        .save_sync_page(json!({
+            "collectionKey": "favourites",
+            "mode": "full",
+            "syncRunId": "backup-run",
+            "page": 1,
+            "rows": [
+                { "title": "Alpha", "url": "https://jable.tv/videos/alpha/", "siteOrder": 1 },
+                { "title": "Beta", "url": "https://jable.tv/videos/beta/", "siteOrder": 2 }
+            ]
+        }))
+        .expect("sync page should save");
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "remove",
+            "syncRunId": "backup-run",
+            "video": { "title": "Beta", "url": "https://jable.tv/videos/beta/" }
+        }))
+        .expect("remove should hide row");
+    engine
+        .upsert_download_asset(json!({
+            "videoUrl": "https://jable.tv/videos/alpha/",
+            "state": "queued",
+            "localPath": "Alpha/alpha.mp4",
+            "title": "Alpha download"
+        }))
+        .expect("download asset should save");
+
+    let backup = engine
+        .export_backup_data()
+        .expect("backup should export complete logical data");
+
+    assert!(backup.get("sync_operations").is_none());
+    assert!(backup
+        .get("videos")
+        .and_then(Value::as_array)
+        .expect("videos should be exported")
+        .iter()
+        .all(|row| row.get("search_text").is_none()));
+    assert_eq!(
+        backup
+            .get("collection_items")
+            .and_then(Value::as_array)
+            .expect("collection items should export")
+            .iter()
+            .find(|row| row.get("video_url") == Some(&json!("https://jable.tv/videos/beta/")))
+            .and_then(|row| row.get("is_visible")),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        backup
+            .get("sync_states")
+            .and_then(Value::as_array)
+            .expect("sync states should export")
+            .len(),
+        1
+    );
+    assert_eq!(
+        backup
+            .get("download_assets")
+            .and_then(Value::as_array)
+            .expect("download assets should export")
+            .first()
+            .and_then(|row| row.get("status")),
+        Some(&json!("queued"))
+    );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
+fn backup_import_merges_rows_pauses_active_downloads_and_clears_sync_operations() {
+    let mut engine = test_engine("backup-import");
+
+    engine
+        .save_sync_page(json!({
+            "collectionKey": "favourites",
+            "mode": "full",
+            "syncRunId": "existing-run",
+            "page": 1,
+            "rows": [
+                { "title": "Existing", "url": "https://jable.tv/videos/existing/", "siteOrder": 9 }
+            ]
+        }))
+        .expect("existing sync page should save");
+    engine
+        .apply_collection_toggle(json!({
+            "collectionKey": "favourites",
+            "action": "add",
+            "syncRunId": "pending-run",
+            "deferRemote": true,
+            "deferLocal": true,
+            "video": { "title": "Pending", "url": "https://jable.tv/videos/pending/" }
+        }))
+        .expect("pending operation should save");
+    assert_eq!(table_count(&engine, "sync_operations"), 1);
+
+    let result = engine
+        .import_backup_data(json!({
+            "videos": [
+                {
+                    "url": "https://fs1.app/videos/imported/",
+                    "title": "Imported",
+                    "views": 10,
+                    "likes": 2,
+                    "img": "https://example.test/imported.jpg",
+                    "preview": "https://example.test/imported.mp4",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-02T00:00:00Z"
+                }
+            ],
+            "collection_items": [
+                {
+                    "collection_key": "favourites",
+                    "video_url": "https://fs1.app/videos/imported/",
+                    "first_seen_at": "2026-01-01T00:00:00Z",
+                    "last_seen_at": "2026-01-02T00:00:00Z",
+                    "site_order": 1,
+                    "is_visible": true,
+                    "missing_at": null,
+                    "last_sync_run_id": "backup-run"
+                },
+                {
+                    "collection_key": "unknown",
+                    "video_url": "https://jable.tv/videos/skipped/",
+                    "first_seen_at": "2026-01-01T00:00:00Z",
+                    "last_seen_at": "2026-01-02T00:00:00Z"
+                }
+            ],
+            "sync_states": [
+                {
+                    "collection_key": "favourites",
+                    "completed": true,
+                    "last_scraped_page": 3,
+                    "last_known_url": "https://fs1.app/videos/imported/",
+                    "updated_at": "2026-01-03T00:00:00Z"
+                }
+            ],
+            "download_assets": [
+                {
+                    "video_url": "https://fs1.app/videos/imported/",
+                    "status": "downloading",
+                    "file_relative_path": "Imported/imported.mp4",
+                    "format": "mp4",
+                    "title": "Imported",
+                    "download_source": "normal",
+                    "progress": 0.5,
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "updated_at": "2026-01-02T00:00:00Z"
+                }
+            ]
+        }))
+        .expect("backup should import");
+
+    assert_eq!(
+        result
+            .get("imported")
+            .and_then(|value| value.get("collectionItems")),
+        Some(&json!(1))
+    );
+    assert_eq!(
+        result
+            .get("warnings")
+            .and_then(Value::as_array)
+            .expect("unknown collection should warn")
+            .len(),
+        1
+    );
+    assert_eq!(table_count(&engine, "sync_operations"), 0);
+    assert_eq!(
+        visible_urls(&engine, "favourites"),
+        vec![
+            "https://jable.tv/videos/imported/".to_string(),
+            "https://jable.tv/videos/existing/".to_string()
+        ]
+    );
+    let downloads = engine
+        .list_download_assets()
+        .expect("downloads should list")
+        .as_array()
+        .cloned()
+        .expect("downloads should be an array");
+    assert_eq!(
+        downloads.first().and_then(|row| row.get("videoUrl")),
+        Some(&json!("https://jable.tv/videos/imported/"))
+    );
+    assert_eq!(
+        downloads.first().and_then(|row| row.get("state")),
+        Some(&json!("paused"))
+    );
+
+    remove_temp_database(&mut engine);
+}
+
+#[test]
+fn backup_import_rejects_unsafe_download_paths_atomically() {
+    let mut engine = test_engine("backup-import-path");
+
+    let result = engine.import_backup_data(json!({
+        "download_assets": [
+            {
+                "video_url": "https://jable.tv/videos/unsafe/",
+                "status": "ready",
+                "file_relative_path": "../unsafe.mp4",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z"
+            }
+        ]
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(table_count(&engine, "download_assets"), 0);
+
+    remove_temp_database(&mut engine);
 }
 
 #[test]

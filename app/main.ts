@@ -11,6 +11,7 @@ import type {
   UpdateCheckResult
 } from './main-process/app-menu-manager';
 import type { AppActions, AppActionsContext } from './main-process/app-actions';
+import type { AppBackupActions, AppBackupActionsContext } from './main-process/app-backup';
 import type { BrowserLoadFailure, BrowserTab } from './main-process/browser/tab-manager';
 import type { BrowserOriginController, BrowserOriginControllerContext } from './main-process/browser/origin-controller';
 import type { BrowserRuntimeController, BrowserRuntimeControllerContext } from './main-process/browser/runtime';
@@ -35,6 +36,9 @@ import type {
   AppSettings,
   AppSettingsPatch,
   AppPlatform,
+  ExportAppBackupPayload,
+  ExportAppBackupResult,
+  ImportAppBackupResult,
   BrowserTabKind,
   BrowserTabMenuPayload,
   CollectionKey,
@@ -183,6 +187,9 @@ const webViewEnhancement = require('./browser/webview-enhancement') as WebViewEn
 const appActionsModule = require('./main-process/app-actions') as {
   createAppActions(context: AppActionsContext): AppActions;
 };
+const appBackupModule = require('./main-process/app-backup') as {
+  createAppBackupActions(context: AppBackupActionsContext): AppBackupActions;
+};
 const appMenuManagerModule = require('./main-process/app-menu-manager') as {
   createAppMenuManager(context: AppMenuManagerContext): AppMenuManager;
 };
@@ -282,6 +289,7 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: Electron.BrowserWindow | null = null;
 let appActions: AppActions | null = null;
+let appBackupActions: AppBackupActions | null = null;
 let appMenuManager: AppMenuManager | null = null;
 let browserOriginController: BrowserOriginController | null = null;
 let browserRuntimeController: BrowserRuntimeController | null = null;
@@ -833,6 +841,31 @@ function getAppActions(): AppActions {
   return appActions;
 }
 
+function getAppBackupActions(): AppBackupActions {
+  if (!appBackupActions) {
+    appBackupActions = appBackupModule.createAppBackupActions({
+      app: app,
+      dialog: dialog,
+      fs: fs,
+      getAppSettings: getAppSettings,
+      getAppVersion: function () {
+        return app.getVersion();
+      },
+      getDatabase: getDatabase,
+      getMainWindow: function () {
+        return mainWindow;
+      },
+      hasActiveSyncRuns: hasActiveSyncRuns,
+      hasQueuedOrActiveDownloads: hasQueuedOrActiveDownloads,
+      path: path,
+      t: t,
+      updateAppSettings: updateAppSettings
+    });
+  }
+
+  return appBackupActions;
+}
+
 function openLocalDataFolder(): Promise<{ opened: boolean; path: string }> {
   return getAppActions().openLocalDataFolder();
 }
@@ -1106,6 +1139,13 @@ function activeSyncRunsState() {
   return getSyncWorkerManager().activeSyncRunsState();
 }
 
+function hasActiveSyncRuns(): boolean {
+  const state = activeSyncRunsState();
+  return Object.keys(state.runs).some(function (collectionKey) {
+    return Boolean(state.runs[collectionKey as CollectionKey]);
+  });
+}
+
 function pendingCollectionOperationsState(): PendingCollectionOperationOverlayState {
   return getSyncWorkerManager().pendingCollectionOperationsState();
 }
@@ -1208,6 +1248,14 @@ async function exportJsonFile(collectionKey: CollectionKey): Promise<ExportJsonF
   return getAppActions().exportJsonFile(collectionKey);
 }
 
+async function exportAppBackup(payload: ExportAppBackupPayload): Promise<ExportAppBackupResult> {
+  return getAppBackupActions().exportAppBackup(payload);
+}
+
+async function importAppBackup(): Promise<ImportAppBackupResult> {
+  return getAppBackupActions().importAppBackup();
+}
+
 function forwardBrowserMessage(channel: string, payload: unknown) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('browser-message', {
@@ -1259,6 +1307,7 @@ function registerIpcHandlers() {
     currentLocale: function () {
       return currentLocale;
     },
+    exportAppBackup: exportAppBackup,
     exportJsonFile: exportJsonFile,
     forwardBrowserMessage: forwardBrowserMessage,
     getAppSettings: getAppSettings,
@@ -1287,6 +1336,7 @@ function registerIpcHandlers() {
       return getBrowserRuntime().goForward(tabId);
     },
     ipcMain: diagnosticsIpcMainWrapper(),
+    importAppBackup: importAppBackup,
     mainErrorMessage: mainErrorMessage,
     markActiveSyncMutated: markActiveSyncMutated,
     navigateBrowser: function (payload) {
